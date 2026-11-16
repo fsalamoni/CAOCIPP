@@ -128,7 +128,7 @@ function UnidadeOrgao({ u, criterio, gerir, chamar, indo, agora, baixar }) {
 }
 
 function Recurso({ r, nomes = true }) {
-    const fases = { intencao: 'Aberta a intenção de recurso', razoes: 'Prazo das razões', contrarrazoes: 'Prazo das contrarrazões', decisao: 'Aguardando a decisão', sem_recurso: 'Ninguém manifestou intenção de recorrer', decidido: 'Recurso decidido' };
+    const fases = { intencao: 'Aberta a intenção de recurso', razoes: 'Prazo das razões', contrarrazoes: 'Prazo das contrarrazões', decisao: 'Aguardando a decisão', autoridade: 'Encaminhado à autoridade superior', sem_recurso: 'Ninguém manifestou intenção de recorrer', decidido: 'Recurso decidido' };
     return (
         <div className="text-sm space-y-1">
             <p><b>{fases[r.momento] || ''}</b>. Intenção até {quandoBr(r.intencao_ate)}; razões até {quandoBr(r.razoes_ate)}; contrarrazões até {quandoBr(r.contrarrazoes_ate)} (horário de Brasília).</p>
@@ -144,7 +144,8 @@ function Recurso({ r, nomes = true }) {
                     <p className="mt-1 whitespace-pre-wrap text-slate-700 dark:text-slate-300">{c.texto}</p>
                 </details>
             ))}
-            {r.decisao && <p><b>Decisão:</b> {{ nao: 'Negado provimento', sim: 'Dado provimento', parcial: 'Dado provimento em parte' }[r.decisao.provimento]}. {r.decisao.fundamentos}</p>}
+            {r.encaminhado && <p><b>Mantida a decisão e encaminhado à autoridade superior:</b> {r.encaminhado.fundamentos}</p>}
+            {r.decisao && <p><b>Decisão{r.encaminhado ? ' da autoridade superior' : ''}:</b> {{ nao: 'Negado provimento', sim: 'Dado provimento', parcial: 'Dado provimento em parte' }[r.decisao.provimento]}. {r.decisao.fundamentos}</p>}
         </div>
     );
 }
@@ -183,6 +184,7 @@ export function JulgamentoOrgao({ orgId, procId }) {
                 <h3 className="text-base font-semibold flex items-center gap-2"><Gavel className="w-5 h-5 text-indigo-600 dark:text-indigo-400" aria-hidden /> Julgamento</h3>
                 <Badge className={d.etapa === 'encerrado' ? 'bg-emerald-700 hover:bg-emerald-700' : 'bg-indigo-600 hover:bg-indigo-600'}>{d.resultado || d.etapa_nome}</Badge>
             </div>
+            {d.equipe?.agente && !d.pode.gerir && d.etapa === 'julgamento' && <p className="text-xs text-slate-700 dark:text-slate-300">Quem conduz o julgamento é o agente de contratação, {d.equipe.agente.nome}. Aqui você acompanha.</p>}
             {d.etapa === 'julgamento' && <p className="text-xs text-slate-600 dark:text-slate-400">Cada item ou lote: desempate de ME/EPP quando houver, análise da proposta (negociação, proposta ajustada), aceitação, documentos e habilitação. Recusar ou inabilitar chama o próximo classificado. Tudo o que você faz aparece na conversa da sala.</p>}
             <ul className="space-y-2">{d.unidades.map((u) => <UnidadeOrgao key={u.chave} u={u} criterio={d.criterio} gerir={d.pode.gerir} chamar={chamar} indo={indo} agora={agora} baixar={baixar} />)}</ul>
             {d.pode.declarar && (
@@ -198,10 +200,13 @@ export function JulgamentoOrgao({ orgId, procId }) {
                 <div role="group" aria-label="Decidir o recurso" className="rounded-md border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 p-3 space-y-2">
                     <div><Label htmlFor="jg-provimento" className="text-xs">Decisão</Label>
                         <select id="jg-provimento" className={sel} value={decisao.provimento} onChange={(e) => setDecisao((v) => ({ ...v, provimento: e.target.value }))}>
-                            <option value="nao">Negar provimento (segue ao resultado)</option><option value="sim">Dar provimento (refaz o julgamento)</option><option value="parcial">Dar provimento em parte (refaz o que alcançou)</option>
+                            <option value="nao">{d.pode.encaminha ? 'Manter a decisão e encaminhar à autoridade superior' : 'Negar provimento (segue ao resultado)'}</option>
+                            <option value="sim">{d.pode.encaminha ? 'Reconsiderar: dar provimento (refaz o julgamento)' : 'Dar provimento (refaz o julgamento)'}</option>
+                            <option value="parcial">{d.pode.encaminha ? 'Reconsiderar em parte (refaz o que alcançou)' : 'Dar provimento em parte (refaz o que alcançou)'}</option>
                         </select></div>
+                    {d.pode.encaminha && <p className="text-xs text-slate-700 dark:text-slate-300">Com autoridade superior designada, quem conduz reconsidera ou mantém a decisão e encaminha o recurso, com a motivação, para a autoridade decidir (Lei 14.133/2021, art. 165, § 2º).</p>}
                     <div><Label htmlFor="jg-fundamentos" className="text-xs">Fundamentos (vão aos autos)</Label><Textarea id="jg-fundamentos" rows={4} className="mt-1" value={decisao.fundamentos} onChange={(e) => setDecisao((v) => ({ ...v, fundamentos: e.target.value }))} /></div>
-                    <div className="flex justify-end"><Button disabled={indo || decisao.fundamentos.trim().length < 20} onClick={() => chamar('certameDecidirRecurso', decisao, 'Recurso decidido')}>Registrar a decisão</Button></div>
+                    <div className="flex justify-end"><Button disabled={indo || decisao.fundamentos.trim().length < 20} onClick={() => chamar('certameDecidirRecurso', decisao, d.pode.encaminha && decisao.provimento === 'nao' ? 'Recurso encaminhado' : 'Recurso decidido')}>{d.pode.encaminha && decisao.provimento === 'nao' ? 'Encaminhar o recurso' : 'Registrar a decisão'}</Button></div>
                 </div>
             )}
             {d.pode.resultado && (
@@ -286,7 +291,7 @@ export function JulgamentoFornecedor({ certameId, criterio }) {
     };
     if (q.isLoading) return <p className="text-sm text-slate-600 dark:text-slate-400">Carregando o julgamento…</p>;
     if (q.error) return <p className="text-sm text-rose-700 dark:text-rose-300">{q.error.message}</p>;
-    const enviarMsg = d.etapa !== 'encerrado' ? async (texto) => { await secPortal('disputaMensagem', { certame_id: certameId, texto }); atualizar(); } : null;
+    const enviarMsg = d.etapa !== 'encerrado' && !d.observador ? async (texto) => { await secPortal('disputaMensagem', { certame_id: certameId, texto }); atualizar(); } : null;
     const campo = (id, rotulo, chaveTxt, inicial = '') => (
         <div><Label htmlFor={id} className="text-xs">{rotulo}</Label>
             <Textarea id={id} rows={4} maxLength={20000} className="mt-1" value={txt[chaveTxt] ?? inicial} onChange={(e) => setTxt((t) => ({ ...t, [chaveTxt]: e.target.value }))} /></div>
@@ -299,7 +304,8 @@ export function JulgamentoFornecedor({ certameId, criterio }) {
                 {d.etapa && <Badge className={d.etapa === 'encerrado' ? 'bg-emerald-700 hover:bg-emerald-700' : 'bg-indigo-600 hover:bg-indigo-600'}>{d.resultado || d.etapa_nome}</Badge>}
             </div>
             {!d.etapa && <p className="text-sm">A fase de lances terminou. O órgão abre o julgamento: acompanhe aqui e pelas mensagens.</p>}
-            {d.etapa && <p className="text-xs text-slate-600 dark:text-slate-400">Até o vencedor ser declarado, você aparece aos outros como {d.apelido}. Fique atento: o desempate de ME/EPP dura 5 minutos, e os prazos de envio de arquivos são do órgão.</p>}
+            {d.observador && <p className="text-xs text-slate-600 dark:text-slate-400">Você acompanha a sessão pública: vê o andamento de cada item, os avisos do órgão, o recurso e a ata. Os licitantes aparecem por apelido até a declaração do vencedor.</p>}
+            {d.etapa && !d.observador && <p className="text-xs text-slate-600 dark:text-slate-400">Até o vencedor ser declarado, você aparece aos outros como {d.apelido}. Fique atento: o desempate de ME/EPP dura 5 minutos, e os prazos de envio de arquivos são do órgão.</p>}
             {d.etapa && <ul className="space-y-2">{d.unidades.map((u) => <UnidadeFornecedor key={u.chave} u={u} criterio={criterio} certameId={certameId} agora={agora} atualizar={atualizar} />)}</ul>}
             {r && (
                 <div className="rounded-md border border-slate-200 dark:border-slate-700 p-3 space-y-2">
@@ -327,7 +333,7 @@ export function JulgamentoFornecedor({ certameId, criterio }) {
                 </div>
             )}
             {d.ata && <details className="rounded-md border border-slate-200 dark:border-slate-700 p-2" open><summary className="text-sm font-semibold cursor-pointer">Ata da disputa</summary><pre className="mt-2 whitespace-pre-wrap text-sm font-sans">{d.ata}</pre></details>}
-            <Mensagens lista={d.mensagens} id="jg-msg" rotulo="Mensagem ao órgão (só o órgão lê)" onEnviar={enviarMsg} />
+            <Mensagens lista={d.mensagens} id="jg-msg" rotulo={d.observador ? 'Avisos do órgão' : 'Mensagem ao órgão (só o órgão lê)'} onEnviar={enviarMsg} />
         </section>
     );
 }

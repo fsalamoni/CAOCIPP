@@ -22,11 +22,21 @@ import { HttpsError } from 'firebase-functions/v2/https';
 import { texto } from '../shared/secretaria';
 import {
     Lance, Posicao, Proposta, SEGUNDOS_ENTRE_LANCES, num, SEGUNDOS_PARA_DESFAZER, fimDosLances, momentoDaDisputa, ordenarPosicoes, posicaoDe,
-    problemaDoLance, totalDoValor, unidadesDeDisputa, valorTexto,
+    problemaDoLance, totalDoValor, unidadesDeDisputa, valorTexto, AtoDaDisputa, podeNaDisputa, podeObservar,
 } from '../shared/certames';
 import { auditar } from './config';
-import { Contexto, exigirPosse, lerProcesso } from './context';
+import { Contexto, lerProcesso } from './context';
 import type { Certame } from './certames';
+
+/** Confere o papel na equipe (S14); sem equipe, vale ter o processo. */
+export function exigirAto(x: Certame, uid: string, posse: boolean, ato: AtoDaDisputa) {
+    if (podeNaDisputa(x.equipe, uid, posse, ato)) return;
+    const eq = x.equipe;
+    const de = ato === 'homologar' && eq?.autoridade ? `da autoridade superior (${eq.autoridade.nome})`
+        : ato === 'conversar' && eq?.agente ? 'do agente de contratação e da equipe de apoio'
+            : eq?.agente ? `do agente de contratação (${eq.agente.nome})` : '';
+    throw new HttpsError('permission-denied', de ? `Este ato é ${de}` : 'O processo não está com uma unidade em que você esteja lotado');
+}
 
 type Payload = Record<string, unknown>;
 type Db = admin.firestore.Firestore;
@@ -108,11 +118,13 @@ export async function acaoSalaFornecedor(db: Db, uid: string, p: Payload, lerCer
     if (p.action === 'disputaSala') {
         return db.runTransaction(async (tx) => {
             const { ref, x } = await lerCertame(db, p.certame_id, tx);
-            if (!(x.fornecedores_uids || []).includes(uid)) throw new HttpsError('permission-denied', 'Você não participa desta disputa');
             const quando = agora();
+            // S14: na dispensa, quem não participa acompanha a sessão pública (sem lances próprios).
+            const observador = !(x.fornecedores_uids || []).includes(uid);
+            if (!podeObservar(x, uid, quando)) throw new HttpsError('permission-denied', 'Você não participa desta disputa');
             const momento = momentoDaDisputa(x, quando);
             if (!x.lances || momento === 'propostas' || x.situacao !== 'publicado') {
-                return { momento, fim: fimDosLances(x) || null, agora: quando, unidades: [], meus: [], mensagens: [] };
+                return { momento, fim: fimDosLances(x) || null, agora: quando, unidades: [], meus: [], mensagens: [], observador };
             }
             const { estado: e, novo } = await lerEstado(db, ref, x, tx);
             // Sem orderBy: igualdade pura dispensa índice composto; ordena aqui.
@@ -128,7 +140,7 @@ export async function acaoSalaFornecedor(db: Db, uid: string, p: Payload, lerCer
             const podeDesfazer = momento === 'lances' && ult && Date.parse(quando) - Date.parse(ult.em) <= SEGUNDOS_PARA_DESFAZER * 1000 && !e.desfeitos.includes(`${uid}:${ult.chave}`)
                 && !(meus.docs.find((d) => d.id === ult.lance_id)?.data() as Lance | undefined)?.excluido;
             return {
-                momento, fim: fimDosLances(x), agora: quando, apelido: apelido(e, uid),
+                momento, fim: fimDosLances(x), agora: quando, apelido: observador ? null : apelido(e, uid), observador,
                 unidades: resumoUnidades(x).map((u) => {
                     const ps = e.posicoes[u.chave] || [];
                     const k = ps.findIndex((v) => v.uid === uid);
@@ -221,7 +233,7 @@ export async function acaoSalaOrgao(c: Contexto, p: Payload, certameDoProcesso: 
     const db = c.db;
     const col = db.collection('secCertames');
     if (p.action === 'certameSala') {
-        const { data } = await lerProcesso(c, p.processo_id);
+        const { data } = await lerProcesso(c, p.processo_id, undefined, { equipe: true });
         const id = certameDoProcesso(data);
         if (!id) throw new HttpsError('not-found', 'Disputa não encontrada');
         const posse = c.ctx.unidadeIds.includes(data.unidade_atual);
@@ -251,19 +263,24 @@ export async function acaoSalaOrgao(c: Contexto, p: Payload, certameDoProcesso: 
                 lances: ls.docs.map((d) => { const l = d.data() as Lance; return { id: l.id, seq: l.seq, chave: l.chave, quem: quem(l.uid), valor: l.valor, total: l.total, em: l.em, excluido: l.excluido }; }),
                 mensagens: ms.docs.map((d) => { const m = d.data() as Mensagem; return { id: d.id, de: m.de, nome: m.de === 'licitante' && m.uid ? quem(m.uid) : m.nome, texto: m.texto, em: m.em, aviso: m.aviso }; }).reverse(),
                 total_lances: e.seq,
-                pode: { gerir: posse && momento === 'lances' },
+                pode: {
+                    gerir: podeNaDisputa(x.equipe, c.ctx.uid, posse, 'conduzir') && momento === 'lances',
+                    conversar: podeNaDisputa(x.equipe, c.ctx.uid, posse, 'conversar') && momento === 'lances',
+                },
             };
         });
     }
 
     // Excluir lance e mensagem: quem tem o processo, durante os lances.
     const r = await db.runTransaction(async (tx) => {
-        const { data } = await lerProcesso(c, p.processo_id, tx);
-        exigirPosse(c, data);
+        const { data } = await lerProcesso(c, p.processo_id, tx, { equipe: true });
         const id = certameDoProcesso(data);
         if (!id) throw new HttpsError('not-found', 'Disputa não encontrada');
         const ref = col.doc(id);
         const x = (await tx.get(ref)).data() as Certame;
+        if (!x) throw new HttpsError('not-found', 'Disputa não encontrada');
+        // S14: a conversa é do agente e da equipe de apoio; excluir lance, de quem conduz.
+        exigirAto(x, c.ctx.uid, c.ctx.unidadeIds.includes(data.unidade_atual), p.action === 'certameMensagem' ? 'conversar' : 'conduzir');
         const quando = agora();
         if (p.action === 'certameMensagem') exigirConversa(x, quando); else exigirLances(x, quando);
         const { estado: e } = await lerEstado(db, ref, x, tx);

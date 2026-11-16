@@ -1750,6 +1750,52 @@ anteriores, resultado e ata).
   ponytail: não refaz o empate ficto quando a primeira é recusada; se for
   preciso, chamar `abrirUnidade` de novo em `certameRecusar`.
 
+### Equipe da disputa e observador (16/11/2026)
+
+Perfis da disputa (S14), sobre o certame das etapas S11 a S13. Sem equipe
+designada, nada muda: todo ato do órgão é de quem tem o processo.
+
+- **Designação:** `certameEquipe` (quem tem o processo, do rascunho até o
+  resultado) grava em `secCertames/{id}` a `equipe` (`agente`, `apoio` com
+  até 10 pessoas, `autoridade`, cada um `{uid, nome}`) e `equipe_uids`, e no
+  processo `certame.equipe_uids`. Confere que cada pessoa é membro ativo do
+  órgão (`userOrganizations`) e não é parte no processo, e recusa autoridade
+  igual ao agente (segregação de funções, Lei 14.133/2021, art. 7º, § 1º).
+  Vai aos autos (`disputa_equipe`, com `textoDaEquipe`), à auditoria
+  (`SECRETARIA_SESSAO_EQUIPE_DESIGNADA`) e avisa os novos membros pelo sino
+  e por e-mail (`notificarPessoas`, subtipo `disputa`). Sem ninguém, desfaz
+  a designação.
+- **Quem faz o quê:** `podeNaDisputa(equipe, uid, posse, ato)` em
+  `shared/certames.ts`. `conduzir` (excluir lance, desempate, negociação,
+  convocação, aceitar, recusar, habilitar, reabrir, declarar o vencedor,
+  decidir o recurso): o agente, ou quem tem o processo sem agente.
+  `conversar` (mensagens da sala e do julgamento): quem conduz e a equipe de
+  apoio. `homologar` (resultado e recurso encaminhado): a autoridade, ou quem
+  conduz sem autoridade. `exigirAto` (`salaLances.ts`) confere no servidor e
+  diz de quem é o ato; as telas usam `pode` de `certameLer`, `certameSala` e
+  `certameJulgamento`.
+- **Leitura dos autos:** `lerProcesso(..., { equipe: true })` (e o caminho
+  do julgador em `obter`) aceita quem está em `certame.equipe_uids` enquanto
+  a disputa é a do processo (`equipeLe` em `context.ts`); depois do
+  resultado, o certame vira `ultimo_certame` e a leitura acaba. Lê como o
+  julgador: só juntados, sem restritos, cada leitura registrada (em nome da
+  "Disputa de preços"). `obter` devolve `leitura_equipe`.
+- **Minhas disputas:** `certameMinhas` lista os certames em rascunho ou
+  publicados em que a pessoa compõe a equipe (`equipe_uids array-contains`,
+  órgão filtrado na função, sem índice composto), com os papéis.
+- **Recurso em duas instâncias:** com autoridade designada, "negar
+  provimento" do agente vira encaminhamento (`recurso.encaminhado`,
+  `disputa_recurso_encaminhado`, `SECRETARIA_SESSAO_RECURSO_ENCAMINHADO`;
+  Lei 14.133/2021, art. 165, § 2º); `momentoDoRecurso` passa a
+  `autoridade` e só a autoridade decide (`certameDecidirRecurso`). Dar
+  provimento, no todo ou em parte, é a reconsideração e refaz o julgamento
+  como antes. A ata registra as duas manifestações.
+- **Observador:** `podeObservar` deixa, na dispensa (aviso público), qualquer
+  conta acompanhar `disputaSala` e `disputaJulgamento` depois da abertura,
+  com `observador: true`, sem apelido próprio e sem ações (melhor lance,
+  avisos do agente, julgamento, recurso e ata; nomes só depois da
+  declaração). Na cotação privada, só quem participa.
+
 ### Reunião deliberativa (15/11/2026)
 
 Nona etapa (S9). A sessão ganha o tipo `reuniao` (`secSessoes`, campo

@@ -186,7 +186,7 @@ export async function lerProcesso(
     c: Contexto,
     id: unknown,
     tx?: admin.firestore.Transaction,
-    opts: { julgador?: boolean } = {}
+    opts: { julgador?: boolean; equipe?: boolean } = {}
 ) {
     if (typeof id !== 'string' || !id) throw new HttpsError('invalid-argument', 'processoId é obrigatório');
     const ref = c.db.collection(COL.processos).doc(id);
@@ -202,7 +202,18 @@ export async function lerProcesso(
     }
     if (podeVer(data as never, c.ctx)) return { ref, data, julgador: false };
     if (opts.julgador && julgadorLe(c, data)) return { ref, data, julgador: true };
+    // Equipe da disputa de outra unidade: lê como o julgador (juntados, sem restritos, leitura registrada).
+    if ((opts.julgador || opts.equipe) && equipeLe(c, data)) return { ref, data, julgador: true };
     throw new HttpsError('not-found', 'Processo não encontrado');
+}
+
+/**
+ * Membro da equipe da disputa de preços (S14) que não vê o processo pela
+ * lotação: lê os autos e age na disputa enquanto ela é a do processo (até o
+ * resultado, quando vira `ultimo_certame`).
+ */
+export function equipeLe(c: Contexto, proc: admin.firestore.DocumentData): boolean {
+    return ((proc.certame?.equipe_uids || []) as string[]).includes(c.ctx.uid);
 }
 
 export function exigirPosse(c: Contexto, proc: admin.firestore.DocumentData) {

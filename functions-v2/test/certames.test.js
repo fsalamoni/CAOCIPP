@@ -165,3 +165,38 @@ test('julgamento: prazos do recurso em dias úteis, momentos e ata (S13)', () =>
     assert.match(ata, /Decisão: Negado provimento\. Sem razão\./);
     assert.match(ata, /Resultado: Homologada\./);
 });
+
+test('equipe da disputa: papéis, recurso em duas instâncias e observador (S14)', () => {
+    // Sem equipe: tudo de quem tem o processo (como antes).
+    for (const ato of ['conduzir', 'conversar', 'homologar']) {
+        assert.equal(s.podeNaDisputa(undefined, 'u1', true, ato), true);
+        assert.equal(s.podeNaDisputa(undefined, 'u1', false, ato), false);
+    }
+    const eq = { agente: { uid: 'ag', nome: 'Ana' }, apoio: [{ uid: 'ap', nome: 'Beto' }], autoridade: { uid: 'au', nome: 'Caio' } };
+    assert.equal(s.podeNaDisputa(eq, 'ag', false, 'conduzir'), true, 'o agente conduz mesmo fora da unidade');
+    assert.equal(s.podeNaDisputa(eq, 'dono', true, 'conduzir'), false, 'com agente, quem tem o processo não conduz');
+    assert.equal(s.podeNaDisputa(eq, 'ap', false, 'conversar'), true);
+    assert.equal(s.podeNaDisputa(eq, 'ap', false, 'conduzir'), false);
+    assert.equal(s.podeNaDisputa(eq, 'au', false, 'homologar'), true);
+    assert.equal(s.podeNaDisputa(eq, 'ag', false, 'homologar'), false, 'com autoridade, o agente não homologa');
+    assert.equal(s.podeNaDisputa({ apoio: [] }, 'dono', true, 'homologar'), true, 'sem autoridade, homologa quem conduz');
+    assert.deepEqual(s.uidsDaEquipe(eq).sort(), ['ag', 'ap', 'au']);
+    assert.deepEqual(s.papeisNaEquipe(eq, 'au'), ['Autoridade superior']);
+    assert.match(s.textoDaEquipe({ apoio: [] }), /não designado \(conduz quem tem o processo\)/);
+
+    const r = { intencao_ate: '2026-11-16T12:10:00.000Z', razoes_ate: '2026-11-19T02:59:59.000Z', contrarrazoes_ate: '2026-11-24T02:59:59.000Z', contrarrazoes: [],
+        intencoes: [{ uid: 'b', nome: 'B', motivo: 'm', em: 'x', razoes: { texto: 't', em: 'x' } }] };
+    const enc = { ...r, encaminhado: { fundamentos: 'Mantenho.', em: 'x', por: 'Ana' } };
+    assert.equal(s.momentoDoRecurso(enc, '2026-11-25T12:00:00.000Z'), 'autoridade');
+    assert.equal(s.momentoDoRecurso({ ...enc, decisao: { provimento: 'nao' } }, '2026-11-25T12:00:00.000Z'), 'decidido');
+    const ata = s.textoDaAta({ criterio: 'menor_preco', objeto: 'Papel', perfil: 'dispensa', processo_numero: '1/2026' },
+        [], () => 'B', [{ ...enc, decisao: { provimento: 'nao', fundamentos: 'Sem razão.' } }], 'Homologada', 0);
+    assert.match(ata, /Mantida a decisão por Ana, que encaminhou o recurso à autoridade superior: Mantenho\./);
+    assert.match(ata, /Decisão da autoridade superior: Negado provimento\./);
+
+    const x = { perfil: 'dispensa', situacao: 'publicado', abertura_em: '2026-11-16T12:00:00.000Z', fornecedores_uids: ['f1'] };
+    assert.equal(s.podeObservar(x, 'outro', '2026-11-16T11:00:00.000Z'), false, 'antes da abertura, não');
+    assert.equal(s.podeObservar(x, 'outro', '2026-11-16T13:00:00.000Z'), true);
+    assert.equal(s.podeObservar({ ...x, perfil: 'cotacao' }, 'outro', '2026-11-16T13:00:00.000Z'), false, 'cotação privada: só convidados');
+    assert.equal(s.podeObservar({ ...x, perfil: 'cotacao' }, 'f1', '2026-11-16T13:00:00.000Z'), true);
+});

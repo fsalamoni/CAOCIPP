@@ -28,11 +28,11 @@ import {
     ETAPAS_JULGAMENTO, EtapaJulgamento, HORAS_CONVOCACAO, MAX_ARQUIVOS_CONVOCACAO, MINUTOS_DESEMPATE, MINUTOS_INTENCAO, PERFIS_DISPUTA, PROVIMENTOS,
     Posicao, Proposta, Recurso, SITUACOES_JULGAMENTO, UnidadeJulgamento, abrirUnidade, aplicarDesempate, fimDoDesempate, fimDoPrazoUtil,
     julgamentoConcluido, linhaDaUnidade, momentoDoRecurso, num, ofertaMelhor, ordenarPosicoes, posicaoDe, proximaVez, proximoDoDesempate,
-    resultadoDaDisputa, textoDaAta, totalDoValor, unidadesDeDisputa, valorTexto,
+    resultadoDaDisputa, textoDaAta, totalDoValor, unidadesDeDisputa, valorTexto, AtoDaDisputa, podeNaDisputa, podeObservar,
 } from '../shared/certames';
 import { auditar } from './config';
-import { COL, Contexto, exigirPosse, lerProcesso, registrarMovimento } from './context';
-import { Mensagem, lerEstado } from './salaLances';
+import { COL, Contexto, lerProcesso, registrarMovimento } from './context';
+import { Mensagem, exigirAto, lerEstado } from './salaLances';
 import { avisarPorEmail } from './certames';
 import type { Certame, CertameNoProcesso } from './certames';
 import { registrarResultadoDaDisputa } from './processos';
@@ -124,7 +124,7 @@ export async function acaoJulgamentoOrgao(c: Contexto, p: Payload, classificar: 
     const idDe = (data: admin.firestore.DocumentData) => ((data.certame || data.ultimo_certame) as CertameNoProcesso | undefined)?.id || null;
 
     if (p.action === 'certameJulgamento' || p.action === 'certameArquivo') {
-        const { ref: pref, data } = await lerProcesso(c, p.processo_id);
+        const { ref: pref, data } = await lerProcesso(c, p.processo_id, undefined, { equipe: true });
         const id = idDe(data);
         if (!id) throw new HttpsError('not-found', 'Disputa não encontrada');
         const ref = col.doc(id);
@@ -142,14 +142,16 @@ export async function acaoJulgamentoOrgao(c: Contexto, p: Payload, classificar: 
         // Primeiro acesso depois dos lances: o encerramento vai aos autos (como na classificação).
         if (x!.lances && x!.situacao === 'publicado' && !(await jref(ref).get()).exists) await classificar(c, pref, id, x!);
         const posse = c.ctx.unidadeIds.includes(data.unidade_atual);
+        const pode = (ato: AtoDaDisputa) => podeNaDisputa(x!.equipe, c.ctx.uid, posse, ato);
+        const atos = { conduzir: pode('conduzir'), conversar: pode('conversar'), homologar: pode('homologar') };
         return db.runTransaction(async (tx) => {
             const [js, ms] = await Promise.all([tx.get(jref(ref)), tx.get(ref.collection('mensagens').orderBy('em', 'desc').limit(200))]);
             let j = js.data() as Julgamento | undefined;
             const novo = !j;
             if (!j) j = await montar(db, ref, x!, tx);
             const t = agora();
-            if ((atualizarEtapa(j, t) || novo) && posse) tx.set(jref(ref), j);
-            return vistaOrgao(x!, j, ms.docs.map((d) => ({ id: d.id, ...(d.data() as Mensagem) })), posse, t);
+            if ((atualizarEtapa(j, t) || novo) && (posse || atos.conduzir)) tx.set(jref(ref), j);
+            return vistaOrgao(x!, j, ms.docs.map((d) => ({ id: d.id, ...(d.data() as Mensagem) })), atos, t);
         });
     }
 
@@ -157,8 +159,7 @@ export async function acaoJulgamentoOrgao(c: Contexto, p: Payload, classificar: 
     let fechar = false;
     let procId = '';
     const r = await db.runTransaction(async (tx) => {
-        const { ref: pref, data } = await lerProcesso(c, p.processo_id, tx);
-        exigirPosse(c, data);
+        const { ref: pref, data } = await lerProcesso(c, p.processo_id, tx, { equipe: true });
         procId = pref.id;
         const atual = (data.certame || data.ultimo_certame) as CertameNoProcesso | undefined;
         if (!atual) throw new HttpsError('not-found', 'Disputa não encontrada');
@@ -171,6 +172,9 @@ export async function acaoJulgamentoOrgao(c: Contexto, p: Payload, classificar: 
         if (!j) throw new HttpsError('failed-precondition', 'Abra o julgamento antes');
         if (j.etapa === 'encerrado') throw new HttpsError('failed-precondition', 'A disputa já tem resultado');
         atualizarEtapa(j, t);
+        // S14: o resultado e o recurso encaminhado são da autoridade superior; o resto, de quem conduz.
+        const ato: AtoDaDisputa = p.action === 'certameResultado' || (p.action === 'certameDecidirRecurso' && !!j.recurso && momentoDoRecurso(j.recurso, t) === 'autoridade') ? 'homologar' : 'conduzir';
+        exigirAto(x!, c.ctx.uid, c.ctx.unidadeIds.includes(data.unidade_atual), ato);
         const cal = sanitizeCalendario((await tx.get(db.collection(COL.config).doc(c.orgId))).data()?.calendario) as CalendarioOrgao;
         const avisos: string[] = [];
         let mov: { tipo: string; texto: string } | null = null;
@@ -296,18 +300,32 @@ export async function acaoJulgamentoOrgao(c: Contexto, p: Payload, classificar: 
 
         if (p.action === 'certameDecidirRecurso') {
             const rr = j.recurso;
-            if (j.etapa !== 'recurso' || !rr || momentoDoRecurso(rr, t) !== 'decisao') throw new HttpsError('failed-precondition', 'O recurso se decide depois do prazo das contrarrazões (ou das razões, se ninguém arrazoou)');
+            const m = rr ? momentoDoRecurso(rr, t) : null;
+            if (j.etapa !== 'recurso' || !rr || (m !== 'decisao' && m !== 'autoridade')) throw new HttpsError('failed-precondition', 'O recurso se decide depois do prazo das contrarrazões (ou das razões, se ninguém arrazoou)');
             const provimento = String(p.provimento);
             if (!PROVIMENTOS[provimento]) throw new HttpsError('invalid-argument', 'Escolha a decisão do recurso');
             const fundamentos = texto(p.fundamentos, 20000);
             if (fundamentos.length < 20) throw new HttpsError('invalid-argument', 'Fundamente a decisão (ao menos 20 letras)');
-            rr.decisao = { provimento: provimento as 'nao', fundamentos, em: t, por: c.userName };
-            j.etapa = provimento === 'nao' ? 'resultado' : 'julgamento';
-            const txt = `Recurso na ${PERFIS_DISPUTA[x!.perfil].toLowerCase()}: ${PROVIMENTOS[provimento]}. ${fundamentos.replace(/[.\s]+$/, '')}.${provimento === 'nao' ? '' : ' O julgamento se refaz no que o recurso alcançou e o vencedor é declarado de novo.'}`;
-            mov = { tipo: 'disputa_recurso_decidido', texto: txt };
-            avisos.push(txt);
-            email = { uids: todos, assunto: `Recurso decidido: ${x!.objeto.slice(0, 60)}`, corpo: txt };
-            auditoria = 'SECRETARIA_SESSAO_RECURSO_DECIDIDO';
+            const disputa = PERFIS_DISPUTA[x!.perfil].toLowerCase();
+            const sup = x!.equipe?.autoridade;
+            if (m === 'decisao' && provimento === 'nao' && sup) {
+                // Lei 14.133/2021, art. 165, § 2º: sem reconsiderar, o agente encaminha à autoridade superior, que decide.
+                rr.encaminhado = { fundamentos, em: t, por: c.userName };
+                const txt = `Recurso na ${disputa}: ${c.userName} manteve a decisão e encaminhou o recurso à autoridade superior (${sup.nome}). ${fundamentos.replace(/[.\s]+$/, '')}.`;
+                mov = { tipo: 'disputa_recurso_encaminhado', texto: txt };
+                avisos.push(txt);
+                email = { uids: todos, assunto: `Recurso encaminhado: ${x!.objeto.slice(0, 60)}`, corpo: txt };
+                auditoria = 'SECRETARIA_SESSAO_RECURSO_ENCAMINHADO';
+            } else {
+                rr.decisao = { provimento: provimento as 'nao', fundamentos, em: t, por: c.userName };
+                j.etapa = provimento === 'nao' ? 'resultado' : 'julgamento';
+                const quemDecide = m === 'autoridade' ? ' (decisão da autoridade superior)' : sup ? ' (reconsideração)' : '';
+                const txt = `Recurso na ${disputa}${quemDecide}: ${PROVIMENTOS[provimento]}. ${fundamentos.replace(/[.\s]+$/, '')}.${provimento === 'nao' ? '' : ' O julgamento se refaz no que o recurso alcançou e o vencedor é declarado de novo.'}`;
+                mov = { tipo: 'disputa_recurso_decidido', texto: txt };
+                avisos.push(txt);
+                email = { uids: todos, assunto: `Recurso decidido: ${x!.objeto.slice(0, 60)}`, corpo: txt };
+                auditoria = 'SECRETARIA_SESSAO_RECURSO_DECIDIDO';
+            }
         }
 
         if (p.action === 'certameResultado') {
@@ -350,11 +368,13 @@ export async function acaoJulgamentoOrgao(c: Contexto, p: Payload, classificar: 
     return resto;
 }
 
-function vistaOrgao(x: Certame, j: Julgamento, msgs: Array<Mensagem & { id: string }>, posse: boolean, t: string) {
+function vistaOrgao(x: Certame, j: Julgamento, msgs: Array<Mensagem & { id: string }>, atos: Record<AtoDaDisputa, boolean>, t: string) {
     const nome = (uid: string | null | undefined) => (uid ? nomeComApelido(j, uid) : null);
     const us = unidadesDeDisputa(x).map((u0) => ({ u0, u: j.unidades[u0.chave] }));
     const momento = j.recurso ? momentoDoRecurso(j.recurso, t) : null;
-    const gerir = posse && j.etapa !== 'encerrado';
+    const aberto = j.etapa !== 'encerrado';
+    const gerir = atos.conduzir && aberto;
+    const homologa = atos.homologar && aberto;
     const desertas = us.every((v) => v.u.situacao === 'deserta');
     return {
         etapa: j.etapa, etapa_nome: ETAPAS_JULGAMENTO[j.etapa], criterio: x.criterio, perfil: x.perfil, lances: j.lances, agora: t, resultado: j.resultado || null, ata: j.ata || null,
@@ -373,11 +393,14 @@ function vistaOrgao(x: Certame, j: Julgamento, msgs: Array<Mensagem & { id: stri
         mensagens: msgs.map((m) => ({ id: m.id, de: m.de, nome: m.de === 'licitante' && m.uid ? nome(m.uid) : m.nome, texto: m.texto, em: m.em, aviso: m.aviso })).reverse(),
         pode: {
             gerir: gerir && j.etapa === 'julgamento',
-            conversar: gerir && x.situacao === 'publicado',
+            conversar: atos.conversar && aberto && x.situacao === 'publicado',
             declarar: gerir && j.etapa === 'julgamento' && julgamentoConcluido(us.map((v) => v.u)) && !desertas,
-            decidir: gerir && j.etapa === 'recurso' && momento === 'decisao',
-            resultado: gerir && (j.etapa === 'resultado' || (j.etapa === 'julgamento' && desertas)),
+            decidir: j.etapa === 'recurso' && ((gerir && momento === 'decisao') || (homologa && momento === 'autoridade')),
+            // Com autoridade superior, o "não" do agente encaminha o recurso em vez de decidi-lo.
+            encaminha: gerir && j.etapa === 'recurso' && momento === 'decisao' && !!x.equipe?.autoridade,
+            resultado: homologa && (j.etapa === 'resultado' || (j.etapa === 'julgamento' && desertas)),
         },
+        equipe: x.equipe || null,
     };
 }
 
@@ -388,7 +411,8 @@ type LerCertame = (db: Db, id: unknown, tx?: Tx) => Promise<{ ref: Ref; x: Certa
 export async function acaoJulgamentoFornecedor(db: Db, uid: string, p: Payload, lerCertame: LerCertame): Promise<unknown> {
     if (p.action === 'disputaJulgamento') {
         const { ref, x } = await lerCertame(db, p.certame_id);
-        if (!(x.fornecedores_uids || []).includes(uid)) throw new HttpsError('permission-denied', 'Você não participa desta disputa');
+        const observador = !(x.fornecedores_uids || []).includes(uid);
+        if (!podeObservar(x, uid, agora())) throw new HttpsError('permission-denied', 'Você não participa desta disputa');
         const [js, msgA, msgM] = await Promise.all([
             jref(ref).get(),
             ref.collection('mensagens').where('de', '==', 'agente').get(),
@@ -398,9 +422,9 @@ export async function acaoJulgamentoFornecedor(db: Db, uid: string, p: Payload, 
             .sort((a, b) => a.em.localeCompare(b.em)).slice(-150);
         const j = js.data() as Julgamento | undefined;
         const t = agora();
-        if (!j) return { etapa: null, mensagens, agora: t };
+        if (!j) return { etapa: null, mensagens, agora: t, observador };
         atualizarEtapa(j, t);
-        return vistaFornecedor(x, j, uid, t, mensagens);
+        return { ...vistaFornecedor(x, j, uid, t, mensagens), observador, ...(observador ? { apelido: null } : {}) };
     }
 
     if (p.action === 'disputaEnviarArquivo') {
@@ -499,13 +523,13 @@ export async function acaoJulgamentoFornecedor(db: Db, uid: string, p: Payload, 
                 if (corpo.length < 20) throw new HttpsError('invalid-argument', 'Escreva o texto (ao menos 20 letras)');
                 if (p.action === 'disputaRazoes') {
                     if (!minha) throw new HttpsError('permission-denied', 'Só apresenta razões quem manifestou intenção de recorrer');
-                    if (t > rr.razoes_ate || rr.decisao) throw new HttpsError('deadline-exceeded', 'O prazo das razões terminou');
+                    if (t > rr.razoes_ate || rr.decisao || rr.encaminhado) throw new HttpsError('deadline-exceeded', 'O prazo das razões terminou');
                     const nova = !minha.razoes;
                     minha.razoes = { texto: corpo, em: t };
                     if (nova) avisos.push(`${nome} apresentou as razões do recurso.`);
                 } else {
                     if (!rr.intencoes.length || t <= rr.intencao_ate) throw new HttpsError('failed-precondition', 'As contrarrazões cabem depois de haver intenção de recurso');
-                    if (t > rr.contrarrazoes_ate || rr.decisao || m === 'decisao') throw new HttpsError('deadline-exceeded', 'O prazo das contrarrazões terminou');
+                    if (t > rr.contrarrazoes_ate || rr.decisao || m === 'decisao' || m === 'autoridade') throw new HttpsError('deadline-exceeded', 'O prazo das contrarrazões terminou');
                     const k = rr.contrarrazoes.findIndex((v) => v.uid === uid);
                     if (k >= 0) rr.contrarrazoes[k] = { uid, nome, texto: corpo, em: t };
                     else { rr.contrarrazoes.push({ uid, nome, texto: corpo, em: t }); avisos.push(`${nome} apresentou contrarrazões.`); }
@@ -547,6 +571,7 @@ function vistaFornecedor(x: Certame, j: Julgamento, uid: string, t: string, mens
         }),
         recurso: rr ? {
             momento, intencao_ate: rr.intencao_ate, razoes_ate: rr.razoes_ate, contrarrazoes_ate: rr.contrarrazoes_ate, decisao: rr.decisao ? { provimento: rr.decisao.provimento, fundamentos: rr.decisao.fundamentos, em: rr.decisao.em } : null,
+            encaminhado: rr.encaminhado ? { fundamentos: rr.encaminhado.fundamentos, em: rr.encaminhado.em } : null,
             intencoes: rr.intencoes.map((i) => ({ nome: i.uid === uid ? 'Você' : i.nome, motivo: i.motivo, em: i.em, razoes: i.razoes || null })),
             contrarrazoes: rr.contrarrazoes.map((c) => ({ nome: c.uid === uid ? 'Você' : c.nome, texto: c.texto, em: c.em })),
             minha_intencao: !!minha,

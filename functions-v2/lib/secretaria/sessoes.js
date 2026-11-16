@@ -131,7 +131,8 @@ function incluirNaSessao(tx, c, alvo, o, pref, proc, inclusao, motivo, cont) {
 }
 /** Leitura dos autos pelo julgador, pela pauta: registrada fora dos autos (secProcessos/{id}/leituras). */
 async function registrarLeitura(c, ref, proc, oQue) {
-    const s = proc.sessao || proc.ultima_sessao || {};
+    // Equipe da disputa (S14) que não é julgador: a leitura fica em nome da disputa.
+    const s = !(0, context_1.julgadorLe)(c, proc) && (0, context_1.equipeLe)(c, proc) ? { titulo: 'Disputa de preços', colegiado: 'Equipe da disputa' } : proc.sessao || proc.ultima_sessao || {};
     await ref.collection('leituras').add({
         uid: c.ctx.uid, nome: c.userName, em: new Date().toISOString(), o_que: oQue.slice(0, 200),
         sessao_id: s.id || null, sessao: s.titulo || '', colegiado: s.colegiado || '',

@@ -5,6 +5,21 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 16/11/2026 — Equipe da disputa e acompanhamento público
+- Quem tem o processo designa, nos autos, o agente de contratação (ou
+  pregoeiro), a equipe de apoio e a autoridade superior. Cada um recebe
+  aviso e encontra a disputa em "Disputas em que você atua", no Processo
+  Eletrônico, mesmo sem estar lotado na unidade.
+- O agente conduz os lances e o julgamento; a equipe de apoio conversa com
+  os licitantes; a autoridade superior adjudica e homologa. Sem equipe, tudo
+  segue com quem tem o processo.
+- Recurso em duas instâncias: o agente reconsidera ou mantém a decisão e
+  encaminha à autoridade superior, que decide. As duas manifestações vão aos
+  autos e à ata.
+- Na dispensa eletrônica, qualquer pessoa com conta acompanha a sessão
+  pública pelo link do aviso: o melhor lance de cada item, os avisos do
+  agente, o julgamento e a ata, sem nomes até a declaração do vencedor.
+
 ### 15/11/2026 — Julgamento e resultado da disputa de preços
 - Depois dos lances (ou da abertura, sem lances), a unidade julga item por
   item: desempate de microempresa e empresa de pequeno porte a até 5% da

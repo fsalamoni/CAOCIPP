@@ -22,6 +22,7 @@ const secretaria_1 = require("../shared/secretaria");
 const exigencias_1 = require("../shared/exigencias");
 const permissoesFase_1 = require("../shared/permissoesFase");
 const certames_1 = require("../shared/certames");
+const avisosEquipe_1 = require("./avisosEquipe");
 const salaLances_1 = require("./salaLances");
 const julgamentoDisputa_1 = require("./julgamentoDisputa");
 const email_1 = require("../shared/email");
@@ -29,7 +30,7 @@ const config_1 = require("./config");
 const context_1 = require("./context");
 exports.COL_CERTAMES = 'secCertames';
 const COL_ACESSOS = 'secPortalAcessos';
-exports.ACOES_CERTAME = ['certameLer', 'certameSalvar', 'certamePublicar', 'certameAdiar', 'certameCancelar', 'certameConvidar', 'certameRevogarConvite', 'certamePropostas', ...salaLances_1.ACOES_SALA_ORGAO, ...julgamentoDisputa_1.ACOES_JULGAMENTO_ORGAO];
+exports.ACOES_CERTAME = ['certameLer', 'certameEquipe', 'certameMinhas', 'certameSalvar', 'certamePublicar', 'certameAdiar', 'certameCancelar', 'certameConvidar', 'certameRevogarConvite', 'certamePropostas', ...salaLances_1.ACOES_SALA_ORGAO, ...julgamentoDisputa_1.ACOES_JULGAMENTO_ORGAO];
 exports.ACOES_FORNECEDOR = ['disputaMinhas', 'disputaAviso', 'disputaConvite', 'disputaParticipar', 'disputaProposta', 'disputaRetirar', ...salaLances_1.ACOES_SALA_FORNECEDOR, ...julgamentoDisputa_1.ACOES_JULGAMENTO_FORNECEDOR];
 const APP_URL = process.env.APP_URL || 'https://sigo-caocipp.web.app';
 const escapar = (s) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
@@ -88,8 +89,23 @@ async function acaoCertame(c, p) {
         return (0, julgamentoDisputa_1.acaoJulgamentoOrgao)(c, p, classificacaoComLances);
     const quem = { uid: c.ctx.uid, nome: c.userName };
     const col = c.db.collection(exports.COL_CERTAMES);
+    // S14: disputas em curso em que a pessoa compõe a equipe (sem índice composto: o órgão filtra aqui).
+    if (p.action === 'certameMinhas') {
+        const snap = await col.where('equipe_uids', 'array-contains', quem.uid).limit(100).get();
+        const t = new Date().toISOString();
+        return {
+            disputas: snap.docs.map((d) => ({ id: d.id, x: d.data() }))
+                .filter(({ x }) => x.organization_id === c.orgId && (x.situacao === 'rascunho' || x.situacao === 'publicado'))
+                .map(({ id, x }) => ({
+                id, processo_id: x.processo_id, processo_numero: x.processo_numero, objeto: x.objeto, perfil: certames_1.PERFIS_DISPUTA[x.perfil], unidade: x.unidade_nome,
+                situacao: certames_1.SITUACOES_CERTAME[x.situacao], abertura_em: x.abertura_em || null, momento: x.situacao === 'publicado' ? (0, certames_1.momentoDaDisputa)(x, t) : null,
+                papeis: (0, certames_1.papeisNaEquipe)(x.equipe, quem.uid),
+            }))
+                .sort((a, b) => String(a.abertura_em || '9').localeCompare(String(b.abertura_em || '9'))),
+        };
+    }
     if (p.action === 'certameLer' || p.action === 'certamePropostas') {
-        const { ref, data } = await (0, context_1.lerProcesso)(c, p.processo_id);
+        const { ref, data } = await (0, context_1.lerProcesso)(c, p.processo_id, undefined, { equipe: true });
         const alvo = acaoDaDisputa(data);
         // Cumprida a ação, o certame fica como o último (a tela mostra o resultado), salvo se o rito já pede outra disputa.
         const atual = (data.certame || (alvo ? undefined : data.ultimo_certame));
@@ -135,12 +151,18 @@ async function acaoCertame(c, p) {
             pode: {
                 editar: posse && podeCumprir && (!x || x.situacao === 'rascunho' || x.situacao === 'cancelado'),
                 gerir: posse && !!x && !!atual && (x.situacao === 'publicado' || x.situacao === 'rascunho') && (!x.abertura_em || x.abertura_em > new Date().toISOString()),
+                // S14: quem tem o processo designa a equipe até o resultado.
+                equipe: posse && !!x && !!atual && (x.situacao === 'publicado' || x.situacao === 'rascunho'),
+                conduzir: !!x && (0, certames_1.podeNaDisputa)(x.equipe, c.ctx.uid, posse, 'conduzir'),
             },
-            motivo: !alvo && !x ? 'A fase atual não tem ação de disputa de preços pendente.' : !posse ? 'O processo não está com uma unidade em que você esteja lotado.' : !podeCumprir && (alvo === null || alvo === void 0 ? void 0 : alvo.regra.quem) ? `A disputa é de ${(0, permissoesFase_1.textoQuem)(alvo.regra.quem, alvo.regra.atribuicao)}.` : '',
+            papeis: x ? (0, certames_1.papeisNaEquipe)(x.equipe, c.ctx.uid) : [],
+            posse,
+            motivo: !alvo && !x ? 'A fase atual não tem ação de disputa de preços pendente.' : !posse ? (x && (0, certames_1.papeisNaEquipe)(x.equipe, c.ctx.uid).length ? '' : 'O processo não está com uma unidade em que você esteja lotado.') : !podeCumprir && (alvo === null || alvo === void 0 ? void 0 : alvo.regra.quem) ? `A disputa é de ${(0, permissoesFase_1.textoQuem)(alvo.regra.quem, alvo.regra.atribuicao)}.` : '',
         };
     }
     let email = null;
     let convite = null;
+    let designados = null;
     const r = await c.db.runTransaction(async (tx) => {
         var _a, _b, _c;
         const { ref, data } = await (0, context_1.lerProcesso)(c, p.processo_id, tx);
@@ -182,6 +204,21 @@ async function acaoCertame(c, p) {
         if (!viva || !cref || !atual)
             throw new https_1.HttpsError('not-found', 'Monte a disputa antes');
         const aberta = !!viva.abertura_em && viva.abertura_em <= agora;
+        if (p.action === 'certameEquipe') {
+            if (viva.situacao === 'encerrado')
+                throw new https_1.HttpsError('failed-precondition', 'A disputa já tem resultado');
+            const eq = await equipeDoPedido(c, tx, data, p);
+            const antes = (0, certames_1.uidsDaEquipe)(viva.equipe);
+            const uids = (0, certames_1.uidsDaEquipe)(eq || undefined);
+            tx.update(cref, eq ? { equipe: eq, equipe_uids: uids, version: viva.version + 1 } : { equipe: firestore_1.FieldValue.delete(), equipe_uids: firestore_1.FieldValue.delete(), version: viva.version + 1 });
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'disputa_equipe', eq
+                ? `Designada a equipe da ${certames_1.PERFIS_DISPUTA[viva.perfil].toLowerCase()}:\n${(0, certames_1.textoDaEquipe)(eq)}`
+                : `Desfeita a designação da equipe da ${certames_1.PERFIS_DISPUTA[viva.perfil].toLowerCase()}: os atos voltam a ser de quem tem o processo.`, { certame_id: cref.id });
+            const { equipe_uids: _e } = atual, semEquipe = __rest(atual, ["equipe_uids"]);
+            tx.update(ref, Object.assign(Object.assign({}, mov), { certame: uids.length ? Object.assign(Object.assign({}, atual), { equipe_uids: uids }) : semEquipe }));
+            designados = { uids: uids.filter((u) => !antes.includes(u)), eq, x: viva, procId: ref.id };
+            return { ok: true, auditoria: 'SECRETARIA_SESSAO_EQUIPE_DESIGNADA' };
+        }
         if (p.action === 'certamePublicar') {
             if (viva.situacao !== 'rascunho')
                 throw new https_1.HttpsError('failed-precondition', 'A disputa já foi publicada');
@@ -281,6 +318,14 @@ async function acaoCertame(c, p) {
     const e = email;
     if (e)
         void avisarPorEmail(c.db, e.id, e.uids, e.assunto, e.corpo);
+    const dz = designados;
+    if ((dz === null || dz === void 0 ? void 0 : dz.eq) && dz.uids.length) {
+        for (const uid of dz.uids) {
+            const papel = (0, certames_1.papeisNaEquipe)(dz.eq, uid).join(' e ').toLowerCase();
+            const msg = `Você foi designado(a) como ${papel} da ${certames_1.PERFIS_DISPUTA[dz.x.perfil].toLowerCase()} do processo ${dz.x.processo_numero} (${dz.x.objeto.slice(0, 80)}). Enquanto a disputa estiver em curso, você abre os autos e a disputa em "Disputas em que você atua", no Processo Eletrônico.`;
+            await (0, avisosEquipe_1.notificarPessoas)(c.db, c.orgId, [uid], { subtipo: 'disputa', titulo: 'Designação na disputa de preços', mensagem: msg, procId: dz.procId, html: `<p>${escapar(msg)}</p>` }, quem.uid);
+        }
+    }
     const cv = convite;
     if (cv) {
         const link = `${APP_URL}/Disputas?convite=${cv.token}`;
@@ -326,6 +371,36 @@ async function classificacaoComLances(c, pref, id, x0) {
             tx.set(ref.collection('sala').doc('estado'), e);
         return { unidades, lances: e.seq };
     });
+}
+/**
+ * Equipe pedida na tela, conferida: cada pessoa é membro ativo do órgão e não
+ * é parte no processo; autoridade superior não é o agente (segregação de
+ * funções, Lei 14.133/2021, art. 7º, § 1º). Sem ninguém, volta null.
+ */
+async function equipeDoPedido(c, tx, proc, p) {
+    const id = (v) => (typeof v === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(v) ? v : null);
+    const agente = id(p.agente_uid);
+    const autoridade = id(p.autoridade_uid);
+    const apoio = [...new Set((Array.isArray(p.apoio_uids) ? p.apoio_uids : []).map(id).filter((v) => !!v))].filter((u) => u !== agente && u !== autoridade);
+    if (apoio.length > certames_1.MAX_APOIO)
+        throw new https_1.HttpsError('invalid-argument', `Até ${certames_1.MAX_APOIO} pessoas na equipe de apoio`);
+    if (agente && agente === autoridade)
+        throw new https_1.HttpsError('invalid-argument', 'A autoridade superior não pode ser o próprio agente: quem conduz não decide o recurso contra si (segregação de funções)');
+    const todos = [agente, autoridade, ...apoio].filter((v) => !!v);
+    if (!todos.length)
+        return null;
+    const snaps = await Promise.all(todos.map((u) => tx.get(c.db.collection('userOrganizations').doc(`${u}_${c.orgId}`))));
+    const nomes = {};
+    snaps.forEach((s, k) => {
+        const m = s.data();
+        if (!m || m.active === false)
+            throw new https_1.HttpsError('invalid-argument', 'Escolha pessoas que sejam membros ativos do órgão');
+        if ((0, secretaria_1.ehParte)(proc, todos[k]))
+            throw new https_1.HttpsError('invalid-argument', `${m.user_name || 'Uma das pessoas'} é parte no processo e não pode compor a equipe`);
+        nomes[todos[k]] = String(m.user_name || m.user_email || 'Membro').slice(0, 120);
+    });
+    const membro = (u) => ({ uid: u, nome: nomes[u] });
+    return Object.assign(Object.assign(Object.assign({}, (agente ? { agente: membro(agente) } : {})), { apoio: apoio.map(membro) }), (autoridade ? { autoridade: membro(autoridade) } : {}));
 }
 /** E-mail a quem participa (fora da transação; a falha de envio não desfaz o ato). */
 async function avisarPorEmail(db, certameId, uids, assunto, corpo) {

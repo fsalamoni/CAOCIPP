@@ -459,12 +459,15 @@ export interface Recurso {
     declarado_em: string; intencao_ate: string; razoes_ate: string; contrarrazoes_ate: string;
     intencoes: Intencao[]; contrarrazoes: Array<{ uid: string; nome: string; texto: string; em: string }>;
     decisao?: { provimento: 'nao' | 'sim' | 'parcial'; fundamentos: string; em: string; por: string };
+    /** Com autoridade superior na equipe: o agente não reconsiderou e encaminhou (Lei 14.133/2021, art. 165, § 2º). */
+    encaminhado?: { fundamentos: string; em: string; por: string };
 }
 export const PROVIMENTOS: Record<string, string> = { nao: 'Negado provimento', sim: 'Dado provimento', parcial: 'Dado provimento em parte' };
 
 /** Em que ponto está o recurso: intenção, razões, contrarrazões, decisão, ou sem recurso (ninguém manifestou). */
-export function momentoDoRecurso(r: Recurso, agora: string): 'intencao' | 'razoes' | 'contrarrazoes' | 'decisao' | 'sem_recurso' | 'decidido' {
+export function momentoDoRecurso(r: Recurso, agora: string): 'intencao' | 'razoes' | 'contrarrazoes' | 'decisao' | 'autoridade' | 'sem_recurso' | 'decidido' {
     if (r.decisao) return 'decidido';
+    if (r.encaminhado) return 'autoridade';
     if (agora <= r.intencao_ate) return 'intencao';
     if (!r.intencoes.length) return 'sem_recurso';
     if (agora <= r.razoes_ate) return 'razoes';
@@ -500,8 +503,58 @@ export function textoDaAta(x: Pick<DadosCertame, 'criterio' | 'objeto'> & { perf
         if (!r.intencoes.length) { l.push(`Aberta a intenção de recurso até ${br(r.intencao_ate)}, ninguém manifestou.`); return; }
         for (const i of r.intencoes) l.push(`Intenção de ${i.nome}: ${i.motivo}${i.razoes ? ' (razões apresentadas)' : ' (sem razões no prazo)'}`);
         if (r.contrarrazoes.length) l.push(`Contrarrazões de ${r.contrarrazoes.map((c) => c.nome).join(', ')}.`);
-        if (r.decisao) l.push(`Decisão: ${PROVIMENTOS[r.decisao.provimento]}. ${r.decisao.fundamentos}`);
+        if (r.encaminhado) l.push(`Mantida a decisão por ${r.encaminhado.por}, que encaminhou o recurso à autoridade superior: ${r.encaminhado.fundamentos}`);
+        if (r.decisao) l.push(`Decisão${r.encaminhado ? ' da autoridade superior' : ''}: ${PROVIMENTOS[r.decisao.provimento]}. ${r.decisao.fundamentos}`);
     });
     l.push('', `Resultado: ${resultado}.`);
     return l.join('\n');
+}
+
+// ─── Equipe da disputa (S14) ───────────────────────────────────────────────
+// Agente de contratação ou pregoeiro (conduz), equipe de apoio (conversa e
+// acompanha) e autoridade superior (homologa e decide o recurso que o agente
+// não reconsiderou): Lei 14.133/2021, arts. 7º, 8º, 71 e 165, § 2º.
+// Sem equipe, todo ato do órgão é de quem tem o processo (como antes).
+
+export interface MembroEquipe { uid: string; nome: string }
+export interface EquipeDisputa { agente?: MembroEquipe; apoio: MembroEquipe[]; autoridade?: MembroEquipe }
+export const MAX_APOIO = 10;
+export type AtoDaDisputa = 'conduzir' | 'conversar' | 'homologar';
+
+export function podeNaDisputa(eq: EquipeDisputa | undefined, uid: string, posse: boolean, ato: AtoDaDisputa): boolean {
+    const conduz = eq?.agente ? eq.agente.uid === uid : posse;
+    if (ato === 'conduzir') return conduz;
+    if (ato === 'conversar') return conduz || !!eq?.apoio?.some((m) => m.uid === uid);
+    return eq?.autoridade ? eq.autoridade.uid === uid : conduz;
+}
+
+export function uidsDaEquipe(eq: EquipeDisputa | undefined): string[] {
+    if (!eq) return [];
+    return [...new Set([eq.agente?.uid, eq.autoridade?.uid, ...eq.apoio.map((m) => m.uid)].filter((v): v is string => !!v))];
+}
+
+/** Papéis de alguém na equipe, para a tela e a lista "Minhas disputas". */
+export function papeisNaEquipe(eq: EquipeDisputa | undefined, uid: string): string[] {
+    if (!eq) return [];
+    return [eq.agente?.uid === uid && 'Agente de contratação', eq.apoio.some((m) => m.uid === uid) && 'Equipe de apoio', eq.autoridade?.uid === uid && 'Autoridade superior']
+        .filter((v): v is string => !!v);
+}
+
+/**
+ * Observador (S14): na dispensa, cujo aviso é público, qualquer conta acompanha
+ * a sessão pública depois da abertura (lances por apelido, avisos do agente,
+ * julgamento e ata). Na cotação privada, só quem participa.
+ */
+export function podeObservar(x: { perfil: PerfilDisputa; situacao: string; abertura_em?: string; fornecedores_uids?: string[] }, uid: string, agora: string): boolean {
+    if ((x.fornecedores_uids || []).includes(uid)) return true;
+    return x.perfil === 'dispensa' && !!x.abertura_em && x.abertura_em <= agora && (x.situacao === 'publicado' || x.situacao === 'encerrado');
+}
+
+/** Texto do ato de designação, para os autos. */
+export function textoDaEquipe(eq: EquipeDisputa): string {
+    return [
+        `Agente de contratação: ${eq.agente?.nome || 'não designado (conduz quem tem o processo)'}.`,
+        `Equipe de apoio: ${eq.apoio.length ? eq.apoio.map((m) => m.nome).join(', ') : 'nenhuma'}.`,
+        `Autoridade superior: ${eq.autoridade?.nome || 'não designada (o agente homologa e decide o recurso)'}.`,
+    ].join('\n');
 }

@@ -205,7 +205,70 @@ function Convites({ c, gerir, chamar, indo }) {
     );
 }
 
-export default function DisputaPrecos({ orgId, procId, onFechar }) {
+/**
+ * Equipe da disputa (S14): agente de contratação (conduz), equipe de apoio
+ * (conversa) e autoridade superior (homologa e decide o recurso encaminhado).
+ * Quem tem o processo designa; sem equipe, tudo fica com quem tem o processo.
+ */
+function EquipeDisputa({ c, d, membros, chamar, indo }) {
+    const eq = c.equipe || null;
+    const [editar, setEditar] = useState(false);
+    const [f, setF] = useState({ agente: '', autoridade: '', apoio: [] });
+    const abrir = () => { setF({ agente: eq?.agente?.uid || '', autoridade: eq?.autoridade?.uid || '', apoio: (eq?.apoio || []).map((m) => m.uid) }); setEditar(true); };
+    const lista = (membros || []).slice().sort((a, b) => a.nome.localeCompare(b.nome));
+    const opcoes = (vazio) => [<option key="" value="">{vazio}</option>, ...lista.map((m) => <option key={m.uid} value={m.uid}>{m.nome}{m.funcao ? ` (${m.funcao})` : ''}</option>)];
+    const conflito = f.agente && f.agente === f.autoridade;
+    return (
+        <section aria-labelledby="dp-equipe" className="rounded-md border border-slate-200 dark:border-slate-700 p-3 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+                <h3 id="dp-equipe" className="text-sm font-semibold flex items-center gap-1.5 flex-1"><Users className="w-4 h-4" aria-hidden /> Equipe da disputa</h3>
+                {d.papeis?.length > 0 && <Badge variant="outline">Seu papel: {d.papeis.join(' e ')}</Badge>}
+                {d.pode.equipe && !editar && <Button size="sm" variant="outline" onClick={abrir}>{eq ? 'Alterar a equipe' : 'Designar a equipe'}</Button>}
+            </div>
+            {!editar && (eq ? (
+                <ul className="text-sm space-y-0.5">
+                    <li><b>Agente de contratação:</b> {eq.agente?.nome || 'não designado (conduz quem tem o processo)'}</li>
+                    <li><b>Equipe de apoio:</b> {eq.apoio.length ? eq.apoio.map((m) => m.nome).join(', ') : 'nenhuma'}</li>
+                    <li><b>Autoridade superior:</b> {eq.autoridade?.nome || 'não designada (quem conduz homologa)'}</li>
+                </ul>
+            ) : <p className="text-sm text-slate-600 dark:text-slate-400">Sem equipe designada: quem tem o processo conduz, conversa e homologa.</p>)}
+            {editar && (
+                <div className="space-y-2">
+                    <p className="text-xs text-slate-700 dark:text-slate-300">A designação vai aos autos e cada pessoa recebe aviso. Quem é de outra unidade lê os autos juntados e age na disputa só enquanto ela está em curso.</p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                        <div><Label htmlFor="dp-eq-agente" className="text-xs">Agente de contratação (pregoeiro): conduz os lances e o julgamento</Label>
+                            <select id="dp-eq-agente" className={sel} value={f.agente} onChange={(e) => setF((v) => ({ ...v, agente: e.target.value }))}>{opcoes('Ninguém: conduz quem tem o processo')}</select></div>
+                        <div><Label htmlFor="dp-eq-autoridade" className="text-xs">Autoridade superior: homologa e decide o recurso encaminhado</Label>
+                            <select id="dp-eq-autoridade" className={sel} value={f.autoridade} onChange={(e) => setF((v) => ({ ...v, autoridade: e.target.value }))}>{opcoes('Ninguém: quem conduz homologa')}</select></div>
+                    </div>
+                    <fieldset>
+                        <legend className="text-xs">Equipe de apoio: conversa com os licitantes e acompanha (até 10)</legend>
+                        <div className="mt-1 max-h-40 overflow-y-auto rounded-md border border-slate-200 dark:border-slate-700 p-2 grid gap-1 sm:grid-cols-2">
+                            {lista.filter((m) => m.uid !== f.agente && m.uid !== f.autoridade).map((m) => (
+                                <label key={m.uid} className="text-sm flex items-center gap-2">
+                                    <input type="checkbox" checked={f.apoio.includes(m.uid)} disabled={!f.apoio.includes(m.uid) && f.apoio.length >= 10}
+                                        onChange={(e) => setF((v) => ({ ...v, apoio: e.target.checked ? [...v.apoio, m.uid] : v.apoio.filter((u) => u !== m.uid) }))} />
+                                    <span>{m.nome}</span>
+                                </label>
+                            ))}
+                            {!lista.length && <p className="text-xs text-slate-600 dark:text-slate-400">Nenhum membro do órgão para listar.</p>}
+                        </div>
+                    </fieldset>
+                    {conflito && <p role="alert" className="text-xs text-rose-700 dark:text-rose-300">A autoridade superior não pode ser o próprio agente: quem conduz não decide o recurso contra o próprio ato.</p>}
+                    <div className="flex justify-end gap-2">
+                        <Button variant="ghost" onClick={() => setEditar(false)}>Voltar</Button>
+                        <Button disabled={indo || conflito} onClick={async () => {
+                            const apoio = f.apoio.filter((u) => u !== f.agente && u !== f.autoridade);
+                            if (await chamar('certameEquipe', { agente_uid: f.agente || null, autoridade_uid: f.autoridade || null, apoio_uids: apoio }, 'Equipe registrada nos autos')) setEditar(false);
+                        }}>Registrar a equipe</Button>
+                    </div>
+                </div>
+            )}
+        </section>
+    );
+}
+
+export default function DisputaPrecos({ orgId, procId, membros, onFechar }) {
     const qc = useQueryClient();
     const chave = ['sec-disputa', orgId, procId];
     const q = useQuery({ queryKey: chave, queryFn: () => secProcesso(orgId, 'certameLer', { processo_id: procId }) });
@@ -257,6 +320,7 @@ export default function DisputaPrecos({ orgId, procId, onFechar }) {
                 {q.isLoading && <p className="text-sm flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> Carregando…</p>}
                 {q.error && <p className="text-sm text-rose-700 dark:text-rose-300">{q.error.message}</p>}
                 {d && !c && !d.pode.editar && <p className="text-sm text-slate-700 dark:text-slate-300">{d.motivo || 'Nenhuma disputa montada.'}</p>}
+                {d && c && c.situacao !== 'cancelado' && (c.equipe || d.pode.equipe || d.papeis?.length > 0) && <EquipeDisputa c={c} d={d} membros={membros} chamar={chamar} indo={indo} />}
                 {d && form && editavel && (
                     <>
                         <p className="text-sm text-slate-700 dark:text-slate-300">
@@ -324,5 +388,32 @@ export default function DisputaPrecos({ orgId, procId, onFechar }) {
                 )}
             </DialogContent>
         </Dialog>
+    );
+}
+
+/** S14: disputas em curso em que a pessoa compõe a equipe (também de outra unidade). */
+export function DisputasEmQueAtuo({ orgId, onAbrir }) {
+    const q = useQuery({ queryKey: ['sec-disputas-equipe', orgId], queryFn: () => secProcesso(orgId, 'certameMinhas'), staleTime: 60000 });
+    const lista = q.data?.disputas || [];
+    if (!lista.length) return null;
+    return (
+        <section aria-labelledby="disp-atuo" className="rounded-lg border border-indigo-200 dark:border-indigo-900 bg-white dark:bg-slate-900 p-3 space-y-2">
+            <h2 id="disp-atuo" className="text-sm font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                <Gavel className="w-4 h-4 text-indigo-600 dark:text-indigo-400" aria-hidden /> Disputas em que você atua ({lista.length})
+            </h2>
+            <ul className="divide-y divide-slate-200 dark:divide-slate-700">
+                {lista.map((x) => (
+                    <li key={x.id} className="py-2 flex flex-wrap items-center gap-2 text-sm">
+                        <span className="min-w-0 flex-1">
+                            <span className="font-mono mr-2">{x.processo_numero}</span><span className="text-slate-900 dark:text-white">{x.objeto}</span>
+                            <span className="block text-xs text-slate-600 dark:text-slate-400">
+                                {x.papeis.join(' e ')} · {x.perfil} · {x.situacao}{x.abertura_em ? ` · abertura em ${quandoBr(x.abertura_em)}` : ''}{x.momento === 'lances' ? ' · em lances agora' : ''}
+                            </span>
+                        </span>
+                        <Button size="sm" variant="outline" aria-label={`Abrir o processo ${x.processo_numero}`} onClick={() => onAbrir(x.processo_id)}>Abrir</Button>
+                    </li>
+                ))}
+            </ul>
+        </section>
     );
 }

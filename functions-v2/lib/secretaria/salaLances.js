@@ -12,6 +12,7 @@ var __rest = (this && this.__rest) || function (s, e) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ACOES_SALA_FORNECEDOR = exports.ACOES_SALA_ORGAO = void 0;
+exports.exigirAto = exigirAto;
 exports.lerEstado = lerEstado;
 exports.acaoSalaFornecedor = acaoSalaFornecedor;
 exports.acaoSalaOrgao = acaoSalaOrgao;
@@ -20,6 +21,16 @@ const secretaria_1 = require("../shared/secretaria");
 const certames_1 = require("../shared/certames");
 const config_1 = require("./config");
 const context_1 = require("./context");
+/** Confere o papel na equipe (S14); sem equipe, vale ter o processo. */
+function exigirAto(x, uid, posse, ato) {
+    if ((0, certames_1.podeNaDisputa)(x.equipe, uid, posse, ato))
+        return;
+    const eq = x.equipe;
+    const de = ato === 'homologar' && (eq === null || eq === void 0 ? void 0 : eq.autoridade) ? `da autoridade superior (${eq.autoridade.nome})`
+        : ato === 'conversar' && (eq === null || eq === void 0 ? void 0 : eq.agente) ? 'do agente de contratação e da equipe de apoio'
+            : (eq === null || eq === void 0 ? void 0 : eq.agente) ? `do agente de contratação (${eq.agente.nome})` : '';
+    throw new https_1.HttpsError('permission-denied', de ? `Este ato é ${de}` : 'O processo não está com uma unidade em que você esteja lotado');
+}
 exports.ACOES_SALA_ORGAO = ['certameSala', 'certameExcluirLance', 'certameMensagem'];
 exports.ACOES_SALA_FORNECEDOR = ['disputaSala', 'disputaLance', 'disputaDesfazer', 'disputaMensagem'];
 const agora = () => new Date().toISOString();
@@ -79,12 +90,14 @@ async function acaoSalaFornecedor(db, uid, p, lerCertame) {
         return db.runTransaction(async (tx) => {
             var _a, _b;
             const { ref, x } = await lerCertame(db, p.certame_id, tx);
-            if (!(x.fornecedores_uids || []).includes(uid))
-                throw new https_1.HttpsError('permission-denied', 'Você não participa desta disputa');
             const quando = agora();
+            // S14: na dispensa, quem não participa acompanha a sessão pública (sem lances próprios).
+            const observador = !(x.fornecedores_uids || []).includes(uid);
+            if (!(0, certames_1.podeObservar)(x, uid, quando))
+                throw new https_1.HttpsError('permission-denied', 'Você não participa desta disputa');
             const momento = (0, certames_1.momentoDaDisputa)(x, quando);
             if (!x.lances || momento === 'propostas' || x.situacao !== 'publicado') {
-                return { momento, fim: (0, certames_1.fimDosLances)(x) || null, agora: quando, unidades: [], meus: [], mensagens: [] };
+                return { momento, fim: (0, certames_1.fimDosLances)(x) || null, agora: quando, unidades: [], meus: [], mensagens: [], observador };
             }
             const { estado: e, novo } = await lerEstado(db, ref, x, tx);
             // Sem orderBy: igualdade pura dispensa índice composto; ordena aqui.
@@ -101,7 +114,7 @@ async function acaoSalaFornecedor(db, uid, p, lerCertame) {
             const podeDesfazer = momento === 'lances' && ult && Date.parse(quando) - Date.parse(ult.em) <= certames_1.SEGUNDOS_PARA_DESFAZER * 1000 && !e.desfeitos.includes(`${uid}:${ult.chave}`)
                 && !((_b = (_a = meus.docs.find((d) => d.id === ult.lance_id)) === null || _a === void 0 ? void 0 : _a.data()) === null || _b === void 0 ? void 0 : _b.excluido);
             return {
-                momento, fim: (0, certames_1.fimDosLances)(x), agora: quando, apelido: apelido(e, uid),
+                momento, fim: (0, certames_1.fimDosLances)(x), agora: quando, apelido: observador ? null : apelido(e, uid), observador,
                 unidades: resumoUnidades(x).map((u) => {
                     const ps = e.posicoes[u.chave] || [];
                     const k = ps.findIndex((v) => v.uid === uid);
@@ -203,7 +216,7 @@ async function acaoSalaOrgao(c, p, certameDoProcesso) {
     const db = c.db;
     const col = db.collection('secCertames');
     if (p.action === 'certameSala') {
-        const { data } = await (0, context_1.lerProcesso)(c, p.processo_id);
+        const { data } = await (0, context_1.lerProcesso)(c, p.processo_id, undefined, { equipe: true });
         const id = certameDoProcesso(data);
         if (!id)
             throw new https_1.HttpsError('not-found', 'Disputa não encontrada');
@@ -238,19 +251,25 @@ async function acaoSalaOrgao(c, p, certameDoProcesso) {
                 lances: ls.docs.map((d) => { const l = d.data(); return { id: l.id, seq: l.seq, chave: l.chave, quem: quem(l.uid), valor: l.valor, total: l.total, em: l.em, excluido: l.excluido }; }),
                 mensagens: ms.docs.map((d) => { const m = d.data(); return { id: d.id, de: m.de, nome: m.de === 'licitante' && m.uid ? quem(m.uid) : m.nome, texto: m.texto, em: m.em, aviso: m.aviso }; }).reverse(),
                 total_lances: e.seq,
-                pode: { gerir: posse && momento === 'lances' },
+                pode: {
+                    gerir: (0, certames_1.podeNaDisputa)(x.equipe, c.ctx.uid, posse, 'conduzir') && momento === 'lances',
+                    conversar: (0, certames_1.podeNaDisputa)(x.equipe, c.ctx.uid, posse, 'conversar') && momento === 'lances',
+                },
             };
         });
     }
     // Excluir lance e mensagem: quem tem o processo, durante os lances.
     const r = await db.runTransaction(async (tx) => {
-        const { data } = await (0, context_1.lerProcesso)(c, p.processo_id, tx);
-        (0, context_1.exigirPosse)(c, data);
+        const { data } = await (0, context_1.lerProcesso)(c, p.processo_id, tx, { equipe: true });
         const id = certameDoProcesso(data);
         if (!id)
             throw new https_1.HttpsError('not-found', 'Disputa não encontrada');
         const ref = col.doc(id);
         const x = (await tx.get(ref)).data();
+        if (!x)
+            throw new https_1.HttpsError('not-found', 'Disputa não encontrada');
+        // S14: a conversa é do agente e da equipe de apoio; excluir lance, de quem conduz.
+        exigirAto(x, c.ctx.uid, c.ctx.unidadeIds.includes(data.unidade_atual), p.action === 'certameMensagem' ? 'conversar' : 'conduzir');
         const quando = agora();
         if (p.action === 'certameMensagem')
             exigirConversa(x, quando);
