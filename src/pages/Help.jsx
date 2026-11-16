@@ -151,6 +151,8 @@ export default function Help() {
                 "Minutas são rascunhos da unidade; Juntar inclui nos autos, com número e data",
                 "Ao enviar um arquivo, diga na hora o tipo, do que se trata e se ele é juntado, guardado ou fica como minuta",
                 "Ação ligada a um dado do processo se cumpre sozinha quando o dado está preenchido",
+                "Arquivos de até 50 MB: o original fica intacto (prova, com hash, em Baixar original) e as folhas usam uma versão leve, sem perda visível",
+                "No celular, o PDF abre na própria tela, página a página, com zoom e Baixar",
                 "Atalhos: N novo documento, T enviar, J juntar; Ler em sequência lê os autos sem cliques",
               ]}
             />

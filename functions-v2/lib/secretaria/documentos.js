@@ -28,6 +28,7 @@ const prazosFase_1 = require("../shared/prazosFase");
 const secretaria_2 = require("../shared/secretaria");
 const context_1 = require("./context");
 const autos_1 = require("./autos");
+const arquivos_1 = require("./arquivos");
 const pdfDocumento_1 = require("./pdfDocumento");
 const audienciaSala_1 = require("./audienciaSala");
 const MAX_DESCRICAO_DOC = 500;
@@ -51,7 +52,9 @@ exports.textoDescritivo = textoDescritivo;
 function caminhoArquivo(orgId, procId, docId) {
     return `secretaria/${orgId}/${procId}/${docId}`;
 }
-exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, memory: '512MiB' }, async (request) => {
+exports.secretariaDocumento = (0, https_1.onCall)(
+// Arquivos de até 50 MB: imagem recomprimida e PDF reorganizado pedem memória e tempo.
+{ region: context_1.REGION, memory: '1GiB', timeoutSeconds: 300 }, async (request) => {
     var _a;
     const auth = (0, context_1.exigirAuth)(request);
     const p = request.data || {};
@@ -111,12 +114,13 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
         exigirLeitura(doc);
         if (p.versaoId) {
             const v = await lerVersao(ref);
-            return { origem: 'editor', titulo: v.titulo, tipo: v.tipo, conteudo: v.conteudo };
+            return { origem: 'editor', titulo: v.titulo, tipo: v.tipo, conteudo: await (0, autos_1.conteudoDoDocumento)(v) };
         }
         if (doc.origem === 'editor')
-            return { origem: 'editor', titulo: doc.titulo, tipo: doc.tipo, conteudo: (0, autos_1.conteudoDoDocumento)(doc) };
-        const [buf] = await admin.storage().bucket().file(doc.storage_path).download();
-        return { origem: 'upload', titulo: doc.titulo, mime: doc.mime, nomeArquivo: doc.nome_arquivo, base64: buf.toString('base64') };
+            return { origem: 'editor', titulo: doc.titulo, tipo: doc.tipo, conteudo: await (0, autos_1.conteudoDoDocumento)(doc) };
+        // O original, byte a byte como foi enviado (é a prova; o SHA-256 confere).
+        const arq = await (0, arquivos_1.entregar)(await (0, arquivos_1.lerOriginal)(doc), String(doc.nome_arquivo || doc.titulo), String(doc.mime), auth.uid);
+        return Object.assign({ origem: 'upload', titulo: doc.titulo, nomeArquivo: doc.nome_arquivo }, arq);
     }
     // PDF do documento: juntado, como está nos autos (com folhas e carimbo);
     // minuta da minha unidade, como prévia com marca d'água.
@@ -126,17 +130,17 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
         if (p.versaoId) {
             exigirLeitura(doc);
             const v = await lerVersao(ref);
-            const r = await (0, pdfDocumento_1.renderizarDocumento)(v.conteudo, await (0, autos_1.lerConfigDocumento)(c.db, c.orgId, doc.unidade_origem), { assinaturas: [], sha256: v.sha256, marcaDagua: 'VERSÃO ANTERIOR' });
+            const r = await (0, pdfDocumento_1.renderizarDocumento)(await (0, autos_1.conteudoDoDocumento)(v), await (0, autos_1.lerConfigDocumento)(c.db, c.orgId, doc.unidade_origem), { assinaturas: [], sha256: v.sha256, marcaDagua: 'VERSÃO ANTERIOR' });
             return { base64: r.buffer.toString('base64'), nome: `versao-anterior-${nome}`, paginas: r.paginas };
         }
         if (doc.status === 'juntado')
-            return { base64: await (0, autos_1.pdfCarimbado)(c.db, c.orgId, procRef.id, String(proc.numero), p.docId, doc), nome };
+            return (0, arquivos_1.entregar)(await (0, autos_1.pdfCarimbado)(c.db, c.orgId, procRef.id, String(proc.numero), p.docId, doc), nome, 'application/pdf', auth.uid);
         const controle = doc.status === 'controle';
         if (!controle && !(0, secretaria_1.minutaAcessivel)(doc, c.ctx.unidadeIds))
             throw new https_1.HttpsError('not-found', 'Documento não encontrado');
         if (doc.origem !== 'editor')
             throw new https_1.HttpsError('failed-precondition', controle ? 'Baixe o arquivo original do documento' : 'Baixe o arquivo original da minuta');
-        const r = await (0, pdfDocumento_1.renderizarDocumento)((0, autos_1.conteudoDoDocumento)(doc), await (0, autos_1.lerConfigDocumento)(c.db, c.orgId, doc.unidade_origem), {
+        const r = await (0, pdfDocumento_1.renderizarDocumento)(await (0, autos_1.conteudoDoDocumento)(doc), await (0, autos_1.lerConfigDocumento)(c.db, c.orgId, doc.unidade_origem), {
             assinaturas: doc.assinaturas || [], sha256: doc.sha256, marcaDagua: controle ? 'FORA DOS AUTOS' : 'MINUTA',
         });
         return { base64: r.buffer.toString('base64'), nome, paginas: r.paginas };
@@ -156,27 +160,41 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
             catch (e) {
                 (0, context_1.erroUsuario)(e);
             }
-            await ref.set(Object.assign(Object.assign({}, base), { origem: 'editor', conteudo, sha256: (0, secretaria_1.sha256)((0, secretaria_1.jsonCanonico)(conteudo)) }));
+            const hash = (0, secretaria_1.sha256)((0, secretaria_1.jsonCanonico)(conteudo));
+            const campos = (0, arquivos_1.semApagar)(await (0, arquivos_1.camposDoConteudo)(caminhoArquivo(c.orgId, procRef.id, ref.id), conteudo, hash));
+            await ref.set(Object.assign(Object.assign(Object.assign(Object.assign({}, base), { origem: 'editor' }), campos), { sha256: hash }));
             return { success: true, id: ref.id };
         }
         const mime = String(p.mime || '');
         if (!secretaria_1.TIPOS_ARQUIVO_PERMITIDOS[mime])
             throw new https_1.HttpsError('invalid-argument', 'Tipo de arquivo não aceito');
-        const buf = Buffer.from(String(p.base64 || ''), 'base64');
-        if (!buf.length)
-            throw new https_1.HttpsError('invalid-argument', 'Arquivo vazio');
-        if (buf.length > secretaria_1.MAX_UPLOAD_BYTES)
-            throw new https_1.HttpsError('invalid-argument', 'Arquivo acima de 5 MB');
+        const buf = await (0, arquivos_1.lerArquivoEnviado)(p, auth.uid, mime);
         const path = caminhoArquivo(c.orgId, procRef.id, ref.id);
+        const nomeArquivo = (0, secretaria_1.texto)(p.nomeArquivo) || titulo;
+        const hash = (0, secretaria_1.sha256)(buf);
         const paginas = await (0, autos_1.paginasDeArquivo)(buf, mime);
-        const arquivo = admin.storage().bucket().file(path);
-        await arquivo.save(buf, { contentType: mime, resumable: false });
+        const bucket = admin.storage().bucket();
+        const guardado = await (0, arquivos_1.gravarOriginal)(path, buf, mime);
+        // Versão de leitura (folhas, tela, PDF do processo); se falhar, os autos usam o original.
+        let leitura = null;
         try {
-            await ref.set(Object.assign(Object.assign({}, base), { origem: 'upload', mime, nome_arquivo: (0, secretaria_1.texto)(p.nomeArquivo) || titulo, tamanho: buf.length, sha256: (0, secretaria_1.sha256)(buf), storage_path: path, paginas }));
+            const v = await (0, autos_1.versaoDeLeitura)(buf, { mime, titulo, nome_arquivo: nomeArquivo, sha256: hash });
+            if (v) {
+                await bucket.file(`${path}.leitura.pdf`).save(Buffer.from(v), { contentType: 'application/pdf', resumable: false });
+                leitura = { leitura_path: `${path}.leitura.pdf`, leitura_tamanho: v.length };
+            }
+        }
+        catch (e) {
+            console.warn('[documentos] versão de leitura não gerada', e);
+        }
+        try {
+            await ref.set(Object.assign(Object.assign(Object.assign(Object.assign({}, base), { origem: 'upload', mime, nome_arquivo: nomeArquivo, tamanho: buf.length, sha256: hash, storage_path: path, paginas }), guardado), (leitura || {})));
         }
         catch (e) {
             // Sem o registro, o arquivo ficaria no armazenamento sem dono.
-            await arquivo.delete({ ignoreNotFound: true }).catch(() => undefined);
+            await bucket.file(path).delete({ ignoreNotFound: true }).catch(() => undefined);
+            if (leitura)
+                await bucket.file(leitura.leitura_path).delete({ ignoreNotFound: true }).catch(() => undefined);
             throw e;
         }
         return { success: true, id: ref.id };
@@ -191,6 +209,8 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
             (0, context_1.erroUsuario)(e);
         }
         const novoSha = (0, secretaria_1.sha256)((0, secretaria_1.jsonCanonico)(conteudo));
+        // Texto grande vai ao Storage antes (num arquivo por versão, então a redação anterior não é sobrescrita).
+        const campos = await (0, arquivos_1.camposDoConteudo)(caminhoArquivo(c.orgId, procRef.id, String(p.docId)), conteudo, novoSha);
         // Lido e gravado juntos: dois revisores ao mesmo tempo não perdem a redação anterior.
         await c.db.runTransaction(async (tx) => {
             const { ref, doc } = await lerDoc(tx);
@@ -201,9 +221,9 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
                 throw new https_1.HttpsError('failed-precondition', 'Minuta já assinada não se edita');
             const anterior = (0, secretaria_1.versaoAnterior)(doc, auth.uid, novoSha);
             if (anterior) {
-                tx.set(ref.collection('versoes').doc(), Object.assign(Object.assign({}, anterior), { conteudo: (0, autos_1.conteudoDoDocumento)(doc), substituida_em: agoraIso, substituida_por: c.userName }));
+                tx.set(ref.collection('versoes').doc(), Object.assign(Object.assign(Object.assign({}, anterior), (0, arquivos_1.copiaDoConteudo)(doc)), { substituida_em: agoraIso, substituida_por: c.userName }));
             }
-            tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign({ conteudo, sha256: novoSha, delta: firestore_1.FieldValue.delete() }, ((0, secretaria_1.texto)(p.titulo) ? { titulo: (0, secretaria_1.texto)(p.titulo) } : {})), ((0, secretaria_1.texto)(p.tipo, 60) ? { tipo: (0, secretaria_1.texto)(p.tipo, 60) } : {})), { editado_em: agoraIso, editado_por: auth.uid, editado_por_nome: c.userName }), (anterior ? { versoes_qtd: firestore_1.FieldValue.increment(1) } : {})));
+            tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, campos), { sha256: novoSha, delta: firestore_1.FieldValue.delete() }), ((0, secretaria_1.texto)(p.titulo) ? { titulo: (0, secretaria_1.texto)(p.titulo) } : {})), ((0, secretaria_1.texto)(p.tipo, 60) ? { tipo: (0, secretaria_1.texto)(p.tipo, 60) } : {})), { editado_em: agoraIso, editado_por: auth.uid, editado_por_nome: c.userName }), (anterior ? { versoes_qtd: firestore_1.FieldValue.increment(1) } : {})));
         });
         return { success: true };
     }
@@ -233,8 +253,11 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
         const bucket = admin.storage().bucket();
         if (doc.storage_path)
             await bucket.file(doc.storage_path).delete({ ignoreNotFound: true });
-        // PDF que uma juntada interrompida tenha deixado.
+        if (doc.leitura_path)
+            await bucket.file(doc.leitura_path).delete({ ignoreNotFound: true });
+        // PDF que uma juntada interrompida tenha deixado e os textos grandes (de todas as redações).
         await bucket.file((0, autos_1.caminhoPdf)(caminhoArquivo(c.orgId, procRef.id, p.docId))).delete({ ignoreNotFound: true });
+        await bucket.deleteFiles({ prefix: `${caminhoArquivo(c.orgId, procRef.id, p.docId)}.conteudo.` }).catch(() => undefined);
         return { success: true };
     }
     // O documento como o rito o confere: tipo, modelo, assinaturas e as atribuições de quem assinou.
@@ -329,7 +352,7 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
         let paginas = Number(antes.paginas) || 0;
         let pdf = null;
         if (antes.origem === 'editor') {
-            const r = await (0, pdfDocumento_1.renderizarDocumento)((0, autos_1.conteudoDoDocumento)(antes), await (0, autos_1.lerConfigDocumento)(c.db, c.orgId, antes.unidade_origem), {
+            const r = await (0, pdfDocumento_1.renderizarDocumento)(await (0, autos_1.conteudoDoDocumento)(antes), await (0, autos_1.lerConfigDocumento)(c.db, c.orgId, antes.unidade_origem), {
                 assinaturas: antes.assinaturas || [], sha256: antes.sha256,
             });
             paginas = r.paginas;
@@ -337,8 +360,7 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
             await bucket.file(pdf.path).save(r.buffer, { contentType: 'application/pdf', resumable: false });
         }
         else if (!paginas) {
-            const [buf] = await bucket.file(antes.storage_path).download();
-            paginas = await (0, autos_1.paginasDeArquivo)(buf, antes.mime);
+            paginas = await (0, autos_1.paginasDeArquivo)(await (0, arquivos_1.lerOriginal)(antes), antes.mime);
         }
         const r = await c.db.runTransaction(async (tx) => {
             var _a, _b;

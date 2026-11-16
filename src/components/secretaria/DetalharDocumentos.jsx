@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { arquivoParaBase64, secDocumento } from '@/services/secretariaService';
+import { prepararEnvio, secDocumento } from '@/services/secretariaService';
 import { atende, exigeDoDocumento, sugeridas } from '@/lib/exigencias';
 import { NativeSelect } from './comum';
 
@@ -43,7 +43,7 @@ export function resumoDetalhe(d) {
  * do ato). Falha num não desfaz os anteriores: devolve onde parou.
  * `version`: a do processo (sem ela, o servidor não confere).
  */
-export async function enviarDetalhados(orgId, procId, itens, { version } = {}) {
+export async function enviarDetalhados(orgId, procId, itens, { version, onProgresso } = {}) {
     let v = version;
     const feitos = [];
     let ultimo = null;
@@ -54,9 +54,9 @@ export async function enviarDetalhados(orgId, procId, itens, { version } = {}) {
         let docId = d.docId;
         try {
             if (!docId) {
-                const base64 = await arquivoParaBase64(d.file);
+                const envio = await prepararEnvio(d.file, onProgresso ? { onProgresso: (x) => onProgresso(d, x) } : {});
                 docId = (await secDocumento(orgId, procId, 'upload', {
-                    titulo: d.titulo.trim() || semExtensao(d.file.name), tipo: d.tipo || 'Documento', nomeArquivo: d.file.name, mime: d.file.type, base64,
+                    titulo: d.titulo.trim() || semExtensao(d.file.name), tipo: d.tipo || 'Documento', ...envio,
                     ...(d.descricao.trim() ? { descricao: d.descricao.trim() } : {}), ...(d.data_documento ? { data_documento: d.data_documento } : {}),
                 })).id;
             }

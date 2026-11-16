@@ -40,6 +40,7 @@ exports.acaoJulgamentoFornecedor = acaoJulgamentoFornecedor;
 const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
 const secretaria_1 = require("../shared/secretaria");
+const arquivos_1 = require("./arquivos");
 const certames_1 = require("../shared/certames");
 const config_1 = require("./config");
 const context_1 = require("./context");
@@ -131,7 +132,7 @@ async function acaoJulgamentoOrgao(c, p, classificar) {
             if (!a)
                 throw new https_1.HttpsError('not-found', 'Arquivo não encontrado');
             const [buf] = await admin.storage().bucket().file(a.path).download();
-            return { base64: buf.toString('base64'), nome: a.nome, mime: a.mime };
+            return (0, arquivos_1.entregar)(buf, a.nome, a.mime, c.ctx.uid);
         }
         // Primeiro acesso depois dos lances: o encerramento vai aos autos (como na classificação).
         if (x.lances && x.situacao === 'publicado' && !(await jref(ref).get()).exists)
@@ -448,9 +449,7 @@ async function acaoJulgamentoFornecedor(db, uid, p, lerCertame) {
         const mime = String(p.mime || '');
         if (!TIPOS_ARQUIVO[mime])
             throw new https_1.HttpsError('invalid-argument', 'Anexe PDF, Word (DOCX), PNG ou JPG');
-        const buf = Buffer.from(String(p.base64 || ''), 'base64');
-        if (!buf.length || buf.length > secretaria_1.MAX_UPLOAD_BYTES)
-            throw new https_1.HttpsError('invalid-argument', 'Arquivo vazio ou acima de 5 MB');
+        const buf = await (0, arquivos_1.lerArquivoEnviado)(p, uid, mime);
         const nomeArq = (0, secretaria_1.texto)(p.nome, 120).replace(/[\\/]/g, '_') || `arquivo.${TIPOS_ARQUIVO[mime]}`;
         // Confere antes de gravar o arquivo; a transação confere de novo e, se falhar, o arquivo sai.
         const { ref, x } = await lerCertame(db, p.certame_id);

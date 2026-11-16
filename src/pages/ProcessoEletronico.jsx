@@ -16,7 +16,7 @@ import { PROCESSO_ELETRONICO_TAB } from '@/lib/organizationModules';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import OrgTabBar from '@/components/organization/OrgTabBar';
-import { secConfig, secProcesso } from '@/services/secretariaService';
+import { MAX_ENVIO_MB, secConfig, secProcesso } from '@/services/secretariaService';
 import ProcessoView from '@/components/secretaria/ProcessoView';
 import ErroQuery from '@/components/secretaria/ErroQuery';
 import AvisosEquipe from '@/components/secretaria/AvisosEquipe';
@@ -474,7 +474,7 @@ export function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
 /** Processos por página na lista (o servidor aceita até 200). */
 const PAGINA = 100;
 
-const MAX_MB_ANEXO = 5;
+const MAX_MB_ANEXO = MAX_ENVIO_MB;
 const MAX_ANEXOS = 10;
 
 function NovoProcesso({ orgId, estado, onCriado, semente = null, onSementeUsada }) {
