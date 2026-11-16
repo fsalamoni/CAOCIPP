@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Download, Eye, FileText, Loader2, Save, X } from 'lucide-react';
+import { Download, Eye, FileDown, FileText, Loader2, PenSquare, Save, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -33,7 +33,10 @@ export function VisualizadorPdf({ pdf, onFechar }) {
  * Salvar não fecha (Ctrl+S); a prévia em PDF mostra como o documento entra
  * nos autos, com cabeçalho e assinaturas.
  */
-export default function RedacaoDocumento({ aberto, inicial, estado, orgId, unidadeId, valoresCampos, onSalvar, onPdf, onFechar }) {
+export default function RedacaoDocumento({ aberto, inicial, estado, orgId, unidadeId, valoresCampos, onSalvar, onPdf, onDocx, onConverter, onFechar }) {
+    const [revisando, setRevisando] = useState(false);
+    const [confirmarRevisao, setConfirmarRevisao] = useState(false);
+    const [docxOcupado, setDocxOcupado] = useState(false);
     const [titulo, setTitulo] = useState('');
     const [tipo, setTipo] = useState('Despacho');
     const [docId, setDocId] = useState(null);
@@ -54,15 +57,20 @@ export default function RedacaoDocumento({ aberto, inicial, estado, orgId, unida
         setConteudoInicial(inicial.conteudo || null);
         conteudo.current = inicial.conteudo || null;
         modeloUsado.current = null;
-        setSujo(false);
+        // Minuta que veio de arquivo: salvar já grava a versão convertida.
+        setSujo(!!inicial.nomeArquivo && !inicial.somenteLeitura);
         setConfirmarSaida(false);
+        setRevisando(false);
+        setConfirmarRevisao(false);
         setVersaoEditor((v) => v + 1);
         // Aberto a partir do modelo indicado pela fase: já entra preenchido.
         if (inicial.modeloId) usarModelo(inicial.modeloId, true);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [aberto, inicial]);
 
-    const leitura = !!inicial?.somenteLeitura;
+    const leitura = !!inicial?.somenteLeitura && !revisando;
+    const assinantes = inicial?.assinantes || [];
+    const retiraAssinaturas = assinantes.length > 0 && (revisando || !!inicial?.revisarAssinada);
     // Timbrado, tipos e modelos da unidade que tem o processo (ou os do órgão).
     const docCfg = documentoDaUnidade(estado, unidadeId);
     const tipos = [...new Set([...(docCfg.tipos_documento || []), tipo].filter(Boolean))];
@@ -90,10 +98,13 @@ export default function RedacaoDocumento({ aberto, inicial, estado, orgId, unida
         if (!titulo.trim()) { toast.error('Dê um título ao documento'); return null; }
         setOcupado(true);
         try {
-            const id = await onSalvar({ docId, titulo: titulo.trim(), tipo, conteudo: conteudo.current || { type: 'doc', content: [{ type: 'paragraph' }] }, modeloId: modeloUsado.current });
+            const id = await onSalvar({
+                docId, titulo: titulo.trim(), tipo, conteudo: conteudo.current || { type: 'doc', content: [{ type: 'paragraph' }] }, modeloId: modeloUsado.current,
+                ...(retiraAssinaturas ? { revisarAssinada: true } : {}),
+            });
             setDocId(id);
             setSujo(false);
-            toast.success('Minuta salva');
+            toast.success(retiraAssinaturas ? `Minuta salva. As assinaturas foram retiradas e pedidas de novo a ${assinantes.join(', ')}.` : 'Minuta salva');
             return id;
         } catch (e) {
             toast.error(e?.message || 'Não foi possível salvar');
@@ -110,6 +121,15 @@ export default function RedacaoDocumento({ aberto, inicial, estado, orgId, unida
             const r = await onPdf(id);
             setPdf({ ...r, titulo: titulo || 'Documento' });
         } catch (e) { toast.error(e?.message || 'Não foi possível gerar o PDF'); } finally { setOcupado(false); }
+    };
+
+    /** O texto em Word (.docx), para quem precisa abrir fora da plataforma. */
+    const baixarDocx = async () => {
+        let id = docId;
+        if (!leitura && (sujo || !id)) id = await salvar();
+        if (!id) return;
+        setDocxOcupado(true);
+        try { baixarResposta(await onDocx(id)); } catch (e) { toast.error(e?.message || 'Não foi possível gerar o arquivo do Word'); } finally { setDocxOcupado(false); }
     };
 
     const fechar = () => {
@@ -142,7 +162,15 @@ export default function RedacaoDocumento({ aberto, inicial, estado, orgId, unida
                     )}
                     <div className="flex items-center gap-2 ml-auto">
                         {!leitura && <span className="text-xs text-slate-600 hidden md:inline" aria-live="polite">{ocupado ? 'Salvando…' : sujo ? 'Alterações não salvas' : docId ? 'Salvo' : ''}</span>}
+                        {leitura && inicial?.podeRevisar && (
+                            <Button size="sm" className="gap-1" disabled={ocupado} onClick={() => setConfirmarRevisao(true)}><PenSquare className="w-4 h-4" /> Revisar</Button>
+                        )}
                         <Button size="sm" variant="outline" className="gap-1" disabled={ocupado} onClick={visualizar}><Eye className="w-4 h-4" /> <span className="hidden sm:inline">{leitura ? 'PDF' : 'Visualizar PDF'}</span></Button>
+                        {onDocx && (
+                            <Button size="sm" variant="outline" className="gap-1" disabled={ocupado || docxOcupado} onClick={baixarDocx} title="Baixar em Word (.docx), que abre também no LibreOffice">
+                                {docxOcupado ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} <span className="hidden sm:inline">Word</span><span className="sr-only sm:hidden">Baixar em Word</span>
+                            </Button>
+                        )}
                         {!leitura && <Button size="sm" className="gap-1" disabled={ocupado || !titulo.trim()} onClick={salvar}>{ocupado ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Salvar</Button>}
                         <Button size="sm" variant="ghost" onClick={fechar} aria-label="Fechar"><X className="w-4 h-4" /></Button>
                     </div>
@@ -155,6 +183,30 @@ export default function RedacaoDocumento({ aberto, inicial, estado, orgId, unida
                         <Button size="sm" onClick={async () => { if (await salvar()) onFechar(); }}>Salvar e fechar</Button>
                     </div>
                 )}
+                {confirmarRevisao && (
+                    <div role="alert" className="flex flex-wrap items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-950 border-b border-amber-200 dark:border-amber-800 text-sm text-amber-900 dark:text-amber-100">
+                        <span className="flex-1 min-w-[12rem]">
+                            A minuta está assinada por {assinantes.join(', ')}. Se você salvar alguma alteração, as assinaturas são retiradas e pedidas de novo a quem assinou.
+                            A redação assinada fica guardada em Versões.
+                        </span>
+                        <Button size="sm" variant="outline" onClick={() => setConfirmarRevisao(false)}>Cancelar</Button>
+                        <Button size="sm" onClick={() => { setRevisando(true); setConfirmarRevisao(false); }}>Revisar mesmo assim</Button>
+                    </div>
+                )}
+                {!leitura && (inicial?.nomeArquivo || retiraAssinaturas) && (
+                    <div role="status" className="px-3 py-2 bg-sky-50 dark:bg-sky-950 border-b border-sky-200 dark:border-sky-800 text-sm text-sky-900 dark:text-sky-100 space-y-1">
+                        {inicial?.nomeArquivo && (
+                            <p>
+                                Aberto a partir do arquivo <strong>{inicial.nomeArquivo}</strong>. Confira o texto e ajuste o que precisar. Ao salvar, a minuta passa a ser editada aqui
+                                e o arquivo original fica guardado, intacto, em Versões.
+                            </p>
+                        )}
+                        {retiraAssinaturas && <p>Ao salvar, as assinaturas de {assinantes.join(', ')} são retiradas e pedidas de novo.</p>}
+                        {(inicial?.avisos || []).length > 0 && (
+                            <ul className="list-disc pl-5 text-xs">{inicial.avisos.map((a) => <li key={a}>{a}</li>)}</ul>
+                        )}
+                    </div>
+                )}
                 <div className="flex-1 min-h-0 p-0 sm:p-2">
                     {aberto && (
                         <EditorDocumento
@@ -165,6 +217,7 @@ export default function RedacaoDocumento({ aberto, inicial, estado, orgId, unida
                             autoFocus={!leitura}
                             onChange={(j) => { conteudo.current = j; setSujo(true); }}
                             onSalvar={salvar}
+                            converterArquivo={onConverter}
                         />
                     )}
                 </div>

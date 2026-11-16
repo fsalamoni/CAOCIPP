@@ -13,7 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { secConfig } from '@/services/secretariaService';
 import { baixarPacote, nomeArquivoPacote, pacoteDeDocumento } from '@/lib/pacoteModelos';
 import { NativeSelect, documentoDaUnidade } from './comum';
-import EditorDocumento, { CAMPOS_MODELO, FONTES, prepararImagem } from './EditorDocumento';
+import EditorDocumento, { CAMPOS_MODELO, CSS_FONTE, FONTES, prepararImagem } from './EditorDocumento';
 import { variaveisDisponiveis } from '@/lib/exigencias';
 import ImportarModelo, { EditorOriginal, rotuloFormatoOriginal } from './ImportarModelo';
 import VersoesDialog from './VersoesDialog';
@@ -28,7 +28,6 @@ function fasesQueIndicam(estado) {
     return m;
 }
 
-const CSS_FONTE = { serif: '"Times New Roman", Times, serif', 'sans-serif': 'Arial, Helvetica, sans-serif', monospace: '"Courier New", Courier, monospace' };
 
 const paraForm = (d = {}) => ({
     cabecalho_linhas: [...(d.cabecalho_linhas || []), '', '', '', ''].slice(0, 4),

@@ -20,9 +20,28 @@ export const MAX_IMAGEM_BYTES = 1.5 * 1024 * 1024;
 export const MAX_TEXTO_DOC = 600_000;
 const MAX_PROFUNDIDADE = 40;
 
-/** Fontes que o editor oferece; o PDF usa a equivalente. */
-export const FONTES: Record<string, string> = { 'sans-serif': 'Roboto', serif: 'Times', monospace: 'Courier' };
+/**
+ * Fontes que o editor oferece. Tela e PDF usam as mesmas fontes livres, com
+ * as medidas das do Office (Tinos = Times New Roman, Arimo = Arial, Carlito =
+ * Calibri, Caladea = Cambria, Cousine = Courier New): a linha quebra no mesmo
+ * lugar na tela, no PDF e no Word.
+ */
+export const FONTES: Record<string, string> = { serif: 'Tinos', 'sans-serif': 'Arimo', calibri: 'Carlito', cambria: 'Caladea', monospace: 'Cousine' };
+/** Mapeamento anterior a 16/11/2026: refaz o PDF de documento antigo sem mudar a paginação. */
+export const FONTES_LEGADO: Record<string, string> = { serif: 'Times', 'sans-serif': 'Roboto', calibri: 'Roboto', cambria: 'Times', monospace: 'Courier' };
 export const ESPACAMENTOS = [1, 1.15, 1.5, 2, 2.5, 3];
+
+/** Nome de fonte do Word ou do LibreOffice → fonte do editor (ou null: a padrão). */
+export function fonteEquivalente(nome: unknown): string | null {
+    const n = String(nome || '').toLowerCase();
+    if (!n) return null;
+    if (/courier|mono|consol|lucida console|cousine/.test(n)) return 'monospace';
+    if (/calibri|carlito|aptos/.test(n)) return 'calibri';
+    if (/cambria|caladea/.test(n)) return 'cambria';
+    if (/arial|helvetica|roboto|verdana|segoe|tahoma|open sans|liberation sans|arimo|trebuchet|century gothic|gill sans|franklin|lato|noto sans|dejavu sans|source sans|ubuntu|sans/.test(n)) return 'sans-serif';
+    if (/times|georgia|garamond|antiqua|palatino|liberation serif|tinos|bookman|schoolbook|noto serif|dejavu serif|serif/.test(n)) return 'serif';
+    return null;
+}
 
 const cor = (v: unknown) => typeof v === 'string' && /^(#[0-9a-f]{3,8}|rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(,\s*(0|1|0?\.\d+)\s*)?\))$/i.test(v);
 const tamanhoFonte = (v: unknown) => typeof v === 'string' && /^\d{1,2}(\.\d)?pt$/.test(v) && parseFloat(v) >= 6 && parseFloat(v) <= 96;
@@ -37,7 +56,10 @@ const ATTRS_BLOCO = {
     textAlign: umDe('left', 'center', 'right', 'justify'),
     recuo: entre(0, 5),
     margemEsq: entre(0, 10),
-    espacamento: umDe(...ESPACAMENTOS),
+    espacamento: entre(0.8, 3),
+    // Espaço antes e depois do parágrafo, em pontos (como no Word).
+    antes: entre(0, 72),
+    depois: entre(0, 72),
 };
 
 /** Nó → atributos permitidos (validador por atributo). */
@@ -53,11 +75,12 @@ const NOS: Record<string, Record<string, (v: unknown) => boolean>> = {
     blockquote: {},
     horizontalRule: {},
     pageBreak: {},
-    table: {},
+    // Tabela sem bordas (de diagramação, como no Word): o PDF não traça as linhas.
+    table: { semBordas: (v) => v === true },
     tableRow: {},
     tableHeader: { colspan: inteiro(1, 30), rowspan: inteiro(1, 100), colwidth: (v) => v === null || (Array.isArray(v) && v.every(entre(10, 2000))) },
     tableCell: { colspan: inteiro(1, 30), rowspan: inteiro(1, 100), colwidth: (v) => v === null || (Array.isArray(v) && v.every(entre(10, 2000))) },
-    image: { src: imagemSegura, alt: (v) => typeof v === 'string' && v.length <= 300, width: entre(10, 2000), height: entre(10, 3000) },
+    image: { src: imagemSegura, alt: (v) => typeof v === 'string' && v.length <= 300, width: entre(10, 2000), height: entre(10, 3000), align: umDe('left', 'center', 'right') },
 };
 
 const MARCAS: Record<string, Record<string, (v: unknown) => boolean>> = {

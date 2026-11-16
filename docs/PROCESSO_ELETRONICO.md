@@ -423,6 +423,44 @@ Regras comuns:
   link, linha horizontal, quebra de página (Ctrl+Enter), caracteres
   especiais, localizar e substituir, limpar formatação, desfazer/refazer, zoom
   e contagem de palavras. Ctrl+S salva.
+- **Editor como o Word/LibreOffice (16/11/2026):**
+  - *Fontes de mesma medida:* Times New Roman, Arial, Calibri, Cambria e
+    Courier New aparecem e são impressas com Tinos, Arimo, Carlito, Caladea e
+    Cousine (livres, com as mesmas larguras de letra). A linha quebra no mesmo
+    lugar no editor (`@fontsource/*`, `fontesDocumento.js`), no PDF dos autos
+    (`@expo-google-fonts/*` em `pdfDocumento.ts`) e no Word. Documento gravado
+    antes disso (sem `fontes: 2`) é refeito com as fontes de antes
+    (`FONTES_LEGADO`, `ehLegado`), para as folhas já numeradas não mudarem.
+  - *Espaçamento como no Word:* `espacamento` é o "múltiplo" do Word (1,15 =
+    simples do Word); no editor vira `line-height` = espaçamento × 1,15. Antes
+    e depois do parágrafo em pontos (`antes`, `depois`, 0 a 72), no menu ↕.
+  - Imagem à esquerda, centralizada ou à direita (`image.align`); tabela sem
+    bordas (`table.semBordas`, tracejada só no editor); larguras de coluna
+    (`colwidth`) respeitadas no PDF e no Word.
+  - Texto colado do Word, do LibreOffice ou de páginas mantém fonte, recuos,
+    espaçamentos e alinhamento.
+  - Estimativa de páginas no rodapé do editor (a paginação exata é a da prévia
+    em PDF).
+  - **Abrir arquivo:** traz para o editor um .docx, .odt, .doc, .pdf ou .txt do
+    computador (ação `converter`; nada é gravado no processo). Com o documento
+    em branco, entra inteiro; com texto, entra onde está o cursor.
+  - **Word:** baixa a minuta em .docx (ação `docx`, `docxExportar.ts`), com o
+    timbrado no cabeçalho e "Página X de Y" no rodapé.
+- **Revisar no editor qualquer minuta:** a minuta enviada como arquivo tem
+  "Abrir no editor" (ação `paraEditor`). A conversão é feita no servidor, sem
+  programa externo: Word .docx (`docx.ts`: estilos e herança, fontes do tema,
+  numeração e listas, recuos, espaçamentos, tabelas com mescla e larguras,
+  imagens, links, notas de rodapé, controle de alterações aceito), LibreOffice
+  .odt (`odt.ts`), Word 97 .doc (só o texto), PDF com texto (parágrafos),
+  texto e imagem. O cabeçalho e o rodapé do arquivo não entram (a minuta usa o
+  timbrado da unidade) e o editor avisa. Nada muda até salvar; ao salvar, a
+  minuta passa a `origem: editor` (`convertido_de`, `fontes: 2`) e o arquivo
+  original fica intacto em Versões (`origem: upload`, mesmo `storage_path` e
+  `sha256`), para baixar.
+- **Minuta assinada:** abre para leitura com "Revisar". Ao salvar a revisão
+  (`revisarAssinada: true`; sem ele o servidor recusa), as assinaturas são
+  retiradas, pedidas de novo a quem tinha assinado (menos quem revisa) e a
+  redação assinada fica em Versões com as assinaturas.
 - O conteúdo é gravado como JSON do ProseMirror, em texto, no campo
   `conteudo_json` (até 700 KB) ou, maior que isso, num arquivo do Storage
   (`conteudo_path`, `{arquivo}.conteudo.{hash}.json.gz`, um por redação).

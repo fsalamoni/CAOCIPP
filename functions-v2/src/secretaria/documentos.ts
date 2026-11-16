@@ -18,11 +18,13 @@ import {
     comSinal,
 } from './context';
 import {
-    caminhoPdf, conteudoDoDocumento, folhasDoProcesso, lerConfigDocumento, novoCodigo, paginasDeArquivo, pdfCarimbado,
-    registroVerificacao, textoFolhas, versaoDeLeitura,
+    caminhoPdf, conteudoDoDocumento, folhasDoProcesso, lerConfigDocumento, novoCodigo, paginasDeArquivo, pdfCarimbado, pdfDoDocumento,
+    registroVerificacao, textoFolhas, versaoDeLeitura, FONTES_ATUAIS, ehLegado,
 } from './autos';
 import { camposDoConteudo, copiaDoConteudo, entregar, gravarOriginal, lerArquivoEnviado, lerOriginal, semApagar } from './arquivos';
 import { renderizarDocumento } from './pdfDocumento';
+import { arquivoParaEditor } from './paraEditor';
+import { docParaDocx } from './docxExportar';
 import { reabrirSala } from './audienciaSala';
 
 /**
@@ -46,7 +48,10 @@ import { reabrirSala } from './audienciaSala';
 interface DocRequest {
     organizationId: string;
     processoId: string;
-    action: 'criarMinuta' | 'editarMinuta' | 'upload' | 'assinar' | 'juntar' | 'guardar' | 'excluirMinuta' | 'baixar' | 'pdf' | 'pedirAssinatura' | 'versoes';
+    action: 'criarMinuta' | 'editarMinuta' | 'upload' | 'assinar' | 'juntar' | 'guardar' | 'excluirMinuta' | 'baixar' | 'pdf' | 'pedirAssinatura' | 'versoes'
+        | 'paraEditor' | 'converter' | 'docx';
+    /** editarMinuta de minuta assinada: quem revisa confirma que as assinaturas saem (e voltam a ser pedidas). */
+    revisarAssinada?: boolean;
     /** juntar e guardar: há mais documentos a caminho (juntada em conjunto); a fase que segue sozinha espera o último. */
     aguardar?: boolean;
     docId?: string;
@@ -157,7 +162,7 @@ export const secretariaDocumento = onCall<DocRequest>(
         if (p.action === 'versoes') {
             const { ref, doc } = await lerDoc();
             exigirLeitura(doc);
-            const s = await ref.collection('versoes').select('autor_nome', 'de', 'titulo', 'substituida_em', 'substituida_por').get();
+            const s = await ref.collection('versoes').select('autor_nome', 'de', 'titulo', 'substituida_em', 'substituida_por', 'origem', 'nome_arquivo', 'mime', 'assinaturas').get();
             const versoes = s.docs.map((d) => ({ id: d.id, ...d.data() } as { id: string; substituida_em?: string }))
                 .sort((a, b) => String(a.substituida_em).localeCompare(String(b.substituida_em)));
             return { versoes };
@@ -168,6 +173,10 @@ export const secretariaDocumento = onCall<DocRequest>(
             exigirLeitura(doc);
             if (p.versaoId) {
                 const v = await lerVersao(ref);
+                if (v.origem === 'upload') {
+                    const arq = await entregar(await lerOriginal(v), String(v.nome_arquivo || v.titulo), String(v.mime), auth.uid);
+                    return { origem: 'upload', titulo: v.titulo, nomeArquivo: v.nome_arquivo, ...arq };
+                }
                 return { origem: 'editor', titulo: v.titulo, tipo: v.tipo, conteudo: await conteudoDoDocumento(v) };
             }
             if (doc.origem === 'editor') return { origem: 'editor', titulo: doc.titulo, tipo: doc.tipo, conteudo: await conteudoDoDocumento(doc) };
@@ -184,6 +193,7 @@ export const secretariaDocumento = onCall<DocRequest>(
             if (p.versaoId) {
                 exigirLeitura(doc);
                 const v = await lerVersao(ref);
+                if (v.origem === 'upload') return entregar(Buffer.from(await pdfDoDocumento(v, {})), `versao-anterior-${nome}`, 'application/pdf', auth.uid);
                 const r = await renderizarDocumento(await conteudoDoDocumento(v), await lerConfigDocumento(c.db, c.orgId, doc.unidade_origem), { assinaturas: [], sha256: v.sha256, marcaDagua: 'VERSÃO ANTERIOR' });
                 return { base64: r.buffer.toString('base64'), nome: `versao-anterior-${nome}`, paginas: r.paginas };
             }
@@ -195,6 +205,39 @@ export const secretariaDocumento = onCall<DocRequest>(
                 assinaturas: doc.assinaturas || [], sha256: doc.sha256, marcaDagua: controle ? 'FORA DOS AUTOS' : 'MINUTA',
             });
             return { base64: r.buffer.toString('base64'), nome, paginas: r.paginas };
+        }
+
+        // Abrir no editor uma minuta enviada como arquivo (Word, LibreOffice, PDF, texto, planilha, imagem).
+        // Nada muda aqui: só ao salvar a minuta passa a ser do editor, e o arquivo fica como versão anterior.
+        if (p.action === 'paraEditor') {
+            exigirPosse(c, proc);
+            const { doc } = await lerDoc();
+            exigirMinutaDaMinhaUnidade(doc);
+            if (doc.origem === 'editor') return { titulo: doc.titulo, tipo: doc.tipo, conteudo: await conteudoDoDocumento(doc), avisos: [] };
+            try {
+                const r = await arquivoParaEditor(await lerOriginal(doc), String(doc.mime), String(doc.titulo));
+                return { titulo: doc.titulo, tipo: doc.tipo, nomeArquivo: doc.nome_arquivo, ...r };
+            } catch (e) { erroUsuario(e); }
+        }
+
+        // Trazer o texto de um arquivo do computador para dentro do editor (sem gravar nada no processo).
+        if (p.action === 'converter') {
+            exigirPosse(c, proc);
+            const mime = String(p.mime || '');
+            if (!TIPOS_ARQUIVO_PERMITIDOS[mime]) throw new HttpsError('invalid-argument', 'Tipo de arquivo não aceito');
+            const buf = await lerArquivoEnviado(p, auth.uid, mime);
+            try { return await arquivoParaEditor(buf, mime, texto(p.nomeArquivo) || 'Arquivo'); } catch (e) { erroUsuario(e); }
+        }
+
+        // O texto do editor em Word (.docx), para abrir no Word ou no LibreOffice.
+        if (p.action === 'docx') {
+            const { doc } = await lerDoc();
+            exigirLeitura(doc);
+            if (doc.origem !== 'editor') throw new HttpsError('failed-precondition', 'Baixe o arquivo original do documento');
+            const conteudo = p.versaoId ? await conteudoDoDocumento(await lerVersao(docsCol.doc(p.docId!))) : await conteudoDoDocumento(doc);
+            const buf = await docParaDocx(conteudo, await lerConfigDocumento(c.db, c.orgId, doc.unidade_origem), { titulo: String(doc.titulo || '') });
+            const nome = `${String(doc.titulo).replace(/[^\p{L}\p{N} _-]+/gu, '').slice(0, 60) || 'documento'}.docx`;
+            return entregar(buf, nome, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', auth.uid);
         }
 
         if (p.action === 'criarMinuta' || p.action === 'upload') {
@@ -243,7 +286,7 @@ export const secretariaDocumento = onCall<DocRequest>(
             } catch (e) { console.warn('[documentos] versão de leitura não gerada', e); }
             try {
                 await ref.set({
-                    ...base, origem: 'upload', mime, nome_arquivo: nomeArquivo,
+                    ...base, origem: 'upload', mime, nome_arquivo: nomeArquivo, fontes: FONTES_ATUAIS,
                     tamanho: buf.length, sha256: hash, storage_path: path, paginas, ...guardado, ...(leitura || {}),
                 });
             } catch (e) {
@@ -263,24 +306,46 @@ export const secretariaDocumento = onCall<DocRequest>(
             // Texto grande vai ao Storage antes (num arquivo por versão, então a redação anterior não é sobrescrita).
             const campos = await camposDoConteudo(caminhoArquivo(c.orgId, procRef.id, String(p.docId)), conteudo as never, novoSha);
             // Lido e gravado juntos: dois revisores ao mesmo tempo não perdem a redação anterior.
-            await c.db.runTransaction(async (tx) => {
+            const repedir = await c.db.runTransaction(async (tx) => {
                 const { ref, doc } = await lerDoc(tx);
+                const procAtual = (await tx.get(procRef)).data() || {}; // leituras antes de qualquer escrita
                 exigirMinutaDaMinhaUnidade(doc);
-                if (doc.origem !== 'editor') throw new HttpsError('failed-precondition', 'Arquivo enviado não se edita; exclua a minuta e envie outro');
-                if ((doc.assinaturas || []).length) throw new HttpsError('failed-precondition', 'Minuta já assinada não se edita');
-                const anterior = versaoAnterior(doc, auth.uid, novoSha);
-                if (anterior) {
-                    tx.set(ref.collection('versoes').doc(), { ...anterior, ...copiaDoConteudo(doc), substituida_em: agoraIso, substituida_por: c.userName });
+                if (doc.origem !== 'editor' && doc.origem !== 'upload') throw new HttpsError('failed-precondition', 'Este documento não se edita');
+                const assinaturas = (doc.assinaturas || []) as Array<{ uid: string; nome: string; em: string }>;
+                if (assinaturas.length && !p.revisarAssinada) {
+                    throw new HttpsError('failed-precondition', 'Minuta já assinada: para revisar, confirme que as assinaturas saem e voltam a ser pedidas');
                 }
+                // Arquivo aberto no editor ou minuta assinada: a redação anterior fica sempre guardada
+                // (o arquivo é o original enviado; a assinada é o texto que alguém assinou).
+                const converte = doc.origem === 'upload';
+                const anterior = converte || assinaturas.length ? versaoGuardada(doc) : versaoAnterior(doc, auth.uid, novoSha);
+                if (anterior) {
+                    tx.set(ref.collection('versoes').doc(), {
+                        ...anterior, ...copiaDoConteudo(doc), ...(converte ? camposDoArquivo(doc) : {}),
+                        ...(assinaturas.length ? { assinaturas } : {}),
+                        substituida_em: agoraIso, substituida_por: c.userName,
+                    });
+                }
+                // Quem tinha assinado precisa ler e assinar de novo (menos quem está revisando, que assina quando quiser).
+                const pedidos = assinaturas.filter((a) => a.uid !== auth.uid).map((a) => ({ uid: a.uid, nome: a.nome, por: c.userName, em: agoraIso }));
+                const pedidosAntes = ((doc.assinaturas_pedidas || []) as Array<{ uid: string }>).filter((x) => !pedidos.some((y) => y.uid === x.uid));
                 tx.update(ref, {
                     ...campos, sha256: novoSha, delta: FieldValue.delete(),
                     ...(texto(p.titulo) ? { titulo: texto(p.titulo) } : {}),
                     ...(texto(p.tipo, 60) ? { tipo: texto(p.tipo, 60) } : {}),
                     editado_em: agoraIso, editado_por: auth.uid, editado_por_nome: c.userName,
                     ...(anterior ? { versoes_qtd: FieldValue.increment(1) } : {}),
+                    ...(converte ? { origem: 'editor', convertido_de: String(doc.nome_arquivo || ''), ...Object.fromEntries(CAMPOS_ARQUIVO.map((k) => [k, FieldValue.delete()])), fontes: FONTES_ATUAIS } : {}),
+                    ...(assinaturas.length ? { assinaturas: [], assinaturas_pedidas: [...pedidosAntes, ...pedidos] } : {}),
                 });
+                if (pedidos.length) {
+                    const outros = ((procAtual.assinaturas_pendentes || []) as Pedido[]).filter((x) => !(x.docId === ref.id && pedidos.some((y) => y.uid === x.uid)));
+                    tx.update(procRef, { assinaturas_pendentes: [...outros, ...pedidos.map((x) => ({ docId: ref.id, uid: x.uid, titulo: texto(p.titulo) || String(doc.titulo) }))] });
+                }
+                return { pedidos, titulo: texto(p.titulo) || String(doc.titulo) };
             });
-            return { success: true };
+            for (const x of repedir.pedidos) void avisarPedidoAssinatura(c, x.uid, proc, procRef.id, repedir.titulo);
+            return { success: true, assinaturasRetiradas: repedir.pedidos.length };
         }
 
         if (p.action === 'excluirMinuta') {
@@ -310,6 +375,8 @@ export const secretariaDocumento = onCall<DocRequest>(
             // PDF que uma juntada interrompida tenha deixado e os textos grandes (de todas as redações).
             await bucket.file(caminhoPdf(caminhoArquivo(c.orgId, procRef.id, p.docId!))).delete({ ignoreNotFound: true });
             await bucket.deleteFiles({ prefix: `${caminhoArquivo(c.orgId, procRef.id, p.docId!)}.conteudo.` }).catch(() => undefined);
+            // Original de minuta que foi aberta no editor (guardado na versão anterior), com a versão de leitura.
+            await bucket.deleteFiles({ prefix: caminhoArquivo(c.orgId, procRef.id, p.docId!) }).catch(() => undefined);
             return { success: true };
         }
 
@@ -408,7 +475,7 @@ export const secretariaDocumento = onCall<DocRequest>(
                 pdf = { path: caminhoPdf(caminhoArquivo(c.orgId, procRef.id, p.docId!)), sha256: sha256(r.buffer) };
                 await bucket.file(pdf.path).save(r.buffer, { contentType: 'application/pdf', resumable: false });
             } else if (!paginas) {
-                paginas = await paginasDeArquivo(await lerOriginal(antes), antes.mime);
+                paginas = await paginasDeArquivo(await lerOriginal(antes), antes.mime, ehLegado(antes));
             }
             const r = await c.db.runTransaction(async (tx) => {
                 const { ref: pr, data: atual } = await lerProcesso(c, p.processoId, tx);
@@ -449,6 +516,8 @@ export const secretariaDocumento = onCall<DocRequest>(
                 const exig = fase ? camposDoCumprimento(atual, fase.id, cumpridas, ref.id, ordem) : {};
                 const juntado = {
                     status: 'juntado', ordem, visivel_partes: visivel, juntado_em: agoraIso, juntado_por: auth.uid, juntado_por_nome: c.userName,
+                    // PDF feito agora, com as fontes atuais; se um dia precisar ser refeito, sai igual.
+                    ...(antes.origem === 'editor' || !ehLegado(antes) ? { fontes: FONTES_ATUAIS } : {}),
                     paginas, folha_inicial: folha, folha_final: folha + paginas - 1,
                     ...(pdf ? { pdf_path: pdf.path, pdf_sha256: pdf.sha256 } : {}),
                 };
@@ -521,3 +590,17 @@ export const secretariaDocumento = onCall<DocRequest>(
         throw new HttpsError('invalid-argument', 'Ação desconhecida');
     })
 );
+
+/** Campos do arquivo enviado: saem da minuta quando ela é aberta no editor e ficam na versão anterior. */
+const CAMPOS_ARQUIVO = ['mime', 'nome_arquivo', 'tamanho', 'storage_path', 'paginas', 'compactado', 'tamanho_armazenado', 'leitura_path', 'leitura_tamanho', 'fontes', 'sha256'];
+function camposDoArquivo(doc: admin.firestore.DocumentData) {
+    return { origem: 'upload', ...Object.fromEntries(CAMPOS_ARQUIVO.filter((k) => doc[k] !== undefined).map((k) => [k, doc[k]])) };
+}
+
+/** Redação anterior guardada mesmo quando quem revisa é quem escreveu (arquivo aberto no editor, minuta assinada). */
+function versaoGuardada(doc: admin.firestore.DocumentData) {
+    return {
+        autor_uid: String(doc.editado_por || doc.autor_uid || ''), autor_nome: String(doc.editado_por_nome || doc.autor_nome || ''),
+        de: String(doc.editado_em || doc.criado_em || ''), sha256: String(doc.sha256 || ''), titulo: String(doc.titulo || ''), tipo: String(doc.tipo || ''),
+    };
+}
