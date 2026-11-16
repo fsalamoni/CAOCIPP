@@ -7,15 +7,19 @@ import { Marca, No, sanitizeDoc } from '../shared/documento';
 
 /**
  * Converte arquivos do Office enviados aos autos em documento do editor, que
- * vira PDF com o mesmo renderizador dos textos redigidos. Word (DOCX) passa
- * por HTML (mammoth); planilhas (XLSX) viram tabelas, uma por aba.
- * ponytail: DOC e ODT antigos continuam como folha de referência; converter
- * esses exige LibreOffice num serviço à parte.
+ * vira PDF com o mesmo renderizador dos textos redigidos. Word (DOCX) e
+ * LibreOffice (ODT) são lidos direto do XML, com a formatação (docx.ts,
+ * odt.ts); Word antigo (DOC) só dá o texto; planilhas (XLSX) viram tabelas,
+ * uma por aba. Arquivo juntado antes de 16/11/2026 usa a conversão antiga
+ * (mammoth) para não mudar as folhas já numeradas.
  */
 
 export const MIME_DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 export const MIME_XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-export const conversivel = (mime: string) => mime === MIME_DOCX || mime === MIME_XLSX;
+export const MIME_ODT = 'application/vnd.oasis.opendocument.text';
+export const MIME_DOC = 'application/msword';
+/** Formatos que viram PDF pelo editor. `legado`: como era antes de 16/11/2026 (só Word novo e planilha). */
+export const conversivel = (mime: string, legado = false) => mime === MIME_DOCX || mime === MIME_XLSX || (!legado && (mime === MIME_ODT || mime === MIME_DOC));
 
 const MAX_ABAS = 10;
 const MAX_LINHAS = 400;
@@ -168,9 +172,28 @@ export function xlsxParaDoc(buf: Buffer): No {
     return sanitizeDoc({ type: 'doc', content });
 }
 
-/** Documento do editor equivalente ao arquivo, ou null se não for conversível. */
-export async function officeParaDoc(buf: Buffer, mime: string): Promise<No | null> {
-    if (mime === MIME_DOCX) return htmlParaDoc((await mammoth().convertToHtml({ buffer: buf })).value);
+/** Texto de um Word antigo (.doc, binário): só o texto, parágrafo a parágrafo. */
+export async function docParaDoc(buf: Buffer): Promise<No> {
+    const Extrator = require('word-extractor') as new () => { extract(b: Buffer): Promise<{ getBody(): string; getFootnotes(): string }> };
+    const d = await new Extrator().extract(buf);
+    const paras = d.getBody().replace(/\r/g, '\n').split('\n').map((l) => l.replace(/\t/g, '    ').trimEnd());
+    while (paras.length && !paras[paras.length - 1]) paras.pop();
+    const notas = d.getFootnotes().trim();
+    const content: No[] = paras.map((l) => (l ? { type: 'paragraph', content: [{ type: 'text', text: l }] } : { type: 'paragraph' }));
+    if (notas) content.push({ type: 'horizontalRule' }, ...notas.split(/\n+/).map((l) => ({ type: 'paragraph', content: [{ type: 'text', text: l }] })));
+    return sanitizeDoc({ type: 'doc', content: content.length ? content : [{ type: 'paragraph' }] });
+}
+
+/**
+ * Documento do editor equivalente ao arquivo, ou null se não for conversível.
+ * `legado`: a conversão de antes de 16/11/2026 (mammoth), para refazer as
+ * folhas de um arquivo juntado antes sem mudar a paginação.
+ */
+export async function officeParaDoc(buf: Buffer, mime: string, legado = false): Promise<No | null> {
     if (mime === MIME_XLSX) return xlsxParaDoc(buf);
+    if (legado) return mime === MIME_DOCX ? htmlParaDoc((await mammoth().convertToHtml({ buffer: buf })).value) : null;
+    if (mime === MIME_DOCX) return (await (require('./docx') as typeof import('./docx')).docxParaDoc(buf)).doc;
+    if (mime === MIME_ODT) return (await (require('./odt') as typeof import('./odt')).odtParaDoc(buf)).doc;
+    if (mime === MIME_DOC) return docParaDoc(buf);
     return null;
 }

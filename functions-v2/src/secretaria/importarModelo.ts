@@ -221,7 +221,7 @@ async function linhasPdf(buf: Buffer): Promise<{ paginas: Linha[][]; alturaPagin
     return { paginas, alturaPagina };
 }
 
-async function interpretarPdf(buf: Buffer, avisos: string[]): Promise<{ doc: No; timbrado: Timbrado | null }> {
+export async function interpretarPdf(buf: Buffer, avisos: string[]): Promise<{ doc: No; timbrado: Timbrado | null }> {
     const { paginas, alturaPagina } = await linhasPdf(buf);
     if (!paginas.some((p) => p.length)) throw new Error('O PDF não tem texto selecionável (é imagem digitalizada); mantenha-o como arquivo original.');
     const topo = alturaPagina * 0.88;

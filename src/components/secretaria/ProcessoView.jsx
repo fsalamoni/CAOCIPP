@@ -186,13 +186,29 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     /** Redação anterior de um documento, só para ler (e gerar o PDF com a marca "versão anterior"). */
     const lerVersao = (d, v) => executar(async () => {
         const r = await secDocumento(orgId, procId, 'baixar', { docId: d.id, versaoId: v.id });
+        // Versão que era um arquivo enviado (antes de abrir no editor): baixa o original, intacto.
+        if (r.origem === 'upload') { baixarResposta(r, r.nomeArquivo); return; }
         setVersoesDe(null);
         setEditor({ docId: d.id, versaoId: v.id, titulo: `${r.titulo} (redação anterior, de ${v.autor_nome || 'autor não identificado'})`, tipo: r.tipo, conteudo: r.conteudo, somenteLeitura: true });
     });
 
+    /**
+     * Abre a minuta no editor. A enviada como arquivo (Word, LibreOffice, PDF…)
+     * vem convertida; só ao salvar ela passa a ser do editor, com o original em Versões.
+     * A assinada abre para leitura, com "Revisar" (retira as assinaturas ao salvar).
+     */
     const abrirMinuta = (d) => executar(async () => {
-        const r = await secDocumento(orgId, procId, 'baixar', { docId: d.id });
-        setEditor({ docId: d.id, titulo: r.titulo, tipo: d.tipo, conteudo: r.conteudo, somenteLeitura: d.status === 'controle' || (d.assinaturas || []).length > 0 });
+        const controle = d.status === 'controle';
+        const assinada = (d.assinaturas || []).length > 0;
+        const revisavel = !controle && podeMexer && d.unidade_origem === p.unidade_atual;
+        const arquivo = d.origem !== 'editor';
+        const r = await secDocumento(orgId, procId, arquivo ? 'paraEditor' : 'baixar', { docId: d.id });
+        setEditor({
+            docId: d.id, titulo: r.titulo, tipo: d.tipo, conteudo: r.conteudo, somenteLeitura: controle || assinada,
+            podeRevisar: assinada && revisavel,
+            assinantes: (d.assinaturas || []).filter((a) => a.uid !== estado.uid).map((a) => a.nome),
+            ...(arquivo ? { nomeArquivo: r.nomeArquivo || d.nome_arquivo, avisos: r.avisos || [] } : {}),
+        });
     });
 
     const agora = new Date();
@@ -787,9 +803,12 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                                     {d.unidade_origem !== p.unidade_atual && ` · redigida em ${nomeUnidade(d.unidade_origem)}`}
                                                 </p>
                                             </div>
-                                            {d.origem === 'editor'
-                                                ? <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => abrirMinuta(d)}>{d.assinaturas.length ? 'Ler' : 'Editar'}</Button>
-                                                : <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => baixarOriginal(d)} aria-label="Baixar"><Download className="w-4 h-4" /></Button>}
+                                            {d.origem === 'editor' || (podeMexer && d.unidade_origem === p.unidade_atual)
+                                                ? <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => abrirMinuta(d)} title={d.origem === 'editor' ? undefined : 'Abrir o arquivo no editor da plataforma para revisar; o original fica guardado em Versões'}>
+                                                    {d.assinaturas.length ? 'Ler' : d.origem === 'editor' ? 'Editar' : 'Abrir no editor'}
+                                                </Button>
+                                                : null}
+                                            {d.origem !== 'editor' && <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => baixarOriginal(d)} aria-label={`Baixar o arquivo ${d.nome_arquivo || d.titulo}`} title="Baixar o arquivo original"><Download className="w-4 h-4" /></Button>}
                                             {d.versoes > 0 && <Button variant="ghost" size="sm" className="gap-1" disabled={ocupado} onClick={() => setVersoesDe(d)} title="Redações anteriores, de antes da revisão (só a equipe vê)"><History className="w-4 h-4" aria-hidden /> <span className="hidden sm:inline">Versões</span><span className="sr-only sm:hidden">Versões de {d.titulo}</span> ({d.versoes})</Button>}
                                             <Button size="sm" variant="outline" className="gap-1" disabled={assinei || ocupado || !podeMexer} onClick={() => doc('assinar', { docId: d.id }, 'Documento assinado')}><PenLine className="w-4 h-4" /> {assinei ? 'Assinado' : 'Assinar'}</Button>
                                             {membrosDaUnidade.length > 1 && <Button size="sm" variant="ghost" className="gap-1" disabled={ocupado || !podeMexer} onClick={() => setAcao({ tipo: 'pedirAssinatura', documento: d })} title="Pedir a assinatura de alguém da unidade"><UserPlus className="w-4 h-4" /> <span className="hidden sm:inline">Pedir assinatura</span></Button>}
@@ -1033,13 +1052,15 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                 orgId={orgId}
                 unidadeId={p.unidade_atual}
                 valoresCampos={valoresCampos}
-                onSalvar={async ({ docId, titulo, tipo, conteudo, modeloId }) => {
-                    if (docId) await secDocumento(orgId, procId, 'editarMinuta', { docId, titulo, tipo, conteudo });
+                onSalvar={async ({ docId, titulo, tipo, conteudo, modeloId, revisarAssinada }) => {
+                    if (docId) await secDocumento(orgId, procId, 'editarMinuta', { docId, titulo, tipo, conteudo, ...(revisarAssinada ? { revisarAssinada: true } : {}) });
                     const r = docId ? { id: docId } : await secDocumento(orgId, procId, 'criarMinuta', { titulo, tipo, conteudo, ...(modeloId ? { modelo_id: modeloId } : {}) });
                     atualizar();
                     return r.id;
                 }}
                 onPdf={(docId) => secDocumento(orgId, procId, 'pdf', { docId, ...(editor?.versaoId ? { versaoId: editor.versaoId } : {}) })}
+                onDocx={(docId) => secDocumento(orgId, procId, 'docx', { docId, ...(editor?.versaoId ? { versaoId: editor.versaoId } : {}) })}
+                onConverter={posse ? async (file) => secDocumento(orgId, procId, 'converter', { nomeArquivo: file.name, ...await prepararEnvio(file) }) : null}
                 onFechar={() => setEditor(null)}
             />
             <JuntadaConjunta

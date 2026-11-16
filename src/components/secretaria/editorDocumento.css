@@ -14,7 +14,7 @@
 @media (max-width: 860px) {
     .doc-folha { width: 100%; min-height: 60vh; padding: 1.25rem 1rem; }
 }
-.doc-folha .ProseMirror { outline: none; min-height: 20cm; word-wrap: break-word; }
+.doc-folha .ProseMirror { outline: none; min-height: 20cm; word-wrap: break-word; position: relative; }
 @media (max-width: 860px) { .doc-folha .ProseMirror { min-height: 50vh; } }
 .doc-folha .ProseMirror p { margin: 0 0 6pt; }
 .doc-folha .ProseMirror h1 { font-size: 18pt; font-weight: 700; margin: 8pt 0 6pt; }
@@ -27,7 +27,7 @@
 .doc-folha .ProseMirror blockquote { border-left: 2px solid #94a3b8; padding-left: 12px; margin: 0 0 8pt 12px; }
 .doc-folha .ProseMirror hr { border: 0; border-top: 1px solid #64748b; margin: 8pt 0 12pt; }
 .doc-folha .ProseMirror a { color: #1d4ed8; text-decoration: underline; }
-.doc-folha .ProseMirror code { font-family: 'Courier New', monospace; background: #f1f5f9; padding: 0 2px; border-radius: 2px; }
+.doc-folha .ProseMirror code { font-family: Cousine, 'Courier New', monospace; background: #f1f5f9; padding: 0 2px; border-radius: 2px; }
 .doc-folha .ProseMirror img { max-width: 100%; height: auto; display: block; margin: 4pt 0 8pt; }
 .doc-folha .ProseMirror img.ProseMirror-selectednode { outline: 2px solid #4f46e5; }
 .doc-folha .ProseMirror mark { padding: 0 1px; border-radius: 1px; }
@@ -50,3 +50,7 @@
     content: attr(data-placeholder); color: #94a3b8; float: left; height: 0; pointer-events: none;
 }
 .doc-folha .ProseMirror .achado { background: #fde68a; }
+.doc-folha .ProseMirror img[data-align="center"] { margin-left: auto; margin-right: auto; }
+.doc-folha .ProseMirror img[data-align="right"] { margin-left: auto; margin-right: 0; }
+/* Tabela sem bordas: no PDF e no Word não há linhas; aqui, tracejado leve só para orientar. */
+.doc-folha .ProseMirror table[data-sem-bordas] td, .doc-folha .ProseMirror table[data-sem-bordas] th { border: 1px dashed #cbd5e1; background: transparent; }

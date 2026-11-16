@@ -4,6 +4,7 @@ exports.MIME_BIZAGI = exports.campoConhecido = exports.MAX_MODELO_BYTES = export
 exports.normalizarCampos = normalizarCampos;
 exports.linhasXml = linhasXml;
 exports.preencherDocx = preencherDocx;
+exports.interpretarPdf = interpretarPdf;
 exports.textoDePdf = textoDePdf;
 exports.diagramasDoPacote = diagramasDoPacote;
 exports.textoParaRito = textoParaRito;

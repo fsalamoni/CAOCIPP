@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.textoFolhas = exports.urlConferencia = exports.APP_URL = exports.caminhoPdf = void 0;
+exports.textoFolhas = exports.urlConferencia = exports.APP_URL = exports.ehLegado = exports.FONTES_ATUAIS = exports.caminhoPdf = void 0;
 exports.lerConfigDocumento = lerConfigDocumento;
 exports.conteudoDoDocumento = conteudoDoDocumento;
 exports.paginasDeArquivo = paginasDeArquivo;
@@ -51,8 +51,16 @@ async function conteudoDoDocumento(d) {
 }
 const caminhoPdf = (storagePath) => `${storagePath}.pdf`;
 exports.caminhoPdf = caminhoPdf;
+/**
+ * Documento gravado a partir de 16/11/2026 traz `fontes: 2`: PDF com as
+ * fontes novas e conversão nova de Word/LibreOffice. Sem a marca, o PDF é
+ * refeito como era (mesmas folhas já numeradas nos autos).
+ */
+exports.FONTES_ATUAIS = 2;
+const ehLegado = (d) => d.fontes !== exports.FONTES_ATUAIS;
+exports.ehLegado = ehLegado;
 /** Folhas que um arquivo enviado ocupa nos autos. */
-async function paginasDeArquivo(buf, mime) {
+async function paginasDeArquivo(buf, mime, legado = false) {
     if (mime === 'application/pdf') {
         try {
             return (await pdfLib().PDFDocument.load(buf, { ignoreEncryption: true })).getPageCount();
@@ -62,10 +70,10 @@ async function paginasDeArquivo(buf, mime) {
         }
     }
     if (mime === 'text/plain')
-        return (await (0, pdfDocumento_1.renderizarDocumento)((0, pdfDocumento_1.textoParaDoc)(buf.toString('utf8')), {}, { semCabecalho: true })).paginas;
-    if ((0, conversao_1.conversivel)(mime)) {
+        return (await (0, pdfDocumento_1.renderizarDocumento)((0, pdfDocumento_1.textoParaDoc)(buf.toString('utf8')), {}, { semCabecalho: true, legado })).paginas;
+    if ((0, conversao_1.conversivel)(mime, legado)) {
         try {
-            return (await (0, pdfDocumento_1.renderizarDocumento)((await (0, conversao_1.officeParaDoc)(buf, mime)), {}, { semCabecalho: true })).paginas;
+            return (await (0, pdfDocumento_1.renderizarDocumento)((await (0, conversao_1.officeParaDoc)(buf, mime, legado)), {}, { semCabecalho: true, legado })).paginas;
         }
         catch (_b) {
             return 1;
@@ -106,7 +114,7 @@ async function pdfDoDocumento(d, cfg) {
             catch ( /* gera de novo abaixo */_a) { /* gera de novo abaixo */ }
         }
         return (await (0, pdfDocumento_1.renderizarDocumento)(await conteudoDoDocumento(d), d.peticao ? {} : cfg, {
-            assinaturas: d.assinaturas || [], sha256: d.sha256, semCabecalho: !!d.peticao,
+            assinaturas: d.assinaturas || [], sha256: d.sha256, semCabecalho: !!d.peticao, legado: (0, exports.ehLegado)(d),
         })).buffer;
     }
     // Versão de leitura feita no envio (imagem otimizada, PDF reorganizado, Word convertido).
@@ -117,7 +125,7 @@ async function pdfDoDocumento(d, cfg) {
         catch ( /* volta ao original abaixo */_b) { /* volta ao original abaixo */ }
     }
     try {
-        return await pdfDeArquivo(await (0, arquivos_1.lerOriginal)(d), d);
+        return await pdfDeArquivo(await (0, arquivos_1.lerOriginal)(d), Object.assign(Object.assign({}, d), { legado: (0, exports.ehLegado)(d) }));
     }
     catch (_c) {
         return folhaSimples(String(d.titulo), ['Não foi possível incorporar este arquivo (corrompido ou protegido).', 'O original continua nos autos eletrônicos.', `SHA-256 ${d.sha256}`]);
@@ -125,6 +133,7 @@ async function pdfDoDocumento(d, cfg) {
 }
 /** O arquivo enviado como páginas dos autos (sem carimbo). Lança se o arquivo não abrir. */
 async function pdfDeArquivo(buf, d) {
+    const legado = !!d.legado;
     const mime = String(d.mime);
     if (mime === 'application/pdf') {
         await pdfLib().PDFDocument.load(buf, { ignoreEncryption: true }); // valida
@@ -133,9 +142,9 @@ async function pdfDeArquivo(buf, d) {
     if (mime === 'image/png' || mime === 'image/jpeg')
         return folhaSimples(String(d.titulo), [], { buf, mime });
     if (mime === 'text/plain')
-        return (await (0, pdfDocumento_1.renderizarDocumento)((0, pdfDocumento_1.textoParaDoc)(buf.toString('utf8')), {}, { semCabecalho: true })).buffer;
-    if ((0, conversao_1.conversivel)(mime))
-        return (await (0, pdfDocumento_1.renderizarDocumento)((await (0, conversao_1.officeParaDoc)(buf, mime)), {}, { semCabecalho: true })).buffer;
+        return (await (0, pdfDocumento_1.renderizarDocumento)((0, pdfDocumento_1.textoParaDoc)(buf.toString('utf8')), {}, { semCabecalho: true, legado })).buffer;
+    if ((0, conversao_1.conversivel)(mime, legado))
+        return (await (0, pdfDocumento_1.renderizarDocumento)((await (0, conversao_1.officeParaDoc)(buf, mime, legado)), {}, { semCabecalho: true, legado })).buffer;
     return folhaSimples(String(d.titulo), [
         `Arquivo ${d.nome_arquivo} (${mime}), sem conversão para PDF nesta versão.`,
         'O original está nos autos eletrônicos e pode ser baixado no Processo Eletrônico.',

@@ -350,8 +350,11 @@ async function montarPdfInterno(o) {
     for (const x of o.versoes) {
         const cfg = await cfgDe(String(x.doc.unidade_origem || ''));
         for (const [i, v] of x.versoes.entries()) {
-            const r = await (0, pdfDocumento_1.renderizarDocumento)(await (0, autos_2.conteudoDoDocumento)(v), cfg, { assinaturas: [], sha256: v.sha256, marcaDagua: 'VERSÃO ANTERIOR' });
-            await anexar(r.buffer, `USO INTERNO · ${i === 0 ? 'Redação original' : `${i + 1}ª redação`} de ${x.doc.titulo}, por ${v.autor_nome || 'autor não identificado'} · revista em ${quandoBR(v.substituida_em)}`);
+            // Versão que era arquivo enviado (antes de ser aberta no editor): o próprio arquivo.
+            const bytes = v.origem === 'upload'
+                ? await (0, autos_3.pdfDoDocumento)(v, cfg)
+                : (await (0, pdfDocumento_1.renderizarDocumento)(await (0, autos_2.conteudoDoDocumento)(v), cfg, { assinaturas: [], sha256: v.sha256, marcaDagua: 'VERSÃO ANTERIOR' })).buffer;
+            await anexar(bytes, `USO INTERNO · ${i === 0 ? 'Redação original' : `${i + 1}ª redação`} de ${x.doc.titulo}, por ${v.autor_nome || 'autor não identificado'} · revista em ${quandoBR(v.substituida_em)}`);
         }
     }
     return pdf.save();

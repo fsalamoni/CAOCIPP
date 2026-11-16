@@ -155,6 +155,8 @@ export default function Help() {
                 "Arquivos de até 50 MB: o original fica intacto (prova, com hash, em Baixar original) e as folhas usam uma versão leve, sem perda visível",
                 "No celular, o PDF abre na própria tela, página a página, com zoom e Baixar",
                 "Atalhos: N novo documento, T enviar, J juntar; Ler em sequência lê os autos sem cliques",
+                "Editor como o Word: fontes Times, Arial, Calibri, Cambria e Courier com as mesmas medidas, espaço antes e depois do parágrafo, imagem centralizada, tabela sem bordas",
+                "Abrir arquivo traz um Word, LibreOffice, PDF ou texto para dentro do editor; Word baixa a minuta em .docx",
               ]}
             />
             <FeatureCard
@@ -164,6 +166,8 @@ export default function Help() {
                 "Mesa de decisão: pendências e petições das partes para apreciar",
                 "Apreciar mostra a petição ao lado e permite decidir por despacho",
                 "Peça a assinatura de alguém da unidade ou assine e junte num ato",
+                "Abrir no editor: a minuta enviada em Word, LibreOffice ou PDF abre na plataforma para ajustar; o arquivo original fica em Versões",
+                "Minuta assinada: Revisar permite ajustar; ao salvar, as assinaturas saem e são pedidas de novo a quem assinou",
                 "Devolver à secretaria com orientação; a equipe marca Concluída",
               ]}
             />

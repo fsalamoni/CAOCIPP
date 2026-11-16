@@ -5,6 +5,19 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 16/11/2026 — Revisão de minutas no editor, como no Word
+- **Qualquer minuta abre no editor:** Word (.docx), LibreOffice (.odt),
+  .doc, PDF com texto e imagem são convertidos com fontes, cores, recuos,
+  espaçamentos, listas, tabelas e imagens. Ao salvar, o arquivo original fica
+  intacto em Versões.
+- **Minuta assinada:** "Revisar" retira as assinaturas ao salvar, pede de novo
+  a quem assinou e guarda a redação assinada em Versões.
+- **Editor:** fontes com as medidas de Times, Arial, Calibri, Cambria e
+  Courier (iguais no editor, no PDF e no Word), espaço antes e depois do
+  parágrafo, imagem centralizada ou à direita, tabela sem bordas, estimativa
+  de páginas, "Abrir arquivo" e "Word" (.docx).
+- Documentos já juntados não mudam: o PDF continua com as fontes de antes.
+
 ### 16/11/2026 — Processo Eletrônico mais rápido e atualizado sozinho
 - **Site em partes:** cada página e as abas pesadas são baixadas só quando
   abertas. A primeira visita deixa de baixar um arquivo único de ~1,6 MB

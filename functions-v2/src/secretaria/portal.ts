@@ -9,7 +9,7 @@ import { Cumpridas, camposDoCumprimento, pendentesDaFase, reconhecer, respostasD
 import { camposDosPrazosDasAcoes } from '../shared/prazosFase';
 import { COL, Contexto, REGION, calendarioDasAcoes, exigirAuth, registrarMovimento } from './context';
 import { caminhoArquivo } from './documentos';
-import { caminhoPdf, conteudoDoDocumento, folhasDoProcesso, novoCodigo, paginasDeArquivo, pdfCarimbado, registroVerificacao, textoFolhas, versaoDeLeitura } from './autos';
+import { FONTES_ATUAIS, caminhoPdf, conteudoDoDocumento, folhasDoProcesso, novoCodigo, paginasDeArquivo, pdfCarimbado, registroVerificacao, textoFolhas, versaoDeLeitura } from './autos';
 import { entregar, gravarOriginal, lerArquivoEnviado, lerOriginal } from './arquivos';
 import { renderizarDocumento, textoParaDoc } from './pdfDocumento';
 import { montarPdfAutos, selecaoOuErro } from './exportar';
@@ -579,7 +579,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             const exig = fase ? camposDoCumprimento(proc, fase.id, cumpridas, docRef.id, ordem) : {};
             const codigo = novoCodigo();
             const dadosDoc = {
-                titulo, tipo: 'Petição', origem: buf ? 'upload' : 'editor', peticao: true, status: 'juntado', ordem,
+                titulo, tipo: 'Petição', origem: buf ? 'upload' : 'editor', peticao: true, status: 'juntado', ordem, fontes: FONTES_ATUAIS,
                 ...(tipoPeticao ? { peticao_tipo: tipoPeticao } : {}), ...(prazoId ? { prazo_id: prazoId } : {}),
                 ...(buf ? { mime: p.mime, nome_arquivo: texto(p.nomeArquivo) || titulo, tamanho: buf.length, storage_path: path, ...guardado } : { conteudo: conteudoDoc }),
                 ...(pdf ? { pdf_path: pdf.path, pdf_sha256: pdf.sha256 } : {}),

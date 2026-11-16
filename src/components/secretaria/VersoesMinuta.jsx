@@ -1,6 +1,6 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
+import { Download, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { secDocumento } from '@/services/secretariaService';
@@ -24,7 +24,8 @@ export default function VersoesMinuta({ orgId, procId, documento, ocupado, onLer
                 <DialogHeader>
                     <DialogTitle>Redações anteriores: {documento?.titulo}</DialogTitle>
                     <DialogDescription>
-                        Quando outra pessoa revisa a minuta, a redação de quem escreveu antes fica guardada aqui. Só a equipe vê; não vai aos autos nem ao portal das partes.
+                        Quando outra pessoa revisa a minuta, a redação de quem escreveu antes fica guardada aqui. Também ficam aqui o arquivo original de uma minuta aberta no editor
+                        e a redação que estava assinada antes de uma revisão. Só a equipe vê; não vai aos autos nem ao portal das partes.
                     </DialogDescription>
                 </DialogHeader>
                 {q.isLoading && <p className="flex items-center gap-2 text-sm"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</p>}
@@ -36,10 +37,14 @@ export default function VersoesMinuta({ orgId, procId, documento, ocupado, onLer
                             <div className="flex-1 min-w-[10rem]">
                                 <p className="text-sm font-medium">{i === 0 ? 'Redação original' : `${i + 1}ª redação`}, de {v.autor_nome || 'autor não identificado'}</p>
                                 <p className="text-xs text-slate-600 dark:text-slate-400">
+                                    {v.origem === 'upload' ? `arquivo enviado: ${v.nome_arquivo || v.titulo} · ` : ''}
                                     {v.de ? `escrita até ${dataHora(v.de)} · ` : ''}revista em {dataHora(v.substituida_em)} por {v.substituida_por}
+                                    {(v.assinaturas || []).length > 0 ? ` · estava assinada por ${v.assinaturas.map((a) => a.nome).join(', ')}` : ''}
                                 </p>
                             </div>
-                            <Button size="sm" variant="outline" disabled={ocupado} onClick={() => onLer(v)}>Ler</Button>
+                            {v.origem === 'upload'
+                                ? <Button size="sm" variant="outline" className="gap-1" disabled={ocupado} onClick={() => onLer(v)} aria-label={`Baixar o arquivo original ${v.nome_arquivo || ''}`}><Download className="w-4 h-4" aria-hidden /> Original</Button>
+                                : <Button size="sm" variant="outline" disabled={ocupado} onClick={() => onLer(v)}>Ler</Button>}
                         </li>
                     ))}
                 </ol>
