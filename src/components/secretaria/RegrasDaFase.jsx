@@ -25,6 +25,7 @@ import { CampoAtribuicao } from './PermissoesDaFase';
 import { EditorCampos, EscolhaPagina } from './CamposProcesso';
 import { ItemOrdenavel, ListaOrdenavel } from './Ordenavel';
 import { PERFIS_DISPUTA } from '@/lib/certames';
+import { LIGAVEL_NO_FORM, camposLigaveis, podeLigar } from '@/lib/doProcesso';
 
 // Editor do que cada fase do rito pede e de onde cada ato fica registrado.
 // Usado pela tela de rito (criar e alterar). Fundamento e exemplos:
@@ -203,6 +204,58 @@ export function CondicaoPorResposta({ id, f, limite = Infinity, valor, onChange,
     );
 }
 
+/**
+ * "Vem do processo": o campo do processo (do tipo, ou assunto e descrição) que,
+ * preenchido, cumpre a ação sozinho. No formulário, um campo do processo para
+ * cada campo da ação. Igual ao servidor (shared/doProcesso.ts).
+ */
+function VemDoProcesso({ id, r, set }) {
+    const { tipos } = useContext(CondicaoContexto);
+    const pede = pedidoDaAcao(r);
+    const semTipos = !(tipos || []).length;
+    const explica = 'Quando o campo já está preenchido no processo (desde o "Novo processo" ou depois, ao corrigir os dados), a ação se cumpre sozinha, com o mesmo registro de quando alguém a marca, e o sistema aparece como autor. Apagado o campo, ela volta a ficar pendente. Cumprida à mão, a ação preenche o campo que estava vazio.';
+    if (pede === 'formulario') {
+        const mapa = r?.do_processo_campos || {};
+        const campos = (r?.campos || []).filter((c) => c.id && LIGAVEL_NO_FORM[c.tipo]);
+        if (!campos.length) return null;
+        const mudar = (cid, v) => {
+            const n = { ...mapa };
+            if (v) n[cid] = v; else delete n[cid];
+            set({ do_processo_campos: Object.keys(n).length ? n : undefined });
+        };
+        return (
+            <fieldset className="space-y-2 rounded-md border border-slate-200 dark:border-slate-700 p-2">
+                <legend className="px-1 text-sm font-medium">Vem do processo</legend>
+                <p className="text-xs text-slate-600 dark:text-slate-400">{explica} No formulário, ele se cumpre quando todo campo obrigatório tem de onde vir.</p>
+                {semTipos && <p className="text-xs text-amber-800 dark:text-amber-200">Nenhum tipo de processo usa este rito ainda: só assunto e descrição aparecem. Ligue o rito a um tipo para ver os campos dele.</p>}
+                <div className="grid sm:grid-cols-2 gap-2">
+                    {campos.map((c) => {
+                        const ops = camposLigaveis(tipos, c.tipo, true);
+                        const atual = mapa[c.id];
+                        const perdido = atual && !ops.some((o) => o.id === atual);
+                        return (
+                            <NativeSelect key={c.id} id={`${id}-vp-${c.id}`} label={c.rotulo || 'Campo'} value={atual || ''} onChange={(v) => mudar(c.id, v)}
+                                options={[['', 'Quem cumpre informa'], ...ops.map((o) => [o.id, `${o.rotulo}${o.tipo_nome && (tipos || []).length > 1 ? ` (${o.tipo_nome})` : ''}`]), ...(perdido ? [[atual, 'Campo que saiu do tipo (não cumpre mais)']] : [])]} />
+                        );
+                    })}
+                </div>
+            </fieldset>
+        );
+    }
+    const ops = camposLigaveis(tipos, pede);
+    const atual = r?.do_processo || '';
+    const perdido = atual && !ops.some((o) => o.id === atual);
+    return (
+        <div className="sm:max-w-md">
+            <NativeSelect id={`${id}-vp`} label="Vem do processo" value={atual} onChange={(v) => set({ do_processo: v || undefined })}
+                options={[['', pede === 'confirmar' ? 'Não: alguém marca' : 'Não: quem cumpre informa'], ...ops.map((o) => [o.id, `${pede === 'confirmar' ? 'Feita quando preenchido: ' : ''}${o.rotulo}${o.tipo_nome && (tipos || []).length > 1 ? ` (${o.tipo_nome})` : ''}`]), ...(perdido ? [[atual, 'Campo que saiu do tipo (não cumpre mais)']] : [])]} />
+            <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                {atual ? explica : semTipos ? 'Ligue o rito a um tipo de processo para escolher um campo do "Novo processo" (assunto e descrição já servem).' : 'Para não pedir de novo o que o "Novo processo" já informa (ex.: o número no sistema de origem), escolha o campo.'}
+            </p>
+        </div>
+    );
+}
+
 /** Configuração de uma ação: o que pede, onde fica, quem vê, se é obrigatória. */
 function ConfigAcao({ id, acao, r, modelos, onChange, fase, f, i }) {
     const { ligadas, paginas } = useContext(RegistroContexto);
@@ -274,6 +327,7 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase, f, i }) {
             {pede === 'documento' && (
                 <CamposExigencia id={`${id}-doc`} e={r.documento} modelos={modelos} onChange={(d) => onChange({ ...r, documento: { ...d, descricao: acao } })} />
             )}
+            {podeLigar(r) && <VemDoProcesso id={id} r={r} set={set} />}
             <div>
                 <Label htmlFor={`${id}-aj`}>Orientação a quem cumpre</Label>
                 <Input id={`${id}-aj`} className="mt-1" value={r?.ajuda || ''} maxLength={200} placeholder="Opcional: aparece abaixo da ação, na tela do processo"

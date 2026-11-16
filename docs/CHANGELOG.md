@@ -5,6 +5,19 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 16/11/2026 — Ações que vêm do processo e documentos detalhados na entrada
+- Ação da fase pode **vir do processo**: ligada a um campo do tipo de
+  processo (ex.: "Informar o número do PGEA"), ela se cumpre sozinha quando
+  o campo está preenchido, na criação ou depois, com registro nos autos.
+  Apagar o campo desfaz; mudar refaz com o valor novo; o que a pessoa
+  desfaz à mão o sistema respeita.
+- Condição "campo preenchido / vazio": dispensa a ação que deixou de ser
+  preciso (ex.: "Converter em PGEA" quando o número já veio).
+- No editor do rito, **Ligações sugeridas** propõe as ligações pelo nome.
+- Arquivo enviado na criação ou no processo abre na hora o detalhe: tipo,
+  do que se trata, data do documento, juntar, guardar ou minuta, assinatura
+  e portal. Entra na ordem, com a data e a hora do ato.
+
 ### 16/11/2026 — Tutorial completo para montar ritos
 - O Guia do rito abre no **Tutorial**: passo a passo em 12 etapas, do
   planejamento à implantação, com perguntas e respostas em cada etapa e o

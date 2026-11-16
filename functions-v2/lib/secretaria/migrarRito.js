@@ -68,7 +68,9 @@ async function migrarRito(c, p, auditar) {
             const texto = `Rito ${rito.nome} atualizado da versão ${de} para a ${versao} por decisão do admin do órgão.`
                 + (est.mudou_de_fase ? ` A fase ${faseAntiga}, que deixou de existir, passou a ${faseNova}.` : '');
             const mov = (0, context_1.registrarMovimento)(tx, c, d.ref, atual, 'rito_atualizado', texto, Object.assign(Object.assign(Object.assign({}, (0, exigencias_1.marcasDoDestino)('informacao')), { visivel_partes: false, de_versao: de, para_versao: versao }), (est.mudou_de_fase ? { fase_de: atual.fase_atual, fase_para: destino } : {})));
-            tx.update(d.ref, Object.assign(Object.assign(Object.assign({}, mov), { rito_nome: rito.nome, rito_versao: versao, fases: est.fases, fase_atual: est.fase_atual, acoes_feitas: est.acoes_feitas, acoes_respostas: est.acoes_respostas, exigencias_cumpridas: est.exigencias_cumpridas }), (est.prazos ? Object.assign({ prazos: est.prazos }, (0, secretaria_1.derivados)((atual.pendencias || []), est.prazos)) : {})));
+            tx.update(d.ref, Object.assign(Object.assign(Object.assign({}, mov), { rito_nome: rito.nome, rito_versao: versao, fases: est.fases, fase_atual: est.fase_atual, acoes_feitas: est.acoes_feitas, acoes_respostas: est.acoes_respostas, exigencias_cumpridas: est.exigencias_cumpridas, 
+                // As ações podem ter mudado de lugar: o que o sistema cumpriu pelo campo do processo recomeça a contar daqui.
+                acoes_auto: {}, acoes_auto_off: {} }), (est.prazos ? Object.assign({ prazos: est.prazos }, (0, secretaria_1.derivados)((atual.pendencias || []), est.prazos)) : {})));
             return true;
         });
         if (feito)

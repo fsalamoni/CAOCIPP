@@ -11,7 +11,8 @@ var __rest = (this && this.__rest) || function (s, e) {
     return t;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.secretariaDocumento = void 0;
+exports.secretariaDocumento = exports.textoDescritivo = void 0;
+exports.descritivos = descritivos;
 exports.caminhoArquivo = caminhoArquivo;
 const admin = require("firebase-admin");
 const firestore_1 = require("firebase-admin/firestore");
@@ -29,6 +30,24 @@ const context_1 = require("./context");
 const autos_1 = require("./autos");
 const pdfDocumento_1 = require("./pdfDocumento");
 const audienciaSala_1 = require("./audienciaSala");
+const MAX_DESCRICAO_DOC = 500;
+/** Descrição e data do documento, conferidas (data futura ou inválida é recusada). Lança HttpsError. */
+function descritivos(p, hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })) {
+    const descricao = (0, secretaria_1.texto)(p.descricao, MAX_DESCRICAO_DOC);
+    const data = typeof p.data_documento === 'string' ? p.data_documento.trim() : '';
+    if (data) {
+        const d = new Date(`${data}T00:00:00Z`);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(data) || Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== data)
+            throw new https_1.HttpsError('invalid-argument', 'Data do documento inválida');
+        if (data > hoje)
+            throw new https_1.HttpsError('invalid-argument', 'A data do documento não pode ser futura');
+    }
+    return Object.assign(Object.assign({}, (descricao ? { descricao } : {})), (data ? { data_documento: data } : {}));
+}
+/** O que a juntada (ou a guarda) diz do documento, além do título: a data dele e do que se trata. */
+const textoDescritivo = (doc) => `${typeof doc.data_documento === 'string' && doc.data_documento ? ` Documento datado de ${doc.data_documento.split('-').reverse().join('/')}.` : ''}`
+    + `${typeof doc.descricao === 'string' && doc.descricao ? ` Do que se trata: ${doc.descricao.replace(/\.$/, '')}.` : ''}`;
+exports.textoDescritivo = textoDescritivo;
 function caminhoArquivo(orgId, procId, docId) {
     return `secretaria/${orgId}/${procId}/${docId}`;
 }
@@ -128,7 +147,7 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
         if (!titulo)
             throw new https_1.HttpsError('invalid-argument', 'Informe o título do documento');
         const ref = docsCol.doc();
-        const base = Object.assign({ titulo, tipo: (0, secretaria_1.texto)(p.tipo, 60) || 'Documento', status: 'minuta', unidade_origem: proc.unidade_atual, autor_uid: auth.uid, autor_nome: c.userName, criado_em: agoraIso, assinaturas: [] }, ((0, secretaria_1.texto)(p.modelo_id, 40) ? { modelo_id: (0, secretaria_1.texto)(p.modelo_id, 40) } : {}));
+        const base = Object.assign(Object.assign({ titulo, tipo: (0, secretaria_1.texto)(p.tipo, 60) || 'Documento', status: 'minuta', unidade_origem: proc.unidade_atual, autor_uid: auth.uid, autor_nome: c.userName, criado_em: agoraIso, assinaturas: [] }, ((0, secretaria_1.texto)(p.modelo_id, 40) ? { modelo_id: (0, secretaria_1.texto)(p.modelo_id, 40) } : {})), descritivos(p));
         if (p.action === 'criarMinuta') {
             let conteudo;
             try {
@@ -360,7 +379,7 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
             // Documento interno (ex.: informação da secretaria) pode ficar fora do portal das partes;
             // o rito também pode pedir isso para o documento exigido (só esconde, nunca mostra).
             const visivel = p.visivel_partes !== false && !cumpridas.some((e) => e.partes === false);
-            const mov = (0, context_1.registrarMovimento)(tx, c, pr, atual, 'juntada', `Juntado o documento nº ${ordem}: ${doc.titulo} (${doc.tipo}), ${(0, autos_1.textoFolhas)(folha, paginas)}.${assin ? ` Assinado por ${assin}.` : ''}${pend.length ? ` Pendência aberta para o decisor${pend[0].interrompe ? ', com interrupção da fase' : ''}.` : ''}${resolvida ? ` Decide a pendência${resolvida.tipo === 'manual' ? '' : `: ${resolvida.descricao}`}.` : ''}`
+            const mov = (0, context_1.registrarMovimento)(tx, c, pr, atual, 'juntada', `Juntado o documento nº ${ordem}: ${doc.titulo} (${doc.tipo}), ${(0, autos_1.textoFolhas)(folha, paginas)}.${(0, exports.textoDescritivo)(doc)}${assin ? ` Assinado por ${assin}.` : ''}${pend.length ? ` Pendência aberta para o decisor${pend[0].interrompe ? ', com interrupção da fase' : ''}.` : ''}${resolvida ? ` Decide a pendência${resolvida.tipo === 'manual' ? '' : `: ${resolvida.descricao}`}.` : ''}`
                 + `${cumpridas.length ? ` Cumpre o exigido pelo rito: ${cumpridas.map((e) => e.descricao).join('; ')}.` : ''}`, Object.assign(Object.assign(Object.assign({ documento_id: ref.id, ordem, sha256: doc.sha256, visivel_partes: visivel, folha_inicial: folha, paginas }, (pdf ? { pdf_sha256: pdf.sha256 } : {})), (resolvida ? { pendencia_id: resolvida.id } : {})), (cumpridas.length ? { exigencias: cumpridas.map((e) => e.chave) } : {})));
             const exig = fase ? (0, exigencias_1.camposDoCumprimento)(atual, fase.id, cumpridas, ref.id, ordem) : {};
             const juntado = Object.assign({ status: 'juntado', ordem, visivel_partes: visivel, juntado_em: agoraIso, juntado_por: auth.uid, juntado_por_nome: c.userName, paginas, folha_inicial: folha, folha_final: folha + paginas - 1 }, (pdf ? { pdf_path: pdf.path, pdf_sha256: pdf.sha256 } : {}));
@@ -409,7 +428,7 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
             // Só no sistema quando o rito pede (pela exigência cumprida ou pela fase); senão, evento no extrato.
             const destino = (0, exigencias_1.destinoDaGuarda)(fase, cumpridas);
             const assin = (doc.assinaturas || []).map((a) => a.nome).join(', ');
-            const mov = (0, context_1.registrarMovimento)(tx, c, pr, atual, 'guarda', `Guardado no processo, fora dos autos, o documento "${doc.titulo}" (${doc.tipo}).${assin ? ` Assinado por ${assin}.` : ''}`
+            const mov = (0, context_1.registrarMovimento)(tx, c, pr, atual, 'guarda', `Guardado no processo, fora dos autos, o documento "${doc.titulo}" (${doc.tipo}).${(0, exports.textoDescritivo)(doc)}${assin ? ` Assinado por ${assin}.` : ''}`
                 + `${cumpridas.length ? ` Cumpre o exigido pelo rito: ${cumpridas.map((e) => e.descricao).join('; ')}.` : ''}`, Object.assign(Object.assign({ documento_id: ref.id, titulo: doc.titulo, sha256: doc.sha256, visivel_partes: false }, (0, exigencias_1.marcasDoDestino)(destino)), (cumpridas.length ? { exigencias: cumpridas.map((e) => e.chave) } : {})));
             const exig = fase ? (0, exigencias_1.camposDoCumprimento)(atual, fase.id, cumpridas, ref.id, null) : {};
             tx.update(ref, { status: 'controle', visivel_partes: false, guardado_em: agoraIso, guardado_por: auth.uid, guardado_por_nome: c.userName });
