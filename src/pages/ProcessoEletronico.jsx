@@ -16,7 +16,7 @@ import { PROCESSO_ELETRONICO_TAB } from '@/lib/organizationModules';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import OrgTabBar from '@/components/organization/OrgTabBar';
-import { arquivoParaBase64, secConfig, secDocumento, secProcesso } from '@/services/secretariaService';
+import { MAX_ENVIO_MB, prepararEnvio, secConfig, secDocumento, secProcesso } from '@/services/secretariaService';
 import ProcessoView from '@/components/secretaria/ProcessoView';
 import ErroQuery from '@/components/secretaria/ErroQuery';
 import AvisosEquipe from '@/components/secretaria/AvisosEquipe';
@@ -473,7 +473,7 @@ export function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
 /** Processos por página na lista (o servidor aceita até 200). */
 const PAGINA = 100;
 
-const MAX_MB_ANEXO = 5;
+const MAX_MB_ANEXO = MAX_ENVIO_MB;
 const MAX_ANEXOS = 10;
 
 function NovoProcesso({ orgId, estado, onCriado, semente = null, onSementeUsada }) {
@@ -548,8 +548,7 @@ function NovoProcesso({ orgId, estado, onCriado, semente = null, onSementeUsada 
             const falharam = [];
             for (const file of anexos) {
                 try {
-                    const base64 = await arquivoParaBase64(file);
-                    await secDocumento(orgId, r.id, 'upload', { titulo: file.name.replace(/\.[^.]+$/, ''), tipo: 'Documento', nomeArquivo: file.name, mime: file.type, base64 });
+                    await secDocumento(orgId, r.id, 'upload', { titulo: file.name.replace(/\.[^.]+$/, ''), tipo: 'Documento', ...await prepararEnvio(file) });
                 } catch { falharam.push(file.name); }
             }
             if (falharam.length) toast.warning(`Processo ${r.numero} autuado. Não foi possível anexar ${falharam.join(', ')}: anexe no processo.`);

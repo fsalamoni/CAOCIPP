@@ -23,6 +23,7 @@ const prazosFase_1 = require("../shared/prazosFase");
 const context_1 = require("./context");
 const documentos_1 = require("./documentos");
 const autos_1 = require("./autos");
+const arquivos_1 = require("./arquivos");
 const pdfDocumento_1 = require("./pdfDocumento");
 const exportar_1 = require("./exportar");
 const autos_2 = require("../shared/autos");
@@ -364,7 +365,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             campos: camposPartes.filter((x) => aberta(x.ref)),
             informacoes: infosPartes.filter((i) => aberta(i.ref) && (i.refs || []).every(aberta)),
         });
-        return { base64: Buffer.from(bytes).toString('base64'), nome: `processo-${(0, numeracao_1.numeroArquivo)(proc.numero)}.pdf` };
+        return (0, arquivos_1.entregar)(bytes, `processo-${(0, numeracao_1.numeroArquivo)(proc.numero)}.pdf`, 'application/pdf', uid);
     }
     if (p.action === 'certidao') {
         // Uma folha: situação atual e últimos movimentos públicos, com data e hora.
@@ -417,11 +418,11 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
         if (!d || d.status !== 'juntado' || d.visivel_partes === false)
             throw new https_1.HttpsError('not-found', 'Documento não encontrado');
         if (p.action === 'pdf')
-            return { base64: await (0, autos_1.pdfCarimbado)(db, proc.organization_id, ref.id, String(proc.numero), String(p.docId), d), nome: `documento-${d.ordem}.pdf` };
+            return (0, arquivos_1.entregar)(await (0, autos_1.pdfCarimbado)(db, proc.organization_id, ref.id, String(proc.numero), String(p.docId), d), `documento-${d.ordem}.pdf`, 'application/pdf', uid);
         if (d.origem === 'editor')
-            return { origem: 'editor', titulo: d.titulo, conteudo: (0, autos_1.conteudoDoDocumento)(d) };
-        const [buf] = await admin.storage().bucket().file(d.storage_path).download();
-        return { origem: 'upload', titulo: d.titulo, mime: d.mime, nomeArquivo: d.nome_arquivo, base64: buf.toString('base64') };
+            return { origem: 'editor', titulo: d.titulo, conteudo: await (0, autos_1.conteudoDoDocumento)(d) };
+        const arq = await (0, arquivos_1.entregar)(await (0, arquivos_1.lerOriginal)(d), String(d.nome_arquivo || d.titulo), String(d.mime), uid);
+        return Object.assign({ origem: 'upload', titulo: d.titulo, nomeArquivo: d.nome_arquivo }, arq);
     }
     // S7: sustentação oral, preferência, destaque e esclarecimento de fato para a sessão em que o processo está pautado.
     if (p.action === 'pedidoSessao') {
@@ -460,16 +461,14 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
         const titulo = (0, secretaria_1.texto)(p.titulo) || tipoPeticao || 'Petição';
         const prazoId = (0, secretaria_1.texto)(p.prazo_id, 60);
         const corpo = (0, secretaria_1.texto)(p.texto, secretaria_1.MAX_TEXTO_LONGO * 10);
-        const temArquivo = !!p.base64;
+        const temArquivo = !!(p.base64 || p.envio);
         if (!corpo && !temArquivo)
             throw new https_1.HttpsError('invalid-argument', 'Escreva a petição ou anexe um arquivo');
         let buf = null;
         if (temArquivo) {
             if (!TIPOS_PETICAO[String(p.mime)])
                 throw new https_1.HttpsError('invalid-argument', 'Anexe PDF, Word (DOCX), PNG ou JPG');
-            buf = Buffer.from(String(p.base64), 'base64');
-            if (!buf.length || buf.length > secretaria_1.MAX_UPLOAD_BYTES)
-                throw new https_1.HttpsError('invalid-argument', 'Arquivo vazio ou acima de 5 MB');
+            buf = await (0, arquivos_1.lerArquivoEnviado)(p, uid, String(p.mime));
         }
         // Confere acesso antes de gravar o arquivo.
         const { ref: procRef, data: procAntes } = await lerComoParte(db, uid, p.processoId);
@@ -481,9 +480,21 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
         }
         const docRef = procRef.collection('documentos').doc();
         let path = null;
+        let guardado = {};
         if (buf) {
             path = (0, documentos_1.caminhoArquivo)(procAntes.organization_id, procRef.id, docRef.id);
-            await admin.storage().bucket().file(path).save(buf, { contentType: String(p.mime), resumable: false });
+            guardado = await (0, arquivos_1.gravarOriginal)(path, buf, String(p.mime));
+            // Versão de leitura para as folhas (o original fica intacto, com o SHA-256).
+            try {
+                const v = await (0, autos_1.versaoDeLeitura)(buf, { mime: String(p.mime), titulo, nome_arquivo: (0, secretaria_1.texto)(p.nomeArquivo) || titulo, sha256: (0, secretaria_1.sha256)(buf) });
+                if (v) {
+                    await admin.storage().bucket().file(`${path}.leitura.pdf`).save(Buffer.from(v), { contentType: 'application/pdf', resumable: false });
+                    guardado = Object.assign(Object.assign({}, guardado), { leitura_path: `${path}.leitura.pdf`, leitura_tamanho: v.length });
+                }
+            }
+            catch (e) {
+                console.warn('[portal] versão de leitura não gerada', e);
+            }
         }
         const agora = new Date().toISOString();
         // Petição escrita vira documento do editor, com PDF próprio (sem o
@@ -530,7 +541,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
                 + `${cumpridas.length ? ` Cumpre o exigido pelo rito: ${cumpridas.map((e) => e.descricao).join('; ')}.` : ''}`, Object.assign({ documento_id: docRef.id, ordem, folha_inicial: folha, paginas }, (cumpridas.length ? { exigencias: cumpridas.map((e) => e.chave) } : {})));
             const exig = fase ? (0, exigencias_1.camposDoCumprimento)(proc, fase.id, cumpridas, docRef.id, ordem) : {};
             const codigo = (0, autos_1.novoCodigo)();
-            const dadosDoc = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ titulo, tipo: 'Petição', origem: buf ? 'upload' : 'editor', peticao: true, status: 'juntado', ordem }, (tipoPeticao ? { peticao_tipo: tipoPeticao } : {})), (prazoId ? { prazo_id: prazoId } : {})), (buf ? { mime: p.mime, nome_arquivo: (0, secretaria_1.texto)(p.nomeArquivo) || titulo, tamanho: buf.length, storage_path: path } : { conteudo: conteudoDoc })), (pdf ? { pdf_path: pdf.path, pdf_sha256: pdf.sha256 } : {})), (buf && corpo ? { observacao: corpo } : {})), { paginas, folha_inicial: folha, folha_final: folha + paginas - 1, sha256: hashConteudo, unidade_origem: 'parte', autor_uid: uid, autor_nome: parte.assina, criado_em: agora, juntado_em: agora, juntado_por: uid, juntado_por_nome: `${parte.assina} (parte)`, visivel_partes: true, assinaturas: [{ uid, nome: parte.assina, em: agora, sha256: hashConteudo, nivel: 'simples' }], codigo_verificacao: codigo });
+            const dadosDoc = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ titulo, tipo: 'Petição', origem: buf ? 'upload' : 'editor', peticao: true, status: 'juntado', ordem }, (tipoPeticao ? { peticao_tipo: tipoPeticao } : {})), (prazoId ? { prazo_id: prazoId } : {})), (buf ? Object.assign({ mime: p.mime, nome_arquivo: (0, secretaria_1.texto)(p.nomeArquivo) || titulo, tamanho: buf.length, storage_path: path }, guardado) : { conteudo: conteudoDoc })), (pdf ? { pdf_path: pdf.path, pdf_sha256: pdf.sha256 } : {})), (buf && corpo ? { observacao: corpo } : {})), { paginas, folha_inicial: folha, folha_final: folha + paginas - 1, sha256: hashConteudo, unidade_origem: 'parte', autor_uid: uid, autor_nome: parte.assina, criado_em: agora, juntado_em: agora, juntado_por: uid, juntado_por_nome: `${parte.assina} (parte)`, visivel_partes: true, assinaturas: [{ uid, nome: parte.assina, em: agora, sha256: hashConteudo, nivel: 'simples' }], codigo_verificacao: codigo });
             tx.set(docRef, dadosDoc);
             tx.set(db.collection(context_1.COL.verificacao).doc(codigo), (0, autos_1.registroVerificacao)(proc.organization_id, String(org.name || ''), procRef.id, proc, docRef.id, dadosDoc));
             const pzA = (0, prazosFase_1.camposDosPrazosDasAcoes)(proc, exig, fase, `${parte.assina} (parte)`, pendencias, calendario);

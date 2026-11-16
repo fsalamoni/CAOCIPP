@@ -14,6 +14,7 @@ const autos_1 = require("../shared/autos");
 const secretaria_2 = require("../shared/secretaria");
 const autos_2 = require("./autos");
 const pdfDocumento_1 = require("./pdfDocumento");
+const arquivos_1 = require("./arquivos");
 const context_1 = require("./context");
 const config_1 = require("./config");
 const autos_3 = require("./autos");
@@ -30,10 +31,12 @@ const autos_3 = require("./autos");
  * Minutas nunca entram: só o que está nos autos. O que fica fora dos autos
  * tem a sua impressão, a interna (`montarPdfInterno`, pedido com `interno`).
  */
-// ponytail: o PDF volta inteiro na resposta (limite ~32 MB do Cloud Run).
-// Acima disso os anexos viram folha de referência; gravar no Storage e
-// devolver link assinado quando processos grandes forem comuns.
-const LIMITE_ANEXOS_BYTES = 18 * 1024 * 1024;
+// PDF de até 15 MB volta na resposta; acima disso, por link temporário
+// (arquivos.ts, `entregar`). Acima deste total os arquivos enviados viram
+// folha de referência, para o PDF caber na memória da função (2 GiB).
+const LIMITE_ANEXOS_BYTES = 250 * 1024 * 1024;
+/** Quanto o arquivo pesa no PDF: a versão de leitura, se houver, ou o original. */
+const pesoNoPdf = (d) => Number(d.leitura_tamanho || d.tamanho || 0);
 const A4 = [595.28, 841.89];
 const MARGEM = 56;
 /** Helvetica padrão só codifica WinAnsi; o resto vira '?'. */
@@ -202,7 +205,7 @@ async function montarPdfAutos(o) {
     let folhaLegado = 1; // processos anteriores às folhas gravadas
     const anexarDocumento = async (d, corte) => {
         let bytes;
-        if (d.origem === 'upload' && bytesAnexos + (d.tamanho || 0) > LIMITE_ANEXOS_BYTES) {
+        if (d.origem === 'upload' && bytesAnexos + pesoNoPdf(d) > LIMITE_ANEXOS_BYTES) {
             bytes = await (0, autos_3.folhaSimples)(String(d.titulo), [
                 'Arquivo não incorporado: o PDF único dos autos passou do limite de tamanho.',
                 'Baixe o documento avulso ou gere o PDF em partes; o hash abaixo permite conferir o original.',
@@ -211,7 +214,7 @@ async function montarPdfAutos(o) {
         }
         else {
             bytes = await (0, autos_3.pdfDoDocumento)(d, await cfgDe(String(d.unidade_origem || '')));
-            bytesAnexos += d.origem === 'upload' ? (d.tamanho || 0) : bytes.length;
+            bytesAnexos += d.origem === 'upload' ? pesoNoPdf(d) : bytes.length;
         }
         const gravada = typeof d.folha_inicial === 'number';
         const folha = gravada ? d.folha_inicial : folhaLegado;
@@ -332,27 +335,27 @@ async function montarPdfInterno(o) {
     };
     for (const d of o.documentos) {
         const faixa = `USO INTERNO · ${rotuloInterno(d)}: ${d.titulo} · não integra os autos`;
-        if (d.origem === 'upload' && bytesAnexos + (d.tamanho || 0) > LIMITE_ANEXOS_BYTES) {
+        if (d.origem === 'upload' && bytesAnexos + pesoNoPdf(d) > LIMITE_ANEXOS_BYTES) {
             await anexar(await (0, autos_3.folhaSimples)(String(d.titulo), ['Arquivo não incorporado: o PDF passou do limite de tamanho.', 'Baixe o documento avulso no Processo Eletrônico.', `SHA-256 ${d.sha256}`]), faixa);
             continue;
         }
         const cfg = await cfgDe(String(d.unidade_origem || ''));
         const bytes = d.origem === 'editor'
-            ? (await (0, pdfDocumento_1.renderizarDocumento)((0, autos_2.conteudoDoDocumento)(d), cfg, { assinaturas: d.assinaturas || [], sha256: d.sha256, marcaDagua: d.status === 'controle' ? 'FORA DOS AUTOS' : 'MINUTA' })).buffer
+            ? (await (0, pdfDocumento_1.renderizarDocumento)(await (0, autos_2.conteudoDoDocumento)(d), cfg, { assinaturas: d.assinaturas || [], sha256: d.sha256, marcaDagua: d.status === 'controle' ? 'FORA DOS AUTOS' : 'MINUTA' })).buffer
             : await (0, autos_3.pdfDoDocumento)(d, cfg);
-        bytesAnexos += d.origem === 'upload' ? (d.tamanho || 0) : bytes.length;
+        bytesAnexos += d.origem === 'upload' ? pesoNoPdf(d) : bytes.length;
         await anexar(bytes, faixa);
     }
     for (const x of o.versoes) {
         const cfg = await cfgDe(String(x.doc.unidade_origem || ''));
         for (const [i, v] of x.versoes.entries()) {
-            const r = await (0, pdfDocumento_1.renderizarDocumento)(v.conteudo, cfg, { assinaturas: [], sha256: v.sha256, marcaDagua: 'VERSÃO ANTERIOR' });
+            const r = await (0, pdfDocumento_1.renderizarDocumento)(await (0, autos_2.conteudoDoDocumento)(v), cfg, { assinaturas: [], sha256: v.sha256, marcaDagua: 'VERSÃO ANTERIOR' });
             await anexar(r.buffer, `USO INTERNO · ${i === 0 ? 'Redação original' : `${i + 1}ª redação`} de ${x.doc.titulo}, por ${v.autor_nome || 'autor não identificado'} · revista em ${quandoBR(v.substituida_em)}`);
         }
     }
     return pdf.save();
 }
-exports.secretariaExportarPdf = (0, https_1.onCall)({ region: context_1.REGION, memory: '1GiB', timeoutSeconds: 120 }, async (request) => {
+exports.secretariaExportarPdf = (0, https_1.onCall)({ region: context_1.REGION, memory: '2GiB', timeoutSeconds: 300 }, async (request) => {
     var _a, _b, _c, _d;
     const auth = (0, context_1.exigirAuth)(request);
     const c = await (0, context_1.carregarContexto)(auth, (_a = request.data) === null || _a === void 0 ? void 0 : _a.organizationId);
@@ -393,7 +396,7 @@ exports.secretariaExportarPdf = (0, https_1.onCall)({ region: context_1.REGION, 
         await (0, config_1.auditar)(c.db, c.orgId, auth.uid, c.userName, 'SECRETARIA_PDF_INTERNO_EXPORTADO', {
             processo_id: ref.id, numero: proc.numero, registros: registros.length, documentos: documentos.length, versoes: versoes.reduce((n, x) => n + x.versoes.length, 0),
         });
-        return { base64: Buffer.from(bytes).toString('base64'), nome: `interno-processo-${(0, numeracao_1.numeroArquivo)(proc.numero)}.pdf` };
+        return (0, arquivos_1.entregar)(bytes, `interno-processo-${(0, numeracao_1.numeroArquivo)(proc.numero)}.pdf`, 'application/pdf', auth.uid);
     }
     const selecao = selecaoOuErro((_d = request.data) === null || _d === void 0 ? void 0 : _d.selecao);
     const [movSnap, docSnap] = await Promise.all([
@@ -411,6 +414,6 @@ exports.secretariaExportarPdf = (0, https_1.onCall)({ region: context_1.REGION, 
     // Abrir uma peça no leitor não é exportação: só registra o PDF com capa ou de várias peças.
     if (selecao.capa || selecao.eventos.length !== 1)
         await (0, config_1.auditar)(c.db, c.orgId, auth.uid, c.userName, 'SECRETARIA_PDF_EXPORTADO', { processo_id: ref.id, numero: proc.numero, modo: selecao.modo });
-    return { base64: Buffer.from(bytes).toString('base64'), nome: `processo-${(0, numeracao_1.numeroArquivo)(proc.numero)}.pdf` };
+    return (0, arquivos_1.entregar)(bytes, `processo-${(0, numeracao_1.numeroArquivo)(proc.numero)}.pdf`, 'application/pdf', auth.uid);
 });
 //# sourceMappingURL=exportar.js.map

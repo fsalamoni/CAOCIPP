@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Download, List, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
-import { base64ParaUrl, baixarBase64 } from '@/services/secretariaService';
+import { baixarResposta } from '@/services/secretariaService';
+import VisorPdf from './VisorPdf';
 import { dataHora } from './comum';
 
 const DIALOGO_CHEIO = 'max-w-none w-screen h-[100dvh] sm:w-[96vw] sm:h-[96vh] sm:max-w-[1400px] p-0 gap-0 flex flex-col overflow-hidden sm:rounded-lg [&>button:last-child]:hidden';
@@ -23,7 +24,7 @@ export default function LeitorAutos({ documentos, abertoId, onFechar, carregar, 
     const [erro, setErro] = useState('');
     const [lidos, setLidos] = useState(() => (chaveLido ? lerLidos(chaveLido) : new Set()));
     const cache = useRef(new Map());
-    const [url, setUrl] = useState(null);
+    const [pdf, setPdf] = useState(null);
 
     useEffect(() => { setAtual(abertoId); }, [abertoId]);
 
@@ -36,8 +37,7 @@ export default function LeitorAutos({ documentos, abertoId, onFechar, carregar, 
         setErro('');
         const mostrar = (pdf) => {
             if (!vivo) return;
-            const u = base64ParaUrl(pdf.base64, 'application/pdf');
-            setUrl(u);
+            setPdf(pdf);
             if (chaveLido) setLidos((s) => { const n = new Set(s); n.add(doc.id); guardarLidos(chaveLido, n); return n; });
         };
         if (cache.current.has(doc.id)) { mostrar(cache.current.get(doc.id)); return undefined; }
@@ -48,8 +48,6 @@ export default function LeitorAutos({ documentos, abertoId, onFechar, carregar, 
         return () => { vivo = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [doc?.id]);
-
-    useEffect(() => () => { if (url) URL.revokeObjectURL(url); }, [url]);
 
     const folhas = useMemo(() => (d) => (d.folha_inicial ? (d.folha_final > d.folha_inicial ? `fls. ${d.folha_inicial}–${d.folha_final}` : `fl. ${d.folha_inicial}`) : ''), []);
     const ir = (i) => { if (i >= 0 && i < documentos.length) { setAtual(documentos[i].id); setListaAberta(false); } };
@@ -72,7 +70,7 @@ export default function LeitorAutos({ documentos, abertoId, onFechar, carregar, 
                     <Button size="sm" variant="outline" disabled={idx <= 0} onClick={() => ir(idx - 1)} aria-label="Documento anterior"><ChevronLeft className="w-4 h-4" /></Button>
                     <Button size="sm" variant="outline" disabled={idx >= documentos.length - 1} onClick={() => ir(idx + 1)} aria-label="Próximo documento"><ChevronRight className="w-4 h-4" /></Button>
                     {doc && cache.current.has(doc.id) && (
-                        <Button size="sm" variant="outline" className="gap-1 hidden sm:inline-flex" onClick={() => { const p = cache.current.get(doc.id); baixarBase64(p.base64, p.nome); }}><Download className="w-4 h-4" /> Baixar</Button>
+                        <Button size="sm" variant="outline" className="gap-1" onClick={() => baixarResposta(cache.current.get(doc.id))} aria-label="Baixar o PDF"><Download className="w-4 h-4" aria-hidden /> <span className="hidden sm:inline">Baixar</span></Button>
                     )}
                     <Button size="sm" variant="ghost" onClick={onFechar} aria-label="Fechar"><X className="w-4 h-4" /></Button>
                 </div>
@@ -97,10 +95,9 @@ export default function LeitorAutos({ documentos, abertoId, onFechar, carregar, 
                     <div className="flex-1 min-w-0 bg-slate-200 dark:bg-slate-800 flex items-center justify-center">
                         {carregando ? <p className="flex items-center gap-2 text-slate-600"><Loader2 className="w-4 h-4 animate-spin" /> Abrindo o documento…</p>
                             : erro ? <p className="text-red-700 dark:text-red-300 p-4 text-center">{erro}</p>
-                                : url ? <iframe title={doc?.titulo || 'Documento'} src={url} className="w-full h-full" /> : null}
+                                : pdf ? <VisorPdf fonte={pdf} titulo={doc?.titulo || 'Documento'} onBaixar={() => baixarResposta(pdf)} className="w-full h-full" /> : null}
                     </div>
                 </div>
-                <p className="sm:hidden text-xs text-slate-600 px-3 py-1.5 border-t border-slate-200 dark:border-slate-700">Deslize a lista pelo botão ☰. Se o PDF não aparecer inteiro, use Baixar no computador.</p>
             </DialogContent>
         </Dialog>
     );

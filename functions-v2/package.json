@@ -17,6 +17,7 @@
         "pdfjs-dist": "^4.10.38",
         "pdfmake": "^0.2.20",
         "qrcode": "^1.5.4",
+        "sharp": "^0.33.5",
         "xlsx": "^0.18.5"
     },
     "devDependencies": {

@@ -4,7 +4,7 @@ import { Loader2, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { baixarBase64 } from '@/services/secretariaService';
+import { baixarResposta } from '@/services/secretariaService';
 import { dataHora } from './comum';
 import { itensInternos, rotuloDocumentoInterno, selecaoInterna, totalMarcado } from '@/lib/impressaoInterna';
 
@@ -38,7 +38,7 @@ export default function ImpressaoInterna({ aberto, movimentos, documentos, gerar
         setGerando(true);
         try {
             const r = await gerar(selecao);
-            baixarBase64(r.base64, r.nome);
+            baixarResposta(r);
             toast.success('PDF interno gerado');
             onFechar();
         } catch (e) {

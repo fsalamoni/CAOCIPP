@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { arquivoParaBase64, baixarBase64, secPortal, secProcesso } from '@/services/secretariaService';
+import { baixarResposta, prepararEnvio, secPortal, secProcesso } from '@/services/secretariaService';
 import { numero, quandoBr, relogio, valorTexto } from '@/lib/certames';
 import { Mensagens, useAgoraServidor } from './SalaLances';
 
@@ -172,7 +172,7 @@ export function JulgamentoOrgao({ orgId, procId }) {
         } catch (e) { toast.error(e?.message || 'Não foi possível concluir'); return false; } finally { setIndo(false); }
     };
     const baixar = async (ch, a) => {
-        try { const r = await secProcesso(orgId, 'certameArquivo', { processo_id: procId, chave: ch, arquivo_id: a.id }); baixarBase64(r.base64, r.nome, r.mime); } catch (e) { toast.error(e?.message || 'Não foi possível baixar'); }
+        try { const r = await secProcesso(orgId, 'certameArquivo', { processo_id: procId, chave: ch, arquivo_id: a.id }); baixarResposta(r, r.nome, r.mime); } catch (e) { toast.error(e?.message || 'Não foi possível baixar'); }
     };
     if (q.isLoading) return <p className="text-sm text-slate-600 dark:text-slate-400">Abrindo o julgamento…</p>;
     if (q.error) return <p className="text-sm text-rose-700 dark:text-rose-300">{q.error.message}</p>;
@@ -235,7 +235,7 @@ function UnidadeFornecedor({ u, criterio, certameId, agora, atualizar }) {
         if (!file) return;
         setIndo(true);
         try {
-            await secPortal('disputaEnviarArquivo', { certame_id: certameId, chave: u.chave, nome: file.name, mime: file.type, base64: await arquivoParaBase64(file) });
+            await secPortal('disputaEnviarArquivo', { certame_id: certameId, chave: u.chave, nome: file.name, ...await prepararEnvio(file) });
             toast.success('Arquivo enviado');
             atualizar();
         } catch (e) { toast.error(e?.message || 'Não foi possível enviar'); } finally { setIndo(false); }
@@ -267,7 +267,7 @@ function UnidadeFornecedor({ u, criterio, certameId, agora, atualizar }) {
             )}
             {u.convocacao && (
                 <div role="group" aria-label="Envio de arquivos" className="rounded-md border border-indigo-200 dark:border-indigo-900 p-2 space-y-2">
-                    <p>Envie {u.convocacao.o_que === 'proposta' ? 'a proposta ajustada ao valor final' : 'os documentos de habilitação'} até {quandoBr(u.convocacao.ate)} (<Contagem ate={u.convocacao.ate} agora={agora} />). PDF, Word, PNG ou JPG, até 5 MB cada.</p>
+                    <p>Envie {u.convocacao.o_que === 'proposta' ? 'a proposta ajustada ao valor final' : 'os documentos de habilitação'} até {quandoBr(u.convocacao.ate)} (<Contagem ate={u.convocacao.ate} agora={agora} />). PDF, Word, PNG ou JPG, até 50 MB cada.</p>
                     {u.convocacao.arquivos.map((a) => <p key={a.id} className="text-xs">Enviado: {a.nome}, {quandoBr(a.em)}</p>)}
                     {u.convocacao.aberta && <div><Label htmlFor={`jg-arq-${u.chave}`} className="text-xs">Arquivo</Label><Input id={`jg-arq-${u.chave}`} type="file" accept=".pdf,.docx,.png,.jpg,.jpeg" className="mt-1" disabled={indo} onChange={(e) => { enviar(e.target.files?.[0]); e.target.value = ''; }} /></div>}
                 </div>

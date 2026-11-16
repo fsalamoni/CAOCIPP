@@ -10,6 +10,7 @@ import { prazosEmAlerta, vencidosATratar } from '../shared/prazosFase';
 import { sendEmail } from '../shared/email';
 import { APP_URL, normalizarCodigo } from './autos';
 import { COL, Contexto, REGION, registrarMovimento } from './context';
+import { limparTemporarios } from './arquivos';
 import { lembrarPrazosDasPartes } from './portalAvisos';
 import { enviarResumosDiarios, notificarPessoas, prefDe } from './avisosEquipe';
 import { certificarDecursos, cienciaPorDecurso } from './comunicacoes';
@@ -122,6 +123,8 @@ export const secretariaAlertaPrazos = onSchedule(
     { schedule: 'every day 07:00', timeZone: 'America/Sao_Paulo', region: REGION },
     async () => {
         const db = admin.firestore();
+        // Envios e entregas temporárias de arquivo que ficaram para trás.
+        await limparTemporarios().catch((e) => console.warn('[arquivos] limpeza dos temporários falhou', e));
         // Antes dos alertas: a ciência por decurso abre prazos que entram neles.
         await cienciaPorDecurso(db).catch((e) => console.warn('[comunicacoes] ciência por decurso falhou', e));
         await respostasPorDecurso(db).catch((e) => console.warn('[comunicacoes] decurso do prazo de resposta falhou', e));

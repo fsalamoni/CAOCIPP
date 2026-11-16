@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { arquivoParaBase64, baixarBase64, secConfig } from '@/services/secretariaService';
+import { arquivoParaBase64, baixarResposta, secConfig } from '@/services/secretariaService';
 import { CAMPOS_MODELO } from './EditorDocumento';
 import { chaveCampo } from '@/lib/camposProcesso';
 import { variaveisDisponiveis } from '@/lib/exigencias';
@@ -237,7 +237,7 @@ export function EditorOriginal({ modelo, setModelo, orgId, tipos, onSalvo }) {
     const baixar = async () => {
         try {
             const r = await secConfig(orgId, 'baixarModelo', { id: modelo.id });
-            baixarBase64(r.base64, r.nome, r.mime);
+            baixarResposta(r, r.nome, r.mime);
         } catch (e) { toast.error(e?.message || 'Não foi possível baixar'); }
     };
     const salvar = async () => {

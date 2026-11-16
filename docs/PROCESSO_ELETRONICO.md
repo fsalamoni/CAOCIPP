@@ -364,8 +364,40 @@ Regras comuns:
 ## Documentos
 
 - Todo documento nasce **minuta** da unidade que tem o processo, redigido no
-  editor ou enviado (PDF, PNG, JPG, TXT, DOC, DOCX, ODT, XLSX; até 5 MB, limite
-  do envio por function).
+  editor ou enviado (PDF, PNG, JPG, TXT, DOC, DOCX, ODT, XLSX; até 50 MB).
+- **Envio de arquivo** (16/11/2026): o navegador põe o arquivo direto no
+  Storage, numa área de espera da própria conta (`secretaria-envios/{uid}/{id}`,
+  só criação, até 50 MB e só os tipos aceitos, em `storage.rules`), com
+  barra de progresso, e chama a função com `envio` no lugar do `base64`
+  (`prepararEnvio` em `secretariaService.js`). A função
+  (`secretaria/arquivos.ts`, `lerArquivoEnviado`) confere o dono pelo
+  caminho, o tamanho e se o conteúdo bate com o tipo (assinatura do arquivo:
+  um executável chamado .pdf é recusado), guarda no lugar definitivo e apaga
+  a cópia de espera. O `base64` na chamada continua aceito até 5 MB.
+- **Original intacto e versão de leitura:** o arquivo enviado é a prova e
+  nunca é alterado: fica byte a byte, com o SHA-256 calculado sobre ele. Se o
+  gzip economizar ao menos 5%, é guardado compactado sem perda
+  (`compactado: 'gzip'`, `tamanho_armazenado`; texto e alguns PDFs; foto e
+  Word já vêm compactados) e volta igual ao baixar. Além dele, o envio gera a
+  **versão de leitura** (`leitura_path`, `{arquivo}.leitura.pdf`), que é
+  o que vai às folhas carimbadas, à tela e ao PDF do processo: foto reduzida
+  a no máximo 300 dpi numa A4 e recomprimida sem perda perceptível (JPEG de
+  qualidade 85 sem subamostragem de cor, ou PNG sem perda, o menor; já na
+  orientação da câmera), PDF reorganizado sem perda quando fica ao menos 10%
+  menor, e Word, planilha e texto já convertidos para PDF. "Baixar original"
+  entrega sempre o arquivo como foi enviado. Documentos enviados antes desta
+  mudança continuam como estavam (sem versão de leitura).
+- **Arquivo grande na resposta:** até 15 MB volta em base64; acima disso a
+  função grava uma cópia em `secretaria-temp/{uid}/` com token aleatório e
+  devolve um link (`entregar`), que o navegador baixa. As cópias são
+  apagadas a cada nova entrega da mesma conta (as de mais de uma hora) e na
+  rotina diária `secretariaAlertaPrazos`, com os envios abandonados.
+- **Visor de PDF:** no computador com leitor de PDF embutido, a tela usa o do
+  navegador; no celular e no tablet (onde o PDF num quadro não aparecia no
+  Android e mostrava só a 1ª página no iPhone) usa o pdf.js
+  (`VisorPdf.jsx`, carregado só quando preciso), página a página, com zoom
+  e Baixar. Vale para o leitor dos autos, a prévia do editor e o documento da
+  pendência.
 - O **editor** (TipTap) mostra uma folha A4 com o papel timbrado e tem as
   ferramentas de um processador de texto: estilos (títulos, citação), fonte e
   tamanho, negrito, itálico, sublinhado, tachado, sobrescrito, subscrito, cor
@@ -374,7 +406,14 @@ Regras comuns:
   link, linha horizontal, quebra de página (Ctrl+Enter), caracteres
   especiais, localizar e substituir, limpar formatação, desfazer/refazer, zoom
   e contagem de palavras. Ctrl+S salva.
-- O conteúdo é gravado como JSON do ProseMirror em `conteudo`. O servidor
+- O conteúdo é gravado como JSON do ProseMirror, em texto, no campo
+  `conteudo_json` (até 700 KB) ou, maior que isso, num arquivo do Storage
+  (`conteudo_path`, `{arquivo}.conteudo.{hash}.json.gz`, um por redação).
+  Até 16/11/2026 ia como mapa em `conteudo`, e o banco recusava a minuta com
+  imagem pesada (documento acima de 1 MiB) ou com lista dentro de tabela (mais
+  de 20 níveis): era o erro ao salvar. Os documentos antigos continuam abrindo
+  (`conteudoDoDocumento`). Os modelos também passam a gravar `conteudo_json`.
+  O editor reduz a foto colada (até 1600 px, JPEG) quando passa de 400 KB. O servidor
   (`shared/documento.ts`, `sanitizeDoc`) mantém só uma lista fechada de nós,
   marcas e atributos: link só `http(s)`/`mailto`, imagem só data URL PNG/JPEG
   (até 1,5 MB cada), documento até 4 MB. Nada é interpretado como HTML.
@@ -1706,7 +1745,7 @@ anteriores, resultado e ata).
   `disputaNegociar` (oferta melhor que a sua atual). `certameConvocar` pede
   a proposta ajustada ou os documentos de habilitação com prazo de 2 a 72
   horas; o licitante envia até 10 arquivos (PDF, DOCX, PNG ou JPG, até
-  5 MB) com `disputaEnviarArquivo`, gravados pela função em
+  50 MB, pela área de espera do Storage) com `disputaEnviarArquivo`, gravados pela função em
   `secretaria/{org}/certames/{id}/{uid}/` (as regras do Storage não mudam:
   ninguém lê direto), e o órgão baixa com `certameArquivo`.
 - **Decisão por unidade:** `certameAceitar` (proposta aceita) e
@@ -2057,8 +2096,8 @@ pedidos que cabem para o julgamento.
   gravação, deferir e indeferir) e "Destacar para sessão síncrona"; no
   portal, "Seus pedidos para esta sessão" e o formulário do pedido.
 - **Limite:** a sustentação gravada vai por link: o sistema não guarda
-  áudio nem vídeo (o envio de arquivos passa pela função, com limite de
-  5 MB, e o Storage não aceita gravação direta do navegador).
+  áudio nem vídeo (o Storage só aceita PDF, imagem, texto e documentos de
+  escritório, até 50 MB).
 - **Glossário:** sessão virtual, destaque e sustentação oral.
 
 ### Voto divergente, voto condutor e acórdão (15/11/2026)
@@ -2804,7 +2843,7 @@ A exportação é registrada em `auditLogs` (`SECRETARIA_PDF_EXPORTADO`).
   mostra o último movimento apenas se o tipo for público e se ele não
   estiver marcado `ultimo_movimento.publico: false` (gravado desde nov/2026).
   O movimento `guarda` (documento guardado fora dos autos) é sempre interno.
-- **Petição a qualquer tempo:** texto e/ou um anexo PDF, PNG ou JPG até 5 MB.
+- **Petição a qualquer tempo:** texto e/ou um anexo PDF, DOCX, PNG ou JPG até 50 MB.
   É juntada na hora com número de ordem e assinatura simples da parte, gera o
   movimento `peticao` (com a tempestividade diante dos prazos abertos para ela
   ou sem destinatário) e abre pendência para o decisor. Se o admin ligar
@@ -3419,7 +3458,7 @@ admin define, em cada tipo, o que quem autua preenche:
   `partes_resumo` a mantém para a busca achar o histórico. Trocar o tipo do
   processo não é retificação: use "Novo processo derivado deste".
 - **Arquivos na autuação** (13/11/2026): o Novo processo aceita até 10
-  arquivos (5 MB cada). Depois de autuar, a tela os envia um a um como
+  arquivos (50 MB cada). Depois de autuar, a tela os envia um a um como
   minutas (`secretariaDocumento` `upload`), internas e fora do portal; uma
   falha não desfaz a autuação e o aviso diz o que anexar no processo. A minuta
   não cumpre a exigência "juntar" do rito até ser juntada.

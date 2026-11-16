@@ -43,6 +43,7 @@ const CORES = [
 const ESPECIAIS = '§ º ª ° ¹ ² ³ – — “ ” ‘ ’ « » … • ± × ÷ € £ © ® ™ ½ ¼ ¾ ¶ † ‡ µ ¿ ¡'.split(' ');
 const LARGURA_UTIL_PX = 605; // 16 cm a 96 dpi
 const MAX_IMAGEM = 1.4 * 1024 * 1024;
+const IMAGEM_LEVE = 400 * 1024;
 
 const ParagrafoFormato = Extension.create({
     name: 'paragrafoFormato',
@@ -77,7 +78,8 @@ export async function prepararImagem(file) {
     const url = await new Promise((ok, erro) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = erro; r.readAsDataURL(file); });
     const img = await new Promise((ok, erro) => { const i = new window.Image(); i.onload = () => ok(i); i.onerror = () => erro(new Error('Imagem inválida')); i.src = url; });
     const escala = Math.min(1, 1600 / Math.max(img.width, img.height));
-    if (escala === 1 && url.length * 0.75 <= MAX_IMAGEM) return { src: url, largura: img.width };
+    // Imagem leve fica como está; a pesada (foto de celular) vira JPEG de boa qualidade, sem diferença visível na folha.
+    if (escala === 1 && url.length * 0.75 <= IMAGEM_LEVE) return { src: url, largura: img.width };
     const c = document.createElement('canvas');
     c.width = Math.round(img.width * escala);
     c.height = Math.round(img.height * escala);
@@ -87,6 +89,8 @@ export async function prepararImagem(file) {
     ctx.drawImage(img, 0, 0, c.width, c.height);
     for (const q of [0.85, 0.7, 0.55]) {
         const d = c.toDataURL('image/jpeg', q);
+        // Captura de tela costuma ficar menor no PNG original: fica ele.
+        if (escala === 1 && url.length <= d.length && url.length * 0.75 <= MAX_IMAGEM) return { src: url, largura: img.width };
         if (d.length * 0.75 <= MAX_IMAGEM) return { src: d, largura: c.width };
     }
     throw new Error('Imagem grande demais mesmo reduzida');

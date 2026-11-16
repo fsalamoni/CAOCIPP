@@ -166,7 +166,10 @@ export function versaoAnterior(doc: Record<string, unknown>, uid: string, novoSh
 
 export const MAX_TEXTO_CURTO = 200;
 export const MAX_TEXTO_LONGO = 4000;
-export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+/** Arquivo enviado direto ao Storage pelo navegador (storage.rules repete este limite). */
+export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+/** Arquivo em base64 na própria chamada (clientes antigos e modelos). */
+export const MAX_UPLOAD_BASE64_BYTES = 5 * 1024 * 1024;
 export const MAX_FASES = 60;
 export const MAX_ACOES = 20;
 /** Campos de formulário somados em todas as ações do rito (o documento do rito tem limite de tamanho). */
