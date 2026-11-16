@@ -20,6 +20,7 @@ import { ItemOrdenavel, ListaOrdenavel } from './Ordenavel';
 import VotacaoSessao from './VotacaoSessao';
 import { AtaDaSessao, BotaoAgenda, PainelAoVivo, PresencaSessao, usePainelSessao } from './PainelSessao';
 import { PainelReuniao, PautaReuniao } from './Reuniao';
+import RelatorioColegiado, { GuiaColegiado } from './RelatorioColegiado';
 
 const hojeIso = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 const sel = 'h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900';
@@ -128,7 +129,13 @@ function ListaSessoes({ orgId, onAbrirSessao }) {
                     {gere.length > 0 && <Button className="gap-2" onClick={() => setNova(true)}><CalendarPlus className="w-4 h-4" aria-hidden /> Marcar sessão</Button>}
                 </div>
             </div>
-            {!colegiados.length && <p className="text-sm text-slate-600 dark:text-slate-400">Nenhum colegiado ativo em que você esteja lotado ou que você componha.</p>}
+            {!colegiados.length && (
+                <div className="text-sm text-slate-600 dark:text-slate-400 space-y-1">
+                    <p>Nenhum colegiado ativo em que você esteja lotado ou que você componha.</p>
+                    <p>Para criar um: na configuração do Processo Eletrônico, aba Estrutura, cadastre o órgão com decisão colegiada, a composição (presidente e membros) e ao menos uma unidade dele. Depois, use no rito a ação Julgar em colegiado; a biblioteca de ritos tem modelos prontos com sessão.</p>
+                </div>
+            )}
+            {gere.map((c) => <GuiaColegiado key={c.id} colegiado={c} sessoes={sessoes} />)}
             {acordaos.length > 0 && (
                 <section className="space-y-2" aria-label="Acórdãos que você redige">
                     <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-1.5"><ScrollText className="w-4 h-4" aria-hidden /> Acórdãos que você redige ({acordaos.length})</h3>
@@ -163,6 +170,7 @@ function ListaSessoes({ orgId, onAbrirSessao }) {
                             <ul className="grid gap-2 md:grid-cols-2 mt-2">{g.passadas.map((s) => <CartaoSessao key={s.id} s={s} onAbrir={onAbrirSessao} mostraOrgao={varios} />)}</ul>
                         </details>
                     )}
+                    <RelatorioColegiado orgId={orgId} colegiados={colegiados} hoje={hoje} />
                 </>
             )}
             {nova && (

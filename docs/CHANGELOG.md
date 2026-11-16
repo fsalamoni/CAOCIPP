@@ -5,6 +5,21 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 16/11/2026 — Relatório do colegiado, guia da secretaria e modelos com sessão
+- Na aba Sessões, o Relatório do colegiado mostra, no período escolhido, as
+  sessões realizadas e canceladas, os processos julgados por resultado e por
+  relator, o que saiu da pauta sem julgamento, as vistas em atraso e o tempo
+  médio até o acórdão, com download da lista em CSV ou Excel.
+- A secretaria de cada colegiado vê um guia que confere o que já está pronto
+  (composição, unidade, primeira sessão, pauta publicada, sessão realizada)
+  e diz onde fazer o que falta.
+- Biblioteca de ritos: novos modelos de recurso administrativo julgado por
+  colegiado e de proposta de ato normativo ao conselho; a revisão de
+  arquivamento do Conselho Superior e a comissão de ética pública passam a
+  julgar em sessão; a contratação direta e a compra privada usam a disputa
+  de preços. O filtro "Usa" mostra os modelos com sessão, disputa ou
+  audiência.
+
 ### 16/11/2026 — Equipe da disputa e acompanhamento público
 - Quem tem o processo designa, nos autos, o agente de contratação (ou
   pregoeiro), a equipe de apoio e a autoridade superior. Cada um recebe

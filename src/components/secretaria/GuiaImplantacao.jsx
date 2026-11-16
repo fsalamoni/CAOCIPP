@@ -115,7 +115,17 @@ export default function GuiaImplantacao({ onIr, variante = 'outline', className 
                         <Parte titulo="6. Processo interno, sem partes">
                             <p>Consultas, pareceres, pedidos entre setores: não marque polos no tipo. Use <strong>fases de espera</strong> para diligências fora do órgão, <strong>andamento automático</strong> para a fase seguir quando o que ela exige estiver cumprido e <strong>pendência para quem decide</strong> para levar o processo ao gabinete. O Rito Consultas CAOCIPP, no Guia do rito, é um exemplo completo.</p>
                         </Parte>
-                        <Parte titulo="7. Teste antes de pôr em uso">
+                        <Parte titulo="7. Julgamento em colegiado e a primeira sessão">
+                            <p>Quando a decisão é de um conselho, comissão, junta ou câmara, o processo vai a julgamento em sessão, com pauta, relator, votos, vista, acórdão e ata.</p>
+                            <ol className="list-decimal space-y-1 pl-5">
+                                <li>Em <strong>Estrutura</strong>, cadastre o órgão com <strong>decisão colegiada</strong> e a composição: presidente, titulares e suplentes, com o período de cada um. Ajuste a antecedência da pauta, o prazo de vista e o do acórdão, se o regimento disser.</li>
+                                <li>Em <strong>Unidades e equipes</strong>, crie ao menos uma unidade do colegiado, de preferência a secretaria que expede. Só entram na pauta processos que estão numa unidade dele.</li>
+                                <li>No rito, use na fase de julgamento a ação <strong>Julgar em colegiado</strong>, com os resultados possíveis. Na biblioteca, o filtro <strong>Usa</strong> mostra os modelos que já trazem a ação.</li>
+                                <li>Na aba <strong>Sessões</strong>, a secretaria segue o guia do colegiado: marca a sessão, inclui os processos com julgamento pendente, publica a pauta e, no dia, registra a presença, colhe os votos e proclama. Ao encerrar, o sistema gera a ata.</li>
+                                <li>O <strong>Relatório do colegiado</strong>, na mesma aba, mostra por período os julgados por resultado e por relator, o que saiu da pauta, as vistas em atraso e o tempo médio até o acórdão, com download em CSV ou Excel.</li>
+                            </ol>
+                        </Parte>
+                        <Parte titulo="8. Teste antes de pôr em uso">
                             <ol className="list-decimal space-y-1 pl-5">
                                 <li>No editor, resolva todas as <strong>pendências</strong> e abra a <strong>Prévia</strong>: ela mostra como a equipe e as partes vão ver cada fase.</li>
                                 <li>Use <strong>Ver como a equipe e a parte</strong> para conferir as telas de cada papel.</li>
@@ -123,10 +133,10 @@ export default function GuiaImplantacao({ onIr, variante = 'outline', className 
                                 <li>Confira as certidões nos autos e o que a parte viu no portal.</li>
                             </ol>
                         </Parte>
-                        <Parte titulo="8. Em uso: ajuste sem medo">
+                        <Parte titulo="9. Em uso: ajuste sem medo">
                             <p>Cada vez que o rito é salvo vira uma nova <strong>versão</strong>. Processos já autuados seguem com a cópia do rito da autuação (e com os nomes de polos daquela época), então ajustar não bagunça o que está em curso. O histórico da configuração registra quem mudou o quê. Reveja o rito depois dos primeiros processos reais: onde a equipe trava, falta uma ação, um documento ou um desvio.</p>
                         </Parte>
-                        <Parte titulo="9. Lista final antes de ativar">
+                        <Parte titulo="10. Lista final antes de ativar">
                             <ul className="list-disc space-y-1 pl-5">
                                 <li>Toda fase tem unidade, e toda unidade tem pelo menos uma pessoa lotada.</li>
                                 <li>Prazos e contagem conferidos com a norma do órgão, inclusive feriados no calendário.</li>

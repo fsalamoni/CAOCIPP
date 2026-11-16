@@ -79,6 +79,36 @@ export function agruparSessoes(sessoes, hoje) {
     };
 }
 
+/**
+ * S15: guia da secretaria para pôr o colegiado a funcionar, passo a passo,
+ * conferido com o que já existe (composição, unidade e sessões do colegiado).
+ */
+export function passosDoColegiado(c, sessoes) {
+    const doColegiado = sessoes.filter((s) => s.orgao_id === c.id && s.situacao !== 'cancelada');
+    const julgamento = doColegiado.filter((s) => s.tipo !== 'reuniao');
+    return [
+        { id: 'composicao', feito: (c.membros || 0) > 0 && !!c.presidente, titulo: 'Composição com presidente e membros', ajuda: 'Na configuração do Processo Eletrônico, aba Estrutura, abra o colegiado e cadastre presidente, titulares e suplentes, com o período de cada um. Quem vota em cada sessão é quem compõe o colegiado no dia.' },
+        { id: 'unidade', feito: (c.unidades || 0) > 0, titulo: 'Unidade do colegiado', ajuda: 'Em Unidades e equipes, cadastre ao menos uma unidade vinculada ao colegiado, de preferência a secretaria que expede. Só entram na pauta processos que estão numa unidade dele.' },
+        { id: 'sessao', feito: doColegiado.length > 0, titulo: 'Primeira sessão marcada', ajuda: 'Use Marcar sessão: data, hora, modo (presencial, virtual, híbrida ou assíncrona) e caráter. A sessão nasce como rascunho de pauta.' },
+        { id: 'pauta', feito: julgamento.some((s) => (s.itens || 0) > 0) || doColegiado.some((s) => s.tipo === 'reuniao' && (s.itens || 0) > 0), titulo: 'Processos na pauta', ajuda: 'Entram os processos com julgamento pendente na fase: o rito precisa da ação Julgar em colegiado (veja Modelos de rito com sessão, na biblioteca). Na reunião, a pauta é de assuntos.' },
+        { id: 'publicada', feito: doColegiado.some((s) => s.situacao !== 'rascunho'), titulo: 'Pauta publicada', ajuda: 'Ao publicar, cada processo recebe a certidão de inclusão nos autos, as partes são avisadas e os membros veem a sessão em Minhas próximas sessões.' },
+        { id: 'realizada', feito: doColegiado.some((s) => s.situacao === 'encerrada'), titulo: 'Sessão realizada e ata', ajuda: 'No dia, registre a presença, chame cada processo, colha os votos e proclame. Ao encerrar, o sistema gera a ata para o presidente e a secretaria assinarem.' },
+    ];
+}
+
+/** S15: colunas dos julgados do relatório, para as exportações de tabela (CSV e Excel). */
+export const COLUNAS_RELATORIO = [
+    { label: 'Data da sessão', value: (l) => br(l.data) },
+    { label: 'Sessão', key: 'sessao' },
+    { label: 'Processo', key: 'numero' },
+    { label: 'Relator', key: 'relator' },
+    { label: 'Resultado', key: 'resultado' },
+    { label: 'Redator do acórdão', key: 'redator' },
+    { label: 'Prazo do acórdão', value: (l) => (l.prazo_acordao ? br(l.prazo_acordao) : '') },
+    { label: 'Acórdão juntado em', value: (l) => (l.juntado_em ? br(l.juntado_em) : l.acordao_pendente ? 'pendente' : '') },
+    { label: 'Dias até o acórdão', key: 'dias_ate_acordao' },
+];
+
 // ---- Votação na sessão (S4): espelho de functions-v2/src/shared/sessoes.ts ----
 
 /** Como o vogal vota. */

@@ -14,11 +14,12 @@ import { modelos as ministerio_publico } from './modelos/ministerio_publico.js';
 import { modelos as conselhos } from './modelos/conselhos.js';
 import { modelos as mp_extrajudicial } from './modelos/mp_extrajudicial.js';
 import { modelos as uniao } from './modelos/uniao.js';
+import { modelos as colegiados } from './modelos/colegiados.js';
 
 export { A, AREAS, PORTES, montar, nomeArea, nomePorte, quando } from './modelos/dsl.js';
 
 /** Funções dos modelos, na ordem em que aparecem (cada chamada gera ids novos). */
-export const MODELOS = [...geral, ...correcional, ...etica, ...sancionador, ...contratacoes, ...contratos, ...atendimento, ...ministerio_publico, ...conselhos, ...mp_extrajudicial, ...uniao];
+export const MODELOS = [...geral, ...correcional, ...etica, ...sancionador, ...contratacoes, ...contratos, ...atendimento, ...ministerio_publico, ...conselhos, ...mp_extrajudicial, ...uniao, ...colegiados];
 
 export function bibliotecaDeModelos() {
     return MODELOS.map((m) => m());

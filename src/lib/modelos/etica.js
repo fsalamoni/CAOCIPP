@@ -468,10 +468,9 @@ export function apuracaoComissaoEticaPublica() {
         },
         {
             nome: 'Deliberação', unidade: 'Comissão de ética', vai: ['Providências', 'Arquivamento'], nome_publico: 'Decisão da comissão',
-            orientacao: 'O colegiado delibera em reunião e profere decisão conclusiva e fundamentada (art. 12, § 4º). A censura ética é a sanção típica; cabem também recomendações. O acordo de conduta pessoal e profissional, para falta de menor gravidade, está na Resolução CEP 10/2008 (confira).',
+            orientacao: 'O colegiado delibera em sessão e profere decisão conclusiva e fundamentada (art. 12, § 4º). A censura ética é a sanção típica; cabem também recomendações. O acordo de conduta pessoal e profissional, para falta de menor gravidade, está na Resolução CEP 10/2008 (confira). Cadastre a comissão como colegiado e inclua o processo na pauta da aba Sessões: relator, votos, vista, proclamação e ata correm lá, e o resultado proclamado cumpre a ação Conclusão.',
             acoes: [
-                A.audiencia('Pautar a reunião deliberativa', 'reuniao'),
-                A.escolha('Conclusão', ['Sem falta ética', 'Censura ética', 'Recomendação', 'Acordo de conduta'], { obrigatoria: true, destino: 'autos', partes: true }),
+                A.julgamento('Conclusão', ['Sem falta ética', 'Censura ética', 'Recomendação', 'Acordo de conduta'], {}, { obrigatoria: true }),
                 A.documento('Juntar a decisão conclusiva e fundamentada', 'Decisão', { forma: 'redigir' }),
                 A.documento('Juntar a ata da reunião', 'Ata', { forma: 'redigir', nivel: 'recomendado' }),
                 A.comunicar('Intimar as partes da decisão', { especie: 'intimacao', dias: 0, texto: 'Fica intimado da decisão da comissão de ética.' }, { obrigatoria: true }),

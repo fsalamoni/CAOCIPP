@@ -165,7 +165,7 @@ async function acaoAnotacao(c, p) {
     await ref.set({ organization_id: c.orgId, uid: c.ctx.uid, processo_id: pref.id, texto, atualizada_em });
     return { texto, atualizada_em };
 }
-const SO_LEITURA = ['sessaoListar', 'sessaoObter', 'sessaoAptos', 'sessaoVotacao'];
+const SO_LEITURA = ['sessaoListar', 'sessaoRelatorio', 'sessaoObter', 'sessaoAptos', 'sessaoVotacao'];
 async function acaoSessao(c, p) {
     var _a;
     const r = await acaoSessaoEm(c, p);
@@ -213,10 +213,40 @@ async function acaoSessaoEm(c, p) {
         }).sort((a, b) => String(a.prazo).localeCompare(String(b.prazo)));
         return {
             hoje,
-            colegiados: vistos.map((o) => ({ id: o.id, nome: o.nome, sigla: o.sigla, gere: gereSessoes(c, o.id), pauta: o.pauta })),
+            colegiados: vistos.map((o) => (Object.assign({ id: o.id, nome: o.nome, sigla: o.sigla, gere: gereSessoes(c, o.id), pauta: o.pauta }, (gereSessoes(c, o.id) ? { membros: (0, orgaos_1.composicaoEm)(o.composicao, hoje).length, presidente: (0, orgaos_1.composicaoEm)(o.composicao, hoje).some((m) => m.funcao === 'presidente'), unidades: unidadesDo(c, o.id).length } : {})))),
             sessoes,
             acordaos,
         };
+    }
+    // S15: relatório do colegiado no período (a secretaria e quem o compõe ou nele está lotado).
+    if (p.action === 'sessaoRelatorio') {
+        const { orgaos } = await lerConfig(c);
+        const o = colegiado(orgaos, p.orgao_id);
+        if (!veSessoes(c, o, hoje))
+            throw new https_1.HttpsError('permission-denied', 'Só a secretaria e os membros do colegiado veem o relatório');
+        const ehData = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}T12:00:00Z`));
+        if (!ehData(p.de) || !ehData(p.ate) || p.de > p.ate)
+            throw new https_1.HttpsError('invalid-argument', 'Informe o período: data inicial e final, a inicial antes da final');
+        const de = p.de, ate = p.ate;
+        if ((Date.parse(`${ate}T12:00:00Z`) - Date.parse(`${de}T12:00:00Z`)) / 86400000 > sessoes_1.MAX_DIAS_RELATORIO)
+            throw new https_1.HttpsError('invalid-argument', 'O período vai até um ano');
+        const snap = await c.db.collection(exports.COL_SESSOES).where('organization_id', '==', c.orgId).get();
+        const sessoes = snap.docs.map((d) => ({ ref: d.ref, s: d.data() }))
+            .filter(({ s }) => s.orgao_id === o.id && s.data >= de && s.data <= ate && s.situacao !== 'rascunho');
+        const comVotos = sessoes.filter(({ s }) => s.situacao !== 'cancelada' && s.tipo !== 'reuniao');
+        // ponytail: uma leitura de votações por sessão; agregar no encerramento se o colegiado passar de centenas de sessões por ano.
+        const votSnaps = await Promise.all(comVotos.map(({ ref }) => ref.collection('votacoes').get()));
+        const votacoes = votSnaps.flatMap((vs, i) => vs.docs.map((d) => {
+            const v = d.data();
+            return { sessao_id: comVotos[i].ref.id, processo_id: d.id, relator_nome: v.relator_nome || '', proclamado: v.proclamado ? { resultado: v.proclamado.resultado, data: v.proclamado.data } : null };
+        }));
+        const pids = [...new Set(votacoes.filter((v) => v.proclamado).map((v) => v.processo_id))];
+        const procs = pids.length ? await c.db.getAll(...pids.map((id) => c.db.collection(context_1.COL.processos).doc(id))) : [];
+        const acordaos = procs.map((d) => { var _a, _b; return ({ id: d.id, a: ((_a = d.data()) === null || _a === void 0 ? void 0 : _a.organization_id) === c.orgId ? (_b = d.data()) === null || _b === void 0 ? void 0 : _b.acordao : null }); })
+            .filter(({ a }) => a === null || a === void 0 ? void 0 : a.sessao_id)
+            .map(({ id, a }) => ({ sessao_id: String(a.sessao_id), processo_id: id, prazo: String(a.prazo || ''), pendente: a.pendente === true, juntado_em: a.juntado_em || null, redator_nome: String(a.redator_nome || '') }));
+        const r = (0, sessoes_1.relatorioDoColegiado)(sessoes.map(({ ref, s }) => ({ id: ref.id, titulo: s.titulo, data: s.data, tipo: s.tipo, situacao: s.situacao, pauta: s.pauta || [] })), votacoes, acordaos, hoje);
+        return Object.assign({ hoje, de, ate, colegiado: { id: o.id, nome: o.nome, sigla: o.sigla } }, r);
     }
     if (p.action === 'sessaoObter') {
         const { orgaos, calendario } = await lerConfig(c);

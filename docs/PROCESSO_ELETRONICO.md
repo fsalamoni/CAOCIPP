@@ -1796,6 +1796,49 @@ designada, nada muda: todo ato do órgão é de quem tem o processo.
   avisos do agente, julgamento, recurso e ata; nomes só depois da
   declaração). Na cotação privada, só quem participa.
 
+### Relatório do colegiado, guia da secretaria e modelos com sessão (16/11/2026)
+
+Etapa S15, sobre as sessões das etapas S1 a S10 e a disputa de S11 a S14.
+Nada muda no que já existe; o relatório só lê.
+
+- **Relatório:** `sessaoRelatorio { orgao_id, de, ate }` (aba Sessões, seção
+  "Relatório do colegiado"). Vê quem vê as sessões do colegiado
+  (`veSessoes`: secretaria, lotados e quem o compõe hoje). Período de até um
+  ano (`MAX_DIAS_RELATORIO`), pela data da sessão, sem rascunhos. Lê as
+  sessões do órgão, a subcoleção `votacoes` de cada sessão de julgamento não
+  cancelada e o `acordao` dos processos julgados (vale o da sessão em que o
+  processo foi julgado). A conta é pura, `relatorioDoColegiado` em
+  `shared/sessoes.ts`, com teste: sessões realizadas, por realizar,
+  canceladas e reuniões; julgados por resultado e por relator; itens
+  pautados, retirados, adiados, convertidos em diligência, destacados e com
+  pedido de vista; vistas ainda não devolvidas, atrasadas quando o prazo
+  passou; acórdãos juntados, tempo médio em dias corridos da proclamação à
+  juntada, quantos no prazo, pendentes e atrasados. A lista dos julgados
+  baixa em CSV ou Excel (`COLUNAS_RELATORIO` em `src/lib/sessoes.js`, com as
+  exportações de `jurimetriaExport.js`). Processo sob sigilo aparece só pelo
+  número, como na pauta.
+- **Guia da secretaria:** `passosDoColegiado` (`src/lib/sessoes.js`) confere,
+  para cada colegiado que a pessoa gere, os passos: composição com
+  presidente, unidade do colegiado, primeira sessão, processos na pauta,
+  pauta publicada e sessão realizada. `sessaoListar` passa a mandar, só a
+  quem gere, `membros` e `presidente` (composição de hoje) e `unidades`. O
+  guia fica aberto enquanto falta algo e diz onde fazer cada passo.
+- **Modelos com sessão:** a biblioteca ganha "Recurso administrativo julgado
+  por colegiado" (Lei 9.784/1999, arts. 56 a 65, com reconsideração,
+  alegações, oitiva prévia do possível agravamento e julgamento em sessão) e
+  "Proposta de ato normativo ao conselho" (parecer da comissão, consulta
+  pública opcional, relatoria e deliberação), em `modelos/colegiados.js`. A
+  revisão de arquivamento do Conselho Superior (MPRS) e a apuração da
+  comissão de ética pública passam a usar a ação Julgar em colegiado (a
+  vista corre na sessão, sem saída própria). A contratação direta usa a
+  disputa na dispensa eletrônica (o resultado decide a saída; deserta ou
+  fracassada pede o que fazer) e a compra privada oferece a cotação
+  eletrônica entre convidados.
+- **Filtro Usa** na biblioteca (`RECURSOS_FILTRO` e `usaRecurso` em
+  `bibliotecaFiltro.js`): julgamento em sessão, disputa de preços ou
+  audiência e reunião. O teste da biblioteca aceita condição sobre o
+  resultado da disputa.
+
 ### Reunião deliberativa (15/11/2026)
 
 Nona etapa (S9). A sessão ganha o tipo `reuniao` (`secSessoes`, campo

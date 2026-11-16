@@ -321,7 +321,7 @@ export default function GuiaRito({ variante = 'outline', className = '', inicial
                                 <li>A biblioteca abre e fecha pelo título (a tela lembra a sua escolha). Fechada, mostra só as áreas: clique numa para abrir já filtrada.</li>
                                 <li>Os modelos ficam agrupados por área, cada grupo fechado com a contagem e os nomes. Abra um grupo, ou use <strong>Abrir todas as áreas</strong>.</li>
                                 <li><strong>Buscar</strong> procura no nome, na instituição, na lei, nas fases e na descrição, sem ligar para acentos, e marca o termo achado. Os mais relevantes vêm primeiro.</li>
-                                <li>Filtre por <strong>área</strong>, <strong>porte</strong> (curto, médio, longo), e <strong>Inspirado em</strong> (a instituição ou lei de origem). <strong>Limpar filtros</strong> volta tudo.</li>
+                                <li>Filtre por <strong>área</strong>, <strong>porte</strong> (curto, médio, longo), e <strong>Inspirado em</strong> (a instituição ou lei de origem). <strong>Usa</strong> mostra só os modelos com julgamento em sessão de colegiado (o processo vai à pauta da aba Sessões), com disputa de preços ou com audiência e reunião. <strong>Limpar filtros</strong> volta tudo.</li>
                                 <li><strong>Ordenar</strong>: por área, por relevância, por nome ou pelo tamanho (do mais curto ao mais longo, ou o contrário).</li>
                                 <li>Clique no nome do modelo para ver a descrição inteira, quando usar, a base, as partes, o que o rito faz (comunicações, audiências, documentos, saídas) e as fases com prazos e unidades.</li>
                             </ul>
