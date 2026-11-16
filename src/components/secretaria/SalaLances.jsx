@@ -19,7 +19,7 @@ import { numero, problemaDoLance, quandoBr, relogio, valorTexto } from '@/lib/ce
  */
 
 /** Hora do servidor, avançando a cada segundo a partir da última resposta. */
-function useAgoraServidor(agoraServidor, recebidoEm) {
+export function useAgoraServidor(agoraServidor, recebidoEm) {
     const [tick, setTick] = useState(Date.now());
     useEffect(() => { const t = setInterval(() => setTick(Date.now()), 1000); return () => clearInterval(t); }, []);
     if (!agoraServidor || !recebidoEm) return tick;
@@ -38,7 +38,7 @@ function Relogio({ fim, agora }) {
     );
 }
 
-function Mensagens({ lista, onEnviar, rotulo, id }) {
+export function Mensagens({ lista, onEnviar, rotulo, id }) {
     const [txt, setTxt] = useState('');
     const [indo, setIndo] = useState(false);
     const fim = useRef(null);

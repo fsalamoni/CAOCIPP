@@ -1676,6 +1676,80 @@ recusado. `momentoDaDisputa` diz se a disputa publicada está em
   `SalaLancesOrgao` na janela da disputa), com consulta a cada 3 ou 4
   segundos durante os lances.
 
+### Julgamento da disputa e resultado (15/11/2026)
+
+Etapa S13. Depois dos lances (ou da abertura, sem lances), cada item ou
+lote é julgado; com tudo decidido, o órgão declara o vencedor, corre o
+recurso e o resultado cumpre a ação do rito. Lógica pura em
+`shared/certames.ts` (seção S13); servidor em
+`secretaria/julgamentoDisputa.ts`; estado em
+`secCertames/{id}/sala/julgamento` (`Julgamento`: etapa, unidades,
+licitantes com nome, documento, porte e apelido, recurso, rodadas
+anteriores, resultado e ata).
+
+- **Abertura:** `certameJulgamento` (órgão) monta o julgamento na primeira
+  leitura de quem tem o processo: as posições finais da sala (ou as
+  propostas, sem lances) viram a `ordem` de cada unidade, com o porte de
+  cada licitante. Com lances, o encerramento vai aos autos antes, como na
+  classificação (`disputa_lances_encerrados`, uma vez só). Item sem
+  proposta fica `deserta`.
+- **Empate ficto** (LC 123/2006, arts. 44 e 45): se a primeira não é ME/EPP
+  e há ME/EPP a até 5% dela (`candidatosDoDesempate`; no desconto, compara o
+  preço equivalente, 100 menos o desconto), a unidade fica em `desempate`.
+  `certameDesempate` convoca a próxima candidata por 5 minutos; ela cobre
+  com `disputaDesempate` (oferta melhor que a primeira: passa à frente) ou
+  declina. Vencido o prazo ou recusado, a unidade convoca a seguinte; sem
+  candidata, a primeira vai à análise. A unidade espera o prazo da
+  convocada antes de chamar outra.
+- **Análise:** `certameNegociar` abre negociação com quem está na vez (a
+  contraproposta vai à conversa e por e-mail) e o licitante responde com
+  `disputaNegociar` (oferta melhor que a sua atual). `certameConvocar` pede
+  a proposta ajustada ou os documentos de habilitação com prazo de 2 a 72
+  horas; o licitante envia até 10 arquivos (PDF, DOCX, PNG ou JPG, até
+  5 MB) com `disputaEnviarArquivo`, gravados pela função em
+  `secretaria/{org}/certames/{id}/{uid}/` (as regras do Storage não mudam:
+  ninguém lê direto), e o órgão baixa com `certameArquivo`.
+- **Decisão por unidade:** `certameAceitar` (proposta aceita) e
+  `certameHabilitar` (vencedor habilitado). `certameRecusar` recusa a
+  proposta ou inabilita, com motivo de ao menos 10 letras, e põe na vez o
+  próximo classificado; sem outro, a unidade fracassa. `certameReabrir`
+  (com motivo) volta um licitante à análise, para o recurso provido ou o
+  erro corrigido antes da declaração. Auditoria
+  `SECRETARIA_SESSAO_PROPOSTA_RECUSADA` e `SECRETARIA_SESSAO_JULGAMENTO_REABERTO`.
+- **Vencedor e recurso** (Lei 14.133/2021, art. 165): `certameDeclarar`
+  exige todas as unidades decididas e abre a intenção de recurso por 10 a 60
+  minutos; vai aos autos (`disputa_vencedor_declarado`) com o vencedor de
+  cada unidade e os prazos, e a todos por e-mail. A partir daí os nomes são
+  públicos aos licitantes. `disputaIntencao` (uma por licitante, com
+  síntese), `disputaRazoes` (de quem manifestou, até 3 dias úteis) e
+  `disputaContrarrazoes` (de qualquer licitante, até 3 dias úteis depois das
+  razões). `momentoDoRecurso` diz o ponto: intenção, razões, contrarrazões,
+  decisão ou sem recurso; sem intenção no prazo, segue ao resultado. Sem
+  razões no prazo, decide-se já. `certameDecidirRecurso` (negado, provido ou
+  provido em parte, com fundamentos de ao menos 20 letras) vai aos autos
+  (`disputa_recurso_decidido`); provido, o julgamento volta e o vencedor é
+  declarado de novo (nova rodada; as anteriores ficam na ata).
+- **Resultado:** `certameResultado` (Homologada se há vencedor em ao menos
+  uma unidade, Deserta se ninguém propôs, Fracassada nos demais casos) põe
+  nos autos a ata (`textoDaAta`: classificação de cada unidade, desempate,
+  negociação, recusas com motivo, rodadas de recurso e resultado), encerra o
+  certame (`situacao: 'encerrado'`, conversa fechada) e cumpre a ação pelo
+  mesmo caminho do julgamento da sessão (`registrarResultadoDaDisputa`, que
+  chama `marcarAcao`): a certidão leva o resultado e o resumo, a resposta
+  decide as saídas e o avanço automático corre. O processo guarda o certame
+  em `ultimo_certame` e libera `certame` para outra ação de disputa.
+  `marcarAcao` à mão segue recusado enquanto não houver resultado.
+- **Conversa:** a conversa da sala segue aberta durante o julgamento
+  (também na disputa sem lances) e fecha com o resultado. Cada ato do órgão
+  deixa aviso a todos; os atos dos licitantes (oferta de desempate, nova
+  oferta, arquivo, intenção) deixam aviso do sistema, por apelido até a
+  declaração.
+- Tela: `JulgamentoDisputa.jsx` (`JulgamentoOrgao` na janela da disputa,
+  depois da sala; `JulgamentoFornecedor` na página `Disputas`), com
+  consulta a cada 8 ou 5 segundos até o resultado.
+  ponytail: não refaz o empate ficto quando a primeira é recusada; se for
+  preciso, chamar `abrirUnidade` de novo em `certameRecusar`.
+
 ### Reunião deliberativa (15/11/2026)
 
 Nona etapa (S9). A sessão ganha o tipo `reuniao` (`secSessoes`, campo

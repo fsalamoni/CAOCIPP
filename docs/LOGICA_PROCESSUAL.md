@@ -353,6 +353,14 @@ informado.
   pelo preço e não por quem concorre. O prazo é o do relógio do servidor,
   igual para todos, e o lance excluído pelo órgão sempre tem motivo e aviso
   a todos na sala.
+  No julgamento, a microempresa e a empresa de pequeno porte a até 5% da
+  primeira têm a chance de cobrir a oferta (Lei Complementar 123/2006); a
+  proposta só vence depois de aceita e com o licitante habilitado, e cada
+  recusa ou inabilitação tem motivo e chama o próximo classificado. O
+  vencedor declarado abre o recurso (intenção logo em seguida, razões e
+  contrarrazões em 3 dias úteis cada, decisão fundamentada), e só então vem
+  o resultado, com a ata nos autos. O resultado cumpre a ação sozinho: não
+  se marca à mão, como o julgamento proclamado na sessão.
 - **Reunião deliberativa.** O colegiado também decide assuntos que não são
   processos. Cada assunto tem a forma de votação e a maioria que ele exige:
   simples (mais votos a favor que contra), absoluta (mais da metade dos

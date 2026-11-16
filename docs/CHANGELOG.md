@@ -5,6 +5,21 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 15/11/2026 — Julgamento e resultado da disputa de preços
+- Depois dos lances (ou da abertura, sem lances), a unidade julga item por
+  item: desempate de microempresa e empresa de pequeno porte a até 5% da
+  primeira, com 5 minutos para cobrir; negociação; pedido de proposta
+  ajustada e de documentos, que o licitante envia pela própria disputa;
+  aceitação e habilitação, ou recusa e inabilitação com motivo, chamando o
+  próximo classificado.
+- Declarado o vencedor (nos autos), abre a intenção de recurso por 10 a 60
+  minutos, com razões e contrarrazões em 3 dias úteis cada e decisão
+  fundamentada; provido o recurso, a unidade refaz o que ele alcançou.
+- Adjudicar e homologar (ou declarar deserta ou fracassada) põe a ata da
+  disputa nos autos e cumpre a ação do rito sozinho, com a certidão.
+- A conversa da sala segue aberta durante o julgamento, também na disputa
+  sem lances, e se encerra com o resultado.
+
 ### 15/11/2026 — Sala de lances da disputa de preços
 - Na hora da abertura, abre a sala de lances, que fecha sozinha no fim do
   prazo pelo relógio do servidor. Quem cotou dá lances sucessivos, cada um

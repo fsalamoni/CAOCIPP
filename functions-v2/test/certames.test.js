@@ -112,3 +112,56 @@ test('sala de lances: momento, lance, intervalo e classificação (S12)', () => 
     assert.deepEqual(ord.map((v) => v.uid), ['A', 'B', 'C']);
     assert.deepEqual(s.ordenarPosicoes(ord, { criterio: 'maior_desconto' }).map((v) => v.uid), ['C', 'A', 'B']);
 });
+
+test('julgamento: empate ficto ME/EPP, desempate, recusa e resultado (S13)', () => {
+    const d = { criterio: 'menor_preco' };
+    const c = (uid, total, porte = 'demais') => ({ uid, valor: total, total, porte, em: '2026-11-15T12:00:00.000Z' });
+    // ME/EPP a até 5% da primeira (demais) entra no desempate; acima de 5% não.
+    assert.deepEqual(s.candidatosDoDesempate([c('a', 100), c('b', 104, 'me_epp'), c('x', 106, 'me_epp'), c('e', 105, 'me_epp')], d), ['b', 'e']);
+    assert.deepEqual(s.candidatosDoDesempate([c('b', 100, 'me_epp'), c('a', 101)], d), [], 'a primeira já é ME/EPP: sem empate ficto');
+    // No desconto, compara o preço equivalente (100 - desconto): 20% x 16,5% fica a 4,375%.
+    assert.deepEqual(s.candidatosDoDesempate([c('a', 20), c('b', 16.5, 'me_epp'), c('x', 15, 'me_epp')], { criterio: 'maior_desconto' }), ['b']);
+    let u = s.abrirUnidade([c('a', 100), c('b', 104, 'me_epp')], d);
+    assert.equal(u.situacao, 'desempate');
+    assert.equal(u.vez, null);
+    assert.match(s.aplicarDesempate(u, 'b', 100, 100, 'x', d), /menor que a da primeira colocada/);
+    const v = s.aplicarDesempate(u, 'b', 99, 99, 'x', d);
+    assert.equal(v.situacao, 'analise');
+    assert.equal(v.vez, 'b');
+    assert.deepEqual(v.ordem.map((o) => o.uid), ['b', 'a']);
+    assert.ok(v.ordem[0].desempate && !v.desempate);
+    u = s.fimDoDesempate({ ...u, desempate: { candidatos: ['b'], feitos: ['b'] } });
+    assert.equal(u.vez, 'a');
+    assert.equal(s.proximaVez({ ordem: u.ordem, recusas: [{ uid: 'a' }] }), 'b');
+    assert.equal(s.proximaVez({ ordem: u.ordem, recusas: [{ uid: 'a' }, { uid: 'b' }] }), null);
+    assert.equal(s.abrirUnidade([], d).situacao, 'deserta');
+    assert.equal(s.resultadoDaDisputa([{ situacao: 'habilitada' }, { situacao: 'fracassada' }]), 'Homologada');
+    assert.equal(s.resultadoDaDisputa([{ situacao: 'deserta' }, { situacao: 'deserta' }]), 'Deserta');
+    assert.equal(s.resultadoDaDisputa([{ situacao: 'deserta' }, { situacao: 'fracassada' }]), 'Fracassada');
+    assert.ok(s.julgamentoConcluido([{ situacao: 'habilitada' }, { situacao: 'deserta' }]));
+    assert.ok(!s.julgamentoConcluido([{ situacao: 'aceita' }]));
+});
+
+test('julgamento: prazos do recurso em dias úteis, momentos e ata (S13)', () => {
+    // Sexta, 13/11/2026: 3 dias úteis (16, 17 e 18) vencem na quarta, 18/11, às 23:59 de Brasília.
+    assert.equal(s.fimDoPrazoUtil('2026-11-13', 3), '2026-11-19T02:59:59.000Z');
+    const r = { intencao_ate: '2026-11-16T12:10:00.000Z', razoes_ate: '2026-11-19T02:59:59.000Z', contrarrazoes_ate: '2026-11-24T02:59:59.000Z', intencoes: [], contrarrazoes: [] };
+    assert.equal(s.momentoDoRecurso(r, '2026-11-16T12:05:00.000Z'), 'intencao');
+    assert.equal(s.momentoDoRecurso(r, '2026-11-16T12:11:00.000Z'), 'sem_recurso');
+    const i = { ...r, intencoes: [{ uid: 'b', nome: 'B', motivo: 'm', em: 'x' }] };
+    assert.equal(s.momentoDoRecurso(i, '2026-11-17T12:00:00.000Z'), 'razoes');
+    assert.equal(s.momentoDoRecurso(i, '2026-11-20T12:00:00.000Z'), 'decisao', 'sem razões no prazo, decide-se já');
+    const a = { ...r, intencoes: [{ uid: 'b', nome: 'B', motivo: 'm', em: 'x', razoes: { texto: 't', em: 'x' } }] };
+    assert.equal(s.momentoDoRecurso(a, '2026-11-20T12:00:00.000Z'), 'contrarrazoes');
+    assert.equal(s.momentoDoRecurso(a, '2026-11-25T12:00:00.000Z'), 'decisao');
+    assert.equal(s.momentoDoRecurso({ ...a, decisao: { provimento: 'nao' } }, '2026-11-25T12:00:00.000Z'), 'decidido');
+    const ata = s.textoDaAta({ criterio: 'menor_preco', objeto: 'Papel', perfil: 'dispensa', processo_numero: '1/2026', abertura_em: '2026-11-16T12:00:00.000Z' },
+        [{ nome: 'Item 1', u: { situacao: 'habilitada', ordem: [{ uid: 'b', total: 900, porte: 'me_epp', desempate: true }], recusas: [{ uid: 'a', etapa: 'habilitacao', motivo: 'Certidão vencida' }], habilitada: { uid: 'b', total: 900 } } }],
+        (x) => ({ a: 'Alfa', b: 'Beta' })[x], [{ ...a, contrarrazoes: [{ nome: 'Alfa' }], decisao: { provimento: 'nao', fundamentos: 'Sem razão.' } }], 'Homologada', 3);
+    assert.match(ata, /ATA DA DISPENSA ELETRÔNICA/);
+    assert.match(ata, /1º Beta \(ME\/EPP\): R\$\s?900,00, oferta de desempate/);
+    assert.match(ata, /Inabilitado: Alfa\. Motivo: Certidão vencida/);
+    assert.match(ata, /Desfecho: Beta, R\$\s?900,00\./);
+    assert.match(ata, /Decisão: Negado provimento\. Sem razão\./);
+    assert.match(ata, /Resultado: Homologada\./);
+});

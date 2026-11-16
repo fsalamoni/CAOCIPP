@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { secPortal } from '@/services/secretariaService';
 import { Entrar } from './Portal';
 import { SalaLancesFornecedor } from '@/components/secretaria/SalaLances';
+import { JulgamentoFornecedor } from '@/components/secretaria/JulgamentoDisputa';
 import {
     CRITERIOS, PERFIS_DISPUTA, UNIDADES_DISPUTA, alertasDaProposta, faltaPara, lotesIncompletos, moeda, numero, percentual, quandoBr, unidadesDeDisputa, valorNaUnidade,
 } from '@/lib/certames';
@@ -73,7 +74,7 @@ function Carregando({ texto }) {
 function SeloSituacao({ a, agora }) {
     if (a.situacao === 'cancelado') return <Badge className="bg-rose-700 hover:bg-rose-700">Cancelada</Badge>;
     if (a.situacao === 'publicado' && Date.parse(a.abertura_em) > agora) return <Badge className="bg-indigo-600 hover:bg-indigo-600">Recebendo propostas</Badge>;
-    return <Badge variant="outline">{a.situacao === 'publicado' ? (a.momento === 'lances' ? 'Em lances' : 'Aberta') : a.situacao_nome}</Badge>;
+    return <Badge variant="outline">{a.situacao === 'publicado' ? (a.momento === 'lances' ? 'Em lances' : 'Em julgamento') : a.situacao === 'encerrado' && a.resultado ? a.resultado : a.situacao_nome}</Badge>;
 }
 
 function MinhasDisputas({ onAbrir, onCodigo }) {
@@ -283,9 +284,11 @@ function Disputa({ id, codigo, onVoltar, onAbrir }) {
                     {d.participa && d.proposta && d.aviso.momento === 'lances' && (
                         <SalaLancesFornecedor certameId={d.aviso.id} aviso={d.aviso} onFim={fimDosLances} />
                     )}
-                    {d.participa && !d.pode.propor && d.aviso.situacao === 'publicado' && Date.parse(d.aviso.abertura_em) <= agora && !(d.proposta && d.aviso.momento === 'lances') && (
-                        <p className="text-sm text-slate-700 dark:text-slate-300">O prazo de propostas terminou{d.proposta ? '; a sua foi recebida' : ''}. {d.aviso.lances && d.aviso.momento === 'lances'
-                            ? 'Sem proposta, não se dá lance.' : d.aviso.lances ? 'A fase de lances terminou: o órgão julga as ofertas e publica o resultado.' : 'O órgão abre as propostas e julga.'}</p>
+                    {d.participa && d.proposta && d.aviso.momento !== 'lances' && ['publicado', 'encerrado'].includes(d.aviso.situacao) && Date.parse(d.aviso.abertura_em) <= agora && (
+                        <JulgamentoFornecedor certameId={d.aviso.id} criterio={d.aviso.criterio} />
+                    )}
+                    {d.participa && !d.proposta && !d.pode.propor && d.aviso.situacao === 'publicado' && Date.parse(d.aviso.abertura_em) <= agora && (
+                        <p className="text-sm text-slate-700 dark:text-slate-300">O prazo de propostas terminou. Sem proposta, não se dá lance nem se participa do julgamento.</p>
                     )}
                 </>
             )}

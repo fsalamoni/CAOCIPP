@@ -14,6 +14,7 @@ import {
     aberturaCertidao, tituloCertidao, visivelCertidao, acaoAtiva, condicaoAtendida, respondeNaRodada, respostaDaAcao, respostasDaAcao, respostasDaFase, textoDaCondicao, Condicao,
 } from '../shared/exigencias';
 import { podeQuem, podeReserva, textoQuem, textoReserva } from '../shared/permissoesFase';
+import { RESULTADOS_DISPUTA } from '../shared/certames';
 import { responsavelPelaFase } from '../shared/efeitosFase';
 import { encerrarPrazosDaFase, marcasDoPrazo, prazosDasAcoes } from '../shared/prazosFase';
 import { RESPOSTAS, encerrarComunicacoesDaFase, faseQueEspera, situacaoDaResposta } from '../shared/comunicacaoRito';
@@ -566,6 +567,13 @@ async function valorDaAcao(c: Awaited<ReturnType<typeof carregarContexto>>, regr
         try { d = dadosDoJulgamento(cfg, bruto, hojeBrasil()); } catch (e) { erroUsuario(e); }
         const t = textoDoJulgamento(cfg, d!);
         return { rotulo: regra?.rotulo || 'Resultado do julgamento', tipo: 'lista' as TipoCampo, valor: apurar(cfg, d!.votos).resultado, valor_texto: t, ref: undefined, refs: [] as Ref[], restrito: false };
+    }
+    if (pede === 'disputa') {
+        // S13: o resultado registrado na disputa (homologada, deserta ou fracassada) é a resposta da ação; a certidão leva o resumo.
+        const d = (bruto && typeof bruto === 'object' ? bruto : {}) as { resultado?: unknown; resumo?: unknown };
+        if (!RESULTADOS_DISPUTA.includes(String(d.resultado))) throw new HttpsError('failed-precondition', `"${acao}" se cumpre com o resultado da disputa de preços: registre-o na própria disputa.`);
+        const t = `${d.resultado}${d.resumo ? ` (${texto(d.resumo, 2000)})` : ''}`;
+        return { rotulo: regra?.rotulo || 'Resultado da disputa', tipo: 'lista' as TipoCampo, valor: String(d.resultado), valor_texto: t, ref: undefined, refs: [] as Ref[], restrito: false };
     }
     if (pede === 'formulario') {
         // Vários campos, conferidos como os do tipo de processo (registros relidos no servidor).
@@ -1201,6 +1209,27 @@ export async function registrarJulgamentoDaSessao(db: admin.firestore.Firestore,
 }
 
 /**
+ * Resultado registrado na disputa de preços (S13): cumpre a ação `disputa`
+ * do rito pelo mesmo caminho do julgamento da sessão. Devolve '' quando
+ * cumpriu, ou o motivo (a equipe marca depois; o resultado já está no processo).
+ */
+export async function registrarResultadoDaDisputa(db: admin.firestore.Firestore, orgId: string, id: string, quem: string): Promise<string> {
+    try {
+        const sis = await contextoDoSistema(db, orgId);
+        if (!sis) return 'o Processo Eletrônico não está ativo';
+        const d = (await db.collection(COL.processos).doc(id).get()).data();
+        const cert = d?.certame;
+        if (!cert?.resultado || d?.fase_atual !== cert.fase_id || ((d?.acoes_feitas || {})[cert.fase_id] || []).includes(cert.acao_idx)) return 'a ação da disputa não está mais pendente na fase atual';
+        await movimentar({ ...sis, userName: `${quem} (resultado da disputa)` }, {
+            organizationId: orgId, action: 'marcarAcao', id, version: d!.version, acao_idx: cert.acao_idx, feita: true,
+        } as unknown as ProcRequest);
+        return '';
+    } catch (e) {
+        return (e as Error)?.message || 'falha ao registrar';
+    }
+}
+
+/**
  * Movimentação de um processo existente. `opcoes.automatico`: chamada do
  * próprio servidor (avanço automático da fase); nunca vem do cliente.
  */
@@ -1438,7 +1467,7 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             if (!fase || !acao) throw new HttpsError('invalid-argument', 'Ação da fase inválida');
             const regra = fase.acoes_regras?.[idx];
             if (regra?.pede === 'orientacao') throw new HttpsError('failed-precondition', `"${acao}" é só orientação: não se marca.`);
-            if (regra?.pede === 'disputa' && p.feita !== false) {
+            if (regra?.pede === 'disputa' && p.feita !== false && !RESULTADOS_DISPUTA.includes(String(data.certame?.resultado))) {
                 throw new HttpsError('failed-precondition', `"${acao}" se cumpre com o resultado da disputa de preços: monte e publique a disputa pela própria ação.`);
             }
             if (regra?.pede === 'comunicacao') {
@@ -1471,7 +1500,9 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             // O dado que a ação pede (texto, número, data, escolha), conferido como num campo do processo.
             // Julgamento proclamado na sessão: valem a data e os votos da sessão, não o que vier na tela.
             const proclamado = regra?.pede === 'julgamento' ? data.sessao?.proclamado : null;
-            const dado = feita ? await valorDaAcao(c, regra, acao, proclamado ? { data: proclamado.data, votos: proclamado.votos } : p.valor) : null;
+            // Disputa de preços: vale o resultado registrado na disputa (S13), não o que vier na tela.
+            const disputa = regra?.pede === 'disputa' ? data.certame : null;
+            const dado = feita ? await valorDaAcao(c, regra, acao, proclamado ? { data: proclamado.data, votos: proclamado.votos } : disputa ? { resultado: disputa.resultado, resumo: disputa.resumo } : p.valor) : null;
             // Resposta registrada à mão (manifestação por outro meio): "sem manifestação" ou "parcial" só depois de
             // decorrido o prazo de quem foi comunicado. Contraditório: ninguém perde a vez antes da hora.
             if (regra?.pede === 'resposta' && dado && dado.valor !== 'Apresentada'
@@ -1521,7 +1552,9 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             }
             // Julgamento registrado: o processo sai da pauta, e a sessão o mostra como julgado.
             const comSessao = regra?.pede === 'julgamento' && feita && data.sessao
-                ? { sessao: FieldValue.delete(), ultima_sessao: { ...data.sessao, julgado_em: hojeBrasil() } } : {};
+                ? { sessao: FieldValue.delete(), ultima_sessao: { ...data.sessao, julgado_em: hojeBrasil() } }
+                // Disputa com resultado: sai do processo (outra ação de disputa pode vir) e fica como a última.
+                : regra?.pede === 'disputa' && feita && data.certame ? { certame: FieldValue.delete(), ultimo_certame: data.certame } : {};
             // O rito diz onde fica: certidão nos autos (com folha), evento no extrato, só no sistema ou sem evento.
             const dest = destinoDaAcao(regra);
             const comDado = (!dado ? '' : reservado ? ` ${dado.rotulo}: reservado a quem gere a unidade.` : ` ${dado.rotulo}: ${dado.valor_texto}.`) + cancelada;

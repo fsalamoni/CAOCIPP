@@ -1,6 +1,17 @@
 "use strict";
+var __rest = (this && this.__rest) || function (s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.valorTexto = exports.totalDoValor = exports.fimDosLances = exports.SEGUNDOS_ENTRE_LANCES = exports.SEGUNDOS_PARA_DESFAZER = exports.moeda = exports.instanteDaAbertura = exports.num = exports.DECLARACOES = exports.HORAS_LANCES = exports.DIAS_UTEIS_MINIMOS = exports.MAX_FORNECEDORES = exports.MAX_CONVITES = exports.MAX_ITENS = exports.SITUACOES_CERTAME = exports.RESULTADOS_DISPUTA = exports.PORTES = exports.UNIDADES_DISPUTA = exports.CRITERIOS = exports.PERFIS_DISPUTA = void 0;
+exports.PROVIMENTOS = exports.julgamentoConcluido = exports.proximoDoDesempate = exports.proximaVez = exports.ofertaMelhor = exports.ETAPAS_JULGAMENTO = exports.SITUACOES_JULGAMENTO = exports.MAX_ARQUIVOS_CONVOCACAO = exports.DIAS_RECURSO = exports.HORAS_CONVOCACAO = exports.MINUTOS_INTENCAO = exports.MINUTOS_DESEMPATE = exports.MARGEM_EMPATE_FICTO = exports.valorTexto = exports.totalDoValor = exports.fimDosLances = exports.SEGUNDOS_ENTRE_LANCES = exports.SEGUNDOS_PARA_DESFAZER = exports.moeda = exports.instanteDaAbertura = exports.num = exports.DECLARACOES = exports.HORAS_LANCES = exports.DIAS_UTEIS_MINIMOS = exports.MAX_FORNECEDORES = exports.MAX_CONVITES = exports.MAX_ITENS = exports.SITUACOES_CERTAME = exports.RESULTADOS_DISPUTA = exports.PORTES = exports.UNIDADES_DISPUTA = exports.CRITERIOS = exports.PERFIS_DISPUTA = void 0;
 exports.sanitizeDisputaDaAcao = sanitizeDisputaDaAcao;
 exports.aberturaMinima = aberturaMinima;
 exports.sanitizeDadosCertame = sanitizeDadosCertame;
@@ -18,14 +29,23 @@ exports.valorDaProposta = valorDaProposta;
 exports.problemaDoLance = problemaDoLance;
 exports.ordenarPosicoes = ordenarPosicoes;
 exports.posicaoDe = posicaoDe;
+exports.candidatosDoDesempate = candidatosDoDesempate;
+exports.abrirUnidade = abrirUnidade;
+exports.fimDoDesempate = fimDoDesempate;
+exports.aplicarDesempate = aplicarDesempate;
+exports.resultadoDaDisputa = resultadoDaDisputa;
+exports.fimDoPrazoUtil = fimDoPrazoUtil;
+exports.momentoDoRecurso = momentoDoRecurso;
+exports.linhaDaUnidade = linhaDaUnidade;
+exports.textoDaAta = textoDaAta;
 /**
  * Disputa de preços como ação do rito (`pede: 'disputa'`), S11: o certame.
  * A unidade que tem o processo monta o aviso (objeto, itens, critério, prazo)
  * e o publica; fornecedores entram por convite (cotação privada) ou pelo link
  * do aviso (dispensa eletrônica, IN SEGES/ME 67/2021) e enviam a proposta.
  * Até a abertura, o conteúdo das propostas é sigiloso: o órgão sabe só quantas
- * chegaram. A sala de lances (S12) está no fim deste arquivo; o julgamento e o
- * resultado vêm na S13.
+ * chegaram. A sala de lances (S12) e o julgamento com o resultado (S13) estão
+ * no fim deste arquivo.
  *
  * Lógica pura; o servidor grava. Ver docs/PROCESSO_ELETRONICO.md.
  */
@@ -338,5 +358,146 @@ function posicaoDe(uid, p, u, d, lances) {
         return null;
     const ult = lances.filter((l) => l.uid === uid && l.chave === u.chave && !l.excluido).sort((a, b) => a.seq - b.seq).at(-1);
     return ult ? { uid, valor: ult.valor, total: ult.total, em: ult.em, seq: ult.seq } : { uid, valor: base, total: (0, exports.totalDoValor)(base, u, d), em: p.atualizada_em, seq: 0 };
+}
+// ─── Julgamento e resultado (S13) ─────────────────────────────────────────
+/** Empate ficto: ME/EPP até 5% acima da melhor oferta (LC 123/2006, art. 44, § 2º), com 5 minutos para cobrir (art. 45, § 3º). */
+exports.MARGEM_EMPATE_FICTO = 0.05;
+exports.MINUTOS_DESEMPATE = 5;
+/** Janela da intenção de recurso, em minutos: ao menos 10, logo depois de declarado o vencedor (Lei 14.133/2021, art. 165, § 1º, I). */
+exports.MINUTOS_INTENCAO = [10, 60];
+/** Prazo para enviar proposta ajustada ou documentos de habilitação, em horas (IN SEGES 73/2022: ao menos 2 horas). */
+exports.HORAS_CONVOCACAO = [2, 72];
+/** Razões e contrarrazões: 3 dias úteis cada (Lei 14.133/2021, art. 165, I e § 4º). */
+exports.DIAS_RECURSO = 3;
+exports.MAX_ARQUIVOS_CONVOCACAO = 10;
+exports.SITUACOES_JULGAMENTO = {
+    desempate: 'Em desempate (ME/EPP)', analise: 'Proposta em análise', aceita: 'Proposta aceita, habilitação em análise',
+    habilitada: 'Vencedor habilitado', fracassada: 'Fracassado', deserta: 'Deserto',
+};
+exports.ETAPAS_JULGAMENTO = {
+    julgamento: 'Julgamento e habilitação', recurso: 'Prazo de recurso', resultado: 'Pronto para o resultado', encerrado: 'Encerrado',
+};
+const melhor = (a, b, d) => (d.criterio === 'maior_desconto' ? a > b : a < b);
+exports.ofertaMelhor = melhor;
+/**
+ * ME/EPP em empate ficto com a primeira colocada, na ordem de classificação.
+ * Não há empate ficto se a primeira já é ME/EPP. No desconto, compara-se o
+ * preço equivalente (100 menos o desconto).
+ */
+function candidatosDoDesempate(ordem, d) {
+    const [primeira, ...resto] = ordem;
+    if (!primeira || primeira.porte === 'me_epp')
+        return [];
+    const preco = (c) => (d.criterio === 'maior_desconto' ? 100 - c.total : c.total);
+    const limite = preco(primeira) * (1 + exports.MARGEM_EMPATE_FICTO);
+    return resto.filter((c) => c.porte === 'me_epp' && preco(c) <= limite + 1e-9).map((c) => c.uid);
+}
+/** Abre o julgamento de uma unidade a partir das posições finais. */
+function abrirUnidade(ordem, d) {
+    if (!ordem.length)
+        return { situacao: 'deserta', ordem, vez: null, recusas: [] };
+    const candidatos = candidatosDoDesempate(ordem, d);
+    return candidatos.length
+        ? { situacao: 'desempate', ordem, vez: null, recusas: [], desempate: { candidatos, feitos: [] } }
+        : { situacao: 'analise', ordem, vez: ordem[0].uid, recusas: [] };
+}
+/** Próximo a analisar: o melhor classificado ainda não recusado. */
+const proximaVez = (u) => { var _a; return ((_a = u.ordem.find((c) => !u.recusas.some((r) => r.uid === c.uid))) === null || _a === void 0 ? void 0 : _a.uid) || null; };
+exports.proximaVez = proximaVez;
+/** Próximo candidato do desempate ainda não chamado (ou null: o desempate acabou). */
+const proximoDoDesempate = (u) => { var _a; return ((_a = u.desempate) === null || _a === void 0 ? void 0 : _a.candidatos.find((x) => !u.desempate.feitos.includes(x))) || null; };
+exports.proximoDoDesempate = proximoDoDesempate;
+/** Encerra o desempate sem oferta vencedora: vai à análise a primeira colocada. */
+function fimDoDesempate(u) {
+    const { desempate: _d } = u, resto = __rest(u, ["desempate"]);
+    return Object.assign(Object.assign({}, resto), { situacao: 'analise', vez: (0, exports.proximaVez)(u) });
+}
+/** Oferta da ME/EPP no desempate: precisa ser melhor que a primeira; se for, passa à frente e vai à análise. */
+function aplicarDesempate(u, uid, valor, total, em, d) {
+    const primeira = u.ordem[0];
+    if (!melhor(total, primeira.total, d))
+        return `A oferta precisa ser ${d.criterio === 'maior_desconto' ? 'maior' : 'menor'} que a da primeira colocada (${(0, exports.valorTexto)(primeira.total, d)})`;
+    const eu = u.ordem.find((c) => c.uid === uid);
+    const ordem = [Object.assign(Object.assign({}, eu), { valor, total, em, desempate: true }), ...u.ordem.filter((c) => c.uid !== uid)];
+    const { desempate: _d } = u, resto = __rest(u, ["desempate"]);
+    return Object.assign(Object.assign({}, resto), { ordem, situacao: 'analise', vez: uid });
+}
+/** Todas as unidades decididas: pode declarar o vencedor (ou concluir sem ele). */
+const julgamentoConcluido = (us) => us.every((u) => ['habilitada', 'fracassada', 'deserta'].includes(u.situacao));
+exports.julgamentoConcluido = julgamentoConcluido;
+/** Resultado da disputa: homologada se há vencedor em ao menos uma unidade; deserta se ninguém propôs; fracassada nos demais casos. */
+function resultadoDaDisputa(us) {
+    if (us.some((u) => u.situacao === 'habilitada'))
+        return 'Homologada';
+    return us.every((u) => u.situacao === 'deserta') ? 'Deserta' : 'Fracassada';
+}
+/** Fim do dia útil (23:59 de Brasília) do vencimento de n dias úteis contados de `inicio` (AAAA-MM-DD). */
+function fimDoPrazoUtil(inicio, n, cal) {
+    const d = new Date(`${inicio}T00:00:00Z`);
+    let k = n;
+    while (k > 0) {
+        d.setUTCDate(d.getUTCDate() + 1);
+        if ((0, secretaria_1.diaUtil)(d, cal))
+            k--;
+    }
+    return new Date(`${d.toISOString().slice(0, 10)}T23:59:59-03:00`).toISOString();
+}
+exports.PROVIMENTOS = { nao: 'Negado provimento', sim: 'Dado provimento', parcial: 'Dado provimento em parte' };
+/** Em que ponto está o recurso: intenção, razões, contrarrazões, decisão, ou sem recurso (ninguém manifestou). */
+function momentoDoRecurso(r, agora) {
+    if (r.decisao)
+        return 'decidido';
+    if (agora <= r.intencao_ate)
+        return 'intencao';
+    if (!r.intencoes.length)
+        return 'sem_recurso';
+    if (agora <= r.razoes_ate)
+        return 'razoes';
+    // Ninguém arrazoou: o recurso não segue (decide-se já).
+    if (!r.intencoes.some((i) => i.razoes))
+        return 'decisao';
+    return agora <= r.contrarrazoes_ate ? 'contrarrazoes' : 'decisao';
+}
+/** Linha de cada unidade para a certidão e o resumo: vencedor e valor, ou o desfecho. */
+function linhaDaUnidade(nome, u, quem, d) {
+    if (u.situacao === 'habilitada' && u.habilitada)
+        return `${nome}: ${quem(u.habilitada.uid)}, ${(0, exports.valorTexto)(u.habilitada.total, d)}`;
+    return `${nome}: ${u.situacao === 'deserta' ? 'deserto (sem proposta)' : 'fracassado (nenhuma proposta aceita e habilitada)'}`;
+}
+/** Ata da disputa: o que aconteceu em cada unidade, o recurso e o resultado. Texto puro, nos autos. */
+function textoDaAta(x, unidades, quem, recursos, resultado, lances) {
+    const br = (iso) => {
+        const d = new Date(Date.parse(iso) - 3 * 3600e3).toISOString();
+        return `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}, ${d.slice(11, 16)}`;
+    };
+    const l = [`ATA DA ${exports.PERFIS_DISPUTA[x.perfil].toUpperCase()}`, `Processo ${x.processo_numero}. Objeto: ${x.objeto}.`];
+    if (x.abertura_em)
+        l.push(`Abertura em ${br(x.abertura_em)} (horário de Brasília)${lances ? `, com ${lances} lance${lances === 1 ? '' : 's'}` : ', sem fase de lances'}.`);
+    for (const { nome, u } of unidades) {
+        l.push('', `${nome}`);
+        if (!u.ordem.length) {
+            l.push('Sem proposta: deserto.');
+            continue;
+        }
+        l.push(...u.ordem.map((c, k) => `${k + 1}º ${quem(c.uid)}${c.porte === 'me_epp' ? ' (ME/EPP)' : ''}: ${(0, exports.valorTexto)(c.total, x)}${c.desempate ? ', oferta de desempate' : ''}${c.negociado ? ', após negociação' : ''}`));
+        for (const r of u.recusas)
+            l.push(`${r.etapa === 'proposta' ? 'Proposta recusada' : 'Inabilitado'}: ${quem(r.uid)}. Motivo: ${r.motivo}`);
+        l.push(linhaDaUnidade('Desfecho', u, quem, x) + '.');
+    }
+    recursos.forEach((r, k) => {
+        l.push('', recursos.length > 1 ? `Recurso (${k + 1}ª rodada)` : 'Recurso');
+        if (!r.intencoes.length) {
+            l.push(`Aberta a intenção de recurso até ${br(r.intencao_ate)}, ninguém manifestou.`);
+            return;
+        }
+        for (const i of r.intencoes)
+            l.push(`Intenção de ${i.nome}: ${i.motivo}${i.razoes ? ' (razões apresentadas)' : ' (sem razões no prazo)'}`);
+        if (r.contrarrazoes.length)
+            l.push(`Contrarrazões de ${r.contrarrazoes.map((c) => c.nome).join(', ')}.`);
+        if (r.decisao)
+            l.push(`Decisão: ${exports.PROVIMENTOS[r.decisao.provimento]}. ${r.decisao.fundamentos}`);
+    });
+    l.push('', `Resultado: ${resultado}.`);
+    return l.join('\n');
 }
 //# sourceMappingURL=certames.js.map
