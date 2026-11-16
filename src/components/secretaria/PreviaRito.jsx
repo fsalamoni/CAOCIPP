@@ -9,6 +9,7 @@ import { ehEspera, etapasAteOFim, seguintes } from '@/lib/secretariaRito';
 import { resumoAndamento } from '@/lib/andamentoFase';
 import { resumoPermissoes } from '@/lib/permissoesFase';
 import { efeitosAoEntrar, textoDoAviso, textosDosPrazos } from '@/lib/efeitosFase';
+import { camposDaLigacao, ligada, nomeDoCampo } from '@/lib/doProcesso';
 import { RegistroContexto } from './SeletorRegistro';
 import FluxoRito from './FluxoRito';
 import { NativeSelect } from './comum';
@@ -75,10 +76,16 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
     };
     const tiposDoRito = (estado.tipos || []).filter((t) => t.rito_id === rito?.id);
     // Dados do processo que alguma condição do rito lê: a simulação deixa escolher o valor de cada um.
-    const dadosLidos = [...new Map(fases.flatMap((f) => [...(f.acoes_regras || []).map((r) => r?.se), ...Object.values(f.condicoes_regra || {})])
-        .flatMap((c) => partesDaCondicao(c)).filter((x) => x.dado)
+    // Campos de que alguma ação vem ("Vem do processo") também se simulam: preenchido, a ação se cumpre sozinha.
+    const ligados = [...new Set(fases.flatMap((f) => (f.acoes_regras || []).flatMap((r) => camposDaLigacao(r))))].filter((id) => !id.startsWith('@'))
+        .map((id) => ({ acao: -1, dado: `campo:${id}`, valores: [], rotulo: nomeDoCampo(tiposDoRito, id) || id }));
+    const dadosLidos = [...new Map([...fases.flatMap((f) => [...(f.acoes_regras || []).map((r) => r?.se), ...Object.values(f.condicoes_regra || {})])
+        .flatMap((c) => partesDaCondicao(c)).filter((x) => x.dado), ...ligados]
         .map((x) => [x.dado, { chave: chaveDaCondicao(x), rotulo: x.rotulo || { urgente: 'Urgente', sigilo: 'Sigilo', partes: 'Tem partes', origem: 'Origem', tipo: 'Tipo de processo' }[x.dado] || 'Dado do processo',
-            ops: opcoesDaParte(null, x, { tipos: tiposDoRito })?.length ? opcoesDaParte(null, x, { tipos: tiposDoRito }) : x.valores.map((v, k) => [v, x.nomes?.[k] || v]) }])).values()];
+            // "(sem valor)" já é o campo vazio.
+            ops: (opcoesDaParte(null, x, { tipos: tiposDoRito })?.length ? opcoesDaParte(null, x, { tipos: tiposDoRito }) : x.valores.map((v, k) => [v, x.nomes?.[k] || v])).filter(([v]) => v !== '@vazio') }])).values()];
+    // Ação ligada que se cumpriria sozinha no exemplo: todos os campos de que vem estão com valor (assunto e descrição, sempre).
+    const cumpreSozinha = (r) => ligada(r) && camposDaLigacao(r).every((id) => id.startsWith('@') || !!resp[`@campo:${id}`]);
     // O processo de exemplo nasce sem urgência, sem sigilo e sem partes, do primeiro tipo que usa o rito.
     const resp = { '@urgente': 'nao', '@sigilo': 'normal', '@partes': 'nao', ...(tiposDoRito[0] ? { '@tipo': tiposDoRito[0].id } : {}), ...fora, ...sim };
     const nomeUnidade = (id) => estado.unidades.find((u) => u.id === id)?.nome || rascunho?.unidades?.find((u) => u.ref === id)?.nome || '';
@@ -189,9 +196,9 @@ export default function PreviaRito({ estado, rascunho = null, rotuloBotao = 'Ver
                                                 : camposDeEscolha(r).filter((c) => c.id).map((c) => ({ chave: `${k}.${c.id}`, rotulo: `Simular "${c.rotulo || 'campo'}"`, ops: opcoesDaResposta(r, c.id) || [] }));
                                             return (
                                                 <li key={k} className={`flex items-start gap-2 text-sm ${ativa ? '' : 'text-slate-600 dark:text-slate-400'}`}>
-                                                    {soOrienta(r) ? <Info className="w-4 h-4 mt-0.5 shrink-0 text-indigo-700 dark:text-indigo-300" aria-hidden /> : <Checkbox disabled aria-label={a} className="mt-0.5" />}
+                                                    {soOrienta(r) ? <Info className="w-4 h-4 mt-0.5 shrink-0 text-indigo-700 dark:text-indigo-300" aria-hidden /> : <Checkbox disabled checked={ativa && cumpreSozinha(r)} aria-label={a} className="mt-0.5" />}
                                                     <div className="min-w-0 flex-1">
-                                                        <span>{a} <span className="text-xs text-slate-600 dark:text-slate-400">· {soOrienta(r) ? '' : 'pede '}{resumoDaAcao(r)}{ativa ? '' : ` · vale só se ${textoCondicao(fase, r.se, fases)}`}</span></span>
+                                                        <span>{a} <span className="text-xs text-slate-600 dark:text-slate-400">· {soOrienta(r) ? '' : 'pede '}{resumoDaAcao(r)}{ativa ? '' : ` · vale só se ${textoCondicao(fase, r.se, fases)}`}{ativa && ligada(r) ? (cumpreSozinha(r) ? ' · cumprida sozinha: o dado já está no processo' : ` · vem de ${camposDaLigacao(r).map((id) => `"${nomeDoCampo(tiposDoRito, id) || id}"`).join(', ')}: preenchido, se cumpre sozinha`) : ''}</span></span>
                                                         {ativa && simulaveis.map((s) => (
                                                             <label key={s.chave} className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-700 dark:text-slate-300">{s.rotulo}:
                                                                 <select value={sim[s.chave] ?? ''} onChange={(e) => setSim((x) => { const n = { ...x }; if (e.target.value) n[s.chave] = e.target.value; else delete n[s.chave]; return n; })}

@@ -77,7 +77,7 @@ export default function ConfiguracaoProcessoEletronico({ orgId, estado, aba, onA
             </TabsList>
             <TabsContent value="estrutura"><EstruturaOrgaos orgId={orgId} estado={estado} /></TabsContent>
             <TabsContent value="unidades"><Unidades orgId={orgId} estado={estado} pedido={pedidoDe('unidades')} onPedidoAtendido={atendido} /></TabsContent>
-            <TabsContent value="tipos"><Tipos orgId={orgId} estado={estado} pedido={pedidoDe('tipos')} onPedidoAtendido={atendido} /></TabsContent>
+            <TabsContent value="tipos"><Tipos orgId={orgId} estado={estado} pedido={pedidoDe('tipos')} onPedidoAtendido={atendido} onAbrirRito={(id) => abrir('ritos', id)} /></TabsContent>
             <TabsContent value="ritos"><Ritos orgId={orgId} estado={estado} onIr={mudar} onAbrirTipo={abrirTipo} pedido={pedidoDe('ritos')} onPedidoAtendido={atendido} /></TabsContent>
             <TabsContent value="documentos" className="space-y-4"><ConfiguracaoDocumentos orgId={orgId} estado={estado} pedido={pedidoDe('documentos')} onPedidoAtendido={atendido} /><TextosProntos orgId={orgId} estado={estado} /></TabsContent>
             <TabsContent value="listas"><ListasOrgao orgId={orgId} estado={estado} /></TabsContent>
@@ -263,7 +263,7 @@ function Ritos({ orgId, estado, onIr, onAbrirTipo, pedido, onPedidoAtendido }) {
 }
 
 
-function Tipos({ orgId, estado, pedido, onPedidoAtendido }) {
+function Tipos({ orgId, estado, pedido, onPedidoAtendido, onAbrirRito }) {
     const { salvar, salvando } = useSalvar(orgId);
     const [tipo, setTipo] = useState(null);
     const [excluir, setExcluir] = useState(null);
@@ -325,6 +325,7 @@ function Tipos({ orgId, estado, pedido, onPedidoAtendido }) {
 
             {tipo && (
                 <EditorTipo key={tipo.id || 'novo'} tipo={tipo} setTipo={setTipo} estado={estado} salvando={salvando} exemplo={exemplo} numeracaoOrgao={numeracaoOrgao} orgId={orgId}
+                    onAbrirRito={onAbrirRito}
                     onAbrirVersao={(v) => setTipo(paraEditar({ ...tipo, ...v, id: tipo.id, ativo: tipo.ativo, versao: tipo.versao }))}
                     onSalvar={() => salvar('salvarTipo', { id: tipo.id, tipo }, setTipo)} onExcluir={() => setExcluir({ colecao: 'tipo', id: tipo.id, nome: tipo.nome })} />
             )}

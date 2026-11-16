@@ -23,6 +23,15 @@ cada mudança está nas mensagens de commit (`git log`).
   aberto em cerca de 2 segundos, sem recarregar. Novo documento
   `secSinais/{orgId}`, lido pelos membros do órgão.
 
+### 16/11/2026 — "Vem do processo" em qualquer rito
+- O editor do rito avisa a ação ligada a um campo que o tipo não tem (rito
+  de outro órgão, campo removido ou de outro tipo de dado).
+- O editor do tipo mostra, na aba Formulário, as ações do rito que vêm de
+  cada campo, avisa o que deixou de funcionar e leva ao rito para aplicar
+  as ligações sugeridas.
+- A prévia do rito simula os campos ligados e mostra a ação cumprida
+  sozinha. Guia do rito (partes 3, 5 e 17) explica tudo.
+
 ### 16/11/2026 — Ações que vêm do processo e documentos detalhados na entrada
 - Ação da fase pode **vir do processo**: ligada a um campo do tipo de
   processo (ex.: "Informar o número do PGEA"), ela se cumpre sozinha quando

@@ -126,6 +126,14 @@ export default function GuiaRito({ variante = 'outline', className = '', inicial
                                 <thead><tr><th>Opção</th><th>Quando usar</th></tr></thead>
                                 <tbody>{PEDIDOS.map(([k, rotulo]) => <tr key={k}><td className="font-medium whitespace-nowrap">{rotulo}</td><td>{QUANDO_USAR[k]}</td></tr>)}</tbody>
                             </table>
+                            <p><strong>Vem do processo.</strong> O que já é informado no "Novo processo" não precisa ser pedido de novo na fase. Na ação que pede um dado (confirmar, texto, número, data, lista, sim ou não, formulário), escolha em <strong>Vem do processo</strong> o campo do tipo de processo (ou o assunto e a descrição). No formulário, escolhe-se um campo do processo para cada campo da ação.</p>
+                            <ul className="list-disc space-y-1 pl-5">
+                                <li>Com o campo preenchido, na criação ou depois, a ação se cumpre sozinha e o registro vai aos autos como qualquer cumprimento, com "Cumprida automaticamente".</li>
+                                <li>Apagar o campo desfaz a ação; mudar o valor registra de novo com o valor novo. O que alguém desfaz à mão fica como a pessoa deixou até o processo sair da fase.</li>
+                                <li>Cumprida à mão, a ação ligada preenche o campo do processo se ele estava vazio. Nunca troca um valor já informado.</li>
+                                <li>Só se ligam tipos que combinam: data com data, número com número, lista com lista (e só se a opção existe na ação). Confirmar aceita qualquer campo preenchido.</li>
+                            </ul>
+                            <p>O painel <strong>Ligações sugeridas</strong>, no topo do editor, compara os nomes das ações com os campos dos tipos que usam o rito e propõe as ligações e as dispensas. Ele aparece quando algum tipo de processo usa o rito; num rito novo, crie o tipo e volte ao rito. O editor do tipo mostra, na aba Formulário, que ações vêm de cada campo e avisa quando um campo removido ou mudado deixa uma ação sem ligação.</p>
                         </Parte>
                         <Parte titulo="4. Onde fica o cumprimento">
                             <p>Em <strong>Onde fica o cumprimento</strong>, cada ação diz onde o seu registro aparece.</p>
@@ -148,7 +156,7 @@ export default function GuiaRito({ variante = 'outline', className = '', inicial
                             <ul className="list-disc space-y-1 pl-5">
                                 <li><strong>Uma resposta desta fase.</strong> É o caso comum, descrito acima.</li>
                                 <li><strong>Uma resposta dada em outra fase.</strong> Ex.: a Admissibilidade escolhe entre rito ordinário e sumário, e a Instrução só cobra a perícia no ordinário. A resposta vale como ficou quando o processo passou pela outra fase. Se ele ainda não passou por lá, a condição não vale.</li>
-                                <li><strong>Um dado do processo.</strong> Urgente, sigilo, se tem partes e a origem. Quando mais de um tipo de processo usa o rito, também o tipo. Os campos de lista e de sim ou não do formulário do tipo aparecem aqui depois que um tipo de processo passa a usar o rito.</li>
+                                <li><strong>Um dado do processo.</strong> Urgente, sigilo, se tem partes e a origem. Quando mais de um tipo de processo usa o rito, também o tipo. Os campos do formulário do tipo aparecem aqui depois que um tipo de processo passa a usar o rito. Todos aceitam <strong>preenchido</strong> e <strong>vazio</strong>; os de lista e de sim ou não aceitam também cada valor. Ex.: "Converter em PGEA" vale só quando "Número do PGEA" estiver vazio; com o número, fica dispensada e não impede a fase.</li>
                             </ul>
                             <p><strong>Mais de uma condição.</strong> O botão <strong>E também</strong> soma até três condições à primeira. Todas precisam valer ao mesmo tempo (ex.: "Resultado" for Procede <em>e</em> "Urgente" for Não). Para "ou", marque mais de uma resposta na mesma condição.</p>
                             <p><strong>Saída padrão (o "senão").</strong> Numa fase com mais de uma saída, em Encaminhamentos, <strong>Se nenhuma regra indicar outra saída</strong> diz por onde o processo segue quando nenhuma regra vale. No processo, essa saída aparece como a indicada. Com <strong>Seguir sozinha</strong> ligado, a fase vai por ela sem esperar o botão. Sem saída padrão, continua como sempre: a equipe escolhe.</p>
@@ -376,6 +384,7 @@ export default function GuiaRito({ variante = 'outline', className = '', inicial
                                 </tbody>
                             </table>
                             <p>Processos antigos seguem como estavam: sem essas opções, nada muda.</p>
+                            <p><strong>Documento que chega como arquivo.</strong> No "Novo processo" e em "Novo documento", ao escolher o arquivo a pessoa já diz o tipo, do que se trata, a data do documento e se ele é juntado aos autos, guardado fora deles ou fica como minuta, além de assinar, abrir pendência e marcar o que o rito exige e ele cumpre. Cada arquivo entra na ordem da lista, com a data e a hora do ato. Os tipos oferecidos são os de "Documentos e modelos" da unidade.</p>
                         </Parte>
                         <Parte titulo="18. Listas do órgão: espécies e origens a mais">
                             <p>
