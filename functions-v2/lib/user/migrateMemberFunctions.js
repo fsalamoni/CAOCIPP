@@ -29,7 +29,7 @@ const GENERIC_FUNCTIONS = new Set(['Membro', 'Criador', 'Admin', 'Owner', 'Membr
  * - NÃO sobrescreve funções que o admin do órgão personalizou
  *   manualmente (heurística: não está no conjunto genérico).
  *
- * Segurança: apenas super-admin (platform_admin custom claim) pode chamar.
+ * Segurança: apenas super-admin (custom claim platformAdmin) pode chamar.
  *
  * @param {object} data - { dryRun?: boolean }
  * @returns { scanned: number, updated: number, dryRun: boolean }
@@ -40,7 +40,7 @@ exports.migrateMemberFunctions = (0, https_1.onCall)({ region: 'southamerica-eas
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
     }
     // Defesa em profundidade: só platform admin roda migrações estruturais.
-    if (((_a = request.auth.token) === null || _a === void 0 ? void 0 : _a.platform_admin) !== true) {
+    if (((_a = request.auth.token) === null || _a === void 0 ? void 0 : _a.platformAdmin) !== true) {
         throw new https_1.HttpsError('permission-denied', 'Apenas platform admin pode rodar migrações.');
     }
     const db = admin.firestore();

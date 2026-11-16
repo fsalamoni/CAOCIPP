@@ -16,6 +16,7 @@ const url_1 = require("url");
 const documento_1 = require("../shared/documento");
 const conversao_1 = require("./conversao");
 const documentoConfig_1 = require("./documentoConfig");
+const conversaoComum_1 = require("./conversaoComum");
 /**
  * Importação de modelos de documento (sem IA, por leitura estruturada):
  * - Word (DOCX): corpo pelo mammoth (com imagens), cabeçalho e rodapé lidos do
@@ -142,7 +143,7 @@ async function imagemDaParte(zip, arquivo, xml) {
 }
 async function timbradoDocx(buf, avisos) {
     var _a, _b, _c, _d, _e;
-    const zip = await jszip().loadAsync(buf);
+    const zip = await (0, conversaoComum_1.abrirZip)(buf);
     const docXml = await ((_a = zip.file('word/document.xml')) === null || _a === void 0 ? void 0 : _a.async('string'));
     if (!docXml)
         return null;
@@ -171,7 +172,7 @@ async function timbradoDocx(buf, avisos) {
  * entre as chaves somem e o valor fica com a formatação do primeiro trecho.
  */
 async function preencherDocx(buf, valores) {
-    const zip = await jszip().loadAsync(buf);
+    const zip = await (0, conversaoComum_1.abrirZip)(buf);
     const tags = '(?:<[^>]+>)*';
     const re = new RegExp(`\\{${tags}\\{((?:<[^>]+>|[^<{}])*?)\\}${tags}\\}`
         + `|«((?:<[^>]+>|[^<«»])*?)»`
@@ -298,6 +299,7 @@ async function diagramasDoPacote(buf) {
         let zip;
         try {
             zip = await jszip().loadAsync(b);
+            (0, conversaoComum_1.conferirZip)(zip);
         }
         catch (_a) {
             if (nivel === 0)
@@ -337,6 +339,7 @@ async function diagramasDoPacote(buf) {
  */
 async function textoParaRito(buf, mime) {
     if (mime === conversao_1.MIME_DOCX) {
+        await (0, conversaoComum_1.abrirZip)(buf);
         const [raw, html] = await Promise.all([mammoth().extractRawText({ buffer: buf }), mammoth().convertToHtml({ buffer: buf })]);
         const tabelas = (html.value.match(/<table[\s\S]*?<\/table>/g) || []).slice(0, 10).map((t) => (t.match(/<tr[\s\S]*?<\/tr>/g) || []).slice(0, 200).map((tr) => (tr.match(/<t[dh][^>]*>[\s\S]*?<\/t[dh]>/g) || []).slice(0, 20).map((c) => desXml(c.replace(/<\/p>/g, '\n').replace(/<[^>]+>/g, '')).replace(/[ \t]+/g, ' ').trim())));
         return { texto: raw.value, tabelas };
@@ -364,6 +367,7 @@ async function interpretarModelo(buf, mime) {
     let doc;
     let timbrado = null;
     if (formato === 'docx') {
+        await (0, conversaoComum_1.abrirZip)(buf);
         const r = await mammoth().convertToHtml({ buffer: buf });
         doc = (0, conversao_1.htmlParaDoc)(r.value);
         try {

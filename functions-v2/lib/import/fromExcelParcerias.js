@@ -37,7 +37,7 @@ exports.importParceriasFromExcel = (0, https_1.onCall)({
     invoker: 'public',
     cors: true,
 }, async (request) => {
-    var _a, _b;
+    var _a, _b, _c;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Usuário deve estar autenticado');
     }
@@ -50,7 +50,7 @@ exports.importParceriasFromExcel = (0, https_1.onCall)({
     // 1. Verify membership
     const membershipRef = db.collection('userOrganizations').doc(`${userId}_${organizationId}`);
     const membershipSnap = await membershipRef.get();
-    if (!membershipSnap.exists) {
+    if (!membershipSnap.exists || ((_a = membershipSnap.data()) === null || _a === void 0 ? void 0 : _a.active) === false) {
         throw new https_1.HttpsError('permission-denied', 'Você não é membro desta organização');
     }
     try {
@@ -278,8 +278,8 @@ exports.importParceriasFromExcel = (0, https_1.onCall)({
                         const oldData = r.existingDoc.data() || {};
                         const changedLabels = [];
                         for (const [key, label] of Object.entries(fieldLabels)) {
-                            const oldVal = ((_a = oldData[key]) !== null && _a !== void 0 ? _a : '').toString().trim();
-                            const newVal = ((_b = parceriaData[key]) !== null && _b !== void 0 ? _b : '').toString().trim();
+                            const oldVal = ((_b = oldData[key]) !== null && _b !== void 0 ? _b : '').toString().trim();
+                            const newVal = ((_c = parceriaData[key]) !== null && _c !== void 0 ? _c : '').toString().trim();
                             if (oldVal !== newVal && parceriaData[key] !== undefined) {
                                 changedLabels.push(label);
                             }

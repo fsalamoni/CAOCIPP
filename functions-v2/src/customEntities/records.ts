@@ -8,7 +8,7 @@ const REGION = 'southamerica-east1';
 
 async function getMembership(db: FirebaseFirestore.Firestore, userId: string, organizationId: string) {
     const snap = await db.collection('userOrganizations').doc(`${userId}_${organizationId}`).get();
-    if (!snap.exists) {
+    if (!snap.exists || snap.data()?.active === false) {
         throw new HttpsError('permission-denied', 'Você não é membro desta organização.');
     }
     return snap.data() || {};

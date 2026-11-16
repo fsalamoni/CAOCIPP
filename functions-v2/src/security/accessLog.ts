@@ -32,7 +32,7 @@ export const logAccess = onCall<{
         const db = admin.firestore();
         const userId = request.auth.uid;
         const membershipSnap = await db.collection('userOrganizations').doc(`${userId}_${organizationId}`).get();
-        if (!membershipSnap.exists) {
+        if (!membershipSnap.exists || membershipSnap.data()?.active === false) {
             throw new HttpsError('permission-denied', 'You are not a member of this organization');
         }
 
@@ -76,7 +76,7 @@ export const getOrgAccessLog = onCall<{ organizationId: string; limit?: number }
         const db = admin.firestore();
         const userId = request.auth.uid;
         const membershipSnap = await db.collection('userOrganizations').doc(`${userId}_${organizationId}`).get();
-        if (!membershipSnap.exists) {
+        if (!membershipSnap.exists || membershipSnap.data()?.active === false) {
             throw new HttpsError('permission-denied', 'You are not a member of this organization');
         }
         if (!isOrgAdmin(membershipSnap.data() as MembershipLike)) {

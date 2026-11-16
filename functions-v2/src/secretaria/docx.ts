@@ -1,8 +1,6 @@
 import type JSZip = require('jszip');
-// Bibliotecas carregadas só quando usadas (partida a frio das functions).
-const jszip = () => require('jszip') as typeof import('jszip');
 import { Marca, No, fonteEquivalente, sanitizeDoc } from '../shared/documento';
-import { ImagensDoc, Item, agruparListas, filhos, filho, ligado, novoOrcamento, xml } from './conversaoComum';
+import { ImagensDoc, Item, abrirZip, agruparListas, filhos, filho, ligado, novoOrcamento, xml } from './conversaoComum';
 
 /**
  * Word (.docx) → documento do editor, lendo o próprio XML do arquivo para
@@ -551,7 +549,7 @@ class Leitor {
 /** Word (.docx) → documento do editor, com os avisos do que não veio. */
 export async function docxParaDoc(buf: Buffer): Promise<{ doc: No; avisos: string[] }> {
     let zip: JSZip;
-    try { zip = await jszip().loadAsync(buf); } catch { throw new Error('Arquivo Word danificado ou protegido por senha'); }
+    zip = await abrirZip(buf, 'Arquivo Word danificado ou protegido por senha');
     const l = new Leitor(zip);
     await l.carregar();
     return l.corpo();

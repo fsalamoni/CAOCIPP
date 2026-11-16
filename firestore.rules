@@ -12,8 +12,13 @@ service cloud.firestore {
       return request.auth.uid == userId;
     }
     
+    // Membro ATIVO: quem foi removido do órgão (vínculo com active == false,
+    // a remoção é lógica para guardar a data de saída) perde a leitura na hora.
+    // Antes bastava o vínculo existir, e o membro removido seguia lendo
+    // processos, expedientes, parcerias, bases e o registro de auditoria.
     function isMemberOf(orgId) {
-      return exists(/databases/$(database)/documents/userOrganizations/$(request.auth.uid + '_' + orgId));
+      let path = /databases/$(database)/documents/userOrganizations/$(request.auth.uid + '_' + orgId);
+      return exists(path) && get(path).data.get('active', true) != false;
     }
     
     function getMembership(orgId) {
@@ -399,7 +404,7 @@ service cloud.firestore {
     // para se atualizar; o conteúdo continua só pelas Functions. Lê o membro
     // ativo do órgão (id do documento = id do órgão); ninguém escreve.
     match /secSinais/{orgId} {
-      allow get: if isAuthenticated() && isMemberOf(orgId) && getMembership(orgId).get('active', true) != false;
+      allow get: if isAuthenticated() && isMemberOf(orgId);
       allow list, write: if false;
     }
 

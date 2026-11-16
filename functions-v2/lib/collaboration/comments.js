@@ -23,6 +23,7 @@ const ENTITY_LABEL = {
 // registro pertence ao órgão informado, e só notifica quem for de fato
 // membro do órgão (mesmo que o cliente tenha enviado IDs incorretos/antigos).
 exports.addComment = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
+    var _a;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
     }
@@ -44,7 +45,7 @@ exports.addComment = (0, https_1.onCall)({ region: 'southamerica-east1' }, async
     // 1. Verifica associação ao órgão.
     const membershipRef = db.collection('userOrganizations').doc(`${userId}_${organizationId}`);
     const membershipSnap = await membershipRef.get();
-    if (!membershipSnap.exists) {
+    if (!membershipSnap.exists || ((_a = membershipSnap.data()) === null || _a === void 0 ? void 0 : _a.active) === false) {
         throw new https_1.HttpsError('permission-denied', 'You are not a member of this organization');
     }
     // 2. Verifica que o registro pertence a este órgão.
@@ -60,8 +61,9 @@ exports.addComment = (0, https_1.onCall)({ region: 'southamerica-east1' }, async
     let validMentions = [];
     if (candidateMentions.length > 0) {
         const checks = await Promise.all(candidateMentions.map(async (id) => {
+            var _a;
             const snap = await db.collection('userOrganizations').doc(`${id}_${organizationId}`).get();
-            return snap.exists ? id : null;
+            return snap.exists && ((_a = snap.data()) === null || _a === void 0 ? void 0 : _a.active) !== false ? id : null;
         }));
         validMentions = checks.filter((id) => Boolean(id));
     }

@@ -1,6 +1,6 @@
 import { No, sanitizeDoc } from '../shared/documento';
 import { MIME_DOC, MIME_DOCX, MIME_ODT, MIME_XLSX, docParaDoc, xlsxParaDoc } from './conversao';
-import { novoOrcamento } from './conversaoComum';
+import { abrirZip, novoOrcamento } from './conversaoComum';
 import { interpretarPdf } from './importarModelo';
 import { textoParaDoc } from './pdfDocumento';
 
@@ -28,7 +28,7 @@ export async function arquivoParaEditor(buf: Buffer, mime: string, titulo: strin
     if (mime === MIME_DOC) {
         return { conteudo: await docParaDoc(buf), avisos: ['Word antigo (.doc): veio só o texto. Negrito, tabelas e imagens precisam ser refeitos no editor; para trazer a formatação, salve o arquivo como .docx no Word e envie de novo.'] };
     }
-    if (mime === MIME_XLSX) return { conteudo: xlsxParaDoc(buf), avisos: [] };
+    if (mime === MIME_XLSX) { await abrirZip(buf, 'Planilha danificada ou protegida por senha'); return { conteudo: xlsxParaDoc(buf), avisos: [] }; }
     if (mime === 'text/plain') return { conteudo: sanitizeDoc(textoParaDoc(buf.toString('utf8'))), avisos: [] };
     if (mime === 'application/pdf') {
         const avisos: string[] = [];

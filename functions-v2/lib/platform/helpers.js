@@ -54,7 +54,9 @@ async function assertPlatformAdmin(request) {
         return { uid, email, name };
     }
     // 3. Bootstrap por e-mail
-    if (email && getBootstrapEmails().includes(email)) {
+    // Só e-mail confirmado pelo provedor: o Portal das partes aceita criar conta
+    // de e-mail e senha, e um endereço não confirmado pode ser de outra pessoa.
+    if (email && token.email_verified === true && getBootstrapEmails().includes(email)) {
         return { uid, email, name };
     }
     throw new https_1.HttpsError('permission-denied', 'Acesso restrito ao super-administrador da plataforma.');

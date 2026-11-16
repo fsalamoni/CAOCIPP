@@ -17,11 +17,12 @@ const panorama_1 = require("../shared/panorama");
 const MAX_BASES_POR_ORGAO = 40;
 /** Vínculo com o órgão + se pode CONFIGURAR o módulo. */
 async function loadMembership(db, userId, organizationId) {
+    var _a;
     const snap = await db
         .collection('userOrganizations')
         .doc(`${userId}_${organizationId}`)
         .get();
-    if (!snap.exists) {
+    if (!snap.exists || ((_a = snap.data()) === null || _a === void 0 ? void 0 : _a.active) === false) {
         throw new https_1.HttpsError('permission-denied', 'Você não é membro desta organização');
     }
     const data = snap.data() || {};

@@ -26,7 +26,7 @@ export const deleteProcess = onCall<DeleteProcessRequest>(
         const membershipRef = db.collection('userOrganizations').doc(`${userId}_${organizationId}`);
         const membershipSnap = await membershipRef.get();
 
-        if (!membershipSnap.exists) {
+        if (!membershipSnap.exists || membershipSnap.data()?.active === false) {
             throw new HttpsError('permission-denied', 'Not a member');
         }
         // O criador pode excluir; membros precisam da permissão `delete_records`.

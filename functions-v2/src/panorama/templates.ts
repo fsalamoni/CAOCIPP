@@ -64,7 +64,7 @@ async function loadMembership(
         .collection('userOrganizations')
         .doc(`${userId}_${organizationId}`)
         .get();
-    if (!snap.exists) {
+    if (!snap.exists || snap.data()?.active === false) {
         throw new HttpsError('permission-denied', 'Você não é membro desta organização');
     }
     const data = snap.data() || {};

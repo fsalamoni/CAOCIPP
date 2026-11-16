@@ -6,7 +6,7 @@ const https_1 = require("firebase-functions/v2/https");
 const history_1 = require("../shared/history");
 const jurimetria_1 = require("../shared/jurimetria");
 exports.createJuri = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
-    var _a, _b, _c;
+    var _a, _b, _c, _d;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
     }
@@ -21,7 +21,7 @@ exports.createJuri = (0, https_1.onCall)({ region: 'southamerica-east1' }, async
         .collection('userOrganizations')
         .doc(`${userId}_${organizationId}`)
         .get();
-    if (!membershipSnap.exists) {
+    if (!membershipSnap.exists || ((_a = membershipSnap.data()) === null || _a === void 0 ? void 0 : _a.active) === false) {
         throw new https_1.HttpsError('permission-denied', 'Você não é membro desta organização');
     }
     // 2. Configuração do órgão (listas oficiais e colunas personalizadas).
@@ -65,8 +65,8 @@ exports.createJuri = (0, https_1.onCall)({ region: 'southamerica-east1' }, async
         }
     }
     // 5. Responsável (opcional) — precisa ser membro do próprio órgão.
-    const responsibleUserId = String((_a = data === null || data === void 0 ? void 0 : data.responsible_user_id) !== null && _a !== void 0 ? _a : '').trim() || null;
-    let responsibleUserName = String((_b = data === null || data === void 0 ? void 0 : data.responsible_user_name) !== null && _b !== void 0 ? _b : '').trim().slice(0, 160) || null;
+    const responsibleUserId = String((_b = data === null || data === void 0 ? void 0 : data.responsible_user_id) !== null && _b !== void 0 ? _b : '').trim() || null;
+    let responsibleUserName = String((_c = data === null || data === void 0 ? void 0 : data.responsible_user_name) !== null && _c !== void 0 ? _c : '').trim().slice(0, 160) || null;
     if (responsibleUserId) {
         const respSnap = await db
             .collection('userOrganizations')
@@ -76,7 +76,7 @@ exports.createJuri = (0, https_1.onCall)({ region: 'southamerica-east1' }, async
             throw new https_1.HttpsError('invalid-argument', 'O responsável indicado não é membro deste órgão');
         }
         if (!responsibleUserName) {
-            responsibleUserName = String(((_c = respSnap.data()) === null || _c === void 0 ? void 0 : _c.user_name) || '') || null;
+            responsibleUserName = String(((_d = respSnap.data()) === null || _d === void 0 ? void 0 : _d.user_name) || '') || null;
         }
     }
     if (settings.requireResponsible && !responsibleUserId) {

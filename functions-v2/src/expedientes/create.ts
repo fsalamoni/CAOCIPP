@@ -45,7 +45,7 @@ export const createExpediente = onCall<CreateExpedienteRequest>(
         // 1. Verify membership
         const membershipRef = db.collection('userOrganizations').doc(`${userId}_${organizationId}`);
         const membershipSnap = await membershipRef.get();
-        if (!membershipSnap.exists) {
+        if (!membershipSnap.exists || membershipSnap.data()?.active === false) {
             throw new HttpsError('permission-denied', 'You are not a member of this organization');
         }
 

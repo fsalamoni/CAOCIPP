@@ -10,9 +10,9 @@ const https_1 = require("firebase-functions/v2/https");
 //      pelo Criador (não "todos os elegíveis" — a lista vem da preview).
 // Nenhuma rotina agendada dispara isto sozinha.
 async function assertIsCreator(db, userId, organizationId) {
-    var _a;
+    var _a, _b;
     const membershipSnap = await db.collection('userOrganizations').doc(`${userId}_${organizationId}`).get();
-    if (!membershipSnap.exists || ((_a = membershipSnap.data()) === null || _a === void 0 ? void 0 : _a.role) !== 'creator') {
+    if (!membershipSnap.exists || ((_a = membershipSnap.data()) === null || _a === void 0 ? void 0 : _a.active) === false || ((_b = membershipSnap.data()) === null || _b === void 0 ? void 0 : _b.role) !== 'creator') {
         throw new https_1.HttpsError('permission-denied', 'Apenas o Criador do órgão pode gerenciar a política de retenção.');
     }
 }

@@ -104,7 +104,7 @@ export const addAditivo = onCall<AddAditivoRequest>(
         // 1. Verify membership
         const membershipRef = db.collection('userOrganizations').doc(`${userId}_${organizationId}`);
         const membershipSnap = await membershipRef.get();
-        if (!membershipSnap.exists) {
+        if (!membershipSnap.exists || membershipSnap.data()?.active === false) {
             throw new HttpsError('permission-denied', 'Você não é membro desta organização');
         }
 

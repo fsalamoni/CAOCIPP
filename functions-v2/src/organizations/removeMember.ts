@@ -26,7 +26,7 @@ export const removeMember = onCall<RemoveMemberRequest>(
         const requesterMembershipRef = db.collection('userOrganizations').doc(`${requesterId}_${organizationId}`);
         const requesterMembershipSnap = await requesterMembershipRef.get();
 
-        if (!requesterMembershipSnap.exists) {
+        if (!requesterMembershipSnap.exists || requesterMembershipSnap.data()?.active === false) {
             throw new HttpsError('permission-denied', 'You are not a member of this organization');
         }
 

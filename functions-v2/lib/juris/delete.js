@@ -7,6 +7,7 @@ const permissions_1 = require("../shared/permissions");
 /** Teto por chamada: mantém a operação dentro do tempo/limite de lote. */
 const MAX_BULK_DELETE = 500;
 exports.deleteJuris = (0, https_1.onCall)({ region: 'southamerica-east1', timeoutSeconds: 300 }, async (request) => {
+    var _a;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
     }
@@ -27,7 +28,7 @@ exports.deleteJuris = (0, https_1.onCall)({ region: 'southamerica-east1', timeou
         .collection('userOrganizations')
         .doc(`${userId}_${organizationId}`)
         .get();
-    if (!membershipSnap.exists) {
+    if (!membershipSnap.exists || ((_a = membershipSnap.data()) === null || _a === void 0 ? void 0 : _a.active) === false) {
         throw new https_1.HttpsError('permission-denied', 'Você não é membro desta organização');
     }
     if (!(0, permissions_1.hasOrgPermission)(membershipSnap.data(), 'delete_records')) {

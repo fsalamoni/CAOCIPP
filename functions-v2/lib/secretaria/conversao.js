@@ -11,6 +11,7 @@ const mammoth = () => require('mammoth');
 const xlsx = () => require('xlsx');
 const htmlParser = () => require('node-html-parser');
 const documento_1 = require("../shared/documento");
+const conversaoComum_1 = require("./conversaoComum");
 /**
  * Converte arquivos do Office enviados aos autos em documento do editor, que
  * vira PDF com o mesmo renderizador dos textos redigidos. Word (DOCX) e
@@ -231,6 +232,8 @@ async function docParaDoc(buf) {
  * folhas de um arquivo juntado antes sem mudar a paginação.
  */
 async function officeParaDoc(buf, mime, legado = false) {
+    if (mime === exports.MIME_XLSX || mime === exports.MIME_DOCX || mime === exports.MIME_ODT)
+        await (0, conversaoComum_1.abrirZip)(buf);
     if (mime === exports.MIME_XLSX)
         return xlsxParaDoc(buf);
     if (legado)

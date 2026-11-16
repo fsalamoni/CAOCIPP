@@ -48,7 +48,7 @@ Princípios que se repetem em todo o código:
 | Interface | React 18, Vite 6, React Router 6, TanStack Query 5 |
 | Componentes e estilo | Tailwind CSS 3, shadcn/ui (Radix UI), lucide-react, framer-motion |
 | Gráficos | Recharts |
-| Planilhas e documentos | SheetJS (`xlsx`), jsPDF + autotable |
+| Planilhas e documentos | SheetJS (`xlsx` 0.20.3, instalado do CDN oficial da SheetJS: a do npm tem falhas sem correção), jsPDF + autotable |
 | Arrastar e soltar | `@dnd-kit` |
 | Backend | Firebase Cloud Functions v2 (Node 22, TypeScript), `firebase-admin` 13 |
 | Banco | Cloud Firestore |
@@ -158,7 +158,10 @@ functions `secretaria*`. Arquivos no Cloud Storage em
 `secretaria/{org}/{processo}/{documento}` (e `.pdf` ao lado, para textos
 juntados). PDFs gerados no servidor com `pdfmake` (documento) e `pdf-lib`
 (carimbo de folhas e autos, com QR do código de conferência via `qrcode`);
-Word e Excel convertidos no servidor com `mammoth` e `xlsx`; editor no
+Word e LibreOffice convertidos no servidor por leitores próprios do XML
+(`docx.ts`, `odt.ts`; `mammoth` só para refazer folhas antigas), Word antigo
+com `word-extractor` e Excel com `xlsx`, todo pacote ZIP conferido antes por
+`abrirZip` (limite de descompressão); editor no
 navegador com TipTap. Página pública `/Conferir` e alerta diário de prazos
 (`secretariaAlertaPrazos`, Cloud Scheduler). Modelo completo em
 [PROCESSO_ELETRONICO.md](./PROCESSO_ELETRONICO.md).

@@ -76,3 +76,29 @@ test('versão de leitura: imagem vira uma folha A4; PDF já enxuto fica como est
     const enxuto = Buffer.from(await p.save({ useObjectStreams: true }));
     assert.equal(await versaoDeLeitura(enxuto, { mime: 'application/pdf', titulo: 'PDF' }), null);
 });
+
+test('pacote ZIP (Word, LibreOffice, planilha): barra a bomba de descompressão antes de abrir', async () => {
+    const JSZip = require('jszip');
+    const { abrirZip, MAX_ZIP_ENTRADA } = require('../lib/secretaria/conversaoComum');
+    const { officeParaDoc } = require('../lib/secretaria/conversao');
+    const MIME_DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    // Parte declarada acima do teto: poucos KB de arquivo, mais de 120 MB descompactado.
+    const z = new JSZip();
+    z.file('word/document.xml', Buffer.alloc(MAX_ZIP_ENTRADA + 1024));
+    const bomba = await z.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+    assert.ok(bomba.length < 1024 * 1024);
+    await assert.rejects(abrirZip(bomba), /grande demais/);
+    await assert.rejects(officeParaDoc(bomba, MIME_DOCX), /grande demais/);
+    // Cabeçalho que mente (declara 1 KB e esconde 2 MB): descompacta com teto e recusa.
+    const z2 = new JSZip();
+    z2.file('word/document.xml', Buffer.alloc(2 * 1024 * 1024));
+    const mente = await z2.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+    for (const [sig, off] of [[0x04034b50, 22], [0x02014b50, 24]]) {
+        for (let i = 0; i < mente.length - 4; i++) if (mente.readUInt32LE(i) === sig) mente.writeUInt32LE(1024, i + off);
+    }
+    await assert.rejects(abrirZip(mente), /grande demais|estrutura interna/);
+    // Pacote normal abre.
+    const ok = new JSZip();
+    ok.file('word/document.xml', '<w:document/>');
+    assert.ok(await abrirZip(await ok.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })));
+});

@@ -391,6 +391,13 @@ Regras comuns:
   caminho, o tamanho e se o conteúdo bate com o tipo (assinatura do arquivo:
   um executável chamado .pdf é recusado), guarda no lugar definitivo e apaga
   a cópia de espera. O `base64` na chamada continua aceito até 5 MB.
+- **Limite de descompressão:** Word, LibreOffice e planilha são pacotes ZIP.
+  Antes de ler, a função confere o pacote (`abrirZip` em
+  `secretaria/conversaoComum.ts`): até 3.000 partes, 120 MB por parte e
+  300 MB descompactados no total, com cada parte descompactada sob teto para
+  conferir o tamanho que declara. Arquivo acima disso não abre no editor nem
+  é convertido ("envie em PDF"); na juntada, vira folha de referência e o
+  original segue nos autos.
 - **Original intacto e versão de leitura:** o arquivo enviado é a prova e
   nunca é alterado: fica byte a byte, com o SHA-256 calculado sobre ele. Se o
   gzip economizar ao menos 5%, é guardado compactado sem perda

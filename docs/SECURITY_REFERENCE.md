@@ -22,8 +22,21 @@ Regra geral do projeto: *a interface avisa, o servidor exige.*
 ## 2. Regras do Firestore
 
 Auxiliares: `isAuthenticated()`, `isOwner(uid)`, `isMemberOf(orgId)` (existe
-`userOrganizations/{uid}_{orgId}`), `hasRole(orgId, roles)` e
-`isPlatformAdmin()` (claim `platformAdmin`).
+`userOrganizations/{uid}_{orgId}` **e o vínculo está ativo**, ou seja, sem
+`active == false`), `hasRole(orgId, roles)` e `isPlatformAdmin()` (claim
+`platformAdmin`).
+
+**Membro removido perde o acesso na hora.** A remoção de membro é lógica
+(`removeMember` grava `active: false` e `left_at`, para guardar a data de
+saída). Até 16/11/2026 as regras e quase todas as Functions conferiam só se o
+vínculo existia, e o membro removido seguia lendo processos, expedientes,
+parcerias, bases, o órgão e (se era admin) a auditoria, e podia criar e editar
+registros pelas Functions. Desde então `isMemberOf` exige o vínculo ativo, e
+toda Function que confere o vínculo recusa o inativo (Consultas, Expedientes,
+Parcerias, Jurimetria, Panorama, páginas próprias, comentários, importações,
+órgão, membros, auditoria de acesso, anonimização e webhooks; o Processo
+Eletrônico já recusava). `getUserOrganizations` não lista mais o órgão do qual
+a pessoa saiu. Coberto por `scripts/test-rules.mjs` (leitura e lista).
 
 | Coleção | Leitura | Escrita pelo cliente |
 |---|---|---|
@@ -108,7 +121,7 @@ dependem de autorização expressa; nenhuma foi feita.
 | **Retenção e anonimização** (`data_retention_policy`, integrado) | Duas etapas, sempre manuais e só pelo criador: `previewAnonymization` lista as Consultas arquivadas há mais de `retentionConfig.anonymizeAfterDays` (padrão 365 dias); `runAnonymization` anonimiza apenas os IDs confirmados (até 300 por vez), revalidando a elegibilidade no servidor. Substitui o campo **consulente** por "Consulente anonimizado (LGPD)" e registra em `auditLogs`. |
 | **Exportações no navegador** | PDF, Excel, CSV, Word, JSON e Markdown são gerados localmente; nenhum dado vai a serviço externo. Valores de célula iniciados por `=`, `+`, `-`, `@` recebem `'` (proteção contra injeção de fórmulas). |
 | **Preferências locais** | `localStorage` guarda só preferências de exibição (chaveadas por órgão), nunca dados de registros. |
-| **Cabeçalhos HTTP** | `firebase.json`: `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Strict-Transport-Security` (1 ano), `Permissions-Policy` (câmera, microfone, localização, pagamento e USB desligados). |
+| **Cabeçalhos HTTP** | `firebase.json`: `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Strict-Transport-Security` (1 ano), `Permissions-Policy` (câmera, microfone, localização, pagamento e USB desligados), `Content-Security-Policy: base-uri 'self'; frame-ancestors 'none'` (sem restringir scripts: o login do Google e o Firebase carregam de domínios próprios). |
 | **Localização do processamento** | Cloud Functions em `southamerica-east1` (São Paulo). A localização do banco Firestore é definida no projeto Firebase e não consta do repositório. |
 
 ### Limites conhecidos (importantes para a avaliação de conformidade)
@@ -119,13 +132,20 @@ dependem de autorização expressa; nenhuma foi feita.
 2. **"Restrição de acesso" não restringe leitura.** Todo membro do órgão lê
    todos os registros do órgão, inclusive os marcados como restritos. A
    marcação serve para sinalizar e auditar, não para bloquear.
-3. **Dependência `xlsx` sem correção no npm.** A biblioteca de planilhas
-   (SheetJS) tem vulnerabilidades altas conhecidas (poluição de protótipo e
-   ReDoS ao ler arquivos maliciosos) e a versão corrigida só é distribuída
-   fora do npm. O risco fica restrito a planilhas importadas por membros do
-   órgão. Demais pendências do `npm audit` são altas ou moderadas em
-   dependências internas do Firebase e de ferramentas de build; não há
-   críticas (novembro de 2026).
+3. **Dependências (`npm audit --omit=dev`, 16/11/2026).** A biblioteca de
+   planilhas `xlsx` (SheetJS) é instalada na versão corrigida 0.20.3 do CDN
+   oficial da SheetJS (`https://cdn.sheetjs.com/...`), no navegador e nas
+   Functions: a do npm (0.18.5) tinha poluição de protótipo e ReDoS ao ler
+   planilha maliciosa. O `sharp` (imagens enviadas, inclusive pelas partes)
+   foi para 0.35.5, que corrige falhas da libvips, libheif e librsvg.
+   Continuam abertas, sem correção compatível: no navegador, avisos em
+   dependências do SDK do Firebase usadas só em Node (`undici`, `grpc-js`,
+   não vão ao pacote do site), `react-router-dom` 6 (redirecionamento aberto
+   por barra invertida em `<Link>`/`navigate`; o SIGO não navega para endereço
+   vindo da URL ou do usuário; a correção exige a versão 7) e `zod` 3
+   (memória em coleções enormes, só validação de formulário no navegador); nas
+   Functions, moderadas internas do `firebase-admin` e do `@google-cloud/bigquery`
+   (correção só em versão maior). Não há críticas.
 4. **Anonimização parcial.** Só o campo consulente das Consultas é
    substituído. Objeto, observações, histórico e os demais módulos não são
    anonimizados.
@@ -137,6 +157,19 @@ dependem de autorização expressa; nenhuma foi feita.
 7. **Terceiros:** e-mails (código de 2FA e, quando reativados, relatórios)
    passam pelo provedor Resend; webhooks enviam dados do evento para a URL
    configurada pelo criador.
+8. **Área de espera dos envios aberta a qualquer conta.** As regras do
+   Storage deixam qualquer conta autenticada (inclusive uma conta do Portal
+   criada por conta própria, ou de outro app do projeto) gravar até 50 MB por
+   arquivo em `secretaria-envios/{uid}/`. Ninguém lê esses arquivos pelo
+   navegador e a rotina diária apaga o que passou de uma hora, mas não há
+   limite de quantidade: o abuso custaria armazenamento até a limpeza. O
+   App Check (pendente, ativado no console do Firebase) reduz o
+   risco de envio fora do próprio site.
+9. **Sem App Check e com a chave de API do projeto compartilhado.** Qualquer
+   cliente que conheça a configuração pública do Firebase chama as Functions
+   e o Storage como o site faz; regras e Functions continuam conferindo
+   conta, vínculo e papel. Ativar o App Check e trocar a chave dependem do
+   console do Firebase.
 
 ---
 
@@ -152,7 +185,10 @@ dependem de autorização expressa; nenhuma foi feita.
 - **Super-admin:** custom claim `platformAdmin`, documento ativo em
   `platformAdmins/{uid}` ou e-mail em `PLATFORM_ADMIN_EMAILS` (bootstrap).
   Concessão por `grantPlatformAdmin` ou pelo script
-  `functions-v2/scripts/bootstrap-platform-admin.js`.
+  `functions-v2/scripts/bootstrap-platform-admin.js`. O bootstrap por e-mail
+  só vale com `email_verified` no token (desde 16/11/2026): o Portal das
+  partes permite criar conta de e-mail e senha, e sem a confirmação alguém
+  poderia criar uma conta com o endereço do super-admin.
 
 #### Processo Eletrônico (`secProcessos/**`, `secUnidades`, `secUnidadeConfig`, `secConvitesEquipe`, `secRitos`, `secTipos`, `secContadores`, `secConvites`, `secVerificacao`, `secPortalAcessos`) e Cloud Storage
 
@@ -212,9 +248,21 @@ dependem de autorização expressa; nenhuma foi feita.
   (`crypto.randomBytes`), o que torna inviável adivinhar códigos; ele só sai
   impresso nas folhas do próprio documento. Quem tem o código vê título e
   número do processo mesmo em processo restrito (aceito: já tem o documento).
-- Word e Excel são lidos no servidor (mammoth, xlsx) e o resultado passa por
-  `sanitizeDoc`, como o texto do editor: links só http(s)/mailto, imagens só
-  PNG/JPEG. Arquivo inválido vira folha de referência, sem derrubar a juntada.
+- Word (.docx, .doc), LibreOffice (.odt) e Excel são lidos no servidor
+  (leitores próprios de XML em `docx.ts` e `odt.ts`, `word-extractor`,
+  `xlsx`, e o `mammoth` só para refazer folhas antigas) e o resultado passa
+  por `sanitizeDoc`, como o texto do editor: lista fechada de nós e
+  atributos, links só http(s)/mailto, imagens só PNG/JPEG embutidas, até
+  4 MB e 40 níveis. Arquivo inválido vira folha de referência, sem derrubar
+  a juntada.
+- **Bomba de descompressão.** Todo pacote ZIP (Word, LibreOffice, planilha,
+  modelo e pacote do Bizagi) abre por `abrirZip`/`conferirZip`
+  (`secretaria/conversaoComum.ts`) antes de qualquer leitor: até 3.000 partes,
+  120 MB por parte e 300 MB no total descompactado. Como o cabeçalho do ZIP
+  pode mentir, cada parte é descompactada com teto de saída (`zlib`
+  `maxOutputLength`) e precisa bater com o tamanho que declara. Antes, um
+  Word de poucos KB enviado pela parte no Portal podia declarar gigabytes de
+  XML e derrubar a função por falta de memória.
 - Alerta de prazos: e-mail só para quem está lotado na unidade que tem o
   processo, com número e assunto escapados em HTML; não vai para partes.
 - Sessões de julgamento e reuniões (`secSessoes` + `votacoes`, `pedidos`,

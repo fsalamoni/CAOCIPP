@@ -59,7 +59,7 @@ export const addComment = onCall<AddCommentRequest>(
         // 1. Verifica associação ao órgão.
         const membershipRef = db.collection('userOrganizations').doc(`${userId}_${organizationId}`);
         const membershipSnap = await membershipRef.get();
-        if (!membershipSnap.exists) {
+        if (!membershipSnap.exists || membershipSnap.data()?.active === false) {
             throw new HttpsError('permission-denied', 'You are not a member of this organization');
         }
 
@@ -79,7 +79,7 @@ export const addComment = onCall<AddCommentRequest>(
             const checks = await Promise.all(
                 candidateMentions.map(async (id) => {
                     const snap = await db.collection('userOrganizations').doc(`${id}_${organizationId}`).get();
-                    return snap.exists ? id : null;
+                    return snap.exists && snap.data()?.active !== false ? id : null;
                 })
             );
             validMentions = checks.filter((id): id is string => Boolean(id));

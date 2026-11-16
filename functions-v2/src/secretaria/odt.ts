@@ -1,7 +1,6 @@
 import type JSZip = require('jszip');
-const jszip = () => require('jszip') as typeof import('jszip');
 import { Marca, No, fonteEquivalente, sanitizeDoc } from '../shared/documento';
-import { ImagensDoc, Item, agruparListas, filho, filhos, novoOrcamento, xml } from './conversaoComum';
+import { ImagensDoc, Item, abrirZip, agruparListas, filho, filhos, novoOrcamento, xml } from './conversaoComum';
 import { formatarNumero } from './docx';
 
 /**
@@ -346,6 +345,6 @@ class LeitorOdt {
 /** LibreOffice (.odt) → documento do editor, com os avisos do que não veio. */
 export async function odtParaDoc(buf: Buffer): Promise<{ doc: No; avisos: string[] }> {
     let zip: JSZip;
-    try { zip = await jszip().loadAsync(buf); } catch { throw new Error('Arquivo do LibreOffice danificado ou protegido por senha'); }
+    zip = await abrirZip(buf, 'Arquivo do LibreOffice danificado ou protegido por senha');
     return new LeitorOdt(zip).converter();
 }

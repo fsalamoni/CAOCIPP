@@ -158,6 +158,7 @@ function detectarColunas(linhas, baseExistente) {
     return out;
 }
 exports.importPanorama = (0, https_1.onCall)({ region: 'southamerica-east1', memory: '1GiB', timeoutSeconds: 540 }, async (request) => {
+    var _a;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Usuário deve estar autenticado');
     }
@@ -171,7 +172,7 @@ exports.importPanorama = (0, https_1.onCall)({ region: 'southamerica-east1', mem
         .collection('userOrganizations')
         .doc(`${userId}_${organizationId}`)
         .get();
-    if (!membershipSnap.exists) {
+    if (!membershipSnap.exists || ((_a = membershipSnap.data()) === null || _a === void 0 ? void 0 : _a.active) === false) {
         throw new https_1.HttpsError('permission-denied', 'Você não é membro desta organização');
     }
     const membership = membershipSnap.data() || {};

@@ -40,7 +40,7 @@ export const updateMember = onCall<UpdateMemberRequest>(
         const requesterMembershipRef = db.collection('userOrganizations').doc(`${requesterId}_${organizationId}`);
         const requesterMembershipSnap = await requesterMembershipRef.get();
 
-        if (!requesterMembershipSnap.exists) {
+        if (!requesterMembershipSnap.exists || requesterMembershipSnap.data()?.active === false) {
             throw new HttpsError('permission-denied', 'Not a member');
         }
 

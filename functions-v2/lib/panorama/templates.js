@@ -42,11 +42,12 @@ function sanitizeConfig(input) {
 }
 /** Vínculo do usuário com o órgão + se ele administra (criador ou delegado). */
 async function loadMembership(db, userId, organizationId) {
+    var _a;
     const snap = await db
         .collection('userOrganizations')
         .doc(`${userId}_${organizationId}`)
         .get();
-    if (!snap.exists) {
+    if (!snap.exists || ((_a = snap.data()) === null || _a === void 0 ? void 0 : _a.active) === false) {
         throw new https_1.HttpsError('permission-denied', 'Você não é membro desta organização');
     }
     const data = snap.data() || {};
