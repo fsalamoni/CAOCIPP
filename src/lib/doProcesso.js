@@ -58,6 +58,60 @@ export function nomeDoCampo(tipos, id) {
     return null;
 }
 
+/** Campos do processo de que a ação vem (um, ou um por campo do formulário dela). */
+export const camposDaLigacao = (r) => (r?.do_processo ? [r.do_processo] : Object.values(r?.do_processo_campos || {}));
+
+/** Definição do campo do processo (dos tipos, ou assunto e descrição), ou null. */
+function campoDoProcesso(tipos, id) {
+    const p = PADROES_LIGAVEIS.find((c) => c.id === id);
+    if (p) return p;
+    for (const t of tipos || []) {
+        const c = (t.formulario?.campos || []).find((x) => x.id === id);
+        if (c) return c;
+    }
+    return null;
+}
+
+/**
+ * Ligações que não vão funcionar com os tipos de processo dados (os que usam o
+ * rito, ou só o tipo em edição): o campo não existe neles ou o tipo do campo
+ * não combina com o que a ação pede. A ação continua valendo; só não se
+ * cumpre sozinha. Sem tipos, nada a conferir. [{ fase, idx, texto }]
+ */
+export function problemasDasLigacoes(fases, tipos) {
+    if (!tipos?.length) return [];
+    const out = [];
+    for (const f of fases || []) {
+        (f.acoes || []).forEach((a, i) => {
+            const r = f.acoes_regras?.[i];
+            if (!a?.trim() || !ligada(r)) return;
+            const pede = pedeDe(r);
+            const pares = pede === 'formulario'
+                ? Object.entries(r.do_processo_campos || {}).map(([fid, id]) => ({ id, aceita: LIGAVEL_NO_FORM[(r.campos || []).find((c) => c.id === fid)?.tipo] || [] }))
+                : [{ id: r.do_processo, aceita: LIGAVEL[pede] || [] }];
+            for (const { id, aceita } of pares) {
+                const def = campoDoProcesso(tipos, id);
+                if (!def) out.push({ fase: f.id, idx: i, texto: `"${a.trim()}" vem de um campo que ${tipos.length === 1 ? 'este tipo de processo' : 'nenhum tipo de processo deste rito'} não tem: ela não se cumpre sozinha` });
+                else if (!aceita.includes(def.tipo)) out.push({ fase: f.id, idx: i, texto: `"${a.trim()}" vem de "${def.rotulo || id}", que é de outro tipo de dado: ela não se cumpre sozinha` });
+            }
+        });
+    }
+    return out;
+}
+
+/** Ações do rito que vêm de cada campo: { [campoId]: ['Ação (Fase)'] }, para o editor do tipo. */
+export function acoesPorCampo(fases) {
+    const out = {};
+    for (const f of fases || []) {
+        (f.acoes || []).forEach((a, i) => {
+            const r = f.acoes_regras?.[i];
+            if (!a?.trim() || !ligada(r)) return;
+            for (const id of new Set(camposDaLigacao(r))) (out[id] ||= []).push(`${a.trim()} (${f.nome || 'fase'})`);
+        });
+    }
+    return out;
+}
+
 // ---- Sugestões pelo nome ---------------------------------------------------
 
 const PARADAS = new Set(['a', 'o', 'as', 'os', 'de', 'do', 'da', 'dos', 'das', 'e', 'em', 'no', 'na', 'nos', 'nas', 'ao', 'aos', 'um', 'uma', 'para', 'por', 'com', 'que', 'se',

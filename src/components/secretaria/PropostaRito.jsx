@@ -39,7 +39,7 @@ import PermissoesDaFase from './PermissoesDaFase';
 import { alguemTem, resumoPermissoes } from '@/lib/permissoesFase';
 import { ALERTA_PADRAO, AVISO_PARA, DESIGNA, MAX_ALERTA_DIAS, MAX_MENSAGEM_AVISO, MAX_PENDENCIA_FASE, SIGILO_FASE, abrePrazo, comAoEntrar, comAviso, comPrazoVencido, efeitosAoEntrar, problemasDosEfeitos, textoDoAviso, textosDosPrazos } from '@/lib/efeitosFase';
 import { CampoAtribuicao } from './PermissoesDaFase';
-import { aplicarSugestoes, sugestoesDeLigacao } from '@/lib/doProcesso';
+import { aplicarSugestoes, problemasDasLigacoes, sugestoesDeLigacao } from '@/lib/doProcesso';
 
 const MAX_MB = 5;
 const MAX_FASES = 60; // igual ao servidor (MAX_FASES em functions-v2/src/shared/secretaria.ts)
@@ -199,6 +199,8 @@ export function pendenciasDaProposta(p, ligadas = null, paginas = null, unidades
             }
         }
     });
+    // "Vem do processo" com campo que os tipos não têm (ex.: rito de outro órgão ou campo removido do tipo): não trava, só avisa.
+    problemasDasLigacoes(p.fases, tipos).forEach((x) => out.push({ fase: x.fase, texto: `${x.texto}. Escolha outro campo em "Vem do processo" ou ajuste o formulário do tipo.` }));
     return out;
 }
 

@@ -2,7 +2,7 @@
 // "Vem do processo": campos que servem a cada ação e as ligações propostas pelo nome.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { aplicarSugestoes, camposLigaveis, nomeDoCampo, sugestoesDeLigacao } from './doProcesso.js';
+import { acoesPorCampo, aplicarSugestoes, camposLigaveis, nomeDoCampo, problemasDasLigacoes, sugestoesDeLigacao } from './doProcesso.js';
 import { ritoConsultas } from './secretariaRito.js';
 import { acaoAtiva, respostasDoProcesso, textoCondicao } from './exigencias.js';
 
@@ -57,6 +57,22 @@ test('Rito Consultas: o SIGO propõe ligar o PGEA, os dados básicos e dispensar
     assert.match(textoCondicao(f, se, fases), /"Número do PGEA" estiver vazio/);
     // Aplicar de novo não duplica: as sugestões somem com a ligação feita.
     assert.deepEqual(sugestoesDeLigacao(fases, [TIPO]), []);
+});
+
+test('conferência das ligações: campo que o tipo não tem ou de outro tipo de dado', () => {
+    const { fases: base } = ritoConsultas();
+    const fases = aplicarSugestoes(base, sugestoesDeLigacao(base, [TIPO]));
+    assert.deepEqual(problemasDasLigacoes(fases, [TIPO]), [], 'com o tipo de onde vieram: tudo certo');
+    assert.deepEqual(problemasDasLigacoes(fases, []), [], 'sem tipo ainda: nada a conferir');
+    const semPgea = { ...TIPO, formulario: { campos: TIPO.formulario.campos.filter((c) => c.id !== 'pgea') } };
+    const p = problemasDasLigacoes(fases, [semPgea]);
+    assert.equal(p.length, 1);
+    assert.match(p[0].texto, /este tipo de processo não tem/);
+    const pgeaNumero = { ...TIPO, formulario: { campos: TIPO.formulario.campos.map((c) => (c.id === 'pgea' ? { ...c, tipo: 'numero' } : c)) } };
+    assert.match(problemasDasLigacoes(fases, [pgeaNumero])[0].texto, /outro tipo de dado/);
+    const porCampo = acoesPorCampo(fases);
+    assert.equal(porCampo.pgea.length, 1);
+    assert.equal(porCampo.orgao.length, 1);
 });
 
 test('nome ambíguo não liga sozinho: o admin escolhe', () => {

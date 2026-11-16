@@ -16,6 +16,7 @@ import EditorNumeracao from './EditorNumeracao';
 import VersoesDialog from './VersoesDialog';
 import { RegistroContexto } from './SeletorRegistro';
 import { comFonte, faseInicial, fontesDoTipo, problemasCriaRegistro } from '@/lib/registroCriado';
+import { acoesPorCampo, problemasDasLigacoes, sugestoesDeLigacao } from '@/lib/doProcesso';
 
 // ============================================================================
 // Editor do tipo de processo em tela cheia: abas Dados, Formulário e
@@ -23,6 +24,40 @@ import { comFonte, faseInicial, fontesDoTipo, problemasCriaRegistro } from '@/li
 // prévia é o próprio "Novo processo" e, abaixo, o que as partes veem no portal
 // com o que for preenchido nela.
 // ============================================================================
+
+/**
+ * Campos deste tipo de que ações do rito vêm ("Vem do processo"): o que se
+ * cumpre sozinho ao preencher, o que deixou de funcionar com o formulário
+ * como está e o que o rito poderia ligar pelo nome (aplica-se no rito).
+ */
+function LigacoesDoRito({ tipo, rito, sujo, onAbrirRito }) {
+    const fases = rito?.fases || [];
+    const porCampo = acoesPorCampo(fases);
+    const problemas = problemasDasLigacoes(fases, [tipo]);
+    const sugestoes = sugestoesDeLigacao(fases, [tipo]);
+    const usados = (tipo.formulario?.campos || []).filter((c) => porCampo[c.id]);
+    if (!usados.length && !problemas.length && !sugestoes.length) return null;
+    return (
+        <section aria-labelledby="tp-ligacoes" className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-2">
+            <h3 id="tp-ligacoes" className="text-sm font-medium">Ações do rito que vêm destes campos</h3>
+            {usados.length > 0 && (
+                <ul className="text-sm space-y-0.5">
+                    {usados.map((c) => <li key={c.id}><span className="font-medium">{c.rotulo || c.id}</span>: {porCampo[c.id].join('; ')}</li>)}
+                </ul>
+            )}
+            {usados.length > 0 && <p className="text-xs text-slate-600 dark:text-slate-400">Preenchido no "Novo processo" ou depois, o campo cumpre a ação sozinho, com registro nos autos. Mudar o tipo de um destes campos ou removê-lo faz a ação voltar a ser cumprida à mão.</p>}
+            {problemas.length > 0 && (
+                <ul className="text-sm text-amber-800 dark:text-amber-300 list-disc pl-5">{problemas.map((x) => <li key={`${x.fase}-${x.idx}-${x.texto}`}>{x.texto}.</li>)}</ul>
+            )}
+            {sugestoes.length > 0 && <p className="text-sm">{sugestoes.length === 1 ? 'Uma ação do rito pode vir' : `${sugestoes.length} ações do rito podem vir`} destes campos, pelo nome. Confira e aplique em "Ligações sugeridas", no editor do rito.</p>}
+            {(sugestoes.length > 0 || problemas.length > 0) && onAbrirRito && rito && (
+                sujo
+                    ? <p className="text-xs text-slate-600 dark:text-slate-400">Salve o tipo antes: o rito lê o formulário salvo.</p>
+                    : <Button size="sm" variant="outline" onClick={() => onAbrirRito(rito.id)}>Abrir o rito {rito.nome}</Button>
+            )}
+        </section>
+    );
+}
 
 const MODOS_NUMERO = [
     ['orgao', 'A numeração do órgão', 'Igual à dos demais processos.'],
@@ -163,7 +198,7 @@ function CriarRegistro({ tipo, set, ligadas }) {
  * `tipo` em edição (null = fechado). `onSalvar()` grava; `onExcluir()` abre a exclusão.
  * `exemplo(numeracao, tipo)` e `numeracaoOrgao` vêm da tela de tipos.
  */
-export default function EditorTipo({ tipo, setTipo, estado, salvando, onSalvar, onExcluir, exemplo, numeracaoOrgao, orgId, onAbrirVersao }) {
+export default function EditorTipo({ tipo, setTipo, estado, salvando, onSalvar, onExcluir, exemplo, numeracaoOrgao, orgId, onAbrirVersao, onAbrirRito }) {
     const { paginas, paginasProntas } = useContext(RegistroContexto);
     const [aba, setAba] = useState('dados');
     const [verPrevia, setVerPrevia] = useState(false);
@@ -259,6 +294,7 @@ export default function EditorTipo({ tipo, setTipo, estado, salvando, onSalvar, 
                                 <TabsContent value="formulario" className="space-y-3 mt-4">
                                     {aviso(probForm)}
                                     <EditorFormulario form={tipo.formulario} tipo={tipo} fases={fases} previa={false} outros={outros} onChange={(formulario) => set({ formulario })} />
+                                    <LigacoesDoRito tipo={tipo} rito={rito} sujo={sujo} onAbrirRito={onAbrirRito && ((id) => { setTipo(null); onAbrirRito(id); })} />
                                 </TabsContent>
 
                                 <TabsContent value="numeracao" className="space-y-3 mt-4">

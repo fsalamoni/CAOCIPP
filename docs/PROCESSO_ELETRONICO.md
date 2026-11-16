@@ -1031,7 +1031,17 @@ deixaram de ler só a rodada da própria fase. Sem os campos novos, a condição
 - **Editor**: na ação, "Vem do processo" escolhe o campo (no formulário, um
   por campo). No topo do editor, "Ligações sugeridas" compara o nome das
   ações e dos campos dos tipos que usam o rito e propõe as ligações e as
-  dispensas; nada muda até aplicar e salvar.
+  dispensas; nada muda até aplicar e salvar. Vale para qualquer rito: o
+  criado do zero, o da biblioteca, o copiado e o importado de outro órgão
+  (as ligações viajam no pacote; lá, apontam para os campos dos tipos de lá).
+- **Conferência** (`problemasDasLigacoes` em `src/lib/doProcesso.js`): o
+  editor do rito avisa, sem travar, a ação que vem de um campo que nenhum
+  tipo do rito tem ou de outro tipo de dado. O editor do tipo, na aba
+  Formulário, lista as ações do rito que vêm de cada campo, avisa quando o
+  formulário deixa uma ligação sem efeito e propõe abrir o rito para
+  aplicar as sugestões (`acoesPorCampo`).
+- **Prévia**: os campos ligados aparecem entre os dados do processo de
+  exemplo; preenchido, a ação aparece marcada como cumprida sozinha.
 - **Permissão e auditoria**: a ação automática segue as regras da ação
   (quem vê, onde fica o registro); o sistema não cumpre ação que não vale
   agora nem refaz o que a pessoa desfez. Tudo fica no histórico, com a
