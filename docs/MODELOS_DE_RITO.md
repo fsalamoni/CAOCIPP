@@ -13,6 +13,7 @@ Muitos modelos seguem o rito de uma instituição: o TED da OAB/RS, o processo �
 3. Encontre o modelo:
    - **Buscar** procura no nome, na instituição ou lei de inspiração, na base, nas fases, no quando usar e na descrição. Ignora acentos, exige todos os termos e marca o que achou. No agrupamento por área, os mais relevantes vêm primeiro em cada grupo;
    - **Área**, **Porte** e **Inspirado em** (a instituição ou lei de origem, por exemplo OAB/RS, CAU/BR, MPRS, CNMP, AGU, CGU, Lei 14.133) filtram a lista;
+   - **Usa** mostra só os modelos que usam um recurso do motor: julgamento em sessão de colegiado (o processo entra na pauta da aba Sessões), disputa de preços ou audiência e reunião;
    - **Ordenar** muda a ordem: por área, mais relevantes, nome, do mais curto ao mais longo ou o contrário. Fora do agrupamento por área, cada modelo mostra a sua área;
    - **Limpar filtros** volta tudo, e o contador diz quantos modelos aparecem.
 4. Clique no nome do modelo para ver a descrição inteira, quando usar, a base, as partes, o que o rito faz (comunicações, esperas, audiências, documentos, formulários e saídas) e as fases com prazo, contagem, unidade e marca de fase final.
@@ -40,6 +41,8 @@ Cada modelo foi escrito para mostrar, na prática, os recursos do editor de rito
 - **Comunicações às partes:** cada comunicação tem espécie, polos, prazo e contagem.
 - **Espera da resposta:** a resposta pode ser Apresentada, Parcial ou Sem manifestação, e pode decidir a saída da fase.
 - **Audiências, sessões, oitivas e vistorias:** a intimação usa `{audiencia}` no texto.
+- **Julgamento em sessão de colegiado:** a ação Julgar em colegiado leva o processo à pauta do colegiado; relator, votos, vista, proclamação, acórdão e ata correm na aba Sessões, e o resultado proclamado cumpre a ação e escolhe a saída. Exemplos: Recurso administrativo julgado por colegiado, Proposta de ato normativo ao conselho, Revisão de arquivamento pelo Conselho Superior (MPRS), Apuração ética por comissão de ética pública e os processos éticos de conselhos de classe.
+- **Disputa de preços:** cotação privada ou dispensa com sala de lances (Contratação direta e Compra ou contratação privada).
 - **Escolhas que decidem a saída:** por exemplo, deferir, indeferir ou converter.
 - **Ações condicionais:** ações que só valem em alguns casos.
 - **Documentos exigidos:** com o tipo e com a indicação de redigir ou juntar.
@@ -94,14 +97,14 @@ A pesquisa normativa que embasou os modelos está nos arquivos do projeto, em `/
 
 | Área | Modelos |
 |---|---|
-| Administrativo geral | Processo administrativo com interessado (médio) |
+| Administrativo geral | Processo administrativo com interessado (médio); Recurso administrativo julgado por colegiado (médio) |
 | Correcional e disciplinar | Sindicância investigativa e investigação preliminar sumária (curto); Processo administrativo disciplinar, rito ordinário (longo); Processo administrativo disciplinar, rito sumário (médio); Termo de ajustamento de conduta disciplinar (curto); Correição e inspeção em Promotoria de Justiça (MPRS) (médio); Sindicância patrimonial (médio); Juízo de admissibilidade correcional (curto); Processo disciplinar de empregado público (médio) |
 | Ética e conselhos profissionais | Processo ético-profissional (conselho profissional) (longo); Processo disciplinar (entidade de classe) (longo); Apuração ética por comissão de ética pública (médio); Processo disciplinar no TED da OAB/RS (longo); Revisão de processo disciplinar (OAB) (curto); Reabilitação de inscrito punido (OAB) (curto); Processo ético-disciplinar do CAU (longo) |
 | Sancionador e fiscalização | Responsabilização de pessoa jurídica (PAR) (longo); Infração contratual e sanção a fornecedor (médio); Fiscalização com auto de infração e defesa (médio); Processo administrativo fiscal (lançamento e impugnação) (longo); Multa de trânsito (defesa prévia e recursos) (médio); Fiscalização do exercício profissional no CAU (médio); Acordo de leniência (Lei Anticorrupção) (longo) |
 | Contratações e contratos | Contratação pública por licitação (longo); Contratação direta: dispensa e inexigibilidade (médio); Compra ou contratação privada (médio); Gestão e fiscalização de contrato de serviço continuado (longo); Recebimento de bens ou serviços, liquidação e pagamento (curto); Parceria com organização da sociedade civil (longo) |
 | Atendimento, ouvidoria e transparência | Manifestação de ouvidoria (curto); Pedido de acesso à informação (curto) |
 | Ministério Público (não penal) | Notícia de Fato (curto); Procedimento Administrativo do Ministério Público (médio); Procedimento Preparatório (médio); Inquérito Civil (longo); Compromisso de ajustamento de conduta (TAC) (longo); Recomendação do Ministério Público (curto); Audiência pública do Ministério Público (curto); Revisão de arquivamento pelo Conselho Superior (MPRS) (médio); Destinação de bens e valores de tutela coletiva (MPRS) (médio); Cadastramento de entidade para destinação de recursos (MPRS) (curto); Triagem de representação sobre patrimônio público (MPRS) (curto) |
-| Gestão interna e pessoas | Consulta ou parecer interno (curto); Concessão de benefício ou licença a servidor (curto) |
+| Gestão interna e pessoas | Consulta ou parecer interno (curto); Concessão de benefício ou licença a servidor (curto); Proposta de ato normativo ao conselho (curto) |
 | Controle e contas | Tomada de contas especial (fase interna) (longo) |
 | Advocacia pública e consultoria | Mediação e conciliação na câmara da advocacia pública (CCAF) (médio); Acordo para prevenir ou encerrar litígio com a União (médio); Cobrança administrativa e inscrição em dívida ativa (crédito não tributário) (médio) |
 
@@ -122,6 +125,22 @@ Rito-base para qualquer pedido que exige decisão motivada da Administração: a
 **Recursos do motor usados:** 6 comunicações às partes; 3 esperas de resposta; audiência (oitiva); 6 documentos; 1 formulário de dados; 3 fases com saída decidida pela resposta.
 
 **Fases:** 1. Protocolo, Secretaria; 2. Admissibilidade e saneamento (5 dias corridos), Unidade instrutora; 3. Exigência ao interessado, Unidade instrutora; 4. Instrução, Unidade instrutora; 5. Parecer jurídico (15 dias corridos), Assessoria jurídica; 6. Alegações finais, Unidade instrutora; 7. Decisão (30 dias corridos), Gabinete; 8. Recurso (30 dias corridos), Gabinete; 9. Cumprimento, Secretaria; 10. Arquivamento, Secretaria.
+
+### Recurso administrativo julgado por colegiado
+
+**Porte:** Médio, 11 fases. **Inspirado em:** Lei 9.784. **Identificador:** `recurso-colegiado`.
+
+Para o órgão em que o recurso contra decisão administrativa é julgado por um colegiado: junta ou conselho de recursos, conselho superior, câmara recursal. A autoridade que decidiu pode reconsiderar em 5 dias; mantida a decisão, o recurso sobe, é distribuído a um relator e os demais interessados apresentam alegações em 5 dias úteis. Se o provimento puder agravar a situação do recorrente, ele é ouvido antes. O colegiado julga em sessão, com relator, votos, vista e acórdão, e pode não conhecer, negar ou dar provimento, total ou parcial, ou anular a decisão.
+
+**Quando usar:** Recursos contra decisões administrativas quando o regimento atribui o julgamento a um colegiado. Ajuste prazos, sustentação oral e quórum ao regimento.
+
+**Base:** Lei 9.784/1999, arts. 56 (reconsideração em 5 dias), 57 (até três instâncias), 58 (legitimados), 59 (10 dias para recorrer e 30 para decidir), 60, 61 (efeito suspensivo), 62 (alegações em 5 dias úteis), 63 (não conhecimento) e 64 (confirmar, modificar, anular ou revogar; gravame só com oitiva prévia).
+
+**Partes:** Recorrente (requerente), Interessado (interessado).
+
+**Recursos do motor usados:** 4 comunicações às partes; 2 esperas de resposta; 1 julgamento colegiado; 4 documentos; 1 formulário de dados; 3 fases com saída decidida pela resposta.
+
+**Fases:** 1. Interposição, Unidade recorrida; 2. Juízo de reconsideração (5 dias corridos), Autoridade recorrida; 3. Distribuição ao relator, Secretaria do colegiado; 4. Alegações dos interessados, Secretaria do colegiado; 5. Relatório e voto, Gabinete do relator; 6. Ciência de possível agravamento, Secretaria do colegiado; 7. Julgamento em sessão, Secretaria do colegiado; 8. Cumprimento, Unidade recorrida; 9. Decisão reconsiderada, Unidade recorrida; 10. Retorno à origem, Unidade recorrida; 11. Arquivamento, Secretaria.
 
 ## Correcional e disciplinar
 
@@ -299,7 +318,7 @@ Apura desvio ético de agente público que não chega a ser infração disciplin
 
 **Partes:** Denunciante (requerente), Investigado (requerido).
 
-**Recursos do motor usados:** 5 comunicações às partes; 2 esperas de resposta; audiência (oitiva, reunião); 6 documentos; 1 formulário de dados; 3 fases com saída decidida pela resposta; sigilo ao entrar.
+**Recursos do motor usados:** 5 comunicações às partes; 2 esperas de resposta; audiência (oitiva); 1 julgamento colegiado; 6 documentos; 1 formulário de dados; 3 fases com saída decidida pela resposta; sigilo ao entrar.
 
 **Fases:** 1. Denúncia ou instauração de ofício, Secretaria; 2. Juízo de admissibilidade, Comissão de ética; 3. Notificação do investigado, Comissão de ética; 4. Instrução, Comissão de ética; 5. Nova manifestação, Comissão de ética; 6. Deliberação, Comissão de ética; 7. Providências, Comissão de ética; 8. Arquivamento, Secretaria.
 
@@ -511,7 +530,7 @@ Contratação sem licitação, quando a lei dispensa (valor baixo, emergência, 
 
 **Partes:** Área requisitante (requerente), Fornecedor (interessado).
 
-**Recursos do motor usados:** 2 comunicações às partes; 2 esperas de resposta; 16 documentos; 5 formulários de dados; 5 fases com saída decidida pela resposta; 1 fase de espera.
+**Recursos do motor usados:** 2 comunicações às partes; 2 esperas de resposta; 1 disputa de preços; 15 documentos; 5 formulários de dados; 5 fases com saída decidida pela resposta; 1 fase de espera.
 
 **Fases:** 1. Formalização da demanda, Área requisitante; 2. Enquadramento legal, Setor de compras; 3. Estimativa da despesa, Setor de compras; 4. Aviso de dispensa eletrônica (3 dias), Agente de contratação; 5. Escolha do fornecedor e preço, Setor de compras; 6. Habilitação do fornecedor, Setor de compras; 7. Disponibilidade orçamentária, Setor financeiro; 8. Parecer jurídico (15 dias), Assessoria jurídica; 9. Autorização, Gabinete; 10. Contrato ou instrumento equivalente, Setor de contratos; 11. Publicação no PNCP (10 dias), Setor de contratos; 12. Arquivamento, Secretaria; 13. Complementação pelo fornecedor, Setor de compras.
 
@@ -527,7 +546,7 @@ Fluxo de aquisição de bens e serviços em empresa ou entidade privada, da requ
 
 **Partes:** Requisitante (requerente), Fornecedor (interessado).
 
-**Recursos do motor usados:** 3 comunicações às partes; 3 esperas de resposta; 10 documentos; 3 formulários de dados; 7 fases com saída decidida pela resposta; 1 fase de espera.
+**Recursos do motor usados:** 3 comunicações às partes; 3 esperas de resposta; 1 disputa de preços; 10 documentos; 3 formulários de dados; 7 fases com saída decidida pela resposta; 1 fase de espera.
 
 **Fases:** 1. Requisição de compra, Área requisitante; 2. Aprovação do gestor (2 dias), Área requisitante; 3. Cotação (5 dias), Setor de compras; 4. Mapa comparativo e negociação, Setor de compras; 5. Homologação do fornecedor, Setor de compras; 6. Aprovação por alçada, Gabinete; 7. Análise jurídica, Assessoria jurídica; 8. Pedido ou contrato, Setor de compras; 9. Recebimento, Área requisitante; 10. Conferência e pagamento, Setor financeiro; 11. Avaliação do fornecedor, Setor de compras; 12. Arquivamento, Secretaria; 13. Correção pelo fornecedor, Área requisitante.
 
@@ -739,7 +758,7 @@ Rito do próprio Conselho Superior do Ministério Público do Rio Grande do Sul 
 
 **Partes:** Representante ou recorrente (requerente), Investigado (requerido), Interessado (interessado).
 
-**Recursos do motor usados:** 3 comunicações às partes; audiência (sessão); 4 documentos; 1 formulário de dados; 4 fases com saída decidida pela resposta.
+**Recursos do motor usados:** 3 comunicações às partes; audiência (sessão); 1 julgamento colegiado; 4 documentos; 1 formulário de dados; 4 fases com saída decidida pela resposta.
 
 **Fases:** 1. Recebimento e conferência, Secretaria dos Órgãos Colegiados; 2. Distribuição ao relator, Secretaria dos Órgãos Colegiados; 3. Instrução pelo relator, Gabinete do relator; 4. Diligências no órgão de execução, Promotoria de Justiça; 5. Esclarecimentos do órgão de execução (5 dias corridos), Promotoria de Justiça; 6. Aviso e pauta, Secretaria dos Órgãos Colegiados; 7. Sessão de julgamento, Conselho Superior; 8. Publicação e baixa, Secretaria dos Órgãos Colegiados; 9. Designação de outro membro, Secretaria dos Órgãos Colegiados; 10. Devolução ao órgão de execução, Secretaria dos Órgãos Colegiados; 11. Retorno para prosseguimento, Secretaria dos Órgãos Colegiados; 12. Arquivamento homologado, Secretaria dos Órgãos Colegiados; 13. Prosseguimento por outro membro, Secretaria dos Órgãos Colegiados.
 
@@ -824,6 +843,22 @@ Decide pedido do servidor sobre direito funcional: licença, afastamento, adicio
 **Recursos do motor usados:** 2 comunicações às partes; 1 espera de resposta; 6 documentos; 1 formulário de dados; 2 fases com saída decidida pela resposta; 1 fase de espera; sigilo ao entrar.
 
 **Fases:** 1. Requerimento, Secretaria; 2. Manifestação da chefia imediata, Chefia imediata; 3. Instrução pela gestão de pessoas, Gestão de pessoas; 4. Perícia oficial, Gestão de pessoas; 5. Decisão (30 dias corridos), Gabinete; 6. Publicação e registro, Gestão de pessoas; 7. Reconsideração ou recurso (30 dias corridos), Gabinete; 8. Arquivamento, Gestão de pessoas.
+
+### Proposta de ato normativo ao conselho
+
+**Porte:** Curto, 8 fases. **Inspirado em:** Regimento do colegiado. **Identificador:** `deliberacao-normativa`.
+
+Para conselhos e colegiados que editam resoluções, enunciados, instruções e regimentos. A proposta chega à secretaria com minuta e justificativa, recebe parecer da comissão temática, pode passar por consulta pública quando a matéria é de interesse geral, e o relator leva voto e emendas à sessão. O colegiado aprova, aprova com emendas ou rejeita; aprovada, a secretaria consolida a redação final e publica.
+
+**Quando usar:** Atos normativos de conselho superior, conselho de classe, conselho de política pública ou comissão. Ajuste quórum e prazos ao regimento.
+
+**Base:** Lei 9.784/1999, arts. 31 e 32 (consulta e audiência pública), 50, § 1º (motivação) e o regimento do colegiado (quórum, emendas e publicação).
+
+**Partes:** Proponente (requerente).
+
+**Recursos do motor usados:** 1 julgamento colegiado; 5 documentos; 1 formulário de dados; 2 fases com saída decidida pela resposta.
+
+**Fases:** 1. Proposta, Secretaria do colegiado; 2. Parecer da comissão (15 dias corridos), Comissão temática; 3. Consulta pública (30 dias corridos), Secretaria do colegiado; 4. Relatoria, Gabinete do relator; 5. Deliberação em sessão, Secretaria do colegiado; 6. Publicação, Secretaria do colegiado; 7. Ato publicado, Secretaria do colegiado; 8. Arquivamento, Secretaria.
 
 ## Controle e contas
 

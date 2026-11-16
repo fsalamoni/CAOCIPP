@@ -377,18 +377,17 @@ export function revisaoArquivamentoCsmp() {
             ],
         },
         {
-            nome: 'Sessão de julgamento', unidade: 'Conselho Superior', vai: ['Publicação e baixa', 'Diligências no órgão de execução', 'Designação de outro membro', 'Aviso e pauta'], padrao: 'Publicação e baixa', nome_publico: 'Julgamento',
+            nome: 'Sessão de julgamento', unidade: 'Conselho Superior', vai: ['Publicação e baixa', 'Diligências no órgão de execução', 'Designação de outro membro'], padrao: 'Publicação e baixa', nome_publico: 'Julgamento',
             ao_entrar: { pendencia: 'Relatar, discutir e votar o expediente em sessão.' },
-            orientacao: 'A sessão é pública, salvo sigilo decretado (Provimento 71/2017-PGJ, art. 29, § 3º). Feito o relatório, há esclarecimentos e discussão, votam o relator e os demais conselheiros; pedido de vista adia para a sessão seguinte (RI, art. 16, §§ 4º a 7º). O colegiado homologa, converte em diligência ou rejeita (art. 29, II e III). Não cabe recurso nem reconsideração (RI, art. 40).',
+            orientacao: 'A sessão é pública, salvo sigilo decretado (Provimento 71/2017-PGJ, art. 29, § 3º). Feito o relatório, há esclarecimentos e discussão, votam o relator e os demais conselheiros; pedido de vista adia para a sessão seguinte (RI, art. 16, §§ 4º a 7º). O colegiado homologa, converte em diligência ou rejeita (art. 29, II e III). Não cabe recurso nem reconsideração (RI, art. 40). Com o colegiado cadastrado, a secretaria inclui o expediente na pauta da aba Sessões: relator, votos, vista, proclamação, acórdão e ata correm lá, e o resultado proclamado cumpre esta ação.',
             acoes: [
-                A.escolha('Resultado', ['Homologa', 'Converte em diligência', 'Rejeita e prossegue com outro membro', 'Adiado por pedido de vista'], { obrigatoria: true, destino: 'autos', partes: true }),
+                A.julgamento('Resultado', ['Homologa', 'Converte em diligência', 'Rejeita e prossegue com outro membro'], {}, { obrigatoria: true }),
                 A.documento('Juntar a decisão e o extrato da ata', 'Decisão', { forma: 'juntar' }),
                 A.textoLongo('Recomendações ao órgão de execução, se houver', { ajuda: 'O colegiado pode emitir recomendações ao órgão de execução (RI, art. 4º).' }),
             ],
             saidas: {
                 'Diligências no órgão de execução': quando('Resultado', 'Converte em diligência'),
                 'Designação de outro membro': quando('Resultado', 'Rejeita e prossegue com outro membro'),
-                'Aviso e pauta': quando('Resultado', 'Adiado por pedido de vista'),
             },
         },
         {

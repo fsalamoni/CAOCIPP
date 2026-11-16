@@ -14,7 +14,16 @@ export const ORDENS = [
     ['longo', 'Do mais longo ao mais curto'],
 ];
 
-export const FILTRO_VAZIO = { busca: '', area: '', porte: '', referencia: '' };
+export const FILTRO_VAZIO = { busca: '', area: '', porte: '', referencia: '', recurso: '' };
+
+/** S15: filtro pelo que o modelo usa do motor: sessão de colegiado, disputa de preços ou audiência. */
+export const RECURSOS_FILTRO = [
+    ['', 'Qualquer recurso'],
+    ['julgamento', 'Julgamento em sessão de colegiado'],
+    ['disputa', 'Disputa de preços'],
+    ['audiencia', 'Audiência ou reunião'],
+];
+export const usaRecurso = (m, r) => (m.fases || []).some((f) => (f.acoes_regras || []).some((x) => x?.pede === r));
 
 const termos = (busca) => semAcento(busca).split(/\s+/).filter(Boolean);
 
@@ -45,7 +54,7 @@ export const temPartes = (m) => (m.tipo?.polos?.length || 0) > 0;
 
 export function filtrar(modelos, f = FILTRO_VAZIO) {
     return modelos.filter((m) => (!f.area || m.area === f.area) && (!f.porte || m.porte === f.porte)
-        && (!f.referencia || m.referencia === f.referencia) && pontos(m, f.busca) > 0);
+        && (!f.referencia || m.referencia === f.referencia) && (!f.recurso || usaRecurso(m, f.recurso)) && pontos(m, f.busca) > 0);
 }
 
 const ordemPorte = (p) => PORTES.findIndex(([x]) => x === p);
@@ -75,7 +84,7 @@ export function referencias(modelos) {
     return [...c].sort(([a], [b]) => a.localeCompare(b, 'pt-BR'));
 }
 
-export const filtroAtivo = (f) => !!(f.busca.trim() || f.area || f.porte || f.referencia);
+export const filtroAtivo = (f) => !!(f.busca.trim() || f.area || f.porte || f.referencia || f.recurso);
 
 /**
  * Trechos para destacar a busca: [{ t, marca }]. Casa sem acento, mas devolve o
@@ -114,6 +123,7 @@ export function recursosDoModelo(m) {
         esperas: n((r) => r.pede === 'resposta'),
         audiencias: [...new Set(rs.filter((r) => r.pede === 'audiencia').map((r) => ESPECIES[r.audiencia?.especie] || r.audiencia?.especie))],
         julgamentos: n((r) => r.pede === 'julgamento'),
+        disputas: n((r) => r.pede === 'disputa'),
         documentos: n((r) => r.documento),
         formularios: n((r) => r.pede === 'formulario'),
         saidas: m.fases.filter((f) => f.condicoes_regra && Object.keys(f.condicoes_regra).length).length,
@@ -132,6 +142,7 @@ export function recursosEmTexto(m) {
     if (r.esperas) out.push(pl(r.esperas, 'espera de resposta', 'esperas de resposta'));
     if (r.audiencias.length) out.push(`audiência (${r.audiencias.join(', ')})`);
     if (r.julgamentos) out.push(pl(r.julgamentos, 'julgamento colegiado', 'julgamentos colegiados'));
+    if (r.disputas) out.push(pl(r.disputas, 'disputa de preços', 'disputas de preços'));
     if (r.documentos) out.push(pl(r.documentos, 'documento', 'documentos'));
     if (r.formularios) out.push(pl(r.formularios, 'formulário de dados', 'formulários de dados'));
     if (r.saidas) out.push(pl(r.saidas, 'fase com saída decidida pela resposta', 'fases com saída decidida pela resposta'));

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { AREAS, PORTES, bibliotecaDeModelos, nomeArea, nomePorte } from '@/lib/bibliotecaRitos';
-import { FILTRO_VAZIO, ORDENS, agrupar, filtrar, filtroAtivo, ordenar, recursosEmTexto, referencias, temPartes, trechos } from '@/lib/bibliotecaFiltro';
+import { FILTRO_VAZIO, ORDENS, RECURSOS_FILTRO, usaRecurso, agrupar, filtrar, filtroAtivo, ordenar, recursosEmTexto, referencias, temPartes, trechos } from '@/lib/bibliotecaFiltro';
 import { NativeSelect } from './comum';
 
 const CHAVE_ABERTA = 'sigo.biblioteca.aberta';
@@ -152,12 +152,14 @@ export default function BibliotecaModelos({ onEscolher }) {
                                 </button>
                             )}
                         </div>
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 items-end">
+                        <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 items-end">
                             <NativeSelect id="biblioteca-area" label="Área" value={f.area} onChange={(v) => mudar('area', v)}
                                 options={[['', 'Todas as áreas'], ...areas.map(([a, n]) => [a, `${n} (${modelos.filter((m) => m.area === a).length})`])]} />
                             <NativeSelect id="biblioteca-porte" label="Porte" value={f.porte} onChange={(v) => mudar('porte', v)} options={[['', 'Todos os portes'], ...PORTES]} />
                             <NativeSelect id="biblioteca-referencia" label="Inspirado em" value={f.referencia} onChange={(v) => mudar('referencia', v)}
                                 options={[['', 'Qualquer instituição ou lei'], ...refs.map(([r, n]) => [r, `${r} (${n})`])]} />
+                            <NativeSelect id="biblioteca-recurso" label="Usa" value={f.recurso} onChange={(v) => mudar('recurso', v)}
+                                options={RECURSOS_FILTRO.map(([r, n]) => [r, r ? `${n} (${modelos.filter((m) => usaRecurso(m, r)).length})` : n])} />
                             <NativeSelect id="biblioteca-ordem" label="Ordenar" value={ordem} onChange={setOrdem} options={ORDENS} />
                         </div>
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs">

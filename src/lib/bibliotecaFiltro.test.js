@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { FILTRO_VAZIO, agrupar, filtrar, ordenar, pontos, recursosEmTexto, referencias, trechos } from './bibliotecaFiltro.js';
+import { FILTRO_VAZIO, agrupar, filtroAtivo, usaRecurso, filtrar, ordenar, pontos, recursosEmTexto, referencias, trechos } from './bibliotecaFiltro.js';
 import { bibliotecaDeModelos } from './bibliotecaRitos.js';
 
 const m = (id, nome, area, porte, n, extra = {}) => ({ id, nome, area, porte, descricao: '', quando: '', base: '', fases: Array.from({ length: n }, (_, i) => ({ id: `${id}${i}`, nome: `F${i}` })), ...extra });
@@ -49,4 +49,13 @@ test('a biblioteca real: ids únicos, referência e recursos em cada modelo', ()
         assert.ok(!/—/.test(`${x.descricao} ${x.quando}`), `${x.nome}: travessão no texto`);
         assert.ok(Array.isArray(recursosEmTexto(x)));
     }
+});
+
+test('filtro pelo recurso: modelos com sessão de colegiado e com disputa (S15)', () => {
+    const todos = bibliotecaDeModelos();
+    const comSessao = filtrar(todos, { ...FILTRO_VAZIO, recurso: 'julgamento' }).map((m) => m.id);
+    for (const id of ['recurso-colegiado', 'deliberacao-normativa', 'revisao-arquivamento-csmp', 'comissao-etica-publica', 'ted-oab-rs']) assert.ok(comSessao.includes(id), id);
+    assert.ok(!comSessao.includes('pa-geral'));
+    assert.deepEqual(filtrar(todos, { ...FILTRO_VAZIO, recurso: 'disputa' }).map((m) => m.id).sort(), ['compra-privada', 'contratacao-direta']);
+    assert.equal(filtroAtivo({ ...FILTRO_VAZIO, recurso: 'julgamento' }), true);
 });

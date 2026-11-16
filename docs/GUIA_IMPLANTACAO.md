@@ -100,20 +100,30 @@ Em consultas, pareceres e pedidos entre setores, não marque polos no tipo de pr
 
 O Rito Consultas CAOCIPP, descrito no Guia do rito, é um exemplo completo.
 
-## 7. Teste antes de pôr em uso
+## 7. Julgamento em colegiado e a primeira sessão
+
+Quando a decisão é de um conselho, comissão, junta ou câmara, o processo vai a julgamento em sessão, com pauta, relator, votos, vista, acórdão e ata.
+
+1. Em **Estrutura**, cadastre o órgão com **decisão colegiada** e a composição: presidente, titulares e suplentes, com o período de cada um. Ajuste a antecedência da pauta, o prazo de vista e o do acórdão, se o regimento disser.
+2. Em **Unidades e equipes**, crie ao menos uma unidade do colegiado, de preferência a secretaria que expede. Só entram na pauta processos que estão numa unidade dele.
+3. No rito, use na fase de julgamento a ação **Julgar em colegiado**, com os resultados possíveis. Na biblioteca, o filtro **Usa** mostra os modelos que já trazem a ação.
+4. Na aba **Sessões**, a secretaria segue o guia do colegiado, que confere cada passo com o que já existe: marca a sessão, inclui os processos com julgamento pendente, publica a pauta e, no dia, registra a presença, colhe os votos e proclama. Ao encerrar, o sistema gera a ata.
+5. O **Relatório do colegiado**, na mesma aba, mostra por período os julgados por resultado e por relator, o que saiu da pauta, as vistas em atraso e o tempo médio até o acórdão, com download em CSV ou Excel.
+
+## 8. Teste antes de pôr em uso
 
 1. No editor, resolva todas as **pendências** e abra a **Prévia**. Ela mostra como a equipe e as partes vão ver cada fase.
 2. Use **Ver como a equipe e a parte** para conferir as telas de cada papel.
 3. Autue um **processo de teste** com uma parte de teste (use um e-mail seu) e leve-o do começo ao fim, passando por todos os desvios importantes. Exclua-o depois.
 4. Confira as certidões nos autos e o que a parte viu no portal.
 
-## 8. Em uso: ajuste sem medo
+## 9. Em uso: ajuste sem medo
 
 Cada vez que o rito é salvo, vira uma nova **versão**. Os processos já autuados seguem com a cópia do rito da autuação, e também com os nomes de polos daquela época. Por isso, ajustar o rito não bagunça o que está em curso. O histórico da configuração registra quem mudou o quê.
 
 Reveja o rito depois dos primeiros processos reais. Onde a equipe trava, costuma faltar uma ação, um documento ou um desvio.
 
-## 9. Lista final antes de ativar
+## 10. Lista final antes de ativar
 
 - [ ] Toda fase tem unidade, e toda unidade tem pelo menos uma pessoa lotada.
 - [ ] Prazos e contagem foram conferidos com a norma do órgão, e os feriados estão no calendário.

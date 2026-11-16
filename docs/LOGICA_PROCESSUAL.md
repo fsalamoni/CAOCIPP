@@ -371,6 +371,13 @@ informado.
   equipe, tudo segue com quem tem o processo. Na dispensa, cujo aviso é
   público, qualquer conta acompanha a sessão depois da abertura, sem nomes
   até a declaração do vencedor.
+- **Recurso julgado por colegiado.** Quem decidiu pode reconsiderar em 5
+  dias, e só a decisão mantida sobe (Lei 9.784/1999, art. 56, § 1º). Os
+  demais interessados alegam em 5 dias úteis (art. 62). Se o julgamento puder
+  agravar a situação do recorrente, ele é ouvido antes (art. 64, parágrafo
+  único): ninguém é surpreendido pelo próprio recurso. Quem não conhece o
+  recurso é o colegiado, e não a secretaria (art. 63). Anulada a decisão, o
+  processo volta à origem para decidir de novo.
 - **Reunião deliberativa.** O colegiado também decide assuntos que não são
   processos. Cada assunto tem a forma de votação e a maioria que ele exige:
   simples (mais votos a favor que contra), absoluta (mais da metade dos

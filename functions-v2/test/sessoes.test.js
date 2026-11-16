@@ -198,3 +198,51 @@ test('ata da sessão: presença, desfecho de cada processo e assinaturas (S8)', 
     assert.equal(S.ataAssinada({ assinaturas: [{ papel: 'presidente' }, { papel: 'secretaria' }] }), true);
     assert.equal(S.ataAssinada(null), false);
 });
+
+test('relatório do colegiado: sessões, julgados, pauta, vistas e acórdãos (S15)', () => {
+    const { relatorioDoColegiado } = require('../lib/shared/sessoes');
+    const item = (pid, situacao, extra = {}) => ({ processo_id: pid, numero: `N-${pid}`, assunto: '', ordem: 1, inclusao: 'pauta', motivo: '', situacao, incluido_em: '', ...extra });
+    const sessoes = [
+        { id: 's1', titulo: '1ª Sessão', data: '2026-03-02', tipo: 'julgamento', situacao: 'encerrada', pauta: [item('a', 'pautado'), item('b', 'pautado'), item('c', 'vista', { vista: { nomes: ['Ana'], prazo: '2026-03-12' } }), item('d', 'retirado')] },
+        { id: 's2', titulo: '2ª Sessão', data: '2026-04-06', tipo: 'julgamento', situacao: 'encerrada', pauta: [item('e', 'pautado'), item('f', 'adiado'), item('g', 'vista', { vista: { nomes: ['Bia'], prazo: '2026-12-01', devolvida: true } })] },
+        { id: 's3', titulo: '3ª Sessão', data: '2026-05-04', tipo: 'julgamento', situacao: 'cancelada', pauta: [item('h', 'pautado')] },
+        { id: 's4', titulo: '4ª Sessão', data: '2026-12-07', tipo: 'julgamento', situacao: 'publicada', pauta: [item('i', 'pautado')] },
+        { id: 'r1', titulo: 'Reunião', data: '2026-06-01', tipo: 'reuniao', situacao: 'encerrada', pauta: [] },
+    ];
+    const votacoes = [
+        { sessao_id: 's1', processo_id: 'a', relator_nome: 'Ana', proclamado: { resultado: 'Provido', data: '2026-03-02' } },
+        { sessao_id: 's1', processo_id: 'b', relator_nome: 'Bia', proclamado: { resultado: 'Desprovido', data: '2026-03-02' } },
+        { sessao_id: 's2', processo_id: 'e', relator_nome: 'Ana', proclamado: { resultado: 'Provido', data: '2026-04-06' } },
+        { sessao_id: 's1', processo_id: 'c', relator_nome: 'Caio', proclamado: null },
+        { sessao_id: 's3', processo_id: 'h', relator_nome: 'Caio', proclamado: { resultado: 'Provido', data: '2026-05-04' } },
+    ];
+    const acordaos = [
+        { sessao_id: 's1', processo_id: 'a', prazo: '2026-04-01', pendente: false, juntado_em: '2026-03-12T15:00:00.000Z', redator_nome: 'Ana' },
+        { sessao_id: 's1', processo_id: 'b', prazo: '2026-04-01', pendente: false, juntado_em: '2026-04-11T10:00:00.000Z', redator_nome: 'Bia' },
+        { sessao_id: 's2', processo_id: 'e', prazo: '2026-05-06', pendente: true, juntado_em: null, redator_nome: 'Ana' },
+    ];
+    const r = relatorioDoColegiado(sessoes, votacoes, acordaos, '2026-11-16');
+    assert.deepEqual(r.sessoes, { realizadas: 3, canceladas: 1, por_realizar: 1, reunioes: 1 });
+    // A sessão cancelada não conta julgados nem pauta.
+    assert.equal(r.julgados.total, 3);
+    assert.deepEqual(r.julgados.por_resultado, [['Provido', 2], ['Desprovido', 1]]);
+    assert.deepEqual(r.julgados.por_relator, [['Ana', 2], ['Bia', 1]]);
+    assert.deepEqual(r.pauta, { pautados: 8, retirados: 1, adiados: 1, diligencias: 0, destacados: 0, vistas: 2 });
+    // A vista devolvida não conta; a de Ana venceu em março.
+    assert.equal(r.vistas.abertas, 1);
+    assert.equal(r.vistas.atrasadas, 1);
+    assert.deepEqual(r.vistas.lista[0].nomes, ['Ana']);
+    // Acórdãos: 10 e 40 dias (média 25), um no prazo; o terceiro pendente e atrasado.
+    assert.equal(r.acordaos.juntados, 2);
+    assert.equal(r.acordaos.media_dias, 25);
+    assert.equal(r.acordaos.no_prazo, 1);
+    assert.equal(r.acordaos.pendentes, 1);
+    assert.equal(r.acordaos.atrasados, 1);
+    assert.equal(r.linhas[0].numero, 'N-a');
+    assert.equal(r.linhas[0].dias_ate_acordao, 10);
+    assert.equal(r.linhas[2].acordao_pendente, true);
+    // Sem nada no período.
+    const vazio = relatorioDoColegiado([], [], [], '2026-11-16');
+    assert.equal(vazio.acordaos.media_dias, null);
+    assert.equal(vazio.julgados.total, 0);
+});

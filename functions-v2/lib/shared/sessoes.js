@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ataAssinada = exports.PAPEIS_ATA = exports.MAX_ATA = exports.MAX_NOTA_VOTO = exports.MAX_RELATORIO = exports.MODOS_VOTO = exports.MAX_PEDIDO = exports.NOME_PEDIDO = exports.TIPOS_PEDIDO = exports.virtualEncerrou = exports.MAX_DIAS_VIRTUAL = exports.br = exports.MAX_EMENTA = exports.ACORDAO_PADRAO = exports.MAX_VISTA = exports.VISTA_PADRAO = exports.MAX_ANTECEDENCIA = exports.MAX_PAUTA = exports.INCLUSOES = exports.CARATER_SESSAO = exports.MODOS_SESSAO = void 0;
+exports.MAX_DIAS_RELATORIO = exports.ataAssinada = exports.PAPEIS_ATA = exports.MAX_ATA = exports.MAX_NOTA_VOTO = exports.MAX_RELATORIO = exports.MODOS_VOTO = exports.MAX_PEDIDO = exports.NOME_PEDIDO = exports.TIPOS_PEDIDO = exports.virtualEncerrou = exports.MAX_DIAS_VIRTUAL = exports.br = exports.MAX_EMENTA = exports.ACORDAO_PADRAO = exports.MAX_VISTA = exports.VISTA_PADRAO = exports.MAX_ANTECEDENCIA = exports.MAX_PAUTA = exports.INCLUSOES = exports.CARATER_SESSAO = exports.MODOS_SESSAO = void 0;
 exports.sanitizeRegrasSessao = sanitizeRegrasSessao;
 exports.prazoDoAcordao = prazoDoAcordao;
 exports.prazoDaVista = prazoDaVista;
@@ -31,6 +31,7 @@ exports.votosDaSessao = votosDaSessao;
 exports.placarParcial = placarParcial;
 exports.desfechoNaAta = desfechoNaAta;
 exports.textoDaAta = textoDaAta;
+exports.relatorioDoColegiado = relatorioDoColegiado;
 const secretaria_1 = require("./secretaria");
 const exigencias_1 = require("./exigencias");
 const orgaos_1 = require("./orgaos");
@@ -425,5 +426,61 @@ function textoDaAta(s, colegiado, p, itens, encerradaEm) {
     });
     linhas.push(`Encerrada a sessão em ${(0, exports.br)(encerradaEm)}. Esta ata, lavrada pela secretaria do colegiado, vai assinada pelo presidente e pela secretaria.`);
     return linhas.join('\n\n');
+}
+// ---------------------------------------------------------------------------
+// S15: relatório do colegiado (sessões, julgados, vistas e acórdãos no período).
+exports.MAX_DIAS_RELATORIO = 366;
+const diasCorridos = (de, ate) => Math.round((Date.parse(`${ate.slice(0, 10)}T12:00:00Z`) - Date.parse(`${de.slice(0, 10)}T12:00:00Z`)) / 86400000);
+const contar = (xs) => [...xs.reduce((m, x) => m.set(x, (m.get(x) || 0) + 1), new Map())].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+/**
+ * Números do colegiado no período: sessões realizadas, canceladas e por
+ * realizar; julgados por resultado e por relator; o que saiu da pauta sem
+ * julgamento; vistas em aberto (atrasadas quando o prazo passou); e acórdãos
+ * (tempo médio da proclamação à juntada, quantos no prazo, quantos pendentes).
+ */
+function relatorioDoColegiado(sessoes, votacoes, acordaos, hoje) {
+    const porId = new Map(sessoes.map((s) => [s.id, s]));
+    const validas = sessoes.filter((s) => s.situacao !== 'cancelada' && s.situacao !== 'rascunho');
+    const itens = validas.flatMap((s) => (s.pauta || []).map((x) => ({ s, x })));
+    const conta = (sit) => itens.filter(({ x }) => x.situacao === sit).length;
+    const numero = (sid, pid) => { var _a, _b, _c; return ((_c = (_b = (_a = porId.get(sid)) === null || _a === void 0 ? void 0 : _a.pauta) === null || _b === void 0 ? void 0 : _b.find((x) => x.processo_id === pid)) === null || _c === void 0 ? void 0 : _c.numero) || ''; };
+    const julgados = votacoes.filter((v) => v.proclamado && validas.some((s) => s.id === v.sessao_id));
+    const acordaoDe = new Map(acordaos.map((a) => [`${a.sessao_id}/${a.processo_id}`, a]));
+    const linhas = julgados.map((v) => {
+        const s = porId.get(v.sessao_id);
+        const a = acordaoDe.get(`${v.sessao_id}/${v.processo_id}`);
+        const juntado = (a === null || a === void 0 ? void 0 : a.juntado_em) ? a.juntado_em.slice(0, 10) : '';
+        return {
+            sessao: s.titulo, data: s.data, processo_id: v.processo_id, numero: numero(v.sessao_id, v.processo_id),
+            relator: v.relator_nome || '', resultado: v.proclamado.resultado, proclamado_em: v.proclamado.data,
+            redator: (a === null || a === void 0 ? void 0 : a.redator_nome) || '', prazo_acordao: (a === null || a === void 0 ? void 0 : a.prazo) || '', juntado_em: juntado,
+            dias_ate_acordao: juntado ? Math.max(0, diasCorridos(v.proclamado.data, juntado)) : null,
+            acordao_pendente: !!(a === null || a === void 0 ? void 0 : a.pendente),
+        };
+    }).sort((a, b) => a.data.localeCompare(b.data) || a.numero.localeCompare(b.numero));
+    const comAcordao = linhas.filter((l) => l.dias_ate_acordao !== null);
+    const pendentes = linhas.filter((l) => l.acordao_pendente)
+        .map((l) => ({ numero: l.numero, processo_id: l.processo_id, redator: l.redator, prazo: l.prazo_acordao, atrasado: !!l.prazo_acordao && l.prazo_acordao < hoje }));
+    const vistas = itens.filter(({ x }) => { var _a; return x.situacao === 'vista' && !((_a = x.vista) === null || _a === void 0 ? void 0 : _a.devolvida); })
+        .map(({ s, x }) => { var _a, _b, _c; return ({ numero: x.numero, processo_id: x.processo_id, sessao: s.titulo, nomes: ((_a = x.vista) === null || _a === void 0 ? void 0 : _a.nomes) || [], prazo: ((_b = x.vista) === null || _b === void 0 ? void 0 : _b.prazo) || '', atrasada: !!((_c = x.vista) === null || _c === void 0 ? void 0 : _c.prazo) && x.vista.prazo < hoje }); })
+        .sort((a, b) => a.prazo.localeCompare(b.prazo));
+    return {
+        sessoes: {
+            realizadas: sessoes.filter((s) => s.situacao === 'encerrada').length,
+            canceladas: sessoes.filter((s) => s.situacao === 'cancelada').length,
+            por_realizar: sessoes.filter((s) => s.situacao === 'publicada').length,
+            reunioes: validas.filter((s) => s.tipo === 'reuniao').length,
+        },
+        julgados: { total: linhas.length, por_resultado: contar(linhas.map((l) => l.resultado)), por_relator: contar(linhas.map((l) => l.relator || 'Sem relator')) },
+        pauta: { pautados: itens.length, retirados: conta('retirado'), adiados: conta('adiado'), diligencias: conta('diligencia'), destacados: conta('destacado'), vistas: conta('vista') },
+        vistas: { abertas: vistas.length, atrasadas: vistas.filter((v) => v.atrasada).length, lista: vistas },
+        acordaos: {
+            juntados: comAcordao.length,
+            media_dias: comAcordao.length ? Math.round((comAcordao.reduce((t, l) => t + l.dias_ate_acordao, 0) / comAcordao.length) * 10) / 10 : null,
+            no_prazo: comAcordao.filter((l) => !l.prazo_acordao || l.juntado_em <= l.prazo_acordao).length,
+            pendentes: pendentes.length, atrasados: pendentes.filter((p) => p.atrasado).length, lista_pendentes: pendentes,
+        },
+        linhas,
+    };
 }
 //# sourceMappingURL=sessoes.js.map

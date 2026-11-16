@@ -1,7 +1,7 @@
 // npm run test:lib
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { PAPEL_ATA, agruparSessoes, icsDaSessao, juntarNomes, ordemDoCPC, selosDosPedidos, ondeSessao, problemasDaSessao, quandoSessao, situacaoDaVotacao, textoAntecedencia, textoDaVistaNaPauta, textoDoVoto, veSessoes } from './sessoes.js';
+import { COLUNAS_RELATORIO, PAPEL_ATA, passosDoColegiado, agruparSessoes, icsDaSessao, juntarNomes, ordemDoCPC, selosDosPedidos, ondeSessao, problemasDaSessao, quandoSessao, situacaoDaVotacao, textoAntecedencia, textoDaVistaNaPauta, textoDoVoto, veSessoes } from './sessoes.js';
 
 test('sessões: textos de onde e quando, no jeito das certidões', () => {
     assert.equal(ondeSessao({ modo: 'presencial', local: 'Sala 2' }), 'em Sala 2');
@@ -77,4 +77,24 @@ test('agenda da sessão (.ics): hora de Brasília em UTC; virtual como dias inte
     assert.match(v, /DTSTART;VALUE=DATE:20261207\r\nDTEND;VALUE=DATE:20261212\r\n/);
     assert.match(v, /LOCATION:Sessão virtual/);
     assert.equal(PAPEL_ATA.presidente, 'Presidente');
+});
+
+test('guia do colegiado e colunas do relatório (S15)', () => {
+    const feitos = (c, ss) => passosDoColegiado(c, ss).filter((p) => p.feito).map((p) => p.id);
+    assert.deepEqual(feitos({ id: 'c', membros: 0, unidades: 0 }, []), []);
+    // Sem presidente, a composição não está pronta.
+    assert.deepEqual(feitos({ id: 'c', membros: 3, presidente: false, unidades: 1 }, []), ['unidade']);
+    const ss = [
+        { orgao_id: 'c', situacao: 'rascunho', tipo: 'julgamento', itens: 0 },
+        { orgao_id: 'outro', situacao: 'encerrada', tipo: 'julgamento', itens: 4 },
+    ];
+    assert.deepEqual(feitos({ id: 'c', membros: 3, presidente: true, unidades: 1 }, ss), ['composicao', 'unidade', 'sessao']);
+    ss.push({ orgao_id: 'c', situacao: 'encerrada', tipo: 'julgamento', itens: 2 });
+    assert.equal(feitos({ id: 'c', membros: 3, presidente: true, unidades: 1 }, ss).length, 6);
+    // A sessão cancelada não conta.
+    assert.deepEqual(feitos({ id: 'c', membros: 1, presidente: true, unidades: 1 }, [{ orgao_id: 'c', situacao: 'cancelada', itens: 2 }]), ['composicao', 'unidade']);
+    const linha = { data: '2026-03-02', sessao: '1ª', numero: 'N', relator: 'Ana', resultado: 'Provido', redator: 'Ana', prazo_acordao: '2026-04-01', juntado_em: '', acordao_pendente: true, dias_ate_acordao: null };
+    const cel = (label) => { const c = COLUNAS_RELATORIO.find((x) => x.label === label); return c.value ? c.value(linha) : linha[c.key]; };
+    assert.equal(cel('Data da sessão'), '02/03/2026');
+    assert.equal(cel('Acórdão juntado em'), 'pendente');
 });

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { bibliotecaDeModelos } from './bibliotecaRitos.js';
 import { problemasDoFluxo, ritoDeMermaid, ritoParaMermaid } from './secretariaRito.js';
+import { RESULTADOS_DISPUTA } from './certames.js';
 
 // MODELOS_AREA=correcional confere só o arquivo daquela área (src/lib/modelos/<área>.js).
 const carregar = async () => (process.env.MODELOS_AREA
@@ -23,6 +24,7 @@ export function problemasDoModelo(m) {
             if (r?.pede === 'sim_nao') return ['sim', 'nao'];
             if (r?.pede === 'resposta') return ['Apresentada', 'Parcial', 'Sem manifestação'];
             if (r?.pede === 'julgamento') return r.julgamento?.resultados || [];
+            if (r?.pede === 'disputa') return RESULTADOS_DISPUTA;
             return null;
         };
         const conferirCond = (c, onde) => {
