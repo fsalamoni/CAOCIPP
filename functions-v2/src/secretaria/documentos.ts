@@ -15,6 +15,7 @@ import { camposDosPrazosDasAcoes } from '../shared/prazosFase';
 import { lotacoesDe, unidadeDecide } from '../shared/secretaria';
 import {
     COL, REGION, calendarioDasAcoes, carregarContexto, conferirVersao, erroUsuario, exigirAuth, exigirPosse, lerProcesso, registrarInternos, registrarMovimento,
+    comSinal,
 } from './context';
 import {
     caminhoPdf, conteudoDoDocumento, folhasDoProcesso, lerConfigDocumento, novoCodigo, paginasDeArquivo, pdfCarimbado,
@@ -107,7 +108,7 @@ export function caminhoArquivo(orgId: string, procId: string, docId: string) {
 export const secretariaDocumento = onCall<DocRequest>(
     // Arquivos de até 50 MB: imagem recomprimida e PDF reorganizado pedem memória e tempo.
     { region: REGION, memory: '1GiB', timeoutSeconds: 300 },
-    async (request) => {
+    comSinal(async (request) => {
         const auth = exigirAuth(request);
         const p = request.data || ({} as DocRequest);
         const c = await carregarContexto(auth, p.organizationId);
@@ -518,5 +519,5 @@ export const secretariaDocumento = onCall<DocRequest>(
         }
 
         throw new HttpsError('invalid-argument', 'Ação desconhecida');
-    }
+    })
 );

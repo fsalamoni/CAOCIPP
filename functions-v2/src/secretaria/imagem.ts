@@ -1,4 +1,5 @@
-import sharp = require('sharp');
+// sharp (nativo, pesado) carregado só quando há imagem a tratar (partida a frio das functions).
+const sharp = (...a: Parameters<typeof import('sharp')>) => (require('sharp') as typeof import('sharp'))(...a);
 
 /** A4 a 300 dpi: mais do que isso não aparece nem na tela nem na impressão da folha. */
 const LARGURA_MAX = 2480;

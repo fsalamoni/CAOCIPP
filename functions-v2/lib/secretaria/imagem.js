@@ -1,7 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.otimizarImagem = otimizarImagem;
-const sharp = require("sharp");
+// sharp (nativo, pesado) carregado só quando há imagem a tratar (partida a frio das functions).
+const sharp = (...a) => require('sharp')(...a);
 /** A4 a 300 dpi: mais do que isso não aparece nem na tela nem na impressão da folha. */
 const LARGURA_MAX = 2480;
 const ALTURA_MAX = 3508;

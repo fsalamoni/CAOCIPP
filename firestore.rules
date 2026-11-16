@@ -394,6 +394,14 @@ service cloud.firestore {
       allow write: if false;
     }
     match /secAnotacoes/{id} { allow read, write: if false; }
+    // Sinal de mudança do órgão: só a hora da última mudança e o id do
+    // processo (sem número, assunto nem parte). As telas abertas o escutam
+    // para se atualizar; o conteúdo continua só pelas Functions. Lê o membro
+    // ativo do órgão (id do documento = id do órgão); ninguém escreve.
+    match /secSinais/{orgId} {
+      allow get: if isAuthenticated() && isMemberOf(orgId) && getMembership(orgId).get('active', true) != false;
+      allow list, write: if false;
+    }
 
     // ========== PLATAFORMA: ALLOWLIST DE SUPER-ADMINS ==========
 

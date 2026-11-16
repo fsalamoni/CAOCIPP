@@ -54,7 +54,7 @@ function caminhoArquivo(orgId, procId, docId) {
 }
 exports.secretariaDocumento = (0, https_1.onCall)(
 // Arquivos de até 50 MB: imagem recomprimida e PDF reorganizado pedem memória e tempo.
-{ region: context_1.REGION, memory: '1GiB', timeoutSeconds: 300 }, async (request) => {
+{ region: context_1.REGION, memory: '1GiB', timeoutSeconds: 300 }, (0, context_1.comSinal)(async (request) => {
     var _a;
     const auth = (0, context_1.exigirAuth)(request);
     const p = request.data || {};
@@ -463,5 +463,5 @@ exports.secretariaDocumento = (0, https_1.onCall)(
         return comAvanco(feito, tentar);
     }
     throw new https_1.HttpsError('invalid-argument', 'Ação desconhecida');
-});
+}));
 //# sourceMappingURL=documentos.js.map

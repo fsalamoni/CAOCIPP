@@ -12,14 +12,24 @@ import ThemeV2Effect from '@/lib/ThemeV2';
 import { ThemeSwitcherProvider } from '@/lib/ThemeSwitcher';
 import TwoFactorGate from '@/lib/TwoFactorGate';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import { Suspense } from 'react';
+
+// Enquanto o pedaço da página chega (primeira vez que é aberta), o menu e o
+// cabeçalho seguem na tela e só a área do conteúdo mostra o aviso.
+const CarregandoPagina = () => (
+  <div role="status" className="py-10 flex items-center justify-center gap-2 text-slate-600 dark:text-slate-300">
+    <span className="w-5 h-5 border-2 border-slate-200 border-t-slate-700 dark:border-slate-700 dark:border-t-slate-200 rounded-full animate-spin" aria-hidden="true" />
+    Carregando…
+  </div>
+);
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
 
 const LayoutWrapper = ({ children, currentPageName }) => Layout ?
-  <Layout currentPageName={currentPageName}>{children}</Layout>
-  : <>{children}</>;
+  <Layout currentPageName={currentPageName}><Suspense fallback={<CarregandoPagina />}>{children}</Suspense></Layout>
+  : <Suspense fallback={<CarregandoPagina />}>{children}</Suspense>;
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth } = useAuth();

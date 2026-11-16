@@ -4,6 +4,19 @@ import App from '@/App.jsx'
 import ErrorBoundary from '@/components/ErrorBoundary.jsx'
 import '@/index.css'
 
+// Páginas carregadas sob demanda: depois de um deploy, a aba aberta ainda
+// aponta para os pedaços antigos, que a hospedagem já não tem. Recarrega uma
+// vez para buscar a versão nova (sem laço, se o erro for outro).
+window.addEventListener('vite:preloadError', (event) => {
+  try {
+    const ultima = Number(sessionStorage.getItem('sigo-recarga-versao') || 0);
+    if (Date.now() - ultima < 30000) return;
+    sessionStorage.setItem('sigo-recarga-versao', String(Date.now()));
+  } catch { /* sem sessionStorage: recarrega mesmo assim */ }
+  event.preventDefault();
+  window.location.reload();
+});
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <ErrorBoundary>
     <App />

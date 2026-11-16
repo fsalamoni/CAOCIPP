@@ -2,45 +2,59 @@ import * as admin from 'firebase-admin';
 
 admin.initializeApp();
 
+/**
+ * Export preguiçoso: cada função do Cloud Functions roda numa instância
+ * própria, que carrega este index. Com `export { x } from './y'` toda
+ * instância carregava os ~70 módulos (e as bibliotecas de PDF, Word e Excel)
+ * antes de responder, o que pesava em cada partida a frio. O getter só
+ * carrega o módulo da função chamada; a descoberta do deploy
+ * (`Object.entries` do firebase-functions) lê todos os exports, como antes.
+ */
+function preguicoso(carregar: () => Record<string, unknown>, nomes: string[]) {
+    for (const nome of nomes) {
+        Object.defineProperty(exports, nome, { enumerable: true, get: () => carregar()[nome] });
+    }
+}
+
 // Export function modules
-export { createOrganization } from './organizations/create';
-export { getUserOrganizations } from './organizations/getUser';
-export { joinOrganization } from './organizations/join';
-export { removeMember } from './organizations/removeMember';
-export { updateMember } from './organizations/updateMember';
-export { clearOrganizationData } from './organizations/clearData';
-export { deleteOrganization } from './organizations/delete';
-export { updateOrganization } from './organizations/update';
-export { bulkReplaceFieldValues } from './organizations/bulkReplaceFieldValues';
+preguicoso(() => require('./organizations/create'), ['createOrganization']);
+preguicoso(() => require('./organizations/getUser'), ['getUserOrganizations']);
+preguicoso(() => require('./organizations/join'), ['joinOrganization']);
+preguicoso(() => require('./organizations/removeMember'), ['removeMember']);
+preguicoso(() => require('./organizations/updateMember'), ['updateMember']);
+preguicoso(() => require('./organizations/clearData'), ['clearOrganizationData']);
+preguicoso(() => require('./organizations/delete'), ['deleteOrganization']);
+preguicoso(() => require('./organizations/update'), ['updateOrganization']);
+preguicoso(() => require('./organizations/bulkReplaceFieldValues'), ['bulkReplaceFieldValues']);
 
-export { createProcess } from './processes/create';
-export { updateProcess } from './processes/update';
-export { deleteProcess } from './processes/delete';
-export { calculateProcessStatus } from './processes/calculateStatus';
-export { backfillProcessLogs } from './processes/backfillLogs';
+preguicoso(() => require('./processes/create'), ['createProcess']);
+preguicoso(() => require('./processes/update'), ['updateProcess']);
+preguicoso(() => require('./processes/delete'), ['deleteProcess']);
+preguicoso(() => require('./processes/calculateStatus'), ['calculateProcessStatus']);
+preguicoso(() => require('./processes/backfillLogs'), ['backfillProcessLogs']);
 
-export { updateProfile } from './user/updateProfile';
-export { migrateMemberFunctions } from './user/migrateMemberFunctions';
+preguicoso(() => require('./user/updateProfile'), ['updateProfile']);
+preguicoso(() => require('./user/migrateMemberFunctions'), ['migrateMemberFunctions']);
 
-export { importProcessesFromExcel } from './import/fromExcel';
+preguicoso(() => require('./import/fromExcel'), ['importProcessesFromExcel']);
 
-export { createExpediente } from './expedientes/create';
-export { updateExpediente } from './expedientes/update';
-export { deleteExpediente } from './expedientes/delete';
-export { importExpedientesFromExcel } from './import/fromExcelExpedientes';
+preguicoso(() => require('./expedientes/create'), ['createExpediente']);
+preguicoso(() => require('./expedientes/update'), ['updateExpediente']);
+preguicoso(() => require('./expedientes/delete'), ['deleteExpediente']);
+preguicoso(() => require('./import/fromExcelExpedientes'), ['importExpedientesFromExcel']);
 
 // ========== PARCERIAS (Convênio, Termo de Cooperação, Termo de Fomento) ==========
 // Módulo novo (v1.16.0) com 6 fases próprias (Pendente, Em análise, Revisão,
 // Aguarda Terceiros, Parcerias, Extintos) e suporte a aditivos em subcoleção.
-export { createParceria } from './parcerias/create';
-export { updateParceria } from './parcerias/update';
-export { deleteParceria } from './parcerias/delete';
-export { addAditivo } from './parcerias/addAditivo';
-export { updateAditivo } from './parcerias/updateAditivo';
-export { concludeAditivo } from './parcerias/concludeAditivo';
-export { deleteAditivo } from './parcerias/deleteAditivo';
-export { extinguishParceria } from './parcerias/extinguish';
-export { importParceriasFromExcel } from './import/fromExcelParcerias';
+preguicoso(() => require('./parcerias/create'), ['createParceria']);
+preguicoso(() => require('./parcerias/update'), ['updateParceria']);
+preguicoso(() => require('./parcerias/delete'), ['deleteParceria']);
+preguicoso(() => require('./parcerias/addAditivo'), ['addAditivo']);
+preguicoso(() => require('./parcerias/updateAditivo'), ['updateAditivo']);
+preguicoso(() => require('./parcerias/concludeAditivo'), ['concludeAditivo']);
+preguicoso(() => require('./parcerias/deleteAditivo'), ['deleteAditivo']);
+preguicoso(() => require('./parcerias/extinguish'), ['extinguishParceria']);
+preguicoso(() => require('./import/fromExcelParcerias'), ['importParceriasFromExcel']);
 
 // ========== JURIMETRIA (base de júris do órgão — flag: jurimetria_enabled) ==========
 // Módulo de jurimetria: base própria de júris por órgão, com importação
@@ -48,13 +62,13 @@ export { importParceriasFromExcel } from './import/fromExcelParcerias';
 // em massa e exclusão. As listas oficiais, a tabela de pontuação e as colunas
 // personalizadas ficam em `organization.jurimetriaSettings` (ver
 // shared/jurimetria.ts), gravadas por updateOrganization.
-export { createJuri } from './juris/create';
-export { updateJuri } from './juris/update';
-export { deleteJuris } from './juris/delete';
-export { bulkUpdateJuris } from './juris/bulkUpdate';
+preguicoso(() => require('./juris/create'), ['createJuri']);
+preguicoso(() => require('./juris/update'), ['updateJuri']);
+preguicoso(() => require('./juris/delete'), ['deleteJuris']);
+preguicoso(() => require('./juris/bulkUpdate'), ['bulkUpdateJuris']);
 // Modelos de relatório dinâmico, compartilhados dentro do órgão: todos usam,
 // só o autor e quem administra o módulo editam ou excluem.
-export { manageJurimetriaTemplate } from './jurimetriaTemplates/manage';
+preguicoso(() => require('./jurimetriaTemplates/manage'), ['manageJurimetriaTemplate']);
 
 // ========== PANORAMA (bases analíticas do órgão — flag: panorama_enabled) ==========
 // Módulo coringa: o ESQUEMA de cada base vem da planilha importada, não do
@@ -62,51 +76,47 @@ export { manageJurimetriaTemplate } from './jurimetriaTemplates/manage';
 // semântico (identificador, data, unidade, responsável, assunto, desfecho,
 // situação, valor, prazo); a partir daí a maquinaria analítica funciona sobre
 // qualquer área de atuação do MP. Ver shared/panorama.ts.
-export { managePanoramaBase } from './panorama/bases';
-export { managePanoramaRegistro } from './panorama/registros';
-export { importPanorama } from './panorama/importar';
-export { managePanoramaTemplate } from './panorama/templates';
-export { importJurisFromExcel } from './import/fromExcelJuris';
+preguicoso(() => require('./panorama/bases'), ['managePanoramaBase']);
+preguicoso(() => require('./panorama/registros'), ['managePanoramaRegistro']);
+preguicoso(() => require('./panorama/importar'), ['importPanorama']);
+preguicoso(() => require('./panorama/templates'), ['managePanoramaTemplate']);
+preguicoso(() => require('./import/fromExcelJuris'), ['importJurisFromExcel']);
 
 // ========== SECRETARIA PROCESSUAL (processo eletrônico; ligada pelo admin do órgão) ==========
 // Unidades, ritos, autuação, tramitação, documentos (editor e upload),
 // assinatura simples, juntada e exportação dos autos em PDF. Todas as leituras
 // e escritas passam por aqui; as coleções sec* são fechadas ao cliente.
-export { secretariaConfig } from './secretaria/config';
-export { secretariaProcesso } from './secretaria/processos';
-export { secretariaDocumento } from './secretaria/documentos';
-export { secretariaExportarPdf } from './secretaria/exportar';
-export { secretariaPortal } from './secretaria/portal';
-export { secretariaPlataforma } from './secretaria/plataforma';
-export { secretariaConferir, secretariaAlertaPrazos } from './secretaria/conferir';
+preguicoso(() => require('./secretaria/config'), ['secretariaConfig']);
+preguicoso(() => require('./secretaria/processos'), ['secretariaProcesso']);
+preguicoso(() => require('./secretaria/documentos'), ['secretariaDocumento']);
+preguicoso(() => require('./secretaria/exportar'), ['secretariaExportarPdf']);
+preguicoso(() => require('./secretaria/portal'), ['secretariaPortal']);
+preguicoso(() => require('./secretaria/plataforma'), ['secretariaPlataforma']);
+preguicoso(() => require('./secretaria/conferir'), ['secretariaConferir', 'secretariaAlertaPrazos']);
 
 // ========== PLATAFORMA: Administração & Custos (super-admin) ==========
-export { getPlatformOverview } from './platform/overview';
-export { getFeatureFlags, setFeatureFlag } from './platform/featureFlags';
-export {
-    grantPlatformAdmin,
-    revokePlatformAdmin,
-    listPlatformAdmins,
-} from './platform/adminClaims';
-export { getCostReport } from './platform/costs';
+preguicoso(() => require('./platform/overview'), ['getPlatformOverview']);
+preguicoso(() => require('./platform/featureFlags'), ['getFeatureFlags', 'setFeatureFlag']);
+preguicoso(() => require('./platform/adminClaims'), ['grantPlatformAdmin', 'revokePlatformAdmin', 'listPlatformAdmins']);
+preguicoso(() => require('./platform/costs'), ['getCostReport']);
 // Onda 2: Órgãos, Usuários, Movimentações, Footprint
-export { getOrgsReport } from './platform/orgs';
-export { listPlatformUsers } from './platform/users';
-export { getActivityFeed } from './platform/activity';
-export { getStorageFootprint } from './platform/footprint';
+preguicoso(() => require('./platform/orgs'), ['getOrgsReport']);
+preguicoso(() => require('./platform/users'), ['listPlatformUsers']);
+preguicoso(() => require('./platform/activity'), ['getActivityFeed']);
+preguicoso(() => require('./platform/footprint'), ['getStorageFootprint']);
 // Onda 3: Cotas, Saúde do sistema, Ferramentas de dados
-export { getPlatformQuotas, setPlatformQuota } from './platform/quotas';
-export { getSystemHealth } from './platform/health';
-export { runIntegrityAudit, recalcOrgStats } from './platform/dataTools';
-export { backfillHistory } from './platform/historyBackfill';
-export { getSetupStatus } from './platform/setupStatus';
+preguicoso(() => require('./platform/quotas'), ['getPlatformQuotas', 'setPlatformQuota']);
+preguicoso(() => require('./platform/health'), ['getSystemHealth']);
+preguicoso(() => require('./platform/dataTools'), ['runIntegrityAudit', 'recalcOrgStats']);
+preguicoso(() => require('./platform/historyBackfill'), ['backfillHistory']);
+preguicoso(() => require('./platform/setupStatus'), ['getSetupStatus']);
 
 // ========== Páginas e processos personalizados (flag: custom_entities) ==========
-export { upsertEntityType, deleteEntityType } from './customEntities/entityTypes';
-export { createRecord, updateRecord, deleteRecord, importRecords } from './customEntities/records';
+preguicoso(() => require('./customEntities/entityTypes'), ['upsertEntityType', 'deleteEntityType']);
+preguicoso(() => require('./customEntities/records'), ['createRecord', 'updateRecord', 'deleteRecord', 'importRecords']);
 
 // ========== Colaboração (flag: process_comments) ==========
-export { addComment } from './collaboration/comments';
+preguicoso(() => require('./collaboration/comments'), ['addComment']);
 
 // ========== Automação em segundo plano (Fase 4) ==========
 // As 3 funções agendadas abaixo (onSchedule) exigem a API
@@ -131,11 +141,11 @@ export { addComment } from './collaboration/comments';
 // (permissão cloudscheduler.jobs.update). O owner precisa conceder
 // essa permissão à service account. Enquanto isso, schema/UI estão
 // funcionais.
-export { checkPartnershipNoticeDeadlines } from './scheduled/checkPartnershipNoticeDeadlines';
-export { getEmailProviderConfig, setEmailProviderConfig } from './platform/emailProvider';
+preguicoso(() => require('./scheduled/checkPartnershipNoticeDeadlines'), ['checkPartnershipNoticeDeadlines']);
+preguicoso(() => require('./platform/emailProvider'), ['getEmailProviderConfig', 'setEmailProviderConfig']);
 
 // ========== Segurança, conformidade e integrações (Fase 5) ==========
-export { logAccess, getOrgAccessLog } from './security/accessLog';
-export { previewAnonymization, runAnonymization } from './security/anonymization';
-export { sendLoginOtp, verifyLoginOtp } from './security/twoFactor';
-export { testOrgWebhook } from './security/webhookTest';
+preguicoso(() => require('./security/accessLog'), ['logAccess', 'getOrgAccessLog']);
+preguicoso(() => require('./security/anonymization'), ['previewAnonymization', 'runAnonymization']);
+preguicoso(() => require('./security/twoFactor'), ['sendLoginOtp', 'verifyLoginOtp']);
+preguicoso(() => require('./security/webhookTest'), ['testOrgWebhook']);

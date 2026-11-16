@@ -1,5 +1,7 @@
-import * as mammoth from 'mammoth';
-import JSZip = require('jszip');
+import type JSZip = require('jszip');
+// mammoth e jszip carregados só quando usados (partida a frio das functions).
+const mammoth = () => require('mammoth') as typeof import('mammoth');
+const jszip = () => require('jszip') as typeof import('jszip');
 import { pathToFileURL } from 'url';
 import { No, sanitizeDoc } from '../shared/documento';
 import { MIME_DOCX, htmlParaDoc } from './conversao';
@@ -135,7 +137,7 @@ async function imagemDaParte(zip: JSZip, arquivo: string, xml: string): Promise<
 }
 
 async function timbradoDocx(buf: Buffer, avisos: string[]): Promise<Timbrado | null> {
-    const zip = await JSZip.loadAsync(buf);
+    const zip = await jszip().loadAsync(buf);
     const docXml = await zip.file('word/document.xml')?.async('string');
     if (!docXml) return null;
     const rels = relacoes(await zip.file('word/_rels/document.xml.rels')?.async('string'));
@@ -161,7 +163,7 @@ async function timbradoDocx(buf: Buffer, avisos: string[]): Promise<Timbrado | n
  * entre as chaves somem e o valor fica com a formatação do primeiro trecho.
  */
 export async function preencherDocx(buf: Buffer, valores: Record<string, string>): Promise<Buffer> {
-    const zip = await JSZip.loadAsync(buf);
+    const zip = await jszip().loadAsync(buf);
     const tags = '(?:<[^>]+>)*';
     const re = new RegExp(
         `\\{${tags}\\{((?:<[^>]+>|[^<{}])*?)\\}${tags}\\}`
@@ -284,7 +286,7 @@ export async function diagramasDoPacote(buf: Buffer): Promise<Array<{ nome: stri
     let entradas = 0;
     const abrir = async (b: Buffer, prefixo: string, nivel: number) => {
         let zip: JSZip;
-        try { zip = await JSZip.loadAsync(b); } catch {
+        try { zip = await jszip().loadAsync(b); } catch {
             if (nivel === 0) throw new Error('O arquivo do Bizagi (.bpm) não pôde ser aberto. Exporte o diagrama em BPMN ou XPDL e envie esse arquivo.');
             return;
         }
@@ -313,7 +315,7 @@ export async function diagramasDoPacote(buf: Buffer): Promise<Array<{ nome: stri
  */
 export async function textoParaRito(buf: Buffer, mime: string): Promise<{ texto: string; tabelas: string[][][]; diagramas?: Array<{ nome: string; xml: string }> }> {
     if (mime === MIME_DOCX) {
-        const [raw, html] = await Promise.all([mammoth.extractRawText({ buffer: buf }), mammoth.convertToHtml({ buffer: buf })]);
+        const [raw, html] = await Promise.all([mammoth().extractRawText({ buffer: buf }), mammoth().convertToHtml({ buffer: buf })]);
         const tabelas = (html.value.match(/<table[\s\S]*?<\/table>/g) || []).slice(0, 10).map((t) =>
             (t.match(/<tr[\s\S]*?<\/tr>/g) || []).slice(0, 200).map((tr) =>
                 (tr.match(/<t[dh][^>]*>[\s\S]*?<\/t[dh]>/g) || []).slice(0, 20).map((c) =>
@@ -340,7 +342,7 @@ export async function interpretarModelo(buf: Buffer, mime: string): Promise<Inte
     let doc: No;
     let timbrado: Timbrado | null = null;
     if (formato === 'docx') {
-        const r = await mammoth.convertToHtml({ buffer: buf });
+        const r = await mammoth().convertToHtml({ buffer: buf });
         doc = htmlParaDoc(r.value);
         try { timbrado = await timbradoDocx(buf, avisos); } catch { avisos.push('Não deu para ler o cabeçalho e o rodapé do Word.'); }
         avisos.push('Word: alinhamentos, recuos e cores podem precisar de ajuste no editor.');

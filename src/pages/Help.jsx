@@ -139,6 +139,7 @@ export default function Help() {
             prazos, comunicações, audiências, sessões de colegiado, disputa de preços, portal para as partes e PDF da íntegra. O administrador do órgão liga o módulo no Painel Administrativo, seção Processo Eletrônico.
             Ligado, ele aparece entre as páginas do órgão, na barra do alto e no menu lateral, e as abas internas
             (Meu trabalho, Caixa, Mesa de decisão, Sessões, Todos, Painel, Unidades) ficam no endereço: recarregar ou compartilhar o link mantém a aba.
+            As listas e o processo aberto se atualizam sozinhos: o que um colega ou uma parte faz aparece em cerca de dois segundos, sem recarregar a página.
           </p>
           <div className="grid md:grid-cols-2 gap-6">
             <FeatureCard

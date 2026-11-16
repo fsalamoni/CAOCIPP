@@ -69,7 +69,8 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     const qc = useQueryClient();
     const navigate = useNavigate();
     const { paginas: paginasDoOrgao } = useContext(RegistroContexto);
-    const q = useQuery({ queryKey: ['sec-proc', orgId, procId], queryFn: () => secProcesso(orgId, 'obter', { id: procId }) });
+    // staleTime: os autos buscados junto com a página (ou há segundos) não são relidos ao montar; cada ato invalida.
+    const q = useQuery({ queryKey: ['sec-proc', orgId, procId], queryFn: () => secProcesso(orgId, 'obter', { id: procId }), staleTime: 15000 });
     const [acao, setAcao] = useState(null); // {tipo, ...}
     const [ocupado, setOcupado] = useState(false);
     const [salaAud, setSalaAud] = useState(null); // id da audiência aberta na sala (S10)

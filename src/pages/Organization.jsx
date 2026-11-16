@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { secProcesso } from '@/services/secretariaService';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -22,18 +22,19 @@ import GeneralInfo from '../components/organization/GeneralInfo';
 import ProcessControl from '../components/organization/ProcessControl';
 import ExpedienteControl from '../components/organization/ExpedienteControl';
 import ParceriaControl from '../components/organization/ParceriaControl';
-import JurimetriaControl from '../components/organization/JurimetriaControl';
-import PanoramaControl from '@/components/organization/PanoramaControl';
-import IntelligentSummary from '../components/organization/IntelligentSummary';
-import DeadlineCalendar from '../components/organization/DeadlineCalendar';
+// Abas pesadas (gráficos, exportação para Excel e PDF) carregadas quando abertas.
+const JurimetriaControl = lazy(() => import('../components/organization/JurimetriaControl'));
+const PanoramaControl = lazy(() => import('@/components/organization/PanoramaControl'));
+const IntelligentSummary = lazy(() => import('../components/organization/IntelligentSummary'));
+const DeadlineCalendar = lazy(() => import('../components/organization/DeadlineCalendar'));
 import OnboardingTour from '../components/organization/OnboardingTour';
 import OrgTabBar from '../components/organization/OrgTabBar';
 
 import KanbanBoard from '../components/organization/KanbanBoard';
 import ExpedienteKanbanBoard from '../components/organization/ExpedienteKanbanBoard';
 import ParceriaKanbanBoard from '../components/organization/ParceriaKanbanBoard';
-import AdminManagement from '../components/organization/admin/AdminManagement';
-import CustomEntityView from '../components/organization/custom/CustomEntityView';
+const AdminManagement = lazy(() => import('../components/organization/admin/AdminManagement'));
+const CustomEntityView = lazy(() => import('../components/organization/custom/CustomEntityView'));
 
 export default function Organization() {
   const navigate = useNavigate();
@@ -316,6 +317,7 @@ export default function Organization() {
 
         {/* Main Content Area */}
         <div className="flex-1 min-h-0">
+          <Suspense fallback={<div role="status" className="py-8 flex items-center gap-2 text-slate-600 dark:text-slate-300"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> Carregando…</div>}>
           {activeTab === 'info' && (
             <GeneralInfo
               organization={organization}
@@ -512,6 +514,7 @@ export default function Organization() {
               userRole={userRole}
             />
           )}
+          </Suspense>
         </div>
       </div>
       </OrganizationPermissionsProvider>

@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { secProcesso } from '@/services/secretariaService';
 import { COLUNAS_RELATORIO, br, juntarNomes, passosDoColegiado } from '@/lib/sessoes';
-import { exportTableToCsv, exportTableToExcel } from '@/lib/jurimetriaExport';
+// Exportação (xlsx e jspdf, pesados) carregada só no clique, fora da abertura do Processo Eletrônico.
+const exportar = () => import('@/lib/jurimetriaExport');
 import ErroQuery from './ErroQuery';
 
 const sel = 'h-9 rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900';
@@ -151,8 +152,8 @@ export default function RelatorioColegiado({ orgId, colegiados, hoje }) {
                                 <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Julgados no período</h4>
                                 {r.linhas.length > 0 && (
                                     <span className="flex gap-2">
-                                        <Button size="sm" variant="outline" className="gap-1" onClick={() => exportTableToCsv({ rows: r.linhas, columns: COLUNAS_RELATORIO, filenameBase: base })}><Download className="w-4 h-4" aria-hidden /> CSV</Button>
-                                        <Button size="sm" variant="outline" className="gap-1" onClick={() => exportTableToExcel({ rows: r.linhas, columns: COLUNAS_RELATORIO, filenameBase: base, sheetName: 'Julgados' })}><FileSpreadsheet className="w-4 h-4" aria-hidden /> Excel</Button>
+                                        <Button size="sm" variant="outline" className="gap-1" onClick={async () => (await exportar()).exportTableToCsv({ rows: r.linhas, columns: COLUNAS_RELATORIO, filenameBase: base })}><Download className="w-4 h-4" aria-hidden /> CSV</Button>
+                                        <Button size="sm" variant="outline" className="gap-1" onClick={async () => (await exportar()).exportTableToExcel({ rows: r.linhas, columns: COLUNAS_RELATORIO, filenameBase: base, sheetName: 'Julgados' })}><FileSpreadsheet className="w-4 h-4" aria-hidden /> Excel</Button>
                                     </span>
                                 )}
                             </div>

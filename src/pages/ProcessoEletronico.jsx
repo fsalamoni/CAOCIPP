@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -12,12 +12,16 @@ import { Label } from '@/components/ui/label';
 import { createPageUrl } from '@/utils';
 import { useOrganizations, useOrganizationRealtime } from '@/hooks/useFirestore';
 import { useOrganizationTabs } from '@/hooks/useOrganizationTabs';
+import { useSinalProcessos } from '@/hooks/useSinalProcessos';
 import { PROCESSO_ELETRONICO_TAB } from '@/lib/organizationModules';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import OrgTabBar from '@/components/organization/OrgTabBar';
 import { MAX_ENVIO_MB, secConfig, secProcesso } from '@/services/secretariaService';
-import ProcessoView from '@/components/secretaria/ProcessoView';
+// Partes pesadas (tela do processo com o editor, sessões, painel) baixadas
+// quando usadas: a lista aparece sem esperar por elas.
+const carregarProcessoView = () => import('@/components/secretaria/ProcessoView');
+const ProcessoView = lazy(carregarProcessoView);
 import ErroQuery from '@/components/secretaria/ErroQuery';
 import AvisosEquipe from '@/components/secretaria/AvisosEquipe';
 import UnidadesDoUsuario, { ConviteEquipe } from '@/components/secretaria/UnidadesDoUsuario';
@@ -29,15 +33,17 @@ import { buscarRegistro } from '@/lib/registrosModulos';
 import { ProvedorRegistros } from '@/components/secretaria/SeletorRegistro';
 import { unidadeComOrgao } from '@/lib/orgaos';
 import { unidadeDecide } from '@/lib/permissoesFase';
-import PainelSecretaria from '@/components/secretaria/PainelSecretaria';
+const PainelSecretaria = lazy(() => import('@/components/secretaria/PainelSecretaria'));
 import MeuTrabalho, { MesaDecisao, gruposDeTrabalho } from '@/components/secretaria/MeuTrabalho';
 import { STATUS_ROTULO, NativeSelect, SeloUrgente, documentoDaUnidade } from '@/components/secretaria/comum';
 import DetalharDocumentos, { detalheInicial, enviarDetalhados, resumoDetalhe } from '@/components/secretaria/DetalharDocumentos';
 import AjudaTermo, { focoSemAjuda } from '@/components/secretaria/AjudaTermo';
 import GuiaRito from '@/components/secretaria/GuiaRito';
-import Sessoes from '@/components/secretaria/Sessoes';
+const Sessoes = lazy(() => import('@/components/secretaria/Sessoes'));
 import { DisputasEmQueAtuo } from '@/components/secretaria/DisputaPrecos';
 import { veSessoes } from '@/lib/sessoes';
+
+const Carregando = () => <div role="status" className="py-6 flex items-center gap-2 text-slate-600 dark:text-slate-300"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> Carregando…</div>;
 
 export default function ProcessoEletronico() {
     const [params, setParams] = useSearchParams();
@@ -77,7 +83,19 @@ export default function ProcessoEletronico() {
         queryKey: ['sec-estado', orgId],
         queryFn: () => secConfig(orgId, 'estado'),
         enabled: !!orgId && !tokenEquipe,
+        // Configuração muda pouco e quem a altera invalida: não relê a cada volta à página.
+        staleTime: 60000,
     });
+    // Atos de colegas (e das partes) aparecem sozinhos nas listas e no processo aberto.
+    useSinalProcessos(orgId, !!estadoQ.data?.enabled && !tokenEquipe);
+    // Link direto para um processo: os autos e a tela dele são buscados junto
+    // com o estado, em vez de só depois dele (uma ida e volta a menos).
+    const qc = useQueryClient();
+    useEffect(() => {
+        if (!orgId || !procId || tokenEquipe) return;
+        carregarProcessoView();
+        qc.prefetchQuery({ queryKey: ['sec-proc', orgId, procId], queryFn: () => secProcesso(orgId, 'obter', { id: procId }), staleTime: 15000 });
+    }, [orgId, procId, tokenEquipe]);
     const estado = estadoQ.data;
     // Mesma consulta da caixa: alimenta as contagens das abas "Meu trabalho" e "Mesa de decisão".
     const caixaQ = useQuery({
@@ -223,6 +241,7 @@ export default function ProcessoEletronico() {
             )}
 
             {!procId && <DisputasEmQueAtuo orgId={orgId} onAbrir={abrir} />}
+            <Suspense fallback={<Carregando />}>
             {procId ? (
                 <ProcessoView orgId={orgId} procId={procId} estado={estado} onVoltar={() => abrir(null)} />
             ) : (
@@ -258,6 +277,7 @@ export default function ProcessoEletronico() {
                     <TabsContent value="unidades"><UnidadesDoUsuario orgId={orgId} estado={estado} /></TabsContent>
                 </Tabs>
             )}
+            </Suspense>
         </div>
         </ProvedorRegistros>
     );

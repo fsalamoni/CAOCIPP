@@ -64,6 +64,21 @@ assert.equal(await pedir(criador, 'GET', 'secUnidadeConfig/u1'), 403, 'timbrado 
 await semear('secConvitesEquipe/c1', { organization_id: org });
 assert.equal(await pedir(criador, 'GET', 'secConvitesEquipe/c1'), 403, 'convites de equipe só por Function');
 
+// Sinal de mudança do órgão: o membro ativo lê o do seu órgão; ninguém mais, e ninguém escreve.
+await semear(`secSinais/${org}`, { organization_id: org, processo_id: 's1' });
+await semear(`secSinais/org2`, { organization_id: 'org2' });
+assert.equal(await pedir(membro, 'GET', `secSinais/${org}`), 200, 'membro lê o sinal do órgão');
+assert.equal(await pedir(estranho, 'GET', `secSinais/${org}`), 403, 'estranho não lê o sinal');
+assert.equal(await pedir(membro, 'GET', 'secSinais/org2'), 403, 'membro não lê o sinal de outro órgão');
+assert.equal(await pedir(membro, 'GET', 'secSinais'), 403, 'ninguém lista os sinais');
+assert.equal(await pedir(criador, 'PATCH', `secSinais/${org}`, campos({ processo_id: 'x' })), 403, 'ninguém grava o sinal');
+const inativo = await usuario('inativo@x.com');
+await fetch(`${FS}/userOrganizations/${inativo.uid}_${org}`, {
+    method: 'PATCH', headers: { authorization: 'Bearer owner', 'content-type': 'application/json' },
+    body: JSON.stringify({ fields: { organization_id: { stringValue: org }, active: { booleanValue: false } } }),
+});
+assert.equal(await pedir(inativo, 'GET', `secSinais/${org}`), 403, 'membro inativo não lê o sinal');
+
 // Config da plataforma: qualquer conta lê as flags; o resto só pelas Functions
 // (o Auth é compartilhado com os outros apps do projeto Firebase).
 await semear('platformConfig/featureFlags', { x: true });

@@ -1,6 +1,6 @@
-import PdfPrinter = require('pdfmake');
 import type { Content, ContentText, TDocumentDefinitions, TableCell } from 'pdfmake/interfaces';
-import { PDFDocument } from 'pdf-lib';
+// pdfmake e pdf-lib carregados só quando usados (partida a frio das functions).
+const pdfLib = () => require('pdf-lib') as typeof import('pdf-lib');
 import { FONTES, No } from '../shared/documento';
 
 /**
@@ -8,14 +8,18 @@ import { FONTES, No } from '../shared/documento';
  * paginado e bloco de assinaturas. É o que entra nos autos na juntada.
  */
 
-import vfsFontes = require('pdfmake/build/vfs_fonts');
-const vfs = vfsFontes as unknown as Record<string, string>;
-const ttf = (n: string) => Buffer.from(vfs[n], 'base64');
-const printer = new PdfPrinter({
-    Roboto: { normal: ttf('Roboto-Regular.ttf'), bold: ttf('Roboto-Medium.ttf'), italics: ttf('Roboto-Italic.ttf'), bolditalics: ttf('Roboto-MediumItalic.ttf') },
-    Times: { normal: 'Times-Roman', bold: 'Times-Bold', italics: 'Times-Italic', bolditalics: 'Times-BoldItalic' },
-    Courier: { normal: 'Courier', bold: 'Courier-Bold', italics: 'Courier-Oblique', bolditalics: 'Courier-BoldOblique' },
-});
+let impressora: import('pdfmake') | undefined;
+function printer() {
+    if (impressora) return impressora;
+    const PdfPrinter = require('pdfmake') as typeof import('pdfmake');
+    const vfs = require('pdfmake/build/vfs_fonts') as Record<string, string>;
+    const ttf = (n: string) => Buffer.from(vfs[n], 'base64');
+    return (impressora = new PdfPrinter({
+        Roboto: { normal: ttf('Roboto-Regular.ttf'), bold: ttf('Roboto-Medium.ttf'), italics: ttf('Roboto-Italic.ttf'), bolditalics: ttf('Roboto-MediumItalic.ttf') },
+        Times: { normal: 'Times-Roman', bold: 'Times-Bold', italics: 'Times-Italic', bolditalics: 'Times-BoldItalic' },
+        Courier: { normal: 'Courier', bold: 'Courier-Bold', italics: 'Courier-Oblique', bolditalics: 'Courier-BoldOblique' },
+    }));
+}
 
 export interface ConfigDocumento {
     cabecalho_linhas?: string[];
@@ -206,7 +210,7 @@ export async function renderizarDocumento(doc: No, cfg: ConfigDocumento = {}, me
         }),
         watermark: meta.marcaDagua ? { text: meta.marcaDagua, opacity: 0.08, bold: true, angle: -45 } : undefined,
     };
-    const pdf = printer.createPdfKitDocument(def);
+    const pdf = printer().createPdfKitDocument(def);
     const partes: Buffer[] = [];
     const buffer = await new Promise<Buffer>((ok, erro) => {
         pdf.on('data', (b: Buffer) => partes.push(b));
@@ -214,7 +218,7 @@ export async function renderizarDocumento(doc: No, cfg: ConfigDocumento = {}, me
         pdf.on('error', erro);
         pdf.end();
     });
-    const paginas = (await PDFDocument.load(buffer)).getPageCount();
+    const paginas = (await pdfLib().PDFDocument.load(buffer)).getPageCount();
     return { buffer, paginas };
 }
 

@@ -21,7 +21,7 @@ import { acertarAcoesDoRito, configComunicacoes, registrarCiencia } from './comu
 import { ComunicacaoLigada, faseQueEspera, respondidasPela } from '../shared/comunicacaoRito';
 import { Audiencia, audienciasFuturas } from '../shared/audiencias';
 import { avancarSozinho } from './processos';
-import { contextoDoSistema } from './context';
+import { comSinal, contextoDoSistema } from './context';
 import { situacaoDaParte } from '../shared/meusProcessos';
 import { informacoesDaFolha, informacoesDoAndamento } from '../shared/informacoes';
 import { CampoValor, nomeDoPolo } from '../shared/camposProcesso';
@@ -180,7 +180,7 @@ async function pedidosDaParte(db: admin.firestore.Firestore, sessaoId: string, p
         .map((x) => ({ id: x.id, tipo: x.tipo, nome_tipo: NOME_PEDIDO[x.tipo], texto: x.texto, link: x.link, em: x.em, situacao: x.situacao, motivo: x.motivo || '' }));
 }
 
-export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: '512MiB' }, async (request) => {
+export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: '512MiB' }, comSinal(async (request) => {
     const auth = exigirAuth(request);
     const p = request.data || ({} as PortalRequest);
     const db = admin.firestore();
@@ -624,7 +624,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
     }
 
     throw new HttpsError('invalid-argument', 'Ação desconhecida');
-});
+}));
 
 /** Contexto mínimo para registrar movimento em nome de uma parte. */
 function contextoParte(db: admin.firestore.Firestore, proc: admin.firestore.DocumentData, uid: string, nome: string): Contexto {

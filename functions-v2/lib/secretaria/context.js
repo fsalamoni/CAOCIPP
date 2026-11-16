@@ -1,6 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.COL = exports.REGION = void 0;
+exports.ATOS_QUE_MUDAM = exports.COL = exports.REGION = void 0;
+exports.sinalizarMudanca = sinalizarMudanca;
+exports.comSinal = comSinal;
 exports.exigirAuth = exigirAuth;
 exports.carregarContexto = carregarContexto;
 exports.contextoDoSistema = contextoDoSistema;
@@ -44,7 +46,61 @@ exports.COL = {
     convitesEquipe: 'secConvitesEquipe',
     /** Contadores de uso das chamadas públicas, por hora (apagáveis por TTL em `expira_em`). */
     limites: 'secLimites',
+    /** Um documento por órgão com a hora da última mudança: as telas abertas o escutam em tempo real. */
+    sinais: 'secSinais',
 };
+/**
+ * Atos que mudam processos. Depois de cada um, o sinal do órgão avisa as telas
+ * abertas (listas e o processo aberto) para se atualizarem sozinhas. Leituras
+ * nunca sinalizam: a atualização que o sinal provoca é uma leitura, e assim
+ * não há laço entre telas.
+ */
+exports.ATOS_QUE_MUDAM = new Set([
+    // secretariaProcesso
+    'autuar', 'tramitar', 'atribuir', 'avancarFase', 'alterarStatus', 'abrirPendencia', 'resolverPendencia', 'abrirPrazo', 'encerrarPrazo',
+    'prorrogarPrazo', 'devolverPrazo', 'convidarParte', 'revogarParte', 'marcarAcao', 'concluirOrientacao', 'alterarDados', 'urgencia',
+    'expedirComunicacao', 'tornarSemEfeito', 'excluir', 'restaurar', 'emitirCertidao',
+    // secretariaDocumento
+    'criarMinuta', 'upload', 'editarMinuta', 'excluirMinuta', 'assinar', 'pedirAssinatura', 'juntar', 'guardar',
+    // secretariaPortal (o órgão vem do processo)
+    'peticionar', 'darCiencia', 'pedidoSessao',
+]);
+/**
+ * Grava o sinal do órgão (sem dado do processo além do id, que só abre algo
+ * para quem já pode ver). Falha aqui nunca desfaz o ato: as telas se
+ * atualizam na próxima ação de quem as usa, como antes.
+ */
+async function sinalizarMudanca(db, orgId, processoId) {
+    if (typeof orgId !== 'string' || !orgId)
+        return;
+    try {
+        await db.collection(exports.COL.sinais).doc(orgId).set({
+            organization_id: orgId,
+            em: firestore_1.FieldValue.serverTimestamp(),
+            processo_id: typeof processoId === 'string' ? processoId : null,
+        });
+    }
+    catch ( /* sinal é conveniência */_a) { /* sinal é conveniência */ }
+}
+/** Envolve o handler de uma callable: depois de um ato que muda processo, grava o sinal do órgão. */
+function comSinal(fn) {
+    return async (request) => {
+        var _a, _b;
+        const r = await fn(request);
+        const p = (request.data || {});
+        if (!exports.ATOS_QUE_MUDAM.has(String(p.action)))
+            return r;
+        const db = admin.firestore();
+        const procId = (_b = (_a = p.processoId) !== null && _a !== void 0 ? _a : p.id) !== null && _b !== void 0 ? _b : r === null || r === void 0 ? void 0 : r.id;
+        let orgId = p.organizationId;
+        // Portal das partes não manda o órgão: vem do processo.
+        if (!orgId && typeof procId === 'string' && procId) {
+            orgId = await db.collection(exports.COL.processos).doc(procId).get().then((s) => s.get('organization_id')).catch(() => null);
+        }
+        await sinalizarMudanca(db, orgId, procId);
+        return r;
+    };
+}
 function exigirAuth(request) {
     if (!request.auth)
         throw new https_1.HttpsError('unauthenticated', 'É preciso estar autenticado');

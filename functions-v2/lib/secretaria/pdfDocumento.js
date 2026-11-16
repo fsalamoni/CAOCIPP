@@ -4,21 +4,26 @@ exports.dataHora = void 0;
 exports.winAnsi = winAnsi;
 exports.renderizarDocumento = renderizarDocumento;
 exports.textoParaDoc = textoParaDoc;
-const PdfPrinter = require("pdfmake");
-const pdf_lib_1 = require("pdf-lib");
+// pdfmake e pdf-lib carregados só quando usados (partida a frio das functions).
+const pdfLib = () => require('pdf-lib');
 const documento_1 = require("../shared/documento");
 /**
  * Converte o documento do editor em PDF (A4), com cabeçalho do órgão, rodapé
  * paginado e bloco de assinaturas. É o que entra nos autos na juntada.
  */
-const vfsFontes = require("pdfmake/build/vfs_fonts");
-const vfs = vfsFontes;
-const ttf = (n) => Buffer.from(vfs[n], 'base64');
-const printer = new PdfPrinter({
-    Roboto: { normal: ttf('Roboto-Regular.ttf'), bold: ttf('Roboto-Medium.ttf'), italics: ttf('Roboto-Italic.ttf'), bolditalics: ttf('Roboto-MediumItalic.ttf') },
-    Times: { normal: 'Times-Roman', bold: 'Times-Bold', italics: 'Times-Italic', bolditalics: 'Times-BoldItalic' },
-    Courier: { normal: 'Courier', bold: 'Courier-Bold', italics: 'Courier-Oblique', bolditalics: 'Courier-BoldOblique' },
-});
+let impressora;
+function printer() {
+    if (impressora)
+        return impressora;
+    const PdfPrinter = require('pdfmake');
+    const vfs = require('pdfmake/build/vfs_fonts');
+    const ttf = (n) => Buffer.from(vfs[n], 'base64');
+    return (impressora = new PdfPrinter({
+        Roboto: { normal: ttf('Roboto-Regular.ttf'), bold: ttf('Roboto-Medium.ttf'), italics: ttf('Roboto-Italic.ttf'), bolditalics: ttf('Roboto-MediumItalic.ttf') },
+        Times: { normal: 'Times-Roman', bold: 'Times-Bold', italics: 'Times-Italic', bolditalics: 'Times-BoldItalic' },
+        Courier: { normal: 'Courier', bold: 'Courier-Bold', italics: 'Courier-Oblique', bolditalics: 'Courier-BoldOblique' },
+    }));
+}
 const CM = 28.3465;
 const A4_LARGURA = 595.28;
 const MARGENS = [3 * CM, 0, 2 * CM, 0];
@@ -210,7 +215,7 @@ async function renderizarDocumento(doc, cfg = {}, meta = {}) {
         }),
         watermark: meta.marcaDagua ? { text: meta.marcaDagua, opacity: 0.08, bold: true, angle: -45 } : undefined,
     };
-    const pdf = printer.createPdfKitDocument(def);
+    const pdf = printer().createPdfKitDocument(def);
     const partes = [];
     const buffer = await new Promise((ok, erro) => {
         pdf.on('data', (b) => partes.push(b));
@@ -218,7 +223,7 @@ async function renderizarDocumento(doc, cfg = {}, meta = {}) {
         pdf.on('error', erro);
         pdf.end();
     });
-    const paginas = (await pdf_lib_1.PDFDocument.load(buffer)).getPageCount();
+    const paginas = (await pdfLib().PDFDocument.load(buffer)).getPageCount();
     return { buffer, paginas };
 }
 function winAnsiSe(fonte, t) {

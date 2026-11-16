@@ -5,6 +5,24 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 16/11/2026 — Processo Eletrônico mais rápido e atualizado sozinho
+- **Site em partes:** cada página e as abas pesadas são baixadas só quando
+  abertas. A primeira visita deixa de baixar um arquivo único de ~1,6 MB
+  (gzip): o comum a todas as páginas tem ~257 KB, a página do órgão ~433 KB
+  e a lista do Processo Eletrônico ~600 KB. Firebase e React ficam em
+  arquivos próprios, que seguem no cache entre um deploy e outro.
+- **Servidor mais leve:** cada function carrega só o próprio módulo e as
+  bibliotecas de PDF, Word e Excel só quando o ato as usa. Medido: a partida
+  a frio do `secretariaProcesso` caiu de ~520 ms para ~150 ms e a memória
+  de 131 MB para 77 MB.
+- **Abrir processo:** pelo link, os autos são pedidos junto com a
+  configuração do órgão; no servidor, movimentos, documentos e leituras são
+  lidos em paralelo.
+- **Atualização sozinha:** o que um colega ou uma parte faz (novo processo,
+  tramitação, ato, documento, petição) aparece nas listas e no processo
+  aberto em cerca de 2 segundos, sem recarregar. Novo documento
+  `secSinais/{orgId}`, lido pelos membros do órgão.
+
 ### 16/11/2026 — Ações que vêm do processo e documentos detalhados na entrada
 - Ação da fase pode **vir do processo**: ligada a um campo do tipo de
   processo (ex.: "Informar o número do PGEA"), ela se cumpre sozinha quando

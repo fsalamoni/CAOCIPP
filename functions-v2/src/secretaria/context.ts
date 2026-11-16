@@ -1,6 +1,6 @@
 import * as admin from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
-import { HttpsError } from 'firebase-functions/v2/https';
+import { CallableRequest, HttpsError } from 'firebase-functions/v2/https';
 import {
     ContextoUsuario,
     MovimentoBase,
@@ -34,7 +34,62 @@ export const COL = {
     convitesEquipe: 'secConvitesEquipe',
     /** Contadores de uso das chamadas públicas, por hora (apagáveis por TTL em `expira_em`). */
     limites: 'secLimites',
+    /** Um documento por órgão com a hora da última mudança: as telas abertas o escutam em tempo real. */
+    sinais: 'secSinais',
 } as const;
+
+/**
+ * Atos que mudam processos. Depois de cada um, o sinal do órgão avisa as telas
+ * abertas (listas e o processo aberto) para se atualizarem sozinhas. Leituras
+ * nunca sinalizam: a atualização que o sinal provoca é uma leitura, e assim
+ * não há laço entre telas.
+ */
+export const ATOS_QUE_MUDAM = new Set([
+    // secretariaProcesso
+    'autuar', 'tramitar', 'atribuir', 'avancarFase', 'alterarStatus', 'abrirPendencia', 'resolverPendencia', 'abrirPrazo', 'encerrarPrazo',
+    'prorrogarPrazo', 'devolverPrazo', 'convidarParte', 'revogarParte', 'marcarAcao', 'concluirOrientacao', 'alterarDados', 'urgencia',
+    'expedirComunicacao', 'tornarSemEfeito', 'excluir', 'restaurar', 'emitirCertidao',
+    // secretariaDocumento
+    'criarMinuta', 'upload', 'editarMinuta', 'excluirMinuta', 'assinar', 'pedirAssinatura', 'juntar', 'guardar',
+    // secretariaPortal (o órgão vem do processo)
+    'peticionar', 'darCiencia', 'pedidoSessao',
+]);
+
+/**
+ * Grava o sinal do órgão (sem dado do processo além do id, que só abre algo
+ * para quem já pode ver). Falha aqui nunca desfaz o ato: as telas se
+ * atualizam na próxima ação de quem as usa, como antes.
+ */
+export async function sinalizarMudanca(db: admin.firestore.Firestore, orgId: unknown, processoId?: unknown): Promise<void> {
+    if (typeof orgId !== 'string' || !orgId) return;
+    try {
+        await db.collection(COL.sinais).doc(orgId).set({
+            organization_id: orgId,
+            em: FieldValue.serverTimestamp(),
+            processo_id: typeof processoId === 'string' ? processoId : null,
+        });
+    } catch { /* sinal é conveniência */ }
+}
+
+type PedidoComAto = { action?: unknown; organizationId?: unknown; id?: unknown; processoId?: unknown };
+
+/** Envolve o handler de uma callable: depois de um ato que muda processo, grava o sinal do órgão. */
+export function comSinal<T extends PedidoComAto, R>(fn: (request: CallableRequest<T>) => Promise<R>) {
+    return async (request: CallableRequest<T>): Promise<R> => {
+        const r = await fn(request);
+        const p = (request.data || {}) as PedidoComAto;
+        if (!ATOS_QUE_MUDAM.has(String(p.action))) return r;
+        const db = admin.firestore();
+        const procId = p.processoId ?? p.id ?? (r as { id?: unknown } | null)?.id;
+        let orgId = p.organizationId;
+        // Portal das partes não manda o órgão: vem do processo.
+        if (!orgId && typeof procId === 'string' && procId) {
+            orgId = await db.collection(COL.processos).doc(procId).get().then((s) => s.get('organization_id')).catch(() => null);
+        }
+        await sinalizarMudanca(db, orgId, procId);
+        return r;
+    };
+}
 
 export interface Contexto {
     db: admin.firestore.Firestore;

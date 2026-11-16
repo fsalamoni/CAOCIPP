@@ -145,7 +145,7 @@ async function pedidosDaParte(db, sessaoId, procId, uid) {
     return q.docs.map((d) => (Object.assign({ id: d.id }, d.data()))).filter((x) => x.uid === uid).sort((a, b) => a.em.localeCompare(b.em))
         .map((x) => ({ id: x.id, tipo: x.tipo, nome_tipo: sessoes_1.NOME_PEDIDO[x.tipo], texto: x.texto, link: x.link, em: x.em, situacao: x.situacao, motivo: x.motivo || '' }));
 }
-exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memory: '512MiB' }, async (request) => {
+exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memory: '512MiB' }, (0, context_2.comSinal)(async (request) => {
     var _a, _b, _c, _d, _e, _f, _g;
     const auth = (0, context_1.exigirAuth)(request);
     const p = request.data || {};
@@ -574,7 +574,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
         return Object.assign({ success: true }, protocolado);
     }
     throw new https_1.HttpsError('invalid-argument', 'Ação desconhecida');
-});
+}));
 /** Contexto mínimo para registrar movimento em nome de uma parte. */
 function contextoParte(db, proc, uid, nome) {
     return { db, orgId: proc.organization_id, org: {}, ctx: { uid, isAdmin: false, unidadeIds: [] }, userName: nome, unidades: [], gestorDe: [] };
