@@ -1,11 +1,15 @@
-import React, { useState } from 'react';
-import { BookOpen } from 'lucide-react';
+import React, { Suspense, lazy, useState } from 'react';
+import { BookOpen, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { resumoAndamento } from '@/lib/andamentoFase';
 import { DESTINO_INFO, NIVEIS, PEDIDOS, resumoDaAcao, textoCondicao } from '@/lib/exigencias';
 import { ritoConsultas } from '@/lib/secretariaRito';
 import FluxoRito from './FluxoRito';
+
+// O tutorial traz a biblioteca inteira: só carrega quando o guia abre nele.
+const TutorialRito = lazy(() => import('./TutorialRito'));
 
 // Guia prático do editor de rito: o que é cada peça, como montar e o que cada
 // opção faz. Os nomes das opções vêm das mesmas listas do editor
@@ -42,8 +46,9 @@ const QUANDO_USAR = {
 };
 
 function Parte({ titulo, children, aberta = false }) {
+    const n = titulo.match(/^(\d+)\./)?.[1];
     return (
-        <details open={aberta} className="group rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+        <details id={n ? `guia-parte-${n}` : undefined} open={aberta} className="scroll-mt-2 group rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
             <summary className="cursor-pointer select-none px-3 py-2.5 text-sm font-semibold text-slate-900 dark:text-white">{titulo}</summary>
             <div className="space-y-2 border-t border-slate-200 dark:border-slate-700 px-3 py-3 text-sm text-slate-700 dark:text-slate-200">{children}</div>
         </details>
@@ -56,6 +61,18 @@ const tabela = 'w-full text-left text-sm [&_td]:border-t [&_td]:border-slate-200
 /** `inicial`: abre já aberto (link direto para o guia, na Central de Ajuda). */
 export default function GuiaRito({ variante = 'outline', className = '', inicial = false }) {
     const [aberto, setAberto] = useState(inicial);
+    const [aba, setAba] = useState('tutorial');
+    // Do tutorial para a parte da referência: troca de aba, abre a parte e leva o foco a ela.
+    const irParaParte = (n) => {
+        setAba('referencia');
+        setTimeout(() => {
+            const el = document.getElementById(`guia-parte-${n}`);
+            if (!el) return;
+            el.open = true;
+            el.scrollIntoView({ block: 'start' });
+            el.querySelector('summary')?.focus();
+        }, 50);
+    };
     return (
         <>
             <Button type="button" size="sm" variant={variante} className={`gap-1 ${className}`} onClick={() => setAberto(true)}>
@@ -65,9 +82,20 @@ export default function GuiaRito({ variante = 'outline', className = '', inicial
                 <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>Guia do rito</DialogTitle>
-                        <DialogDescription>O que é cada peça do rito, como montar um e o que cada opção do editor faz.</DialogDescription>
+                        <DialogDescription>O tutorial ensina a montar um rito do começo ao fim. A referência explica cada peça e cada opção do editor.</DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-2">
+                    <Tabs value={aba} onValueChange={setAba}>
+                    <TabsList className="h-auto flex-wrap justify-start">
+                        <TabsTrigger value="tutorial">Tutorial</TabsTrigger>
+                        <TabsTrigger value="referencia">Referência (20 partes)</TabsTrigger>
+                    </TabsList>
+                    {/* Montado sempre: a etapa e o que foi conferido continuam ao voltar da referência. */}
+                    <TabsContent value="tutorial" forceMount tabIndex={-1} className="data-[state=inactive]:hidden">
+                        <Suspense fallback={<p className="flex items-center gap-2 py-4 text-sm text-slate-600 dark:text-slate-400"><Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Carregando o tutorial…</p>}>
+                            <TutorialRito onParte={irParaParte} />
+                        </Suspense>
+                    </TabsContent>
+                    <TabsContent value="referencia" tabIndex={-1} className="space-y-2">
                         <Parte titulo="1. As peças do rito" aberta>
                             <ul className="space-y-1.5">
                                 <Termo nome="Fase">Etapa do processo. Tem unidade, prazo, ações e encaminhamentos. No desenho é a moldura com o nome no alto.</Termo>
@@ -414,7 +442,8 @@ export default function GuiaRito({ variante = 'outline', className = '', inicial
                                 <li>O que vem de fora vira do seu órgão: mudar depois não afeta o órgão de origem, e o de origem mudar o dele não afeta o seu.</li>
                             </ul>
                         </Parte>
-                    </div>
+                    </TabsContent>
+                    </Tabs>
                 </DialogContent>
             </Dialog>
         </>

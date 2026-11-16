@@ -1796,6 +1796,32 @@ designada, nada muda: todo ato do órgão é de quem tem o processo.
   avisos do agente, julgamento, recurso e ata; nomes só depois da
   declaração). Na cotação privada, só quem participa.
 
+### Tutorial do Guia do rito (16/11/2026)
+
+O Guia do rito abre em duas abas: **Tutorial** e **Referência (20
+partes)**. O tutorial (`components/secretaria/TutorialRito.jsx`, carregado
+só quando o guia abre; textos e lógica em `src/lib/tutorialRito.js`) tem:
+
+- **Passo a passo:** 12 etapas (planejar; preparar unidades, atribuições,
+  colegiados, listas e calendário; escolher por onde começar; fases; ações;
+  caminhos; quem cumpre e vê; automação; partes e contraditório; documentos
+  e autos; tipo de processo; testar, implantar e manter). Cada etapa tem o
+  objetivo, o que fazer em ordem, perguntas e respostas da etapa e o que
+  conferir (caixas que ficam marcadas enquanto o guia está aberto).
+- **Quero fazer…:** 58 receitas "quero isto, use aquilo", com onde fica a
+  opção e os modelos da biblioteca que já fazem assim. Busca sem acento e
+  filtro por tema.
+- **Qual modelo usar?:** assunto, contraditório (o modelo espera resposta da
+  parte), forma de decidir (uma pessoa, colegiado, disputa, audiência) e
+  tamanho indicam os modelos (`sugerirModelos`). Se nenhum atende a tudo,
+  solta o tamanho, depois o contraditório, depois a forma de decidir, e a
+  tela diz o que soltou.
+
+"Ver no guia: parte N" troca para a Referência, abre a parte e leva o foco a
+ela. O teste (`src/lib/tutorialRito.test.js`) confere que toda parte citada
+existe (1 a 20) e todo modelo citado existe na biblioteca: renumerar partes
+ou trocar o id de um modelo exige ajustar o tutorial.
+
 ### Modelos da plataforma, do órgão e pacote para outro órgão (16/11/2026)
 
 Princípio: modelos e padrões são da plataforma e ficam no código
