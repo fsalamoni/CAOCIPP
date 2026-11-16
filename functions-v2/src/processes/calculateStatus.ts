@@ -71,7 +71,7 @@ export const calculateProcessStatus = onCall<CalculateStatusRequest>(
         // corrigida em deleteProcess/deleteExpediente.
         const membershipRef = db.collection('userOrganizations').doc(`${request.auth.uid}_${currentData?.organization_id}`);
         const membershipSnap = await membershipRef.get();
-        if (!membershipSnap.exists) {
+        if (!membershipSnap.exists || membershipSnap.data()?.active === false) {
             throw new HttpsError('permission-denied', 'You are not a member of this organization');
         }
 

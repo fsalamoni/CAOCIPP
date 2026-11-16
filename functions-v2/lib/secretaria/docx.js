@@ -2,8 +2,6 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.formatarNumero = formatarNumero;
 exports.docxParaDoc = docxParaDoc;
-// Bibliotecas carregadas só quando usadas (partida a frio das functions).
-const jszip = () => require('jszip');
 const documento_1 = require("../shared/documento");
 const conversaoComum_1 = require("./conversaoComum");
 /**
@@ -638,12 +636,7 @@ class Leitor {
 /** Word (.docx) → documento do editor, com os avisos do que não veio. */
 async function docxParaDoc(buf) {
     let zip;
-    try {
-        zip = await jszip().loadAsync(buf);
-    }
-    catch (_a) {
-        throw new Error('Arquivo Word danificado ou protegido por senha');
-    }
+    zip = await (0, conversaoComum_1.abrirZip)(buf, 'Arquivo Word danificado ou protegido por senha');
     const l = new Leitor(zip);
     await l.carregar();
     return l.corpo();

@@ -144,7 +144,7 @@ exports.importJurisFromExcel = (0, https_1.onCall)({
     memory: '1GiB',
     timeoutSeconds: 540,
 }, async (request) => {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e, _f;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Usuário deve estar autenticado');
     }
@@ -158,7 +158,7 @@ exports.importJurisFromExcel = (0, https_1.onCall)({
         .collection('userOrganizations')
         .doc(`${userId}_${organizationId}`)
         .get();
-    if (!membershipSnap.exists) {
+    if (!membershipSnap.exists || ((_a = membershipSnap.data()) === null || _a === void 0 ? void 0 : _a.active) === false) {
         throw new https_1.HttpsError('permission-denied', 'Você não é membro desta organização');
     }
     const orgSnap = await db.collection('organizations').doc(organizationId).get();
@@ -176,11 +176,11 @@ exports.importJurisFromExcel = (0, https_1.onCall)({
         const parsed = JSON.parse(buffer.toString('utf-8'));
         rawRows = Array.isArray(parsed) ? parsed : [parsed];
     }
-    catch (_f) {
+    catch (_g) {
         try {
             rawRows = readWorkbookRows(buffer);
         }
-        catch (_g) {
+        catch (_h) {
             throw new https_1.HttpsError('invalid-argument', 'Não foi possível ler o arquivo. Use Excel (.xlsx, .xls), CSV ou JSON.');
         }
     }
@@ -395,13 +395,13 @@ exports.importJurisFromExcel = (0, https_1.onCall)({
             const current = field === 'realizacao'
                 ? String(raw !== null && raw !== void 0 ? raw : 'realizado').trim()
                 : String(raw !== null && raw !== void 0 ? raw : '').trim();
-            classify(field, current, String((_a = item.core[field]) !== null && _a !== void 0 ? _a : '').trim());
+            classify(field, current, String((_b = item.core[field]) !== null && _b !== void 0 ? _b : '').trim());
         }
         for (const field of settings.customFields) {
-            classify(field.key, String((_c = (_b = existing.data.values) === null || _b === void 0 ? void 0 : _b[field.key]) !== null && _c !== void 0 ? _c : '').trim(), String((_d = item.values[field.key]) !== null && _d !== void 0 ? _d : '').trim());
+            classify(field.key, String((_d = (_c = existing.data.values) === null || _c === void 0 ? void 0 : _c[field.key]) !== null && _d !== void 0 ? _d : '').trim(), String((_e = item.values[field.key]) !== null && _e !== void 0 ? _e : '').trim());
         }
         item.existingId = existing.id;
-        item.currentDate = String((_e = existing.data.data_juri) !== null && _e !== void 0 ? _e : '').trim();
+        item.currentDate = String((_f = existing.data.data_juri) !== null && _f !== void 0 ? _f : '').trim();
         if (diffs.length > 0) {
             item.status = 'conflito';
             item.diffs = diffs.slice(0, 12);

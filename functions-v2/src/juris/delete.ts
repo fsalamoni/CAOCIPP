@@ -44,7 +44,7 @@ export const deleteJuris = onCall<DeleteJurisRequest>(
             .collection('userOrganizations')
             .doc(`${userId}_${organizationId}`)
             .get();
-        if (!membershipSnap.exists) {
+        if (!membershipSnap.exists || membershipSnap.data()?.active === false) {
             throw new HttpsError('permission-denied', 'Você não é membro desta organização');
         }
         if (!hasOrgPermission(membershipSnap.data() as MembershipLike, 'delete_records')) {

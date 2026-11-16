@@ -64,7 +64,8 @@ export async function isPlatformAdmin(
         .split(',')
         .map((e) => e.trim().toLowerCase())
         .filter(Boolean);
-    return !!email && bootstrap.includes(email);
+    // Só e-mail confirmado: conta de e-mail e senha criada com o endereço de outra pessoa não vira super-admin.
+    return !!email && token.email_verified === true && bootstrap.includes(email);
 }
 
 /**

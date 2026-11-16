@@ -21,7 +21,8 @@ export const getUserOrganizations = onCall(
                 return { organizations: [] };
             }
 
-            const orgIds = membershipsSnapshot.docs.map(doc => doc.data().organization_id);
+            // Vínculo desativado (membro removido) não dá mais acesso ao órgão.
+            const orgIds = membershipsSnapshot.docs.filter(doc => doc.data().active !== false).map(doc => doc.data().organization_id);
 
             // 2. Fetch organization details
             // Firestore 'in' query supports up to 10 items. If user has > 10 orgs, we need to batch or loop.

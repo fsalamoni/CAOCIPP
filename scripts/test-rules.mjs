@@ -79,6 +79,27 @@ await fetch(`${FS}/userOrganizations/${inativo.uid}_${org}`, {
 });
 assert.equal(await pedir(inativo, 'GET', `secSinais/${org}`), 403, 'membro inativo não lê o sinal');
 
+// Membro removido (vínculo com active == false) perde a leitura de tudo do órgão.
+await semear('processes/p2', { organization_id: org, title: 'x' });
+await semear('expedientes/e2', { organization_id: org });
+await semear(`organizations/${org}`, { name: 'Órgão' });
+assert.equal(await pedir(membro, 'GET', `organizations/${org}`), 200, 'membro ativo lê o órgão');
+assert.equal(await pedir(inativo, 'GET', 'processes/p2'), 403, 'membro removido não lê registro');
+assert.equal(await pedir(inativo, 'GET', 'expedientes/e2'), 403, 'membro removido não lê expediente');
+assert.equal(await pedir(inativo, 'GET', `organizations/${org}`), 403, 'membro removido não lê o órgão');
+assert.equal(await pedir(inativo, 'GET', `userOrganizations/${membro.uid}_${org}`), 403, 'membro removido não lê vínculos de colegas');
+assert.equal(await pedir(membro, 'GET', 'processes/p2'), 200, 'membro ativo segue lendo');
+// Listas (como as telas consultam): filtro por órgão.
+const listar = (u) => fetch(`${FS}:runQuery`, {
+    method: 'POST', headers: { authorization: `Bearer ${u.token}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'processes' }], where: { fieldFilter: { field: { fieldPath: 'organization_id' }, op: 'EQUAL', value: { stringValue: org } } } } }),
+}).then((x) => x.status);
+assert.equal(await listar(membro), 200, 'membro ativo lista os registros do órgão');
+assert.equal(await listar(inativo), 403, 'membro removido não lista os registros do órgão');
+const criadorRemovido = await usuario('ex-admin@x.com');
+await semear(`userOrganizations/${criadorRemovido.uid}_${org}`, { user_id: criadorRemovido.uid, organization_id: org, role: 'admin', active: false });
+assert.equal(await pedir(criadorRemovido, 'GET', 'auditLogs/l1'), 403, 'admin removido não lê auditoria');
+
 // Config da plataforma: qualquer conta lê as flags; o resto só pelas Functions
 // (o Auth é compartilhado com os outros apps do projeto Firebase).
 await semear('platformConfig/featureFlags', { x: true });

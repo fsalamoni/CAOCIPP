@@ -5,7 +5,7 @@ const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
 const status_1 = require("../shared/status");
 exports.calculateProcessStatus = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
-    var _a;
+    var _a, _b;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
     }
@@ -56,7 +56,7 @@ exports.calculateProcessStatus = (0, https_1.onCall)({ region: 'southamerica-eas
     // corrigida em deleteProcess/deleteExpediente.
     const membershipRef = db.collection('userOrganizations').doc(`${request.auth.uid}_${currentData === null || currentData === void 0 ? void 0 : currentData.organization_id}`);
     const membershipSnap = await membershipRef.get();
-    if (!membershipSnap.exists) {
+    if (!membershipSnap.exists || ((_b = membershipSnap.data()) === null || _b === void 0 ? void 0 : _b.active) === false) {
         throw new https_1.HttpsError('permission-denied', 'You are not a member of this organization');
     }
     // Merge provided data (simulating what the new state would be)

@@ -23,9 +23,9 @@
         "pdfjs-dist": "^4.10.38",
         "pdfmake": "^0.2.20",
         "qrcode": "^1.5.4",
-        "sharp": "^0.33.5",
+        "sharp": "^0.35.5",
         "word-extractor": "^1.0.4",
-        "xlsx": "^0.18.5"
+        "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
     },
     "devDependencies": {
         "@types/node": "^22.0.0",

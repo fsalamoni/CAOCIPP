@@ -25,7 +25,7 @@ export const deleteParceria = onCall<DeleteParceriaRequest>(
         // 1. Verify membership + permissão
         const membershipRef = db.collection('userOrganizations').doc(`${userId}_${organizationId}`);
         const membershipSnap = await membershipRef.get();
-        if (!membershipSnap.exists) {
+        if (!membershipSnap.exists || membershipSnap.data()?.active === false) {
             throw new HttpsError('permission-denied', 'Você não é membro desta organização');
         }
         if (!hasOrgPermission(membershipSnap.data() as MembershipLike, 'delete_records')) {

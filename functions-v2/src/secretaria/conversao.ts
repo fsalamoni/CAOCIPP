@@ -4,6 +4,7 @@ const mammoth = () => require('mammoth') as typeof import('mammoth');
 const xlsx = () => require('xlsx') as typeof import('xlsx');
 const htmlParser = () => require('node-html-parser') as typeof import('node-html-parser');
 import { Marca, No, sanitizeDoc } from '../shared/documento';
+import { abrirZip } from './conversaoComum';
 
 /**
  * Converte arquivos do Office enviados aos autos em documento do editor, que
@@ -190,6 +191,7 @@ export async function docParaDoc(buf: Buffer): Promise<No> {
  * folhas de um arquivo juntado antes sem mudar a paginação.
  */
 export async function officeParaDoc(buf: Buffer, mime: string, legado = false): Promise<No | null> {
+    if (mime === MIME_XLSX || mime === MIME_DOCX || mime === MIME_ODT) await abrirZip(buf);
     if (mime === MIME_XLSX) return xlsxParaDoc(buf);
     if (legado) return mime === MIME_DOCX ? htmlParaDoc((await mammoth().convertToHtml({ buffer: buf })).value) : null;
     if (mime === MIME_DOCX) return (await (require('./docx') as typeof import('./docx')).docxParaDoc(buf)).doc;

@@ -25,7 +25,7 @@ export const testOrgWebhook = onCall<{ organizationId: string }>(
 
         const db = admin.firestore();
         const membershipSnap = await db.collection('userOrganizations').doc(`${request.auth.uid}_${organizationId}`).get();
-        if (!membershipSnap.exists || !isOrgAdmin(membershipSnap.data() as MembershipLike)) {
+        if (!membershipSnap.exists || membershipSnap.data()?.active === false || !isOrgAdmin(membershipSnap.data() as MembershipLike)) {
             throw new HttpsError('permission-denied', 'Apenas o Criador ou administradores delegados podem testar o webhook.');
         }
 

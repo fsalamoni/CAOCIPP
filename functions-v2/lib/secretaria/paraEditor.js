@@ -30,8 +30,10 @@ async function arquivoParaEditor(buf, mime, titulo) {
     if (mime === conversao_1.MIME_DOC) {
         return { conteudo: await (0, conversao_1.docParaDoc)(buf), avisos: ['Word antigo (.doc): veio só o texto. Negrito, tabelas e imagens precisam ser refeitos no editor; para trazer a formatação, salve o arquivo como .docx no Word e envie de novo.'] };
     }
-    if (mime === conversao_1.MIME_XLSX)
+    if (mime === conversao_1.MIME_XLSX) {
+        await (0, conversaoComum_1.abrirZip)(buf, 'Planilha danificada ou protegida por senha');
         return { conteudo: (0, conversao_1.xlsxParaDoc)(buf), avisos: [] };
+    }
     if (mime === 'text/plain')
         return { conteudo: (0, documento_1.sanitizeDoc)((0, pdfDocumento_1.textoParaDoc)(buf.toString('utf8'))), avisos: [] };
     if (mime === 'application/pdf') {

@@ -6,7 +6,7 @@ const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const permissions_1 = require("../shared/permissions");
 exports.updateMember = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
-    var _a;
+    var _a, _b;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'User must be authenticated');
     }
@@ -27,10 +27,10 @@ exports.updateMember = (0, https_1.onCall)({ region: 'southamerica-east1' }, asy
     // 1. Check requester permissions
     const requesterMembershipRef = db.collection('userOrganizations').doc(`${requesterId}_${organizationId}`);
     const requesterMembershipSnap = await requesterMembershipRef.get();
-    if (!requesterMembershipSnap.exists) {
+    if (!requesterMembershipSnap.exists || ((_a = requesterMembershipSnap.data()) === null || _a === void 0 ? void 0 : _a.active) === false) {
         throw new https_1.HttpsError('permission-denied', 'Not a member');
     }
-    const requesterRole = (_a = requesterMembershipSnap.data()) === null || _a === void 0 ? void 0 : _a.role;
+    const requesterRole = (_b = requesterMembershipSnap.data()) === null || _b === void 0 ? void 0 : _b.role;
     if (requesterRole !== 'creator' && requesterRole !== 'admin') { // Admins can update members? Usually yes.
         throw new https_1.HttpsError('permission-denied', 'Insufficient permissions');
     }

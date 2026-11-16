@@ -8,6 +8,7 @@ const normalization_1 = require("../shared/normalization");
 const history_1 = require("../shared/history");
 const webhooks_1 = require("../shared/webhooks");
 exports.createProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
+    var _a;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
     }
@@ -21,7 +22,7 @@ exports.createProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
     // 1. Verify membership
     const membershipRef = db.collection('userOrganizations').doc(`${userId}_${organizationId}`);
     const membershipSnap = await membershipRef.get();
-    if (!membershipSnap.exists) {
+    if (!membershipSnap.exists || ((_a = membershipSnap.data()) === null || _a === void 0 ? void 0 : _a.active) === false) {
         throw new https_1.HttpsError('permission-denied', 'You are not a member of this organization');
     }
     // 2. Initial status logic - Calculate based on provide dates

@@ -2,7 +2,6 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.emCm = emCm;
 exports.odtParaDoc = odtParaDoc;
-const jszip = () => require('jszip');
 const documento_1 = require("../shared/documento");
 const conversaoComum_1 = require("./conversaoComum");
 const docx_1 = require("./docx");
@@ -414,12 +413,7 @@ class LeitorOdt {
 /** LibreOffice (.odt) → documento do editor, com os avisos do que não veio. */
 async function odtParaDoc(buf) {
     let zip;
-    try {
-        zip = await jszip().loadAsync(buf);
-    }
-    catch (_a) {
-        throw new Error('Arquivo do LibreOffice danificado ou protegido por senha');
-    }
+    zip = await (0, conversaoComum_1.abrirZip)(buf, 'Arquivo do LibreOffice danificado ou protegido por senha');
     return new LeitorOdt(zip).converter();
 }
 //# sourceMappingURL=odt.js.map

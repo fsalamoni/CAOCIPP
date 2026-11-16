@@ -31,7 +31,7 @@ administração da plataforma. Cada módulo de dados tem documento próprio:
 | Entrar num órgão | `joinOrganization` com o código de convite; entra como `member`. | Qualquer usuário com o código |
 | Mudar papel ou função de um membro | `updateMember` (`admin` ↔ `member`; função em texto de até 60 caracteres, que o painel preenche a partir de uma lista fixa). O papel `creator` nunca é atribuído por aqui. | Criador ou admin |
 | Delegar atribuições | `updateMember` com `permissions`. | Somente o criador |
-| Remover membro | `removeMember`. O criador não pode ser removido. | Criador ou admin |
+| Remover membro | `removeMember` (remoção lógica: `active: false` e `left_at`). O criador não pode ser removido. O removido perde na hora a leitura (regras) e os atos (Functions) no órgão, e o órgão some da sua lista; volta só se entrar de novo pelo código ou por convite. | Criador ou admin |
 | Apagar todos os dados | `clearOrganizationData` (*Manutenção e zona de perigo*). | Somente o criador |
 | Excluir o órgão | `deleteOrganization`, exige digitar o nome exato do órgão; apaga em cascata as coleções do órgão. | Criador ou super-admin |
 

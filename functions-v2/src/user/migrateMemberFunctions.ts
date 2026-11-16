@@ -28,7 +28,7 @@ const GENERIC_FUNCTIONS = new Set(['Membro', 'Criador', 'Admin', 'Owner', 'Membr
  * - NÃO sobrescreve funções que o admin do órgão personalizou
  *   manualmente (heurística: não está no conjunto genérico).
  *
- * Segurança: apenas super-admin (platform_admin custom claim) pode chamar.
+ * Segurança: apenas super-admin (custom claim platformAdmin) pode chamar.
  *
  * @param {object} data - { dryRun?: boolean }
  * @returns { scanned: number, updated: number, dryRun: boolean }
@@ -40,7 +40,7 @@ export const migrateMemberFunctions = onCall<{ dryRun?: boolean }>(
             throw new HttpsError('unauthenticated', 'Authenticated user required');
         }
         // Defesa em profundidade: só platform admin roda migrações estruturais.
-        if (request.auth.token?.platform_admin !== true) {
+        if (request.auth.token?.platformAdmin !== true) {
             throw new HttpsError('permission-denied', 'Apenas platform admin pode rodar migrações.');
         }
 

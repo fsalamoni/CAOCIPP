@@ -1,13 +1,76 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.filho = void 0;
+exports.filho = exports.MAX_ZIP_ENTRADA = exports.MAX_ZIP_DESCOMPACTADO = exports.MAX_ZIP_ENTRADAS = void 0;
+exports.abrirZip = abrirZip;
+exports.conferirZip = conferirZip;
 exports.xml = xml;
 exports.filhos = filhos;
 exports.ligado = ligado;
 exports.novoOrcamento = novoOrcamento;
 exports.agruparListas = agruparListas;
-// Peças comuns dos conversores de Word e LibreOffice para o editor.
+const jszip = () => require('jszip');
 const xmldom = () => require('@xmldom/xmldom');
+/** Limites do pacote ZIP (Word, LibreOffice, planilha) contra "bomba de descompressão". */
+exports.MAX_ZIP_ENTRADAS = 3000;
+exports.MAX_ZIP_DESCOMPACTADO = 300 * 1024 * 1024;
+exports.MAX_ZIP_ENTRADA = 120 * 1024 * 1024;
+/**
+ * Abre o pacote ZIP de um arquivo enviado conferindo, antes de descompactar
+ * qualquer parte, o tamanho que cada uma declara. Um Word de poucos KB pode
+ * declarar gigabytes de XML e derrubar a função por falta de memória; o
+ * arquivo enviado pela parte no Portal passa por aqui também. Lança Error
+ * com a mensagem para o usuário.
+ */
+async function abrirZip(buf, erro = 'Arquivo danificado ou protegido por senha') {
+    let zip;
+    try {
+        zip = await jszip().loadAsync(buf);
+    }
+    catch (_a) {
+        throw new Error(erro);
+    }
+    conferirZip(zip);
+    return zip;
+}
+const GRANDE = 'Arquivo com conteúdo descompactado grande demais para abrir com segurança. Envie em PDF.';
+/**
+ * Lança se o pacote já aberto passa dos limites (número de partes, tamanho
+ * descompactado). O tamanho declarado no cabeçalho do ZIP pode mentir, então
+ * cada parte compactada é descompactada aqui com teto de saída (o zlib para
+ * ao passar do teto) e precisa bater com o que declara.
+ */
+function conferirZip(zip) {
+    var _a;
+    const { inflateRawSync } = require('zlib');
+    const arquivos = Object.values(zip.files).filter((f) => !f.dir);
+    if (arquivos.length > exports.MAX_ZIP_ENTRADAS)
+        throw new Error('Arquivo com partes internas demais para abrir com segurança');
+    let total = 0;
+    for (const f of arquivos) {
+        const d = f._data;
+        const t = Number(d === null || d === void 0 ? void 0 : d.uncompressedSize);
+        if (!d || !Number.isFinite(t) || t < 0)
+            throw new Error('Arquivo com estrutura interna inválida');
+        if (t > exports.MAX_ZIP_ENTRADA)
+            throw new Error(GRANDE);
+        total += t;
+        if (total > exports.MAX_ZIP_DESCOMPACTADO)
+            throw new Error(GRANDE);
+        if (((_a = d.compression) === null || _a === void 0 ? void 0 : _a.magic) === '\x08\x00' && d.compressedContent) {
+            let real;
+            try {
+                real = inflateRawSync(d.compressedContent, { maxOutputLength: Math.max(1, t) }).length;
+            }
+            catch (e) {
+                if (e instanceof RangeError || /maxOutputLength|buffer/i.test(String(e.message)))
+                    throw new Error(GRANDE);
+                throw new Error('Arquivo danificado ou protegido por senha');
+            }
+            if (real !== t)
+                throw new Error('Arquivo com estrutura interna inválida');
+        }
+    }
+}
 const sharp = (...a) => require('sharp')(...a);
 const documento_1 = require("../shared/documento");
 /** XML → documento (sem avisos no console por XML imperfeito). */

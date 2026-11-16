@@ -6,6 +6,7 @@ import { pathToFileURL } from 'url';
 import { No, sanitizeDoc } from '../shared/documento';
 import { MIME_DOCX, htmlParaDoc } from './conversao';
 import { MAX_BRASAO } from './documentoConfig';
+import { abrirZip, conferirZip } from './conversaoComum';
 
 /**
  * Importação de modelos de documento (sem IA, por leitura estruturada):
@@ -137,7 +138,7 @@ async function imagemDaParte(zip: JSZip, arquivo: string, xml: string): Promise<
 }
 
 async function timbradoDocx(buf: Buffer, avisos: string[]): Promise<Timbrado | null> {
-    const zip = await jszip().loadAsync(buf);
+    const zip = await abrirZip(buf);
     const docXml = await zip.file('word/document.xml')?.async('string');
     if (!docXml) return null;
     const rels = relacoes(await zip.file('word/_rels/document.xml.rels')?.async('string'));
@@ -163,7 +164,7 @@ async function timbradoDocx(buf: Buffer, avisos: string[]): Promise<Timbrado | n
  * entre as chaves somem e o valor fica com a formatação do primeiro trecho.
  */
 export async function preencherDocx(buf: Buffer, valores: Record<string, string>): Promise<Buffer> {
-    const zip = await jszip().loadAsync(buf);
+    const zip = await abrirZip(buf);
     const tags = '(?:<[^>]+>)*';
     const re = new RegExp(
         `\\{${tags}\\{((?:<[^>]+>|[^<{}])*?)\\}${tags}\\}`
@@ -286,7 +287,7 @@ export async function diagramasDoPacote(buf: Buffer): Promise<Array<{ nome: stri
     let entradas = 0;
     const abrir = async (b: Buffer, prefixo: string, nivel: number) => {
         let zip: JSZip;
-        try { zip = await jszip().loadAsync(b); } catch {
+        try { zip = await jszip().loadAsync(b); conferirZip(zip); } catch {
             if (nivel === 0) throw new Error('O arquivo do Bizagi (.bpm) não pôde ser aberto. Exporte o diagrama em BPMN ou XPDL e envie esse arquivo.');
             return;
         }
@@ -315,6 +316,7 @@ export async function diagramasDoPacote(buf: Buffer): Promise<Array<{ nome: stri
  */
 export async function textoParaRito(buf: Buffer, mime: string): Promise<{ texto: string; tabelas: string[][][]; diagramas?: Array<{ nome: string; xml: string }> }> {
     if (mime === MIME_DOCX) {
+        await abrirZip(buf);
         const [raw, html] = await Promise.all([mammoth().extractRawText({ buffer: buf }), mammoth().convertToHtml({ buffer: buf })]);
         const tabelas = (html.value.match(/<table[\s\S]*?<\/table>/g) || []).slice(0, 10).map((t) =>
             (t.match(/<tr[\s\S]*?<\/tr>/g) || []).slice(0, 200).map((tr) =>
@@ -342,6 +344,7 @@ export async function interpretarModelo(buf: Buffer, mime: string): Promise<Inte
     let doc: No;
     let timbrado: Timbrado | null = null;
     if (formato === 'docx') {
+        await abrirZip(buf);
         const r = await mammoth().convertToHtml({ buffer: buf });
         doc = htmlParaDoc(r.value);
         try { timbrado = await timbradoDocx(buf, avisos); } catch { avisos.push('Não deu para ler o cabeçalho e o rodapé do Word.'); }

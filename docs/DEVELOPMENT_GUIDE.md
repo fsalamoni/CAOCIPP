@@ -27,6 +27,12 @@ npm --prefix functions-v2 install
 cp .env.example .env      # opcional, ver abaixo
 ```
 
+A biblioteca de planilhas `xlsx` vem do CDN oficial da SheetJS
+(`https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz`, nos dois
+`package.json`), porque a versão do npm tem falhas de segurança sem correção.
+A instalação precisa de acesso a esse endereço; para atualizar, troque a
+versão no endereço e rode `npm install` de novo.
+
 ### Variáveis do frontend (`.env`)
 
 | Variável | Uso |

@@ -5,6 +5,29 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 16/11/2026 — Revisão de segurança após as entregas do dia
+- **Membro removido perde o acesso na hora:** as regras e as Functions
+  conferiam só se o vínculo existia, e quem era removido do órgão seguia
+  lendo processos, expedientes, parcerias, bases e o órgão, e podia criar e
+  editar registros pelas Functions (o admin removido, também a auditoria e as
+  configurações). Agora vale só o vínculo ativo, em todas as regras e em
+  todas as Functions que conferem o vínculo; o órgão some da lista de quem
+  saiu.
+- **Word, LibreOffice e planilha seguros ao abrir:** o pacote ZIP é
+  conferido antes de ler (até 3.000 partes, 120 MB por parte, 300 MB no
+  total), com cada parte descompactada sob teto. Um arquivo pequeno enviado
+  no Portal podia esconder gigabytes e derrubar a função.
+- **Super-admin por e-mail só com e-mail confirmado** (`email_verified`): o
+  Portal aceita criar conta de e-mail e senha com qualquer endereço.
+- **Dependências:** `sharp` 0.35.5 (falhas da libvips, libheif e librsvg ao
+  tratar imagens enviadas) e `xlsx` 0.20.3 do CDN oficial da SheetJS
+  (poluição de protótipo e ReDoS da versão do npm), no site e nas Functions.
+- Cabeçalho `Content-Security-Policy` (`base-uri 'self'; frame-ancestors
+  'none'`) e correção do nome do claim na migração `migrateMemberFunctions`.
+- Documentação: segurança (regras, arquivos, dependências, limites abertos:
+  área de espera dos envios e App Check), arquitetura, Processo Eletrônico,
+  guia de desenvolvimento e funcionalidades.
+
 ### 16/11/2026 — Revisão de minutas no editor, como no Word
 - **Qualquer minuta abre no editor:** Word (.docx), LibreOffice (.odt),
   .doc, PDF com texto e imagem são convertidos com fontes, cores, recuos,

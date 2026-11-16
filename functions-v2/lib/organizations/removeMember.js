@@ -5,7 +5,7 @@ const admin = require("firebase-admin");
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
 exports.removeMember = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
-    var _a, _b;
+    var _a, _b, _c;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'User must be authenticated');
     }
@@ -18,10 +18,10 @@ exports.removeMember = (0, https_1.onCall)({ region: 'southamerica-east1' }, asy
     // 1. Check requester permissions
     const requesterMembershipRef = db.collection('userOrganizations').doc(`${requesterId}_${organizationId}`);
     const requesterMembershipSnap = await requesterMembershipRef.get();
-    if (!requesterMembershipSnap.exists) {
+    if (!requesterMembershipSnap.exists || ((_a = requesterMembershipSnap.data()) === null || _a === void 0 ? void 0 : _a.active) === false) {
         throw new https_1.HttpsError('permission-denied', 'You are not a member of this organization');
     }
-    const requesterRole = (_a = requesterMembershipSnap.data()) === null || _a === void 0 ? void 0 : _a.role;
+    const requesterRole = (_b = requesterMembershipSnap.data()) === null || _b === void 0 ? void 0 : _b.role;
     if (!['creator', 'admin'].includes(requesterRole)) {
         throw new https_1.HttpsError('permission-denied', 'Only admins or creators can remove members');
     }
@@ -35,7 +35,7 @@ exports.removeMember = (0, https_1.onCall)({ region: 'southamerica-east1' }, asy
     if (!targetMembershipSnap.exists) {
         throw new https_1.HttpsError('not-found', 'Member not found');
     }
-    const targetRole = (_b = targetMembershipSnap.data()) === null || _b === void 0 ? void 0 : _b.role;
+    const targetRole = (_c = targetMembershipSnap.data()) === null || _c === void 0 ? void 0 : _c.role;
     // Creator cannot be removed
     if (targetRole === 'creator') {
         throw new https_1.HttpsError('permission-denied', 'Cannot remove the organization creator');
