@@ -42,6 +42,7 @@ do sistema chama um serviço de IA.
 | **Atribuições** | Permissões especiais que o criador delega a membros (ex.: configurar Parcerias, excluir registros). Ver [SECURITY_REFERENCE.md](./SECURITY_REFERENCE.md). |
 | **Módulo** | Conjunto de páginas do órgão (Consultas, Expedientes, Parcerias, Jurimetria, Panorama, Processo Eletrônico, Resumos, Calendário). Cada órgão liga os que usa em *Painel Administrativo → Páginas e Módulos*. |
 | **Super-admin** | Administrador da plataforma inteira (custom claim `platformAdmin`). Acessa a página *Administração & Custos*. |
+| **Modelo da plataforma × modelo do órgão** | Modelos e padrões (a biblioteca de ritos, o Rito Consultas CAOCIPP, os textos prontos) são da plataforma e ficam no código; nenhum órgão os altera. Usar um modelo grava uma cópia só do órgão, que ele muda à vontade e que não muda quando a plataforma muda. O órgão leva o que montou a outro órgão por um pacote `.json` (exportar e importar). |
 
 ---
 
@@ -54,6 +55,10 @@ do sistema chama um serviço de IA.
 | **Decisória / chefia** | Revisa, acompanha métricas e tempos nos *Resumos Inteligentes*, nas métricas de *Informações Gerais* e nos relatórios. |
 | **Criador do órgão** | Configura o órgão: membros, atribuições, matérias, listas de sistemas/origens/terceiros, módulos, métricas, segurança. |
 | **Super-admin da plataforma** | Liga funcionalidades opcionais, acompanha custos, cotas, saúde do sistema e ferramentas de dados. |
+| **Equipe do Processo Eletrônico** | Autua, redige, assina e junta documentos, cumpre as ações de cada fase, comunica as partes, designa audiências, pauta processos em sessão e conduz disputas de preços. A administração do PE monta ritos, tipos, unidades e modelos. |
+| **Julgador(a) de colegiado** | Vê as sessões do seu colegiado, lê os autos dos processos pautados (cada leitura registrada), anota para si, vota, pede vista, diverge e redige o acórdão. |
+| **Parte e advogado(a)** | Pelo portal (`/Portal`), acompanham o processo, recebem comunicações, respondem, peticionam e participam de audiências e sessões, sem ver nada interno. |
+| **Fornecedor(a) e público** | O fornecedor convidado envia proposta e lances em `/Disputas` (na dispensa, também há observadores); qualquer pessoa confere documentos em `/Conferir`. |
 
 ---
 
@@ -69,7 +74,7 @@ do sistema chama um serviço de IA.
 | **Resumos Inteligentes** | Indicadores consolidados de Consultas e Expedientes por período: totais, taxa de conclusão, tempo médio do fluxo, urgentes, distribuição por localidade, resumo por status, temporalidade em dias úteis e comparação com o período anterior. | [FEATURES_REFERENCE.md](./FEATURES_REFERENCE.md) |
 | **Calendário de Vencimentos** | Prazos de Consultas, Expedientes e Parcerias num calendário. | [FEATURES_REFERENCE.md](./FEATURES_REFERENCE.md) |
 | **Páginas personalizadas** | O órgão cria seus próprios tipos de registro (campos, fases, Kanban, lista e resumo) sem código. | [FEATURES_REFERENCE.md](./FEATURES_REFERENCE.md) |
-| **Processo Eletrônico** | Processo eletrônico com ritos configuráveis: autuação, editor de documentos, assinatura, juntada com paginação, prazos, portal das partes e PDF com código de verificação. Liberada pelo admin do órgão. | [PROCESSO_ELETRONICO.md](./PROCESSO_ELETRONICO.md) |
+| **Processo Eletrônico** | Processo eletrônico com ritos configuráveis (fases, ações, saídas condicionais, permissões e efeitos), biblioteca de 50 modelos de rito, autuação, editor de documentos, assinatura, juntada com paginação, prazos, comunicações às partes, audiências, sessões de julgamento e reuniões de colegiado, disputa de preços, portal das partes, PDF com código de verificação e pacote para levar ritos e modelos a outro órgão. Liberado pelo admin do órgão. | [PROCESSO_ELETRONICO.md](./PROCESSO_ELETRONICO.md) |
 
 Jurimetria e Panorama são **opcionais**: só aparecem quando o super-admin liga
 as flags `jurimetria_enabled` / `panorama_enabled` **e** o órgão ativa o módulo.
@@ -85,7 +90,11 @@ Os demais módulos estão integrados ao produto.
 | `/Dashboard` | Painel inicial do usuário, com KPIs e atividades de todos os seus órgãos. |
 | `/Organization?id=…&tab=…` | Página do órgão; a aba ativa fica na URL (`tab=kanban`, `processes`, `parcerias`, `admin` etc.). |
 | `/Profile` | Perfil do usuário (nome, função, e-mail de notificação, preferências). |
-| `/ProcessoEletronico?org=…` | Processo Eletrônico do órgão (processos, documentos, prazos). |
+| `/ProcessoEletronico?org=…` | Processo Eletrônico do órgão (processos, documentos, prazos, sessões). O endereço antigo `/Secretaria` redireciona. |
+| `/MeusProcessosEletronicos` | Processos eletrônicos de todos os órgãos em que a pessoa trabalha. |
+| `/Portal` | Portal das partes e advogados (login Google ou e-mail e senha). |
+| `/Disputas` | Disputas de preços do fornecedor: convite, aviso, proposta, sala de lances e resultado. |
+| `/Conferir` | Conferência pública de documento pelo código de verificação. |
 | `/Admin` | Administração & Custos (somente super-admin). |
 | `/Help`, `/Terms` | Central de ajuda e Termos de Uso. |
 

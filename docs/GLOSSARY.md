@@ -177,6 +177,21 @@ Feriados locais e recessos definidos pelo admin do órgão na Secretaria. Feriad
 ### Modelo de documento
 Texto pronto criado pelo admin do órgão, com campos como `{{numero}}` e `{{partes}}` que se preenchem com os dados do processo ao começar a redigir.
 
+### Ação do rito / O que pede
+Item de uma fase do rito. Cada ação diz o que pede (confirmar, um dado, uma escolha, um formulário, um documento, um registro de outro módulo, uma comunicação às partes, a resposta delas, uma audiência, um julgamento colegiado ou uma disputa de preços), onde o registro fica, quem vê e quem pode cumprir.
+
+### Biblioteca de modelos de rito (modelo da plataforma)
+Ritos prontos que são da plataforma e ficam no código. Usar um grava uma cópia só do órgão, que ele ajusta à vontade e que não muda quando a plataforma muda o modelo. Catálogo em [MODELOS_DE_RITO.md](./MODELOS_DE_RITO.md).
+
+### Pacote para outro órgão
+Arquivo `.json` com um rito inteiro (e as unidades, os modelos de documento e o tipo que ele usa) ou com um modelo de documento, baixado em "Exportar para outro órgão" e lido em "Importar de outro órgão". Não leva nada que identifique o órgão de origem.
+
+### Colegiado / Sessão de julgamento / Pauta
+Colegiado é um órgão interno que decide em conjunto, com composição e presidente. A sessão (presencial, virtual ou mista) julga os processos da pauta; cada julgador vota, pode pedir vista ou divergir, e o resultado vira a resposta da ação de julgamento do rito. Reunião é a sessão que delibera sem processo.
+
+### Disputa de preços (certame)
+Escolha do fornecedor por cotação privada ou dispensa: aviso, convite, propostas sigilosas até a abertura, sala de lances, julgamento e resultado (homologada, deserta ou fracassada), que cumpre a ação do rito. O fornecedor não é parte do processo.
+
 ---
 
 ## Siglas

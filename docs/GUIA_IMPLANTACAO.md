@@ -38,7 +38,10 @@ Quase sempre há um modelo próximo na **Biblioteca de modelos de processo**, em
 Se nenhum modelo servir, há três caminhos:
 - usar o **Processo administrativo com interessado**, baseado na Lei 9.784, que é o rito subsidiário;
 - importar o fluxo que o órgão já tem (planilha, Word, PDF, Bizagi ou BPMN);
+- trazer o rito pronto de outro órgão: lá, "Exportar para outro órgão" no menu do rito; aqui, em Ritos, "Importar de outro órgão" com o arquivo;
 - começar em branco.
+
+Os modelos da biblioteca são da plataforma: usar um cria uma cópia só do seu órgão, gravada no banco do órgão, que mudanças na biblioteca não alteram.
 
 O porte de cada modelo indica o tamanho do processo:
 - **Curto:** decisão rápida e pouca instrução.

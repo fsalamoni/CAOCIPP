@@ -214,7 +214,28 @@ no servidor e contadores por unidade. Parte e membro, dois papéis (nov/2026):
 quem é parte num processo não o alcança como equipe (impedimento no servidor,
 sem avisos da equipe), "Processos em que sou parte" no menu, portal separado
 por órgão, representante da parte (advogado, procurador) com conta própria
-que assina pela parte. Ver
+que assina pela parte.
+
+Ritos com personalização máxima (13 a 16/11/2026): cada ação da fase diz o
+que pede (confirmar, dado, escolha, formulário, documento, registro de outro
+módulo, comunicação às partes, resposta, audiência, julgamento colegiado,
+disputa de preços), onde fica o registro, quem vê, quem pode e quando vale;
+saídas com regra pela resposta e saída padrão, andamento automático, fase de
+espera, efeitos e avisos ao entrar, certidão conjunta, permissões por fase,
+listas do órgão, nomes dos polos e tipo que cria registro de página própria.
+Biblioteca de 50 modelos de rito da plataforma (administrativo, disciplinar,
+ético, sancionador, contratações, conselhos, MP extrajudicial, colegiados),
+com busca e filtros; usar um modelo grava uma cópia só do órgão. Sessões de
+julgamento e reuniões de colegiado: composição, pauta, leitura dos autos
+pelo julgador enquanto pautado, anotações privadas, voto do relator e dos
+vogais, vista, adiamento, divergência, voto condutor, acórdão, sessão
+virtual, sustentação oral, ata, painel ao vivo, reunião deliberativa,
+audiência como sessão e relatório do colegiado. Disputa de preços (cotação
+privada e dispensa): aviso, convite a fornecedores, propostas sigilosas,
+sala de lances, julgamento, desempate, recurso, equipe da disputa e
+resultado que cumpre a ação do rito. Pacote para outro órgão: exportar e
+importar rito inteiro (com unidades, modelos de documento e tipo) e modelo
+de documento, sem nada que identifique o órgão de origem. Ver
 [PROCESSO_ELETRONICO.md](./PROCESSO_ELETRONICO.md).
 
 ---

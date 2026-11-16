@@ -209,6 +209,29 @@ dependem de autorização expressa; nenhuma foi feita.
   PNG/JPEG. Arquivo inválido vira folha de referência, sem derrubar a juntada.
 - Alerta de prazos: e-mail só para quem está lotado na unidade que tem o
   processo, com número e assunto escapados em HTML; não vai para partes.
+- Sessões de julgamento e reuniões (`secSessoes` + `votacoes`, `pedidos`,
+  `deliberacoes`, fechadas ao cliente; ações `sessao*`, `reuniao*` e `sala*`
+  de `secretariaProcesso`): julgador de outra unidade lê os autos só enquanto
+  o processo está pautado em sessão do seu colegiado e até o acórdão ser
+  juntado, sem documentos restritos, e cada leitura fica em
+  `secProcessos/{id}/leituras`. Anotações do julgador são só dele. O voto é
+  conferido e apurado de novo no servidor (`shared/julgamento.ts`).
+- Disputa de preços (`secCertames` + `propostas`, `lances`, `participantes`,
+  `mensagens`, `sala`, fechadas ao cliente; `certame*` e `disputa*`): o
+  fornecedor não é parte e não vê os autos; propostas ficam sigilosas até a
+  abertura; cada ato depende do papel na equipe (agente, apoio, autoridade,
+  `podeNaDisputa`). Na página `/Disputas` (ações `disputa*` de
+  `secretariaPortal`) o fornecedor vê só o aviso, o próprio convite, a
+  própria proposta e a sala; nada dos autos.
+- Pacote para outro órgão (`exportarRito`): só a administração do PE exporta,
+  e só rito do próprio órgão (id de outro órgão responde "não encontrado"). O
+  pacote não leva ids do órgão, `organization_id`, autor, e-mails nem
+  processos. Ao importar, `aplicarPropostaRito` confere tudo de novo
+  (`sanitizeRito`, `sanitizeFormulario`, `sanitizeDoc` no texto dos modelos,
+  com teto por modelo e no total) e só grava no órgão que importa. Exportar e
+  implantar ficam no histórico (`SECRETARIA_RITO_EXPORTADO`,
+  `SECRETARIA_RITO_IMPLANTADO`). Modelos da biblioteca ficam no código e não
+  são gravados no banco; o órgão grava só a própria cópia.
 
 ---
 
