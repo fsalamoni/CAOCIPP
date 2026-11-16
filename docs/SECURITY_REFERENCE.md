@@ -40,7 +40,8 @@ Auxiliares: `isAuthenticated()`, `isOwner(uid)`, `isMemberOf(orgId)` (existe
 | `platformConfig` | `featureFlags`: qualquer autenticado. Demais documentos (`emailProvider`, `quotas`): só super-admin | **Nenhuma** |
 | `platformAdmins` | O próprio registro ou super-admin | **Nenhuma** |
 | `platformStats` | Só super-admin | **Nenhuma** |
-| `sec*` (Processo Eletrônico) | **Nenhuma** (tudo pelas Functions `secretaria*`) | **Nenhuma** |
+| `sec*` (Processo Eletrônico) | **Nenhuma** (tudo pelas Functions `secretaria*`), salvo `secPaineis` (quem está em `leitores`) e `secSinais` | **Nenhuma** |
+| `secSinais/{orgId}` | Membro ativo do órgão, um documento por vez (`get`; sem listar). Guarda só a hora da última mudança e o id do processo, sem número, assunto ou parte | **Nenhuma** (gravado pelas Functions) |
 
 Desde novembro de 2026 nenhuma coleção aceita escrita direta do cliente, exceto
 o próprio perfil, as próprias preferências, a marcação de notificação lida e o

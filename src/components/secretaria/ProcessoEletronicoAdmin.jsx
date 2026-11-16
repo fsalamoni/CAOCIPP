@@ -27,7 +27,7 @@ export default function ProcessoEletronicoAdmin({ organization }) {
     const qc = useQueryClient();
     const orgId = organization.id;
     const [saving, setSaving] = useState(false);
-    const estadoQ = useQuery({ queryKey: ['sec-estado', orgId], queryFn: () => secConfig(orgId, 'estado') });
+    const estadoQ = useQuery({ queryKey: ['sec-estado', orgId], queryFn: () => secConfig(orgId, 'estado'), staleTime: 60000 });
     const estado = estadoQ.data;
     // Aba no endereço (?aba=), para voltar ao mesmo lugar e compartilhar o link. Sem ela, abre no
     // primeiro passo pendente (ou em Ritos), calculado uma vez: concluir um passo não troca a aba.

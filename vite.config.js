@@ -15,5 +15,19 @@ export default defineConfig({
       visualEditAgent: true
     }),
     react(),
-  ]
+  ],
+  build: {
+    rollupOptions: {
+      output: {
+        // Firebase e React mudam pouco: em arquivos próprios, o navegador os
+        // mantém em cache entre um deploy e outro e só baixa o código do SIGO.
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          if (/node_modules\/(@firebase|firebase)\//.test(id)) return 'vendor-firebase';
+          if (/node_modules\/(react|react-dom|scheduler|react-router|react-router-dom|@remix-run)\//.test(id)) return 'vendor-react';
+          return undefined;
+        },
+      },
+    },
+  },
 });

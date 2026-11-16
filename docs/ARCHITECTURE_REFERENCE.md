@@ -118,6 +118,20 @@ Mantidas apenas por histórico; **não fazem parte do build nem do deploy**:
 
 Todas exportadas em `functions-v2/src/index.ts`, região `southamerica-east1`.
 
+**Carregamento sob demanda (partida a frio).** Cada function roda numa
+instância própria, que carrega o `index`. Os exports são preguiçosos
+(`preguicoso()` no index): a instância carrega só o módulo da função chamada,
+e a descoberta do deploy continua vendo todas (ela lê os exports com
+`Object.entries`). Nos módulos do Processo Eletrônico, as bibliotecas pesadas
+(`pdf-lib`, `pdfmake`, `qrcode`, `mammoth`, `jszip`, `xlsx`,
+`node-html-parser`) também são lidas só quando o ato as usa
+(`const pdfLib = () => require('pdf-lib')`, com os tipos por `import type`).
+Medido no build: abrir o `secretariaProcesso` caiu de ~520 ms e 131 MB para
+~150 ms e 77 MB. O teste `functions-v2/test/partidaFria.test.js` falha se
+alguma dessas bibliotecas voltar a ser carregada na partida. Ao criar módulo
+novo, mantenha o padrão: import de biblioteca pesada só dentro da função que a
+usa.
+
 | Domínio | Funções |
 |---|---|
 | Órgãos e membros (`organizations/`) | `createOrganization`, `getUserOrganizations`, `joinOrganization`, `updateMember`, `removeMember`, `updateOrganization`, `bulkReplaceFieldValues`, `clearOrganizationData`, `deleteOrganization` |
@@ -185,6 +199,7 @@ o banco guarda só os ritos e modelos de cada órgão.
 | `platformConfig/{doc}` | Feature flags e configuração global |
 | `platformAdmins/{uid}`, `platformStats/{doc}` | Super-admins e estatísticas da plataforma |
 | `sec*` | Processo Eletrônico (processos, ritos, tipos, unidades, modelos, sessões, certames e o que segue acima), fechadas ao cliente |
+| `secSinais/{orgId}` | Sinal de mudança do órgão (hora e id do último processo mudado), gravado pelas functions; o membro ativo do órgão o lê em tempo real para as telas se atualizarem |
 
 As regras de cada coleção estão em [SECURITY_REFERENCE.md](./SECURITY_REFERENCE.md#2-regras-do-firestore).
 
@@ -198,7 +213,22 @@ As regras de cada coleção estão em [SECURITY_REFERENCE.md](./SECURITY_REFEREN
 roteador, `NavigationTracker` e `TwoFactorGate`.
 
 As rotas são geradas de `src/pages.config.js` (uma rota `/<NomeDaPágina>` por
-página). Dentro do órgão, a aba ativa vive em `?tab=`, o que permite
+página). Cada página é importada com `React.lazy` e vira um arquivo próprio do
+build, baixado só quando é aberta; enquanto ele chega, o `Suspense` do
+`LayoutWrapper` (`src/App.jsx`) mostra "Carregando…" na área do conteúdo,
+com o menu na tela. Dentro das páginas, as abas pesadas também são sob
+demanda: na página do órgão, Jurimetria, Panorama, Resumos, Calendário,
+Administração e páginas próprias; no Processo Eletrônico, a tela do processo
+(com o editor), Sessões e Painel; a exportação para Excel e PDF só no clique.
+Firebase e React ficam em `vendor-firebase` e `vendor-react`
+(`manualChunks` no `vite.config.js`), que mudam pouco e continuam no cache do
+navegador de um deploy para outro. Depois de um deploy, uma aba antiga que
+pede um arquivo que não existe mais recarrega uma vez sozinha
+(`vite:preloadError` em `src/main.jsx`).
+
+Medido no build (gzip): antes, um arquivo único de ~1,6 MB para qualquer
+página. Agora, ~257 KB comuns a todas, ~433 KB para a página do órgão e ~600
+KB para a lista do Processo Eletrônico (~670 KB com um processo aberto). Dentro do órgão, a aba ativa vive em `?tab=`, o que permite
 compartilhar links e recarregar sem perder o lugar. A lista de abas vem de
 `getOrganizationTabs` (`src/lib/organizationModules.js`), lida pelo hook
 `useOrganizationTabs` (`src/hooks/useOrganizationTabs.js`, que aplica as flags

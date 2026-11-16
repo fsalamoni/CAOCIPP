@@ -360,6 +360,23 @@ Regras comuns:
   apontam o primeiro movimento adulterado.
 - Lógica pura em `functions-v2/src/shared/secretaria.ts`, testada em
   `functions-v2/test/secretaria.test.js` (`npm --prefix functions-v2 test`).
+- **Atualização sozinha das telas (16/11/2026).** Depois de cada ato que muda
+  processo (lista `ATOS_QUE_MUDAM` em `secretaria/context.ts`: autuar,
+  tramitar, marcar ação, juntar, assinar, expedir, peticionar, dar ciência e
+  os demais), `comSinal` grava `secSinais/{orgId}` com a hora e o id do
+  processo. A página do Processo Eletrônico escuta esse documento
+  (`useSinalProcessos`) e relê as listas e, se for o processo aberto, os
+  autos dele, juntando atos seguidos em uma releitura (1,5 s) e esperando a
+  aba voltar ao primeiro plano. Quem fez o ato não relê duas vezes: o que já
+  foi relido depois de o sinal chegar fica como está. Leituras nunca
+  sinalizam (teste `functions-v2/test/sinal.test.js`), então uma tela que
+  relê não provoca a releitura das outras. Se o sinal falhar, nada do ato se
+  perde: a tela se atualiza como antes, na próxima ação de quem a usa.
+- **Carregamento (16/11/2026).** Com link direto para um processo
+  (`?p=`), os autos e a tela do processo são pedidos junto com o
+  `estado` do órgão, não depois dele. `obter` lê movimentos, documentos e
+  leituras do processo em paralelo. O `estado` fica 60 s sem ser relido ao
+  voltar à página e os autos 15 s (todo ato invalida na hora).
 
 ## Documentos
 

@@ -6,7 +6,8 @@ exports.montarPdfAutos = montarPdfAutos;
 exports.montarPdfInterno = montarPdfInterno;
 const numeracao_1 = require("../shared/numeracao");
 const https_1 = require("firebase-functions/v2/https");
-const pdf_lib_1 = require("pdf-lib");
+// pdf-lib carregado só quando usado (partida a frio das functions).
+const pdfLib = () => require('pdf-lib');
 const secretaria_1 = require("../shared/secretaria");
 const informacoes_1 = require("../shared/informacoes");
 const folhaDados_1 = require("../shared/folhaDados");
@@ -55,7 +56,7 @@ class Escritor {
     novaPagina() {
         this.page = this.pdf.addPage(A4);
         this.y = A4[1] - MARGEM;
-        this.page.drawText(seguro(this.rodape), { x: MARGEM, y: 28, size: 7, font: this.font, color: (0, pdf_lib_1.rgb)(0.45, 0.45, 0.45) });
+        this.page.drawText(seguro(this.rodape), { x: MARGEM, y: 28, size: 7, font: this.font, color: pdfLib().rgb(0.45, 0.45, 0.45) });
     }
     texto(t, opts = {}) {
         var _a;
@@ -79,7 +80,7 @@ class Escritor {
             for (const l of linhas) {
                 if (this.y < MARGEM + size)
                     this.novaPagina();
-                this.page.drawText(l, { x: MARGEM, y: this.y - size, size, font: f, color: (0, pdf_lib_1.rgb)(...(opts.cor || [0.1, 0.1, 0.1])) });
+                this.page.drawText(l, { x: MARGEM, y: this.y - size, size, font: f, color: pdfLib().rgb(...(opts.cor || [0.1, 0.1, 0.1])) });
                 this.y -= size * 1.4;
             }
         }
@@ -102,8 +103,8 @@ const CINZA = [0.4, 0.4, 0.4];
  * passar de uma página; todas levam a folha do evento.
  */
 async function folhaDadosPdf(o, m, geradoEm, integridade) {
-    const pdf = await pdf_lib_1.PDFDocument.create();
-    const w = new Escritor(pdf, await pdf.embedFont(pdf_lib_1.StandardFonts.Helvetica), await pdf.embedFont(pdf_lib_1.StandardFonts.HelveticaBold), '');
+    const pdf = await pdfLib().PDFDocument.create();
+    const w = new Escritor(pdf, await pdf.embedFont(pdfLib().StandardFonts.Helvetica), await pdf.embedFont(pdfLib().StandardFonts.HelveticaBold), '');
     const unidade = o.nomeUnidade(String(m.unidade_id || ''));
     w.y -= 40;
     w.texto(String(o.orgNome || 'Órgão'), { size: 11, bold: true, espaco: 2 });
@@ -132,8 +133,8 @@ async function folhaDadosPdf(o, m, geradoEm, integridade) {
 }
 /** Página do ato de usuário que não juntou documento: o que foi feito, por quem e quando. */
 async function termoPdf(orgNome, numero, m, unidade) {
-    const pdf = await pdf_lib_1.PDFDocument.create();
-    const w = new Escritor(pdf, await pdf.embedFont(pdf_lib_1.StandardFonts.Helvetica), await pdf.embedFont(pdf_lib_1.StandardFonts.HelveticaBold), '');
+    const pdf = await pdfLib().PDFDocument.create();
+    const w = new Escritor(pdf, await pdf.embedFont(pdfLib().StandardFonts.Helvetica), await pdf.embedFont(pdfLib().StandardFonts.HelveticaBold), '');
     w.y -= 40;
     w.texto(orgNome || 'Órgão', { size: 11, bold: true, espaco: 2 });
     w.texto(`Processo nº ${numero}`, { size: 10, cor: [0.4, 0.4, 0.4], espaco: 36 });
@@ -151,11 +152,11 @@ async function montarPdfAutos(o) {
     const { proc, movimentos, docs } = o;
     const quebra = (0, secretaria_1.verificarCadeia)(movimentos);
     const unid = (id) => { const n = o.nomeUnidade(String(id || '')); return n ? ` (${n})` : ''; };
-    const pdf = await pdf_lib_1.PDFDocument.create();
+    const pdf = await pdfLib().PDFDocument.create();
     pdf.setTitle(`Processo ${proc.numero}`);
     pdf.setCreator('SIGO — Processo Eletrônico');
-    const font = await pdf.embedFont(pdf_lib_1.StandardFonts.Helvetica);
-    const bold = await pdf.embedFont(pdf_lib_1.StandardFonts.HelveticaBold);
+    const font = await pdf.embedFont(pdfLib().StandardFonts.Helvetica);
+    const bold = await pdf.embedFont(pdfLib().StandardFonts.HelveticaBold);
     const geradoEm = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
     const rodape = `Processo ${proc.numero} — gerado em ${geradoEm} por ${o.geradoPor}`;
     const sel = o.selecao || (0, autos_1.sanitizeSelecao)(null);
@@ -285,11 +286,11 @@ const rotuloInterno = (d) => (d.status === 'controle' ? 'Documento guardado fora
  * que é de uso interno. Nunca é servido às partes.
  */
 async function montarPdfInterno(o) {
-    const pdf = await pdf_lib_1.PDFDocument.create();
+    const pdf = await pdfLib().PDFDocument.create();
     pdf.setTitle(`Processo ${o.proc.numero} (uso interno)`);
     pdf.setCreator('SIGO — Processo Eletrônico');
-    const font = await pdf.embedFont(pdf_lib_1.StandardFonts.Helvetica);
-    const bold = await pdf.embedFont(pdf_lib_1.StandardFonts.HelveticaBold);
+    const font = await pdf.embedFont(pdfLib().StandardFonts.Helvetica);
+    const bold = await pdf.embedFont(pdfLib().StandardFonts.HelveticaBold);
     const geradoEm = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
     const rodape = `USO INTERNO · Processo ${o.proc.numero} · gerado em ${geradoEm} por ${o.geradoPor} · não integra os autos`;
     const ALERTA = [0.7, 0.35, 0];
@@ -324,10 +325,10 @@ async function montarPdfInterno(o) {
     let bytesAnexos = 0;
     /** Copia as páginas e marca cada uma no alto: o que é, e que é de uso interno. */
     const anexar = async (bytes, faixa) => {
-        const origem = await pdf_lib_1.PDFDocument.load(bytes, { ignoreEncryption: true });
+        const origem = await pdfLib().PDFDocument.load(bytes, { ignoreEncryption: true });
         for (const pg of await pdf.copyPages(origem, origem.getPageIndices())) {
             pdf.addPage(pg);
-            pg.drawText(seguro(faixa).slice(0, 130), { x: 24, y: pg.getHeight() - 16, size: 7, font, color: (0, pdf_lib_1.rgb)(...ALERTA) });
+            pg.drawText(seguro(faixa).slice(0, 130), { x: 24, y: pg.getHeight() - 16, size: 7, font, color: pdfLib().rgb(...ALERTA) });
         }
     };
     for (const d of o.documentos) {

@@ -1,7 +1,9 @@
 import * as admin from 'firebase-admin';
 import { randomBytes } from 'crypto';
-import * as QRCode from 'qrcode';
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import type { PDFDocument } from 'pdf-lib';
+// Bibliotecas pesadas carregadas só quando usadas (partida a frio das functions).
+const pdfLib = () => require('pdf-lib') as typeof import('pdf-lib');
+const qrcode = () => require('qrcode') as typeof import('qrcode');
 import { No, deltaParaDoc } from '../shared/documento';
 import { DeltaOp, documentoEfetivo } from '../shared/secretaria';
 import { COL } from './context';
@@ -36,7 +38,7 @@ export const caminhoPdf = (storagePath: string) => `${storagePath}.pdf`;
 /** Folhas que um arquivo enviado ocupa nos autos. */
 export async function paginasDeArquivo(buf: Buffer, mime: string): Promise<number> {
     if (mime === 'application/pdf') {
-        try { return (await PDFDocument.load(buf, { ignoreEncryption: true })).getPageCount(); } catch { return 1; }
+        try { return (await pdfLib().PDFDocument.load(buf, { ignoreEncryption: true })).getPageCount(); } catch { return 1; }
     }
     if (mime === 'text/plain') return (await renderizarDocumento(textoParaDoc(buf.toString('utf8')), {}, { semCabecalho: true })).paginas;
     if (conversivel(mime)) {
@@ -46,10 +48,10 @@ export async function paginasDeArquivo(buf: Buffer, mime: string): Promise<numbe
 }
 
 export async function folhaSimples(titulo: string, linhas: string[], imagem?: { buf: Buffer; mime: string }): Promise<Uint8Array> {
-    const pdf = await PDFDocument.create();
+    const pdf = await pdfLib().PDFDocument.create();
     const page = pdf.addPage([595.28, 841.89]);
-    const font = await pdf.embedFont(StandardFonts.Helvetica);
-    const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+    const font = await pdf.embedFont(pdfLib().StandardFonts.Helvetica);
+    const bold = await pdf.embedFont(pdfLib().StandardFonts.HelveticaBold);
     if (imagem) {
         const img = imagem.mime === 'image/png' ? await pdf.embedPng(imagem.buf) : await pdf.embedJpg(imagem.buf);
         const esc = img.scaleToFit(595.28 - 112, 841.89 - 140);
@@ -60,7 +62,7 @@ export async function folhaSimples(titulo: string, linhas: string[], imagem?: { 
     page.drawText(winAnsi(titulo).slice(0, 90), { x: 56, y, size: 13, font: bold });
     for (const l of linhas) {
         y -= 18;
-        page.drawText(winAnsi(l).slice(0, 110), { x: 56, y, size: 9, font, color: rgb(0.3, 0.3, 0.3) });
+        page.drawText(winAnsi(l).slice(0, 110), { x: 56, y, size: 9, font, color: pdfLib().rgb(0.3, 0.3, 0.3) });
     }
     return pdf.save();
 }
@@ -82,7 +84,7 @@ export async function pdfDoDocumento(d: admin.firestore.DocumentData, cfg: Confi
     try {
         const [buf] = await bucket.file(d.storage_path).download();
         if (d.mime === 'application/pdf') {
-            await PDFDocument.load(buf, { ignoreEncryption: true }); // valida
+            await pdfLib().PDFDocument.load(buf, { ignoreEncryption: true }); // valida
             return buf;
         }
         if (d.mime === 'image/png' || d.mime === 'image/jpeg') return folhaSimples(d.titulo, [], { buf, mime: d.mime });
@@ -172,11 +174,11 @@ export async function anexarCarimbado(
         mesmaFolha?: boolean },
 ): Promise<number> {
     let src: PDFDocument;
-    try { src = await PDFDocument.load(origem, { ignoreEncryption: true }); } catch {
-        src = await PDFDocument.load(await folhaSimples(info.titulo, ['Arquivo não pôde ser lido.', `SHA-256 ${info.sha256 || ''}`]));
+    try { src = await pdfLib().PDFDocument.load(origem, { ignoreEncryption: true }); } catch {
+        src = await pdfLib().PDFDocument.load(await folhaSimples(info.titulo, ['Arquivo não pôde ser lido.', `SHA-256 ${info.sha256 || ''}`]));
     }
-    const font = await destino.embedFont(StandardFonts.Helvetica);
-    const qr = info.codigo ? await destino.embedPng(await QRCode.toBuffer(urlConferencia(info.codigo), { margin: 0, width: 96, errorCorrectionLevel: 'M' })) : null;
+    const font = await destino.embedFont(pdfLib().StandardFonts.Helvetica);
+    const qr = info.codigo ? await destino.embedPng(await qrcode().toBuffer(urlConferencia(info.codigo), { margin: 0, width: 96, errorCorrectionLevel: 'M' })) : null;
     // `paginas`: só essas páginas do documento (índices a partir de 0), no PDF parcial por folhas.
     const indices = info.paginas ? src.getPageIndices().slice(info.paginas[0], info.paginas[1] + 1) : src.getPageIndices();
     const paginas = await destino.copyPages(src, indices);
@@ -186,15 +188,15 @@ export async function anexarCarimbado(
         const { width, height } = pg.getSize();
         const fls = !info.folha ? '' : info.mesmaFolha ? ` · fls. ${info.folha}${i ? ' (continuação)' : ''}` : ` · fls. ${info.folha + i}`;
         const topo = winAnsi(`Processo nº ${info.processo}${fls}`);
-        pg.drawText(topo, { x: width - 20 - font.widthOfTextAtSize(topo, 8), y: height - 16, size: 8, font, color: rgb(0.25, 0.25, 0.4) });
+        pg.drawText(topo, { x: width - 20 - font.widthOfTextAtSize(topo, 8), y: height - 16, size: 8, font, color: pdfLib().rgb(0.25, 0.25, 0.4) });
         if (qr && info.codigo) {
             pg.drawImage(qr, { x: 14, y: height - 52, width: 34, height: 34 });
-            pg.drawText(winAnsi(`Conferência: ${info.codigo}`), { x: 52, y: height - 26, size: 6.5, font, color: rgb(0.25, 0.25, 0.4) });
-            pg.drawText(winAnsi(`${APP_URL.replace(/^https?:\/\//, '')}/Conferir`), { x: 52, y: height - 35, size: 6, font, color: rgb(0.4, 0.4, 0.4) });
+            pg.drawText(winAnsi(`Conferência: ${info.codigo}`), { x: 52, y: height - 26, size: 6.5, font, color: pdfLib().rgb(0.25, 0.25, 0.4) });
+            pg.drawText(winAnsi(`${APP_URL.replace(/^https?:\/\//, '')}/Conferir`), { x: 52, y: height - 35, size: 6, font, color: pdfLib().rgb(0.4, 0.4, 0.4) });
         }
         if (info.ordem) {
             const base = winAnsi(`Doc. nº ${info.ordem} · ${info.titulo.slice(0, 60)}${info.juntadoEm ? ` · juntado em ${dataHora(info.juntadoEm)}${info.juntadoPor ? ` por ${info.juntadoPor}` : ''}` : ''}${info.sha256 ? ` · SHA-256 ${info.sha256.slice(0, 16)}…` : ''}`);
-            pg.drawText(base, { x: 20, y: 8, size: 6, font, color: rgb(0.4, 0.4, 0.4), maxWidth: width - 40 });
+            pg.drawText(base, { x: 20, y: 8, size: 6, font, color: pdfLib().rgb(0.4, 0.4, 0.4), maxWidth: width - 40 });
         }
     });
     return paginas.length;
@@ -222,7 +224,7 @@ export async function pdfCarimbado(
     db: admin.firestore.Firestore, orgId: string, procId: string, numero: string, docId: string, d: admin.firestore.DocumentData,
 ): Promise<string> {
     const cfg = await lerConfigDocumento(db, orgId, d.unidade_origem);
-    const destino = await PDFDocument.create();
+    const destino = await pdfLib().PDFDocument.create();
     const codigo = d.codigo_verificacao || await garantirCodigo(db, orgId, procId, numero, docId);
     await anexarCarimbado(destino, await pdfDoDocumento(d, cfg), {
         processo: numero, folha: typeof d.folha_inicial === 'number' ? d.folha_inicial : null, ordem: d.ordem,

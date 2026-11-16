@@ -612,7 +612,7 @@ function resumo(id, d) {
         sessao: d.sessao || null,
     };
 }
-exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, async (request) => {
+exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, (0, context_1.comSinal)(async (request) => {
     var _a, _b, _d, _e, _f, _g, _h, _j, _k;
     const auth = (0, context_1.exigirAuth)(request);
     const p = request.data || {};
@@ -827,13 +827,16 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
     }
     if (p.action === 'obter') {
         const { ref, data, julgador } = await (0, context_1.lerProcesso)(c, p.id, undefined, { julgador: true });
-        // Leitura do julgador: fica registrada (quem, quando, por qual sessão), fora dos autos.
-        if (julgador)
-            await (0, sessoes_2.registrarLeitura)(c, ref, data, 'Abriu os autos');
-        const [movs, docs] = await Promise.all([
+        // Leituras em paralelo: cada ida ao banco em série somava à espera da tela.
+        const veLeituras = !julgador && ((0, secretaria_1.podeAgir)(data, c.ctx) || c.ctx.isAdmin || c.gestorDe.includes(String(data.unidade_atual)));
+        const [movs, docs, leituras] = await Promise.all([
             ref.collection('movimentos').orderBy('seq').get(),
             // Sem o conteúdo (pode ter imagens): só o que a lista mostra.
             ref.collection('documentos').select('titulo', 'tipo', 'origem', 'status', 'mime', 'nome_arquivo', 'tamanho', 'sha256', 'ordem', 'unidade_origem', 'autor_nome', 'criado_em', 'juntado_em', 'assinaturas', 'peticao', 'visivel_partes', 'paginas', 'folha_inicial', 'folha_final', 'codigo_verificacao', 'assinaturas_pedidas', 'peticao_tipo', 'modelo_id', 'unidades_acesso', 'guardado_em', 'guardado_por_nome', 'versoes_qtd').get(),
+            // Quem leu pela pauta: para a unidade que tem o processo e a administração.
+            veLeituras ? (0, sessoes_2.leiturasDoProcesso)(ref) : Promise.resolve([]),
+            // Leitura do julgador: fica registrada (quem, quando, por qual sessão), fora dos autos.
+            julgador ? (0, sessoes_2.registrarLeitura)(c, ref, data, 'Abriu os autos') : null,
         ]);
         // Dado reservado a quem gere a unidade: sai o valor para quem não pode vê-lo.
         const quemLe = { uid: c.ctx.uid, isAdmin: c.ctx.isAdmin, gestorDe: c.gestorDe };
@@ -899,8 +902,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             leitura_julgador: julgador,
             // Equipe da disputa de outra unidade (S14): a tela explica por que lê.
             leitura_equipe: julgador && !(0, context_1.julgadorLe)(c, data) && (0, context_1.equipeLe)(c, data),
-            // Quem leu pela pauta: para a unidade que tem o processo e a administração.
-            leituras: !julgador && (posse || c.ctx.isAdmin || c.gestorDe.includes(String(data.unidade_atual))) ? await (0, sessoes_2.leiturasDoProcesso)(ref) : [],
+            leituras,
         };
     }
     if (p.action === 'autuar') {
@@ -1045,7 +1047,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
         return { success: true, id: procRef.id, numero };
     }
     return movimentar(c, p);
-});
+}));
 /**
  * Avanço automático da fase (`avanco: 'auto'`): cumprido o último item
  * obrigatório (ação marcada, documento juntado ou guardado), o processo segue

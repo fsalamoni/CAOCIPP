@@ -15,8 +15,9 @@ exports.folhasDoProcesso = folhasDoProcesso;
 exports.pdfCarimbado = pdfCarimbado;
 const admin = require("firebase-admin");
 const crypto_1 = require("crypto");
-const QRCode = require("qrcode");
-const pdf_lib_1 = require("pdf-lib");
+// Bibliotecas pesadas carregadas só quando usadas (partida a frio das functions).
+const pdfLib = () => require('pdf-lib');
+const qrcode = () => require('qrcode');
 const documento_1 = require("../shared/documento");
 const secretaria_1 = require("../shared/secretaria");
 const context_1 = require("./context");
@@ -49,7 +50,7 @@ exports.caminhoPdf = caminhoPdf;
 async function paginasDeArquivo(buf, mime) {
     if (mime === 'application/pdf') {
         try {
-            return (await pdf_lib_1.PDFDocument.load(buf, { ignoreEncryption: true })).getPageCount();
+            return (await pdfLib().PDFDocument.load(buf, { ignoreEncryption: true })).getPageCount();
         }
         catch (_a) {
             return 1;
@@ -68,10 +69,10 @@ async function paginasDeArquivo(buf, mime) {
     return 1; // imagem numa folha; outros formatos, folha de referência
 }
 async function folhaSimples(titulo, linhas, imagem) {
-    const pdf = await pdf_lib_1.PDFDocument.create();
+    const pdf = await pdfLib().PDFDocument.create();
     const page = pdf.addPage([595.28, 841.89]);
-    const font = await pdf.embedFont(pdf_lib_1.StandardFonts.Helvetica);
-    const bold = await pdf.embedFont(pdf_lib_1.StandardFonts.HelveticaBold);
+    const font = await pdf.embedFont(pdfLib().StandardFonts.Helvetica);
+    const bold = await pdf.embedFont(pdfLib().StandardFonts.HelveticaBold);
     if (imagem) {
         const img = imagem.mime === 'image/png' ? await pdf.embedPng(imagem.buf) : await pdf.embedJpg(imagem.buf);
         const esc = img.scaleToFit(595.28 - 112, 841.89 - 140);
@@ -82,7 +83,7 @@ async function folhaSimples(titulo, linhas, imagem) {
     page.drawText((0, pdfDocumento_1.winAnsi)(titulo).slice(0, 90), { x: 56, y, size: 13, font: bold });
     for (const l of linhas) {
         y -= 18;
-        page.drawText((0, pdfDocumento_1.winAnsi)(l).slice(0, 110), { x: 56, y, size: 9, font, color: (0, pdf_lib_1.rgb)(0.3, 0.3, 0.3) });
+        page.drawText((0, pdfDocumento_1.winAnsi)(l).slice(0, 110), { x: 56, y, size: 9, font, color: pdfLib().rgb(0.3, 0.3, 0.3) });
     }
     return pdf.save();
 }
@@ -106,7 +107,7 @@ async function pdfDoDocumento(d, cfg) {
     try {
         const [buf] = await bucket.file(d.storage_path).download();
         if (d.mime === 'application/pdf') {
-            await pdf_lib_1.PDFDocument.load(buf, { ignoreEncryption: true }); // valida
+            await pdfLib().PDFDocument.load(buf, { ignoreEncryption: true }); // valida
             return buf;
         }
         if (d.mime === 'image/png' || d.mime === 'image/jpeg')
@@ -191,13 +192,13 @@ async function garantirCodigo(db, orgId, procId, numero, docId) {
 async function anexarCarimbado(destino, origem, info) {
     let src;
     try {
-        src = await pdf_lib_1.PDFDocument.load(origem, { ignoreEncryption: true });
+        src = await pdfLib().PDFDocument.load(origem, { ignoreEncryption: true });
     }
     catch (_a) {
-        src = await pdf_lib_1.PDFDocument.load(await folhaSimples(info.titulo, ['Arquivo não pôde ser lido.', `SHA-256 ${info.sha256 || ''}`]));
+        src = await pdfLib().PDFDocument.load(await folhaSimples(info.titulo, ['Arquivo não pôde ser lido.', `SHA-256 ${info.sha256 || ''}`]));
     }
-    const font = await destino.embedFont(pdf_lib_1.StandardFonts.Helvetica);
-    const qr = info.codigo ? await destino.embedPng(await QRCode.toBuffer((0, exports.urlConferencia)(info.codigo), { margin: 0, width: 96, errorCorrectionLevel: 'M' })) : null;
+    const font = await destino.embedFont(pdfLib().StandardFonts.Helvetica);
+    const qr = info.codigo ? await destino.embedPng(await qrcode().toBuffer((0, exports.urlConferencia)(info.codigo), { margin: 0, width: 96, errorCorrectionLevel: 'M' })) : null;
     // `paginas`: só essas páginas do documento (índices a partir de 0), no PDF parcial por folhas.
     const indices = info.paginas ? src.getPageIndices().slice(info.paginas[0], info.paginas[1] + 1) : src.getPageIndices();
     const paginas = await destino.copyPages(src, indices);
@@ -207,15 +208,15 @@ async function anexarCarimbado(destino, origem, info) {
         const { width, height } = pg.getSize();
         const fls = !info.folha ? '' : info.mesmaFolha ? ` · fls. ${info.folha}${i ? ' (continuação)' : ''}` : ` · fls. ${info.folha + i}`;
         const topo = (0, pdfDocumento_1.winAnsi)(`Processo nº ${info.processo}${fls}`);
-        pg.drawText(topo, { x: width - 20 - font.widthOfTextAtSize(topo, 8), y: height - 16, size: 8, font, color: (0, pdf_lib_1.rgb)(0.25, 0.25, 0.4) });
+        pg.drawText(topo, { x: width - 20 - font.widthOfTextAtSize(topo, 8), y: height - 16, size: 8, font, color: pdfLib().rgb(0.25, 0.25, 0.4) });
         if (qr && info.codigo) {
             pg.drawImage(qr, { x: 14, y: height - 52, width: 34, height: 34 });
-            pg.drawText((0, pdfDocumento_1.winAnsi)(`Conferência: ${info.codigo}`), { x: 52, y: height - 26, size: 6.5, font, color: (0, pdf_lib_1.rgb)(0.25, 0.25, 0.4) });
-            pg.drawText((0, pdfDocumento_1.winAnsi)(`${exports.APP_URL.replace(/^https?:\/\//, '')}/Conferir`), { x: 52, y: height - 35, size: 6, font, color: (0, pdf_lib_1.rgb)(0.4, 0.4, 0.4) });
+            pg.drawText((0, pdfDocumento_1.winAnsi)(`Conferência: ${info.codigo}`), { x: 52, y: height - 26, size: 6.5, font, color: pdfLib().rgb(0.25, 0.25, 0.4) });
+            pg.drawText((0, pdfDocumento_1.winAnsi)(`${exports.APP_URL.replace(/^https?:\/\//, '')}/Conferir`), { x: 52, y: height - 35, size: 6, font, color: pdfLib().rgb(0.4, 0.4, 0.4) });
         }
         if (info.ordem) {
             const base = (0, pdfDocumento_1.winAnsi)(`Doc. nº ${info.ordem} · ${info.titulo.slice(0, 60)}${info.juntadoEm ? ` · juntado em ${(0, pdfDocumento_1.dataHora)(info.juntadoEm)}${info.juntadoPor ? ` por ${info.juntadoPor}` : ''}` : ''}${info.sha256 ? ` · SHA-256 ${info.sha256.slice(0, 16)}…` : ''}`);
-            pg.drawText(base, { x: 20, y: 8, size: 6, font, color: (0, pdf_lib_1.rgb)(0.4, 0.4, 0.4), maxWidth: width - 40 });
+            pg.drawText(base, { x: 20, y: 8, size: 6, font, color: pdfLib().rgb(0.4, 0.4, 0.4), maxWidth: width - 40 });
         }
     });
     return paginas.length;
@@ -237,7 +238,7 @@ exports.textoFolhas = textoFolhas;
 /** Um documento juntado, carimbado, em PDF próprio (download avulso). */
 async function pdfCarimbado(db, orgId, procId, numero, docId, d) {
     const cfg = await lerConfigDocumento(db, orgId, d.unidade_origem);
-    const destino = await pdf_lib_1.PDFDocument.create();
+    const destino = await pdfLib().PDFDocument.create();
     const codigo = d.codigo_verificacao || await garantirCodigo(db, orgId, procId, numero, docId);
     await anexarCarimbado(destino, await pdfDoDocumento(d, cfg), {
         processo: numero, folha: typeof d.folha_inicial === 'number' ? d.folha_inicial : null, ordem: d.ordem,

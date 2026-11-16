@@ -47,19 +47,22 @@
  *
  * The mainPage value must match a key in the PAGES object exactly.
  */
-import Dashboard from './pages/Dashboard';
-import Help from './pages/Help';
-import Landing from './pages/Landing';
-import Organization from './pages/Organization';
-import Profile from './pages/Profile';
-import Terms from './pages/Terms';
-import Admin from './pages/Admin';
-import Secretaria from './pages/Secretaria';
-import ProcessoEletronico from './pages/ProcessoEletronico';
-import Portal from './pages/Portal';
-import Disputas from './pages/Disputas';
-import MeusProcessosEletronicos from './pages/MeusProcessosEletronicos';
-import Conferir from './pages/Conferir';
+import { lazy } from 'react';
+// Cada página vira um pedaço próprio do pacote, baixado só quando a pessoa a
+// abre (antes, todo o SIGO vinha num arquivo único de ~6 MB na primeira visita).
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Help = lazy(() => import('./pages/Help'));
+const Landing = lazy(() => import('./pages/Landing'));
+const Organization = lazy(() => import('./pages/Organization'));
+const Profile = lazy(() => import('./pages/Profile'));
+const Terms = lazy(() => import('./pages/Terms'));
+const Admin = lazy(() => import('./pages/Admin'));
+const Secretaria = lazy(() => import('./pages/Secretaria'));
+const ProcessoEletronico = lazy(() => import('./pages/ProcessoEletronico'));
+const Portal = lazy(() => import('./pages/Portal'));
+const Disputas = lazy(() => import('./pages/Disputas'));
+const MeusProcessosEletronicos = lazy(() => import('./pages/MeusProcessosEletronicos'));
+const Conferir = lazy(() => import('./pages/Conferir'));
 import __Layout from './Layout.jsx';
 
 

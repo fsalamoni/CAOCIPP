@@ -1,6 +1,8 @@
-import * as mammoth from 'mammoth';
-import * as XLSX from 'xlsx';
-import { HTMLElement, Node, NodeType, parse } from 'node-html-parser';
+import type { HTMLElement, Node } from 'node-html-parser';
+// Bibliotecas pesadas carregadas só quando usadas (partida a frio das functions).
+const mammoth = () => require('mammoth') as typeof import('mammoth');
+const xlsx = () => require('xlsx') as typeof import('xlsx');
+const htmlParser = () => require('node-html-parser') as typeof import('node-html-parser');
 import { Marca, No, sanitizeDoc } from '../shared/documento';
 
 /**
@@ -42,12 +44,12 @@ const MARCAS: Record<string, Marca['type']> = {
 };
 
 function inline(n: Node, marcas: Marca[], saida: No[], imagens: No[]) {
-    if (n.nodeType === NodeType.TEXT_NODE) {
+    if (n.nodeType === htmlParser().NodeType.TEXT_NODE) {
         const t = n.text.replace(/\s+/g, ' ');
         if (t) saida.push(marcas.length ? { type: 'text', text: t, marks: marcas } : { type: 'text', text: t });
         return;
     }
-    if (n.nodeType !== NodeType.ELEMENT_NODE) return;
+    if (n.nodeType !== htmlParser().NodeType.ELEMENT_NODE) return;
     const el = n as HTMLElement;
     const tag = el.tagName?.toLowerCase();
     if (tag === 'br') { saida.push({ type: 'hardBreak' }); return; }
@@ -78,21 +80,21 @@ function blocos(el: HTMLElement): No[] {
     const out: No[] = [];
     let soltos: Node[] = [];
     const fecharSoltos = () => {
-        if (soltos.some((x) => x.nodeType === NodeType.ELEMENT_NODE || x.text.trim())) {
-            const wrapper = parse('<p></p>').firstChild as HTMLElement;
+        if (soltos.some((x) => x.nodeType === htmlParser().NodeType.ELEMENT_NODE || x.text.trim())) {
+            const wrapper = htmlParser().parse('<p></p>').firstChild as HTMLElement;
             soltos.forEach((x) => wrapper.appendChild(x));
             out.push(...paragrafo(wrapper));
         }
         soltos = [];
     };
     for (const n of el.childNodes) {
-        const tag = n.nodeType === NodeType.ELEMENT_NODE ? (n as HTMLElement).tagName.toLowerCase() : '';
+        const tag = n.nodeType === htmlParser().NodeType.ELEMENT_NODE ? (n as HTMLElement).tagName.toLowerCase() : '';
         const e = n as HTMLElement;
         if (/^h[1-6]$/.test(tag)) { fecharSoltos(); out.push(...paragrafo(e, 'heading', Math.min(Number(tag[1]), 4))); continue; }
         if (tag === 'p') { fecharSoltos(); out.push(...paragrafo(e)); continue; }
         if (tag === 'ul' || tag === 'ol') {
             fecharSoltos();
-            const itens = e.childNodes.filter((x) => x.nodeType === NodeType.ELEMENT_NODE && (x as HTMLElement).tagName.toLowerCase() === 'li')
+            const itens = e.childNodes.filter((x) => x.nodeType === htmlParser().NodeType.ELEMENT_NODE && (x as HTMLElement).tagName.toLowerCase() === 'li')
                 .map((li) => ({ type: 'listItem', content: blocosOuVazio(li as HTMLElement) }));
             if (itens.length) out.push({ type: tag === 'ul' ? 'bulletList' : 'orderedList', content: itens });
             continue;
@@ -116,7 +118,7 @@ function tabelaHtml(el: HTMLElement): No | null {
     const linhas = el.querySelectorAll('tr').slice(0, MAX_LINHAS).map((tr) => ({
         type: 'tableRow',
         content: tr.childNodes
-            .filter((x) => x.nodeType === NodeType.ELEMENT_NODE && ['td', 'th'].includes((x as HTMLElement).tagName.toLowerCase()))
+            .filter((x) => x.nodeType === htmlParser().NodeType.ELEMENT_NODE && ['td', 'th'].includes((x as HTMLElement).tagName.toLowerCase()))
             .slice(0, MAX_COLUNAS)
             .map((c) => {
                 const ce = c as HTMLElement;
@@ -134,7 +136,7 @@ function tabelaHtml(el: HTMLElement): No | null {
 
 /** HTML simples (do mammoth) em documento do editor, já saneado. */
 export function htmlParaDoc(html: string): No {
-    const raiz = parse(`<div>${html}</div>`).firstChild as HTMLElement;
+    const raiz = htmlParser().parse(`<div>${html}</div>`).firstChild as HTMLElement;
     const content = blocos(raiz);
     return sanitizeDoc({ type: 'doc', content: content.length ? content : [{ type: 'paragraph' }] });
 }
@@ -146,10 +148,10 @@ const celula = (v: unknown, cab = false): No => ({
 
 /** Planilha: cada aba vira um título e uma tabela (primeira linha como cabeçalho). */
 export function xlsxParaDoc(buf: Buffer): No {
-    const wb = XLSX.read(buf, { type: 'buffer', cellDates: true, dense: true });
+    const wb = xlsx().read(buf, { type: 'buffer', cellDates: true, dense: true });
     const content: No[] = [];
     for (const nome of wb.SheetNames.slice(0, MAX_ABAS)) {
-        const linhas = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[nome], { header: 1, raw: false, blankrows: false, defval: '' });
+        const linhas = xlsx().utils.sheet_to_json<unknown[]>(wb.Sheets[nome], { header: 1, raw: false, blankrows: false, defval: '' });
         content.push({ type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: `Planilha: ${nome}` }] });
         if (!linhas.length) { content.push({ type: 'paragraph', content: [{ type: 'text', text: '(aba vazia)' }] }); continue; }
         const cols = Math.min(MAX_COLUNAS, Math.max(...linhas.map((l) => l.length)));
@@ -168,7 +170,7 @@ export function xlsxParaDoc(buf: Buffer): No {
 
 /** Documento do editor equivalente ao arquivo, ou null se não for conversível. */
 export async function officeParaDoc(buf: Buffer, mime: string): Promise<No | null> {
-    if (mime === MIME_DOCX) return htmlParaDoc((await mammoth.convertToHtml({ buffer: buf })).value);
+    if (mime === MIME_DOCX) return htmlParaDoc((await mammoth().convertToHtml({ buffer: buf })).value);
     if (mime === MIME_XLSX) return xlsxParaDoc(buf);
     return null;
 }

@@ -32,7 +32,7 @@ const audienciaSala_1 = require("./audienciaSala");
 function caminhoArquivo(orgId, procId, docId) {
     return `secretaria/${orgId}/${procId}/${docId}`;
 }
-exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, memory: '512MiB' }, async (request) => {
+exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, memory: '512MiB' }, (0, context_1.comSinal)(async (request) => {
     var _a;
     const auth = (0, context_1.exigirAuth)(request);
     const p = request.data || {};
@@ -422,5 +422,5 @@ exports.secretariaDocumento = (0, https_1.onCall)({ region: context_1.REGION, me
         return comAvanco(feito, tentar);
     }
     throw new https_1.HttpsError('invalid-argument', 'Ação desconhecida');
-});
+}));
 //# sourceMappingURL=documentos.js.map

@@ -47,6 +47,7 @@ import { acertarAcoesDoRito, configComunicacoes, expedir, tornarSemEfeito } from
 import {
     COL, REGION, atorDe, carregarContexto, contextoDoSistema, conferirVersao, erroUsuario, exigirAdmin, exigirAuth, exigirPosse, lerProcesso,
     equipeLe, julgadorLe, nomeUnidade, registrarInternos, registrarMovimento,
+    comSinal,
 } from './context';
 
 /**
@@ -681,7 +682,7 @@ function resumo(id: string, d: admin.firestore.DocumentData) {
     };
 }
 
-export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async (request) => {
+export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, comSinal(async (request) => {
     const auth = exigirAuth(request);
     const p = request.data || ({} as ProcRequest);
     const c = await carregarContexto(auth, p.organizationId);
@@ -883,9 +884,9 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
 
     if (p.action === 'obter') {
         const { ref, data, julgador } = await lerProcesso(c, p.id, undefined, { julgador: true });
-        // Leitura do julgador: fica registrada (quem, quando, por qual sessão), fora dos autos.
-        if (julgador) await registrarLeitura(c, ref, data, 'Abriu os autos');
-        const [movs, docs] = await Promise.all([
+        // Leituras em paralelo: cada ida ao banco em série somava à espera da tela.
+        const veLeituras = !julgador && (podeAgir(data as never, c.ctx) || c.ctx.isAdmin || c.gestorDe.includes(String(data.unidade_atual)));
+        const [movs, docs, leituras] = await Promise.all([
             ref.collection('movimentos').orderBy('seq').get(),
             // Sem o conteúdo (pode ter imagens): só o que a lista mostra.
             ref.collection('documentos').select(
@@ -893,6 +894,10 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
                 'autor_nome', 'criado_em', 'juntado_em', 'assinaturas', 'peticao', 'visivel_partes', 'paginas', 'folha_inicial', 'folha_final', 'codigo_verificacao',
                 'assinaturas_pedidas', 'peticao_tipo', 'modelo_id', 'unidades_acesso', 'guardado_em', 'guardado_por_nome', 'versoes_qtd',
             ).get(),
+            // Quem leu pela pauta: para a unidade que tem o processo e a administração.
+            veLeituras ? leiturasDoProcesso(ref) : Promise.resolve([]),
+            // Leitura do julgador: fica registrada (quem, quando, por qual sessão), fora dos autos.
+            julgador ? registrarLeitura(c, ref, data, 'Abriu os autos') : null,
         ]);
         // Dado reservado a quem gere a unidade: sai o valor para quem não pode vê-lo.
         const quemLe = { uid: c.ctx.uid, isAdmin: c.ctx.isAdmin, gestorDe: c.gestorDe };
@@ -980,8 +985,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             leitura_julgador: julgador,
             // Equipe da disputa de outra unidade (S14): a tela explica por que lê.
             leitura_equipe: julgador && !julgadorLe(c, data) && equipeLe(c, data),
-            // Quem leu pela pauta: para a unidade que tem o processo e a administração.
-            leituras: !julgador && (posse || c.ctx.isAdmin || c.gestorDe.includes(String(data.unidade_atual))) ? await leiturasDoProcesso(ref) : [],
+            leituras,
         };
     }
 
@@ -1153,7 +1157,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
     }
 
     return movimentar(c, p);
-});
+}));
 
 /**
  * Avanço automático da fase (`avanco: 'auto'`): cumprido o último item

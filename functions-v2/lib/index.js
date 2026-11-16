@@ -1,172 +1,110 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getFeatureFlags = exports.getPlatformOverview = exports.secretariaAlertaPrazos = exports.secretariaConferir = exports.secretariaPlataforma = exports.secretariaPortal = exports.secretariaExportarPdf = exports.secretariaDocumento = exports.secretariaProcesso = exports.secretariaConfig = exports.importJurisFromExcel = exports.managePanoramaTemplate = exports.importPanorama = exports.managePanoramaRegistro = exports.managePanoramaBase = exports.manageJurimetriaTemplate = exports.bulkUpdateJuris = exports.deleteJuris = exports.updateJuri = exports.createJuri = exports.importParceriasFromExcel = exports.extinguishParceria = exports.deleteAditivo = exports.concludeAditivo = exports.updateAditivo = exports.addAditivo = exports.deleteParceria = exports.updateParceria = exports.createParceria = exports.importExpedientesFromExcel = exports.deleteExpediente = exports.updateExpediente = exports.createExpediente = exports.importProcessesFromExcel = exports.migrateMemberFunctions = exports.updateProfile = exports.backfillProcessLogs = exports.calculateProcessStatus = exports.deleteProcess = exports.updateProcess = exports.createProcess = exports.bulkReplaceFieldValues = exports.updateOrganization = exports.deleteOrganization = exports.clearOrganizationData = exports.updateMember = exports.removeMember = exports.joinOrganization = exports.getUserOrganizations = exports.createOrganization = void 0;
-exports.testOrgWebhook = exports.verifyLoginOtp = exports.sendLoginOtp = exports.runAnonymization = exports.previewAnonymization = exports.getOrgAccessLog = exports.logAccess = exports.setEmailProviderConfig = exports.getEmailProviderConfig = exports.checkPartnershipNoticeDeadlines = exports.addComment = exports.importRecords = exports.deleteRecord = exports.updateRecord = exports.createRecord = exports.deleteEntityType = exports.upsertEntityType = exports.getSetupStatus = exports.backfillHistory = exports.recalcOrgStats = exports.runIntegrityAudit = exports.getSystemHealth = exports.setPlatformQuota = exports.getPlatformQuotas = exports.getStorageFootprint = exports.getActivityFeed = exports.listPlatformUsers = exports.getOrgsReport = exports.getCostReport = exports.listPlatformAdmins = exports.revokePlatformAdmin = exports.grantPlatformAdmin = exports.setFeatureFlag = void 0;
 const admin = require("firebase-admin");
 admin.initializeApp();
+/**
+ * Export preguiçoso: cada função do Cloud Functions roda numa instância
+ * própria, que carrega este index. Com `export { x } from './y'` toda
+ * instância carregava os ~70 módulos (e as bibliotecas de PDF, Word e Excel)
+ * antes de responder, o que pesava em cada partida a frio. O getter só
+ * carrega o módulo da função chamada; a descoberta do deploy
+ * (`Object.entries` do firebase-functions) lê todos os exports, como antes.
+ */
+function preguicoso(carregar, nomes) {
+    for (const nome of nomes) {
+        Object.defineProperty(exports, nome, { enumerable: true, get: () => carregar()[nome] });
+    }
+}
 // Export function modules
-var create_1 = require("./organizations/create");
-Object.defineProperty(exports, "createOrganization", { enumerable: true, get: function () { return create_1.createOrganization; } });
-var getUser_1 = require("./organizations/getUser");
-Object.defineProperty(exports, "getUserOrganizations", { enumerable: true, get: function () { return getUser_1.getUserOrganizations; } });
-var join_1 = require("./organizations/join");
-Object.defineProperty(exports, "joinOrganization", { enumerable: true, get: function () { return join_1.joinOrganization; } });
-var removeMember_1 = require("./organizations/removeMember");
-Object.defineProperty(exports, "removeMember", { enumerable: true, get: function () { return removeMember_1.removeMember; } });
-var updateMember_1 = require("./organizations/updateMember");
-Object.defineProperty(exports, "updateMember", { enumerable: true, get: function () { return updateMember_1.updateMember; } });
-var clearData_1 = require("./organizations/clearData");
-Object.defineProperty(exports, "clearOrganizationData", { enumerable: true, get: function () { return clearData_1.clearOrganizationData; } });
-var delete_1 = require("./organizations/delete");
-Object.defineProperty(exports, "deleteOrganization", { enumerable: true, get: function () { return delete_1.deleteOrganization; } });
-var update_1 = require("./organizations/update");
-Object.defineProperty(exports, "updateOrganization", { enumerable: true, get: function () { return update_1.updateOrganization; } });
-var bulkReplaceFieldValues_1 = require("./organizations/bulkReplaceFieldValues");
-Object.defineProperty(exports, "bulkReplaceFieldValues", { enumerable: true, get: function () { return bulkReplaceFieldValues_1.bulkReplaceFieldValues; } });
-var create_2 = require("./processes/create");
-Object.defineProperty(exports, "createProcess", { enumerable: true, get: function () { return create_2.createProcess; } });
-var update_2 = require("./processes/update");
-Object.defineProperty(exports, "updateProcess", { enumerable: true, get: function () { return update_2.updateProcess; } });
-var delete_2 = require("./processes/delete");
-Object.defineProperty(exports, "deleteProcess", { enumerable: true, get: function () { return delete_2.deleteProcess; } });
-var calculateStatus_1 = require("./processes/calculateStatus");
-Object.defineProperty(exports, "calculateProcessStatus", { enumerable: true, get: function () { return calculateStatus_1.calculateProcessStatus; } });
-var backfillLogs_1 = require("./processes/backfillLogs");
-Object.defineProperty(exports, "backfillProcessLogs", { enumerable: true, get: function () { return backfillLogs_1.backfillProcessLogs; } });
-var updateProfile_1 = require("./user/updateProfile");
-Object.defineProperty(exports, "updateProfile", { enumerable: true, get: function () { return updateProfile_1.updateProfile; } });
-var migrateMemberFunctions_1 = require("./user/migrateMemberFunctions");
-Object.defineProperty(exports, "migrateMemberFunctions", { enumerable: true, get: function () { return migrateMemberFunctions_1.migrateMemberFunctions; } });
-var fromExcel_1 = require("./import/fromExcel");
-Object.defineProperty(exports, "importProcessesFromExcel", { enumerable: true, get: function () { return fromExcel_1.importProcessesFromExcel; } });
-var create_3 = require("./expedientes/create");
-Object.defineProperty(exports, "createExpediente", { enumerable: true, get: function () { return create_3.createExpediente; } });
-var update_3 = require("./expedientes/update");
-Object.defineProperty(exports, "updateExpediente", { enumerable: true, get: function () { return update_3.updateExpediente; } });
-var delete_3 = require("./expedientes/delete");
-Object.defineProperty(exports, "deleteExpediente", { enumerable: true, get: function () { return delete_3.deleteExpediente; } });
-var fromExcelExpedientes_1 = require("./import/fromExcelExpedientes");
-Object.defineProperty(exports, "importExpedientesFromExcel", { enumerable: true, get: function () { return fromExcelExpedientes_1.importExpedientesFromExcel; } });
+preguicoso(() => require('./organizations/create'), ['createOrganization']);
+preguicoso(() => require('./organizations/getUser'), ['getUserOrganizations']);
+preguicoso(() => require('./organizations/join'), ['joinOrganization']);
+preguicoso(() => require('./organizations/removeMember'), ['removeMember']);
+preguicoso(() => require('./organizations/updateMember'), ['updateMember']);
+preguicoso(() => require('./organizations/clearData'), ['clearOrganizationData']);
+preguicoso(() => require('./organizations/delete'), ['deleteOrganization']);
+preguicoso(() => require('./organizations/update'), ['updateOrganization']);
+preguicoso(() => require('./organizations/bulkReplaceFieldValues'), ['bulkReplaceFieldValues']);
+preguicoso(() => require('./processes/create'), ['createProcess']);
+preguicoso(() => require('./processes/update'), ['updateProcess']);
+preguicoso(() => require('./processes/delete'), ['deleteProcess']);
+preguicoso(() => require('./processes/calculateStatus'), ['calculateProcessStatus']);
+preguicoso(() => require('./processes/backfillLogs'), ['backfillProcessLogs']);
+preguicoso(() => require('./user/updateProfile'), ['updateProfile']);
+preguicoso(() => require('./user/migrateMemberFunctions'), ['migrateMemberFunctions']);
+preguicoso(() => require('./import/fromExcel'), ['importProcessesFromExcel']);
+preguicoso(() => require('./expedientes/create'), ['createExpediente']);
+preguicoso(() => require('./expedientes/update'), ['updateExpediente']);
+preguicoso(() => require('./expedientes/delete'), ['deleteExpediente']);
+preguicoso(() => require('./import/fromExcelExpedientes'), ['importExpedientesFromExcel']);
 // ========== PARCERIAS (Convênio, Termo de Cooperação, Termo de Fomento) ==========
 // Módulo novo (v1.16.0) com 6 fases próprias (Pendente, Em análise, Revisão,
 // Aguarda Terceiros, Parcerias, Extintos) e suporte a aditivos em subcoleção.
-var create_4 = require("./parcerias/create");
-Object.defineProperty(exports, "createParceria", { enumerable: true, get: function () { return create_4.createParceria; } });
-var update_4 = require("./parcerias/update");
-Object.defineProperty(exports, "updateParceria", { enumerable: true, get: function () { return update_4.updateParceria; } });
-var delete_4 = require("./parcerias/delete");
-Object.defineProperty(exports, "deleteParceria", { enumerable: true, get: function () { return delete_4.deleteParceria; } });
-var addAditivo_1 = require("./parcerias/addAditivo");
-Object.defineProperty(exports, "addAditivo", { enumerable: true, get: function () { return addAditivo_1.addAditivo; } });
-var updateAditivo_1 = require("./parcerias/updateAditivo");
-Object.defineProperty(exports, "updateAditivo", { enumerable: true, get: function () { return updateAditivo_1.updateAditivo; } });
-var concludeAditivo_1 = require("./parcerias/concludeAditivo");
-Object.defineProperty(exports, "concludeAditivo", { enumerable: true, get: function () { return concludeAditivo_1.concludeAditivo; } });
-var deleteAditivo_1 = require("./parcerias/deleteAditivo");
-Object.defineProperty(exports, "deleteAditivo", { enumerable: true, get: function () { return deleteAditivo_1.deleteAditivo; } });
-var extinguish_1 = require("./parcerias/extinguish");
-Object.defineProperty(exports, "extinguishParceria", { enumerable: true, get: function () { return extinguish_1.extinguishParceria; } });
-var fromExcelParcerias_1 = require("./import/fromExcelParcerias");
-Object.defineProperty(exports, "importParceriasFromExcel", { enumerable: true, get: function () { return fromExcelParcerias_1.importParceriasFromExcel; } });
+preguicoso(() => require('./parcerias/create'), ['createParceria']);
+preguicoso(() => require('./parcerias/update'), ['updateParceria']);
+preguicoso(() => require('./parcerias/delete'), ['deleteParceria']);
+preguicoso(() => require('./parcerias/addAditivo'), ['addAditivo']);
+preguicoso(() => require('./parcerias/updateAditivo'), ['updateAditivo']);
+preguicoso(() => require('./parcerias/concludeAditivo'), ['concludeAditivo']);
+preguicoso(() => require('./parcerias/deleteAditivo'), ['deleteAditivo']);
+preguicoso(() => require('./parcerias/extinguish'), ['extinguishParceria']);
+preguicoso(() => require('./import/fromExcelParcerias'), ['importParceriasFromExcel']);
 // ========== JURIMETRIA (base de júris do órgão — flag: jurimetria_enabled) ==========
 // Módulo de jurimetria: base própria de júris por órgão, com importação
 // idempotente de planilha (pré-visualização + confirmação), CRUD, atualização
 // em massa e exclusão. As listas oficiais, a tabela de pontuação e as colunas
 // personalizadas ficam em `organization.jurimetriaSettings` (ver
 // shared/jurimetria.ts), gravadas por updateOrganization.
-var create_5 = require("./juris/create");
-Object.defineProperty(exports, "createJuri", { enumerable: true, get: function () { return create_5.createJuri; } });
-var update_5 = require("./juris/update");
-Object.defineProperty(exports, "updateJuri", { enumerable: true, get: function () { return update_5.updateJuri; } });
-var delete_5 = require("./juris/delete");
-Object.defineProperty(exports, "deleteJuris", { enumerable: true, get: function () { return delete_5.deleteJuris; } });
-var bulkUpdate_1 = require("./juris/bulkUpdate");
-Object.defineProperty(exports, "bulkUpdateJuris", { enumerable: true, get: function () { return bulkUpdate_1.bulkUpdateJuris; } });
+preguicoso(() => require('./juris/create'), ['createJuri']);
+preguicoso(() => require('./juris/update'), ['updateJuri']);
+preguicoso(() => require('./juris/delete'), ['deleteJuris']);
+preguicoso(() => require('./juris/bulkUpdate'), ['bulkUpdateJuris']);
 // Modelos de relatório dinâmico, compartilhados dentro do órgão: todos usam,
 // só o autor e quem administra o módulo editam ou excluem.
-var manage_1 = require("./jurimetriaTemplates/manage");
-Object.defineProperty(exports, "manageJurimetriaTemplate", { enumerable: true, get: function () { return manage_1.manageJurimetriaTemplate; } });
+preguicoso(() => require('./jurimetriaTemplates/manage'), ['manageJurimetriaTemplate']);
 // ========== PANORAMA (bases analíticas do órgão — flag: panorama_enabled) ==========
 // Módulo coringa: o ESQUEMA de cada base vem da planilha importada, não do
 // código. A importação detecta as colunas, mede cada uma e propõe o papel
 // semântico (identificador, data, unidade, responsável, assunto, desfecho,
 // situação, valor, prazo); a partir daí a maquinaria analítica funciona sobre
 // qualquer área de atuação do MP. Ver shared/panorama.ts.
-var bases_1 = require("./panorama/bases");
-Object.defineProperty(exports, "managePanoramaBase", { enumerable: true, get: function () { return bases_1.managePanoramaBase; } });
-var registros_1 = require("./panorama/registros");
-Object.defineProperty(exports, "managePanoramaRegistro", { enumerable: true, get: function () { return registros_1.managePanoramaRegistro; } });
-var importar_1 = require("./panorama/importar");
-Object.defineProperty(exports, "importPanorama", { enumerable: true, get: function () { return importar_1.importPanorama; } });
-var templates_1 = require("./panorama/templates");
-Object.defineProperty(exports, "managePanoramaTemplate", { enumerable: true, get: function () { return templates_1.managePanoramaTemplate; } });
-var fromExcelJuris_1 = require("./import/fromExcelJuris");
-Object.defineProperty(exports, "importJurisFromExcel", { enumerable: true, get: function () { return fromExcelJuris_1.importJurisFromExcel; } });
+preguicoso(() => require('./panorama/bases'), ['managePanoramaBase']);
+preguicoso(() => require('./panorama/registros'), ['managePanoramaRegistro']);
+preguicoso(() => require('./panorama/importar'), ['importPanorama']);
+preguicoso(() => require('./panorama/templates'), ['managePanoramaTemplate']);
+preguicoso(() => require('./import/fromExcelJuris'), ['importJurisFromExcel']);
 // ========== SECRETARIA PROCESSUAL (processo eletrônico; ligada pelo admin do órgão) ==========
 // Unidades, ritos, autuação, tramitação, documentos (editor e upload),
 // assinatura simples, juntada e exportação dos autos em PDF. Todas as leituras
 // e escritas passam por aqui; as coleções sec* são fechadas ao cliente.
-var config_1 = require("./secretaria/config");
-Object.defineProperty(exports, "secretariaConfig", { enumerable: true, get: function () { return config_1.secretariaConfig; } });
-var processos_1 = require("./secretaria/processos");
-Object.defineProperty(exports, "secretariaProcesso", { enumerable: true, get: function () { return processos_1.secretariaProcesso; } });
-var documentos_1 = require("./secretaria/documentos");
-Object.defineProperty(exports, "secretariaDocumento", { enumerable: true, get: function () { return documentos_1.secretariaDocumento; } });
-var exportar_1 = require("./secretaria/exportar");
-Object.defineProperty(exports, "secretariaExportarPdf", { enumerable: true, get: function () { return exportar_1.secretariaExportarPdf; } });
-var portal_1 = require("./secretaria/portal");
-Object.defineProperty(exports, "secretariaPortal", { enumerable: true, get: function () { return portal_1.secretariaPortal; } });
-var plataforma_1 = require("./secretaria/plataforma");
-Object.defineProperty(exports, "secretariaPlataforma", { enumerable: true, get: function () { return plataforma_1.secretariaPlataforma; } });
-var conferir_1 = require("./secretaria/conferir");
-Object.defineProperty(exports, "secretariaConferir", { enumerable: true, get: function () { return conferir_1.secretariaConferir; } });
-Object.defineProperty(exports, "secretariaAlertaPrazos", { enumerable: true, get: function () { return conferir_1.secretariaAlertaPrazos; } });
+preguicoso(() => require('./secretaria/config'), ['secretariaConfig']);
+preguicoso(() => require('./secretaria/processos'), ['secretariaProcesso']);
+preguicoso(() => require('./secretaria/documentos'), ['secretariaDocumento']);
+preguicoso(() => require('./secretaria/exportar'), ['secretariaExportarPdf']);
+preguicoso(() => require('./secretaria/portal'), ['secretariaPortal']);
+preguicoso(() => require('./secretaria/plataforma'), ['secretariaPlataforma']);
+preguicoso(() => require('./secretaria/conferir'), ['secretariaConferir', 'secretariaAlertaPrazos']);
 // ========== PLATAFORMA: Administração & Custos (super-admin) ==========
-var overview_1 = require("./platform/overview");
-Object.defineProperty(exports, "getPlatformOverview", { enumerable: true, get: function () { return overview_1.getPlatformOverview; } });
-var featureFlags_1 = require("./platform/featureFlags");
-Object.defineProperty(exports, "getFeatureFlags", { enumerable: true, get: function () { return featureFlags_1.getFeatureFlags; } });
-Object.defineProperty(exports, "setFeatureFlag", { enumerable: true, get: function () { return featureFlags_1.setFeatureFlag; } });
-var adminClaims_1 = require("./platform/adminClaims");
-Object.defineProperty(exports, "grantPlatformAdmin", { enumerable: true, get: function () { return adminClaims_1.grantPlatformAdmin; } });
-Object.defineProperty(exports, "revokePlatformAdmin", { enumerable: true, get: function () { return adminClaims_1.revokePlatformAdmin; } });
-Object.defineProperty(exports, "listPlatformAdmins", { enumerable: true, get: function () { return adminClaims_1.listPlatformAdmins; } });
-var costs_1 = require("./platform/costs");
-Object.defineProperty(exports, "getCostReport", { enumerable: true, get: function () { return costs_1.getCostReport; } });
+preguicoso(() => require('./platform/overview'), ['getPlatformOverview']);
+preguicoso(() => require('./platform/featureFlags'), ['getFeatureFlags', 'setFeatureFlag']);
+preguicoso(() => require('./platform/adminClaims'), ['grantPlatformAdmin', 'revokePlatformAdmin', 'listPlatformAdmins']);
+preguicoso(() => require('./platform/costs'), ['getCostReport']);
 // Onda 2: Órgãos, Usuários, Movimentações, Footprint
-var orgs_1 = require("./platform/orgs");
-Object.defineProperty(exports, "getOrgsReport", { enumerable: true, get: function () { return orgs_1.getOrgsReport; } });
-var users_1 = require("./platform/users");
-Object.defineProperty(exports, "listPlatformUsers", { enumerable: true, get: function () { return users_1.listPlatformUsers; } });
-var activity_1 = require("./platform/activity");
-Object.defineProperty(exports, "getActivityFeed", { enumerable: true, get: function () { return activity_1.getActivityFeed; } });
-var footprint_1 = require("./platform/footprint");
-Object.defineProperty(exports, "getStorageFootprint", { enumerable: true, get: function () { return footprint_1.getStorageFootprint; } });
+preguicoso(() => require('./platform/orgs'), ['getOrgsReport']);
+preguicoso(() => require('./platform/users'), ['listPlatformUsers']);
+preguicoso(() => require('./platform/activity'), ['getActivityFeed']);
+preguicoso(() => require('./platform/footprint'), ['getStorageFootprint']);
 // Onda 3: Cotas, Saúde do sistema, Ferramentas de dados
-var quotas_1 = require("./platform/quotas");
-Object.defineProperty(exports, "getPlatformQuotas", { enumerable: true, get: function () { return quotas_1.getPlatformQuotas; } });
-Object.defineProperty(exports, "setPlatformQuota", { enumerable: true, get: function () { return quotas_1.setPlatformQuota; } });
-var health_1 = require("./platform/health");
-Object.defineProperty(exports, "getSystemHealth", { enumerable: true, get: function () { return health_1.getSystemHealth; } });
-var dataTools_1 = require("./platform/dataTools");
-Object.defineProperty(exports, "runIntegrityAudit", { enumerable: true, get: function () { return dataTools_1.runIntegrityAudit; } });
-Object.defineProperty(exports, "recalcOrgStats", { enumerable: true, get: function () { return dataTools_1.recalcOrgStats; } });
-var historyBackfill_1 = require("./platform/historyBackfill");
-Object.defineProperty(exports, "backfillHistory", { enumerable: true, get: function () { return historyBackfill_1.backfillHistory; } });
-var setupStatus_1 = require("./platform/setupStatus");
-Object.defineProperty(exports, "getSetupStatus", { enumerable: true, get: function () { return setupStatus_1.getSetupStatus; } });
+preguicoso(() => require('./platform/quotas'), ['getPlatformQuotas', 'setPlatformQuota']);
+preguicoso(() => require('./platform/health'), ['getSystemHealth']);
+preguicoso(() => require('./platform/dataTools'), ['runIntegrityAudit', 'recalcOrgStats']);
+preguicoso(() => require('./platform/historyBackfill'), ['backfillHistory']);
+preguicoso(() => require('./platform/setupStatus'), ['getSetupStatus']);
 // ========== Páginas e processos personalizados (flag: custom_entities) ==========
-var entityTypes_1 = require("./customEntities/entityTypes");
-Object.defineProperty(exports, "upsertEntityType", { enumerable: true, get: function () { return entityTypes_1.upsertEntityType; } });
-Object.defineProperty(exports, "deleteEntityType", { enumerable: true, get: function () { return entityTypes_1.deleteEntityType; } });
-var records_1 = require("./customEntities/records");
-Object.defineProperty(exports, "createRecord", { enumerable: true, get: function () { return records_1.createRecord; } });
-Object.defineProperty(exports, "updateRecord", { enumerable: true, get: function () { return records_1.updateRecord; } });
-Object.defineProperty(exports, "deleteRecord", { enumerable: true, get: function () { return records_1.deleteRecord; } });
-Object.defineProperty(exports, "importRecords", { enumerable: true, get: function () { return records_1.importRecords; } });
+preguicoso(() => require('./customEntities/entityTypes'), ['upsertEntityType', 'deleteEntityType']);
+preguicoso(() => require('./customEntities/records'), ['createRecord', 'updateRecord', 'deleteRecord', 'importRecords']);
 // ========== Colaboração (flag: process_comments) ==========
-var comments_1 = require("./collaboration/comments");
-Object.defineProperty(exports, "addComment", { enumerable: true, get: function () { return comments_1.addComment; } });
+preguicoso(() => require('./collaboration/comments'), ['addComment']);
 // ========== Automação em segundo plano (Fase 4) ==========
 // As 3 funções agendadas abaixo (onSchedule) exigem a API
 // cloudscheduler.googleapis.com, que NÃO está habilitada neste projeto GCP —
@@ -190,21 +128,11 @@ Object.defineProperty(exports, "addComment", { enumerable: true, get: function (
 // (permissão cloudscheduler.jobs.update). O owner precisa conceder
 // essa permissão à service account. Enquanto isso, schema/UI estão
 // funcionais.
-var checkPartnershipNoticeDeadlines_1 = require("./scheduled/checkPartnershipNoticeDeadlines");
-Object.defineProperty(exports, "checkPartnershipNoticeDeadlines", { enumerable: true, get: function () { return checkPartnershipNoticeDeadlines_1.checkPartnershipNoticeDeadlines; } });
-var emailProvider_1 = require("./platform/emailProvider");
-Object.defineProperty(exports, "getEmailProviderConfig", { enumerable: true, get: function () { return emailProvider_1.getEmailProviderConfig; } });
-Object.defineProperty(exports, "setEmailProviderConfig", { enumerable: true, get: function () { return emailProvider_1.setEmailProviderConfig; } });
+preguicoso(() => require('./scheduled/checkPartnershipNoticeDeadlines'), ['checkPartnershipNoticeDeadlines']);
+preguicoso(() => require('./platform/emailProvider'), ['getEmailProviderConfig', 'setEmailProviderConfig']);
 // ========== Segurança, conformidade e integrações (Fase 5) ==========
-var accessLog_1 = require("./security/accessLog");
-Object.defineProperty(exports, "logAccess", { enumerable: true, get: function () { return accessLog_1.logAccess; } });
-Object.defineProperty(exports, "getOrgAccessLog", { enumerable: true, get: function () { return accessLog_1.getOrgAccessLog; } });
-var anonymization_1 = require("./security/anonymization");
-Object.defineProperty(exports, "previewAnonymization", { enumerable: true, get: function () { return anonymization_1.previewAnonymization; } });
-Object.defineProperty(exports, "runAnonymization", { enumerable: true, get: function () { return anonymization_1.runAnonymization; } });
-var twoFactor_1 = require("./security/twoFactor");
-Object.defineProperty(exports, "sendLoginOtp", { enumerable: true, get: function () { return twoFactor_1.sendLoginOtp; } });
-Object.defineProperty(exports, "verifyLoginOtp", { enumerable: true, get: function () { return twoFactor_1.verifyLoginOtp; } });
-var webhookTest_1 = require("./security/webhookTest");
-Object.defineProperty(exports, "testOrgWebhook", { enumerable: true, get: function () { return webhookTest_1.testOrgWebhook; } });
+preguicoso(() => require('./security/accessLog'), ['logAccess', 'getOrgAccessLog']);
+preguicoso(() => require('./security/anonymization'), ['previewAnonymization', 'runAnonymization']);
+preguicoso(() => require('./security/twoFactor'), ['sendLoginOtp', 'verifyLoginOtp']);
+preguicoso(() => require('./security/webhookTest'), ['testOrgWebhook']);
 //# sourceMappingURL=index.js.map

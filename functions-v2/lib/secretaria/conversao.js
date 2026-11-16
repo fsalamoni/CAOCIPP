@@ -5,9 +5,10 @@ exports.larguraImagem = larguraImagem;
 exports.htmlParaDoc = htmlParaDoc;
 exports.xlsxParaDoc = xlsxParaDoc;
 exports.officeParaDoc = officeParaDoc;
-const mammoth = require("mammoth");
-const XLSX = require("xlsx");
-const node_html_parser_1 = require("node-html-parser");
+// Bibliotecas pesadas carregadas só quando usadas (partida a frio das functions).
+const mammoth = () => require('mammoth');
+const xlsx = () => require('xlsx');
+const htmlParser = () => require('node-html-parser');
 const documento_1 = require("../shared/documento");
 /**
  * Converte arquivos do Office enviados aos autos em documento do editor, que
@@ -50,13 +51,13 @@ const MARCAS = {
 };
 function inline(n, marcas, saida, imagens) {
     var _a;
-    if (n.nodeType === node_html_parser_1.NodeType.TEXT_NODE) {
+    if (n.nodeType === htmlParser().NodeType.TEXT_NODE) {
         const t = n.text.replace(/\s+/g, ' ');
         if (t)
             saida.push(marcas.length ? { type: 'text', text: t, marks: marcas } : { type: 'text', text: t });
         return;
     }
-    if (n.nodeType !== node_html_parser_1.NodeType.ELEMENT_NODE)
+    if (n.nodeType !== htmlParser().NodeType.ELEMENT_NODE)
         return;
     const el = n;
     const tag = (_a = el.tagName) === null || _a === void 0 ? void 0 : _a.toLowerCase();
@@ -93,15 +94,15 @@ function blocos(el) {
     const out = [];
     let soltos = [];
     const fecharSoltos = () => {
-        if (soltos.some((x) => x.nodeType === node_html_parser_1.NodeType.ELEMENT_NODE || x.text.trim())) {
-            const wrapper = (0, node_html_parser_1.parse)('<p></p>').firstChild;
+        if (soltos.some((x) => x.nodeType === htmlParser().NodeType.ELEMENT_NODE || x.text.trim())) {
+            const wrapper = htmlParser().parse('<p></p>').firstChild;
             soltos.forEach((x) => wrapper.appendChild(x));
             out.push(...paragrafo(wrapper));
         }
         soltos = [];
     };
     for (const n of el.childNodes) {
-        const tag = n.nodeType === node_html_parser_1.NodeType.ELEMENT_NODE ? n.tagName.toLowerCase() : '';
+        const tag = n.nodeType === htmlParser().NodeType.ELEMENT_NODE ? n.tagName.toLowerCase() : '';
         const e = n;
         if (/^h[1-6]$/.test(tag)) {
             fecharSoltos();
@@ -115,7 +116,7 @@ function blocos(el) {
         }
         if (tag === 'ul' || tag === 'ol') {
             fecharSoltos();
-            const itens = e.childNodes.filter((x) => x.nodeType === node_html_parser_1.NodeType.ELEMENT_NODE && x.tagName.toLowerCase() === 'li')
+            const itens = e.childNodes.filter((x) => x.nodeType === htmlParser().NodeType.ELEMENT_NODE && x.tagName.toLowerCase() === 'li')
                 .map((li) => ({ type: 'listItem', content: blocosOuVazio(li) }));
             if (itens.length)
                 out.push({ type: tag === 'ul' ? 'bulletList' : 'orderedList', content: itens });
@@ -156,7 +157,7 @@ function tabelaHtml(el) {
     const linhas = el.querySelectorAll('tr').slice(0, MAX_LINHAS).map((tr) => ({
         type: 'tableRow',
         content: tr.childNodes
-            .filter((x) => x.nodeType === node_html_parser_1.NodeType.ELEMENT_NODE && ['td', 'th'].includes(x.tagName.toLowerCase()))
+            .filter((x) => x.nodeType === htmlParser().NodeType.ELEMENT_NODE && ['td', 'th'].includes(x.tagName.toLowerCase()))
             .slice(0, MAX_COLUNAS)
             .map((c) => {
             const ce = c;
@@ -173,7 +174,7 @@ function tabelaHtml(el) {
 }
 /** HTML simples (do mammoth) em documento do editor, já saneado. */
 function htmlParaDoc(html) {
-    const raiz = (0, node_html_parser_1.parse)(`<div>${html}</div>`).firstChild;
+    const raiz = htmlParser().parse(`<div>${html}</div>`).firstChild;
     const content = blocos(raiz);
     return (0, documento_1.sanitizeDoc)({ type: 'doc', content: content.length ? content : [{ type: 'paragraph' }] });
 }
@@ -183,10 +184,10 @@ const celula = (v, cab = false) => ({
 });
 /** Planilha: cada aba vira um título e uma tabela (primeira linha como cabeçalho). */
 function xlsxParaDoc(buf) {
-    const wb = XLSX.read(buf, { type: 'buffer', cellDates: true, dense: true });
+    const wb = xlsx().read(buf, { type: 'buffer', cellDates: true, dense: true });
     const content = [];
     for (const nome of wb.SheetNames.slice(0, MAX_ABAS)) {
-        const linhas = XLSX.utils.sheet_to_json(wb.Sheets[nome], { header: 1, raw: false, blankrows: false, defval: '' });
+        const linhas = xlsx().utils.sheet_to_json(wb.Sheets[nome], { header: 1, raw: false, blankrows: false, defval: '' });
         content.push({ type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: `Planilha: ${nome}` }] });
         if (!linhas.length) {
             content.push({ type: 'paragraph', content: [{ type: 'text', text: '(aba vazia)' }] });
@@ -209,7 +210,7 @@ function xlsxParaDoc(buf) {
 /** Documento do editor equivalente ao arquivo, ou null se não for conversível. */
 async function officeParaDoc(buf, mime) {
     if (mime === exports.MIME_DOCX)
-        return htmlParaDoc((await mammoth.convertToHtml({ buffer: buf })).value);
+        return htmlParaDoc((await mammoth().convertToHtml({ buffer: buf })).value);
     if (mime === exports.MIME_XLSX)
         return xlsxParaDoc(buf);
     return null;
