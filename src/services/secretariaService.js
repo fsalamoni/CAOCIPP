@@ -67,8 +67,76 @@ export function baixarBase64(base64, nome, mime = 'application/pdf') {
     const a = document.createElement('a');
     a.href = url;
     a.download = nome;
+    a.rel = 'noopener';
+    document.body.appendChild(a); // Firefox e alguns navegadores de celular só baixam com o link na página
     a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+/**
+ * Baixa o arquivo que uma função devolveu: em base64 (até 15 MB) ou, se for
+ * grande, por link temporário (`url`), que o próprio navegador baixa.
+ */
+export function baixarResposta(r, nome, mime) {
+    const n = nome || r.nome || r.nomeArquivo || 'arquivo';
+    if (r.url) {
+        const a = document.createElement('a');
+        a.href = r.url;
+        a.rel = 'noopener';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+    }
+    baixarBase64(r.base64, n, mime || r.mime || 'application/pdf');
+}
+
+/** Tipos que o Processo Eletrônico aceita (o mesmo do servidor e do storage.rules). */
+export const TIPOS_ENVIO = {
+    pdf: 'application/pdf',
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    txt: 'text/plain',
+    doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    odt: 'application/vnd.oasis.opendocument.text',
+};
+export const MAX_ENVIO_MB = 50;
+
+/** Tipo do arquivo; no celular o navegador às vezes não informa, e vale a extensão. */
+export function mimeDoArquivo(file) {
+    if (Object.values(TIPOS_ENVIO).includes(file.type)) return file.type;
+    return TIPOS_ENVIO[String(file.name || '').split('.').pop().toLowerCase()] || file.type || '';
+}
+
+/**
+ * Envia o arquivo direto ao Storage, na área de espera da própria conta
+ * (até 50 MB, com progresso de 0 a 1), e devolve os campos que a função
+ * espera no lugar do base64: `{ envio, mime, nomeArquivo }`. A função confere
+ * o dono e o conteúdo, guarda o original intacto e apaga a cópia de espera.
+ */
+export async function prepararEnvio(file, { onProgresso, tipos } = {}) {
+    const mime = mimeDoArquivo(file);
+    const aceitos = tipos || Object.values(TIPOS_ENVIO);
+    if (!aceitos.includes(mime)) throw new Error(`Tipo de arquivo não aceito: ${file.name}`);
+    if (!file.size) throw new Error(`Arquivo vazio: ${file.name}`);
+    if (file.size > MAX_ENVIO_MB * 1024 * 1024) throw new Error(`${file.name} passa de ${MAX_ENVIO_MB} MB`);
+    const [{ ref, uploadBytesResumable }, { storage, auth }] = await Promise.all([import('firebase/storage'), import('@/config/firebase')]);
+    const uid = auth.currentUser?.uid;
+    if (!uid) throw new Error('Entre de novo na sua conta para enviar arquivos');
+    const id = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('');
+    const envio = `secretaria-envios/${uid}/${id}`;
+    await new Promise((ok, falha) => {
+        const tarefa = uploadBytesResumable(ref(storage, envio), file, { contentType: mime });
+        tarefa.on('state_changed',
+            (s) => onProgresso?.(s.totalBytes ? s.bytesTransferred / s.totalBytes : 0),
+            (e) => falha(new Error(e?.code === 'storage/unauthorized' ? `O armazenamento recusou ${file.name} (tipo ou tamanho)` : `Não foi possível enviar ${file.name}. Confira a conexão e tente de novo.`)),
+            () => ok());
+    });
+    return { envio, mime, nomeArquivo: file.name };
 }
 
 /** Lê um File como base64 (sem o prefixo data:). */

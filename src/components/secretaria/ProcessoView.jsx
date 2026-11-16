@@ -16,7 +16,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { secConfig, secDocumento, secExportarInterno, secExportarPdf, secProcesso, baixarBase64, base64ParaUrl, arquivoParaBase64 } from '@/services/secretariaService';
+import { secConfig, secDocumento, secExportarInterno, secExportarPdf, secProcesso, baixarResposta, prepararEnvio, MAX_ENVIO_MB } from '@/services/secretariaService';
+import VisorPdf from './VisorPdf';
 import { NativeSelect, STATUS_ROTULO, SeloUrgente, copiarTexto, dataHora, documentoDaUnidade, modelosDaUnidade, rotuloUnidade } from './comum';
 import FluxoRito from './FluxoRito';
 import { DadosCampos } from './CamposProcesso';
@@ -57,7 +58,7 @@ import SalaAudiencia from './SalaAudiencia';
 import DisputaPrecos from './DisputaPrecos';
 import { audienciasParaSala } from '@/lib/audienciaSala';
 
-const MAX_MB = 5;
+const MAX_MB = MAX_ENVIO_MB;
 const folhas = (d) => (d.folha_inicial ? (d.folha_final > d.folha_inicial ? `fls. ${d.folha_inicial}–${d.folha_final}` : `fl. ${d.folha_inicial}`) : null);
 const diasDesde = (iso) => (iso ? Math.floor((Date.now() - new Date(iso).getTime()) / 86400000) : null);
 const emCampo = (e) => /^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName) || e.target?.isContentEditable;
@@ -163,13 +164,13 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
 
     const exportar = () => executar(async () => {
         const r = await secExportarPdf(orgId, procId);
-        baixarBase64(r.base64, r.nome);
+        baixarResposta(r);
     }, 'PDF gerado');
 
     /** Arquivo original como foi enviado. */
     const baixarOriginal = (d) => executar(async () => {
         const r = await secDocumento(orgId, procId, 'baixar', { docId: d.id });
-        baixarBase64(r.base64, r.nomeArquivo, r.mime);
+        baixarResposta(r, r.nomeArquivo, r.mime);
     });
 
     /** Peça dos autos como está no processo: PDF com folhas e carimbo. */
@@ -205,8 +206,12 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
         if (file.size > MAX_MB * 1024 * 1024) { toast.error(`Arquivo acima de ${MAX_MB} MB`); return; }
         setNovoDoc(false);
         await executar(async () => {
-            const base64 = await arquivoParaBase64(file);
-            await secDocumento(orgId, procId, 'upload', { titulo: file.name.replace(/\.[^.]+$/, ''), tipo: 'Documento', nomeArquivo: file.name, mime: file.type, base64 });
+            const aviso = toast.loading(`Enviando ${file.name}…`);
+            try {
+                const envio = await prepararEnvio(file, { onProgresso: (x) => toast.loading(`Enviando ${file.name}: ${Math.round(x * 100)}%`, { id: aviso }) });
+                toast.loading(`Guardando ${file.name} nos autos eletrônicos…`, { id: aviso });
+                await secDocumento(orgId, procId, 'upload', { titulo: file.name.replace(/\.[^.]+$/, ''), tipo: 'Documento', ...envio });
+            } finally { toast.dismiss(aviso); }
         }, 'Arquivo enviado como minuta');
     };
 
@@ -1193,9 +1198,9 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
     useEffect(() => {
         const docId = tipo === 'resolver' ? acao?.pendencia?.documento_id : null;
         if (!docId) { setPdfPend(null); return undefined; }
-        let url = null; let vivo = true;
-        secDocumento(orgId, procId, 'pdf', { docId }).then((r) => { if (!vivo) return; url = base64ParaUrl(r.base64, 'application/pdf'); setPdfPend({ url }); }).catch(() => vivo && setPdfPend({ erro: true }));
-        return () => { vivo = false; if (url) URL.revokeObjectURL(url); };
+        let vivo = true;
+        secDocumento(orgId, procId, 'pdf', { docId }).then((r) => { if (vivo) setPdfPend({ pdf: r }); }).catch(() => vivo && setPdfPend({ erro: true }));
+        return () => { vivo = false; };
     }, [tipo, acao?.pendencia?.documento_id, orgId, procId]);
 
     let titulo = '';
@@ -1222,7 +1227,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
                 <p className="text-sm text-slate-700 dark:text-slate-300"><b>{acao.pendencia.descricao}</b> · aberta por {acao.pendencia.aberta_por} em {dataHora(acao.pendencia.aberta_em)}{acao.pendencia.interrompe ? ' · a fase está interrompida' : ''}</p>
                 {acao.pendencia.documento_id && (
                     <div className="h-[50vh] rounded-md border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-                        {pdfPend?.url ? <iframe title="Documento da pendência" src={pdfPend.url} className="w-full h-full rounded-md" />
+                        {pdfPend?.pdf ? <VisorPdf fonte={pdfPend.pdf} titulo="Documento da pendência" onBaixar={() => baixarResposta(pdfPend.pdf)} className="w-full h-full rounded-md" />
                             : pdfPend?.erro ? <p className="text-sm text-slate-600">Não foi possível abrir o documento.</p>
                                 : <p className="text-sm text-slate-600 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Abrindo o documento…</p>}
                     </div>

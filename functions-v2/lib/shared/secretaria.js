@@ -11,7 +11,7 @@ var __rest = (this && this.__rest) || function (s, e) {
     return t;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.HISTORICO_CONFIG = exports.unidadeExpede = exports.unidadeDecide = exports.MAX_ITENS = exports.MAX_PRAZO_DIAS = exports.MAX_FERIADOS = exports.MAX_DELTA_CHARS = exports.textoOrigem = exports.ROTULO_ORIGEM = exports.ORIGENS = exports.TIPOS_ARQUIVO_PERMITIDOS = exports.MAX_ROTULO_CONCLUIR = exports.MAX_EXPLICACAO_PUBLICA = exports.MAX_MODELOS_FASE = exports.MAX_CAMPOS_RITO = exports.MAX_ACOES = exports.MAX_FASES = exports.MAX_UPLOAD_BYTES = exports.MAX_TEXTO_LONGO = exports.MAX_TEXTO_CURTO = exports.MAX_MINUTAS_REMESSA = exports.MAX_LOTACOES = exports.TIPOS_UNIDADE = void 0;
+exports.HISTORICO_CONFIG = exports.unidadeExpede = exports.unidadeDecide = exports.MAX_ITENS = exports.MAX_PRAZO_DIAS = exports.MAX_FERIADOS = exports.MAX_DELTA_CHARS = exports.textoOrigem = exports.ROTULO_ORIGEM = exports.ORIGENS = exports.TIPOS_ARQUIVO_PERMITIDOS = exports.MAX_ROTULO_CONCLUIR = exports.MAX_EXPLICACAO_PUBLICA = exports.MAX_MODELOS_FASE = exports.MAX_CAMPOS_RITO = exports.MAX_ACOES = exports.MAX_FASES = exports.MAX_UPLOAD_BASE64_BYTES = exports.MAX_UPLOAD_BYTES = exports.MAX_TEXTO_LONGO = exports.MAX_TEXTO_CURTO = exports.MAX_MINUTAS_REMESSA = exports.MAX_LOTACOES = exports.TIPOS_UNIDADE = void 0;
 exports.ehParte = ehParte;
 exports.minutaAcessivel = minutaAcessivel;
 exports.versaoAnterior = versaoAnterior;
@@ -95,7 +95,10 @@ function versaoAnterior(doc, uid, novoSha) {
 }
 exports.MAX_TEXTO_CURTO = 200;
 exports.MAX_TEXTO_LONGO = 4000;
-exports.MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+/** Arquivo enviado direto ao Storage pelo navegador (storage.rules repete este limite). */
+exports.MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+/** Arquivo em base64 na própria chamada (clientes antigos e modelos). */
+exports.MAX_UPLOAD_BASE64_BYTES = 5 * 1024 * 1024;
 exports.MAX_FASES = 60;
 exports.MAX_ACOES = 20;
 /** Campos de formulário somados em todas as ações do rito (o documento do rito tem limite de tamanho). */

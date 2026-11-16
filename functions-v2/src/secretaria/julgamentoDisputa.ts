@@ -23,7 +23,8 @@
  */
 import * as admin from 'firebase-admin';
 import { HttpsError } from 'firebase-functions/v2/https';
-import { CalendarioOrgao, MAX_UPLOAD_BYTES, hojeBrasil, sanitizeCalendario, texto } from '../shared/secretaria';
+import { CalendarioOrgao, hojeBrasil, sanitizeCalendario, texto } from '../shared/secretaria';
+import { entregar, lerArquivoEnviado } from './arquivos';
 import {
     ETAPAS_JULGAMENTO, EtapaJulgamento, HORAS_CONVOCACAO, MAX_ARQUIVOS_CONVOCACAO, MINUTOS_DESEMPATE, MINUTOS_INTENCAO, PERFIS_DISPUTA, PROVIMENTOS,
     Posicao, Proposta, Recurso, SITUACOES_JULGAMENTO, UnidadeJulgamento, abrirUnidade, aplicarDesempate, fimDoDesempate, fimDoPrazoUtil,
@@ -137,7 +138,7 @@ export async function acaoJulgamentoOrgao(c: Contexto, p: Payload, classificar: 
             const a = u.convocacao?.arquivos.find((v) => v.id === p.arquivo_id);
             if (!a) throw new HttpsError('not-found', 'Arquivo não encontrado');
             const [buf] = await admin.storage().bucket().file(a.path).download();
-            return { base64: buf.toString('base64'), nome: a.nome, mime: a.mime };
+            return entregar(buf, a.nome, a.mime, c.ctx.uid);
         }
         // Primeiro acesso depois dos lances: o encerramento vai aos autos (como na classificação).
         if (x!.lances && x!.situacao === 'publicado' && !(await jref(ref).get()).exists) await classificar(c, pref, id, x!);
@@ -430,8 +431,7 @@ export async function acaoJulgamentoFornecedor(db: Db, uid: string, p: Payload, 
     if (p.action === 'disputaEnviarArquivo') {
         const mime = String(p.mime || '');
         if (!TIPOS_ARQUIVO[mime]) throw new HttpsError('invalid-argument', 'Anexe PDF, Word (DOCX), PNG ou JPG');
-        const buf = Buffer.from(String(p.base64 || ''), 'base64');
-        if (!buf.length || buf.length > MAX_UPLOAD_BYTES) throw new HttpsError('invalid-argument', 'Arquivo vazio ou acima de 5 MB');
+        const buf = await lerArquivoEnviado(p, uid, mime);
         const nomeArq = texto(p.nome, 120).replace(/[\\/]/g, '_') || `arquivo.${TIPOS_ARQUIVO[mime]}`;
         // Confere antes de gravar o arquivo; a transação confere de novo e, se falhar, o arquivo sai.
         const { ref, x } = await lerCertame(db, p.certame_id);

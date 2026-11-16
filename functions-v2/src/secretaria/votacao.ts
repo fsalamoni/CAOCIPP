@@ -335,7 +335,7 @@ export async function acaoVotacao(c: Contexto, p: Payload): Promise<unknown> {
             const dref = pref.collection('documentos').doc();
             tx.set(dref, {
                 titulo: `Acórdão: ${s.titulo}`, tipo: 'Acórdão', status: 'minuta', unidade_origem: proc.unidade_atual, autor_uid: quem.uid, autor_nome: quem.nome,
-                criado_em: agora, origem: 'editor', conteudo, sha256: hash, acordao_sessao_id: sref.id,
+                criado_em: agora, origem: 'editor', conteudo_json: JSON.stringify(conteudo), sha256: hash, acordao_sessao_id: sref.id,
                 assinaturas: [{ uid: quem.uid, nome: quem.nome, em: agora, sha256: hash, nivel: 'simples' }],
             });
             tx.update(vref, { 'acordao.ementa': ementa, 'acordao.texto': textoA, 'acordao.enviado_em': agora, 'acordao.documento_id': dref.id });
