@@ -218,9 +218,11 @@ export default function Help() {
           <section id="guia-do-rito" aria-labelledby="guia-rito-titulo" className="scroll-mt-24 rounded-lg border border-slate-200 dark:border-slate-700 p-4 space-y-2">
             <h3 id="guia-rito-titulo" className="font-semibold text-slate-900 dark:text-white">Guia do rito</h3>
             <p className="text-sm text-slate-600 dark:text-slate-300">
-              Como o processo anda: o que são fases, ações e desvios, o que cada fase faz sozinha, como funcionam comunicações, prazos,
-              audiências e documentos exigidos, e um exemplo completo. Serve para quem monta o rito e para quem trabalha no processo
-              entender por que cada passo acontece.
+              Abre no <strong>Tutorial</strong>: um passo a passo em 12 etapas para montar o rito do começo ao fim, com perguntas e
+              respostas em cada etapa; "Quero fazer…", que diz qual ferramenta usar para cada situação, onde ela fica e o modelo que já
+              faz assim; e "Qual modelo usar?", que indica os modelos da biblioteca pelo assunto, pela forma de decidir e pelo tamanho.
+              A <strong>Referência</strong> explica, em 20 partes, cada peça e cada opção do editor, com um exemplo completo. Serve para
+              quem monta o rito e para quem trabalha no processo entender por que cada passo acontece.
             </p>
             <Suspense fallback={<p className="text-sm text-slate-600 dark:text-slate-400">Carregando o guia…</p>}>
               <GuiaRito inicial={window.location.hash === '#guia-do-rito'} />

@@ -5,6 +5,17 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 16/11/2026 — Tutorial completo para montar ritos
+- O Guia do rito abre no **Tutorial**: passo a passo em 12 etapas, do
+  planejamento à implantação, com perguntas e respostas em cada etapa e o
+  que conferir antes de seguir.
+- **Quero fazer…**: 58 situações com a ferramenta a usar, onde ela fica e o
+  modelo da biblioteca que já faz assim, com busca e temas.
+- **Qual modelo usar?**: indica os modelos da biblioteca pelo assunto, pelo
+  contraditório, pela forma de decidir e pelo tamanho.
+- Cada resposta leva à parte da **Referência** que explica a opção em
+  detalhe. A Central de Ajuda descreve o tutorial.
+
 ### 16/11/2026 — Documentação de referência revista
 - Visão geral, funcionalidades, arquitetura, segurança, glossário, guia de
   desenvolvimento, lógica processual, guia de implantação, catálogo de
