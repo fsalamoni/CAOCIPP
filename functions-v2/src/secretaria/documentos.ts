@@ -75,7 +75,30 @@ interface DocRequest {
     atende?: string[];
     /** criarMinuta/upload: modelo de onde a minuta nasceu. */
     modelo_id?: string;
+    /** criarMinuta/upload: do que se trata o documento (vai ao registro da juntada). */
+    descricao?: string;
+    /** criarMinuta/upload: data do próprio documento (assinatura ou emissão), AAAA-MM-DD, até hoje. */
+    data_documento?: string;
 }
+
+const MAX_DESCRICAO_DOC = 500;
+
+/** Descrição e data do documento, conferidas (data futura ou inválida é recusada). Lança HttpsError. */
+export function descritivos(p: { descricao?: unknown; data_documento?: unknown }, hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })) {
+    const descricao = texto(p.descricao, MAX_DESCRICAO_DOC);
+    const data = typeof p.data_documento === 'string' ? p.data_documento.trim() : '';
+    if (data) {
+        const d = new Date(`${data}T00:00:00Z`);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(data) || Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== data) throw new HttpsError('invalid-argument', 'Data do documento inválida');
+        if (data > hoje) throw new HttpsError('invalid-argument', 'A data do documento não pode ser futura');
+    }
+    return { ...(descricao ? { descricao } : {}), ...(data ? { data_documento: data } : {}) };
+}
+
+/** O que a juntada (ou a guarda) diz do documento, além do título: a data dele e do que se trata. */
+export const textoDescritivo = (doc: { descricao?: unknown; data_documento?: unknown }) =>
+    `${typeof doc.data_documento === 'string' && doc.data_documento ? ` Documento datado de ${doc.data_documento.split('-').reverse().join('/')}.` : ''}`
+    + `${typeof doc.descricao === 'string' && doc.descricao ? ` Do que se trata: ${doc.descricao.replace(/\.$/, '')}.` : ''}`;
 
 export function caminhoArquivo(orgId: string, procId: string, docId: string) {
     return `secretaria/${orgId}/${procId}/${docId}`;
@@ -188,6 +211,8 @@ export const secretariaDocumento = onCall<DocRequest>(
                 criado_em: agoraIso,
                 assinaturas: [],
                 ...(texto(p.modelo_id, 40) ? { modelo_id: texto(p.modelo_id, 40) } : {}),
+                // Detalhado ao entrar no processo: do que se trata e a data do próprio documento (assinatura ou emissão).
+                ...descritivos(p),
             };
             if (p.action === 'criarMinuta') {
                 let conteudo;
@@ -416,7 +441,7 @@ export const secretariaDocumento = onCall<DocRequest>(
                 // o rito também pode pedir isso para o documento exigido (só esconde, nunca mostra).
                 const visivel = p.visivel_partes !== false && !cumpridas.some((e) => e.partes === false);
                 const mov = registrarMovimento(tx, c, pr, atual, 'juntada',
-                    `Juntado o documento nº ${ordem}: ${doc.titulo} (${doc.tipo}), ${textoFolhas(folha, paginas)}.${assin ? ` Assinado por ${assin}.` : ''}${pend.length ? ` Pendência aberta para o decisor${pend[0].interrompe ? ', com interrupção da fase' : ''}.` : ''}${resolvida ? ` Decide a pendência${resolvida.tipo === 'manual' ? '' : `: ${resolvida.descricao}`}.` : ''}`
+                    `Juntado o documento nº ${ordem}: ${doc.titulo} (${doc.tipo}), ${textoFolhas(folha, paginas)}.${textoDescritivo(doc)}${assin ? ` Assinado por ${assin}.` : ''}${pend.length ? ` Pendência aberta para o decisor${pend[0].interrompe ? ', com interrupção da fase' : ''}.` : ''}${resolvida ? ` Decide a pendência${resolvida.tipo === 'manual' ? '' : `: ${resolvida.descricao}`}.` : ''}`
                     + `${cumpridas.length ? ` Cumpre o exigido pelo rito: ${cumpridas.map((e) => e.descricao).join('; ')}.` : ''}`,
                     { documento_id: ref.id, ordem, sha256: doc.sha256, visivel_partes: visivel, folha_inicial: folha, paginas, ...(pdf ? { pdf_sha256: pdf.sha256 } : {}), ...(resolvida ? { pendencia_id: resolvida.id } : {}),
                         ...(cumpridas.length ? { exigencias: cumpridas.map((e) => e.chave) } : {}) });
@@ -474,7 +499,7 @@ export const secretariaDocumento = onCall<DocRequest>(
                 const destino = destinoDaGuarda(fase, cumpridas);
                 const assin = (doc.assinaturas || []).map((a: { nome: string }) => a.nome).join(', ');
                 const mov = registrarMovimento(tx, c, pr, atual, 'guarda',
-                    `Guardado no processo, fora dos autos, o documento "${doc.titulo}" (${doc.tipo}).${assin ? ` Assinado por ${assin}.` : ''}`
+                    `Guardado no processo, fora dos autos, o documento "${doc.titulo}" (${doc.tipo}).${textoDescritivo(doc)}${assin ? ` Assinado por ${assin}.` : ''}`
                     + `${cumpridas.length ? ` Cumpre o exigido pelo rito: ${cumpridas.map((e) => e.descricao).join('; ')}.` : ''}`,
                     { documento_id: ref.id, titulo: doc.titulo, sha256: doc.sha256, visivel_partes: false, ...marcasDoDestino(destino),
                         ...(cumpridas.length ? { exigencias: cumpridas.map((e) => e.chave) } : {}) });

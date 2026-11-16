@@ -47,7 +47,8 @@ test('fontes da condição: a própria fase, as outras e os dados do processo', 
     assert.deepEqual(f.filter((s) => s.grupo === 'fase').map(chaveDaCondicao), ['2']);
     assert.deepEqual(f.filter((s) => s.grupo === 'outra').map(chaveDaCondicao), ['adm/0', 'adm/1']);
     assert.match(f.find((s) => chaveDaCondicao(s) === 'adm/0').rotulo, /"Rito do processo", na fase "Admissibilidade"/);
-    assert.deepEqual(f.filter((s) => s.grupo === 'processo').map(chaveDaCondicao), ['@urgente', '@sigilo', '@partes', '@origem', '@tipo', '@campo:gravidade', '@campo:reinc']);
+    // Campo de texto do tipo também condiciona, por "preenchido" ou "vazio"; o oculto, não.
+    assert.deepEqual(f.filter((s) => s.grupo === 'processo').map(chaveDaCondicao), ['@urgente', '@sigilo', '@partes', '@origem', '@tipo', '@campo:gravidade', '@campo:obs', '@campo:reinc']);
     // Na ação condicional, só as ações anteriores da própria fase; as de outra fase valem todas.
     assert.deepEqual(fontesDaCondicao(ins, 1, { fases }).filter((s) => s.grupo !== 'processo').map(chaveDaCondicao), ['adm/0', 'adm/1']);
     // Com um tipo só (ou nenhum), "Tipo de processo" não decide nada.
@@ -60,7 +61,8 @@ test('respostas de cada parte e parte nova a partir da fonte', () => {
     assert.deepEqual(opcoesDaParte(ins, { acao: 0, fase: 'adm', valores: [] }, ctx), [['Ordinário', 'Ordinário'], ['Sumário', 'Sumário']]);
     assert.deepEqual(opcoesDaParte(ins, { acao: -1, dado: 'sigilo', valores: [] }, ctx), [['normal', 'Normal'], ['restrito', 'Restrito']]);
     assert.deepEqual(opcoesDaParte(ins, { acao: -1, dado: 'tipo', valores: [] }, ctx), [['t1', 'Sindicância'], ['t2', 'PAD']]);
-    assert.deepEqual(opcoesDaParte(ins, { acao: -1, dado: 'campo:reinc', valores: [] }, ctx), [['sim', 'Sim'], ['nao', 'Não']]);
+    assert.deepEqual(opcoesDaParte(ins, { acao: -1, dado: 'campo:reinc', valores: [] }, ctx), [['sim', 'Sim'], ['nao', 'Não'], ['@preenchido', 'preenchido'], ['@vazio', 'vazio']]);
+    assert.deepEqual(opcoesDaParte(ins, { acao: -1, dado: 'campo:obs', valores: [] }, ctx), [['@preenchido', 'preenchido'], ['@vazio', 'vazio']]);
     assert.equal(opcoesDaParte(ins, { acao: -1, dado: 'campo:sumiu', valores: [] }, ctx), null);
     assert.equal(opcoesDaParte(ins, { acao: 0, fase: 'sumiu', valores: [] }, ctx), null);
     // O dado de valor livre leva o nome do campo e o de cada valor, para as mensagens do processo.

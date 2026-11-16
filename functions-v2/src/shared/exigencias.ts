@@ -15,6 +15,7 @@ import { AudienciaDaAcao, sanitizeAudienciaDaAcao } from './audiencias';
 import { JulgamentoDaAcao, sanitizeJulgamentoDaAcao } from './julgamento';
 import { DisputaDaAcao, RESULTADOS_DISPUTA, sanitizeDisputaDaAcao } from './certames';
 import { ehDoOrgao } from './listasOrgao';
+import { sanitizeDoProcesso } from './doProcesso';
 
 export { QUEM, Quem };
 
@@ -155,7 +156,7 @@ export const DADOS_CONDICAO: Record<string, readonly string[] | null> = {
 };
 const ROTULO_DADO: Record<string, string> = { urgente: 'Urgente', sigilo: 'Sigilo', partes: 'Tem partes', origem: 'Origem', tipo: 'Tipo de processo' };
 const ROTULO_VALOR: Record<string, string> = {
-    sim: 'Sim', nao: 'Não', normal: 'Normal', restrito: 'Restrito', requerimento: 'Requerimento', representacao: 'Representação',
+    '@preenchido': 'preenchido', '@vazio': 'vazio', sim: 'Sim', nao: 'Não', normal: 'Normal', restrito: 'Restrito', requerimento: 'Requerimento', representacao: 'Representação',
     oficio: 'Ofício', de_oficio: 'De ofício', outro_processo: 'Outro processo', outro: 'Outra',
 };
 /** A condição (uma parte dela) lê a rodada da própria fase? */
@@ -219,6 +220,10 @@ export interface RegraAcao {
     julgamento?: JulgamentoDaAcao;
     /** Pede 'disputa': o tipo de disputa de preços (ver shared/certames.ts). Cumpre-se com o resultado do certame, nos autos. */
     disputa?: DisputaDaAcao;
+    /** "Vem do processo": id do campo do tipo de processo que, preenchido, cumpre a ação (ver shared/doProcesso.ts). */
+    do_processo?: string;
+    /** Na ação que pede um formulário: { id do campo da ação: id do campo do processo }. */
+    do_processo_campos?: Record<string, string>;
     /** Formato antigo: certidão nos autos. */
     autos?: true;
     documento?: Exigencia;
@@ -382,6 +387,8 @@ function sanitizeRegra(raw: unknown, acao: string): RegraAcao | null {
         delete out.partes;
         out.ve = r.ve as Ve;
     }
+    // "Vem do processo": o campo do tipo que, preenchido, cumpre a ação sozinho (ver shared/doProcesso.ts).
+    Object.assign(out, sanitizeDoProcesso(r, out));
     return Object.keys(out).length ? out : null;
 }
 
@@ -538,7 +545,8 @@ export function textoDaCondicao(f: FaseRegras | undefined, c: Condicao, fases?: 
         const r = x.dado ? undefined : dona?.acoes_regras?.[x.acao];
         const simNao = !x.dado && (x.campo ? r?.campos?.find((y) => y.id === x.campo)?.tipo : r?.pede) === 'sim_nao';
         const fixo = !!x.dado && !!DADOS_CONDICAO[x.dado];
-        const rot = (v: string, i: number) => (simNao || fixo ? ROTULO_VALOR[v] || x.nomes?.[i] || v : x.nomes?.[i] || v);
+        const rot = (v: string, i: number) => (simNao || fixo || v.startsWith('@') ? ROTULO_VALOR[v] || x.nomes?.[i] || v : x.nomes?.[i] || v);
+        if (x.valores.every((v) => v === '@preenchido' || v === '@vazio')) return `"${rotuloDaCondicao(f, x, fases)}" estiver ${x.valores.map(rot).join(' ou ')}`;
         return `"${rotuloDaCondicao(f, x, fases)}" for ${x.valores.map(rot).join(' ou ')}`;
     };
     return [c, ...(c.e || [])].map(uma).join(' e ');
@@ -582,12 +590,24 @@ export function condicaoAtendida(c: Condicao | undefined, resp: Record<string, s
     if (!c) return true;
     const uma = (x: Condicao): boolean => {
         const k = chaveDaCondicao(x);
-        if (resp?.[k] === undefined || !x.valores.includes(resp[k])) return false;
+        if (!valorAtende(x, resp?.[k])) return false;
         // Na própria fase, a condição só aponta para ação anterior (o rito é validado assim): a recursão termina.
         // A resposta de outra fase e o dado do processo valem como estão.
         return !condicaoLocal(x) || !f || acaoAtiva(f, x.acao, resp);
     };
     return uma(c) && (c.e || []).every(uma);
+}
+
+/**
+ * O valor lido atende a parte da condição? No campo do tipo de processo, além
+ * dos valores, valem '@preenchido' (tem qualquer valor) e '@vazio' (não tem).
+ */
+export function valorAtende(x: Condicao, v: string | undefined): boolean {
+    if (x.dado?.startsWith('campo:')) {
+        if (x.valores.includes('@vazio') && v === undefined) return true;
+        if (x.valores.includes('@preenchido') && v !== undefined) return true;
+    }
+    return v !== undefined && x.valores.includes(v);
 }
 
 /** A ação vale agora (sem condição, ou com a resposta que ela pede, de ação que também vale)? */
@@ -627,6 +647,9 @@ export function respostasDaFase(proc: ProcDaCondicao): Record<string, string> {
     for (const c of (Array.isArray(proc.campos) ? proc.campos : []) as Array<{ id?: unknown; valor?: unknown }>) {
         if (typeof c?.id === 'string' && c.id && c.valor !== null && c.valor !== undefined && c.valor !== '' && typeof c.valor !== 'object') {
             out[`@campo:${c.id}`] = chaveDaResposta(c.valor);
+        } else if (typeof c?.id === 'string' && c.id && Array.isArray(c.valor) && c.valor.length) {
+            // Múltipla escolha marcada: só conta como preenchida.
+            out[`@campo:${c.id}`] = '@preenchido';
         }
     }
     return out;
@@ -835,6 +858,11 @@ export function camposAoEntrarNaFase(proc: { exigencias_cumpridas?: unknown; aco
     if (faseId in ex) { const { [faseId]: _x, ...resto } = ex; out.exigencias_cumpridas = resto; }
     if (faseId in ac) { const { [faseId]: _y, ...resto } = ac; out.acoes_feitas = resto; }
     if (faseId in rs) { const { [faseId]: _z, ...resto } = rs; out.acoes_respostas = resto; }
+    // O que o sistema cumpriu pelo campo do processo e o que alguém desfez à mão valem só para a rodada.
+    for (const k of ['acoes_auto', 'acoes_auto_off'] as const) {
+        const m = ((proc as Record<string, unknown>)[k] || {}) as Record<string, unknown>;
+        if (faseId in m) { const { [faseId]: _w, ...resto } = m; out[k] = resto; }
+    }
     return out;
 }
 

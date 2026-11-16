@@ -975,6 +975,67 @@ deixaram de ler só a rodada da própria fase. Sem os campos novos, a condição
 - **Sigilo**: a condição lê só escolhas (nunca dado reservado a quem gere a
   unidade) e o texto dela só aparece à equipe. A parte nunca vê condições.
 
+### Ação que vem do processo e documento detalhado na entrada (16/11/2026)
+
+**Ação ligada a um campo do processo** (`acoes_regras[i].do_processo`, ou
+`do_processo_campos` no formulário; `shared/doProcesso.ts`, espelho em
+`src/lib/doProcesso.js`):
+
+- **O que faz**: a ação que pede um dado (confirmar, texto, número, data,
+  lista, sim/não ou formulário) pode apontar para um campo do formulário do
+  tipo de processo, ou para o assunto e a descrição. Se o campo está
+  preenchido, na criação ou depois, o sistema cumpre a ação sozinho com o
+  valor do campo: o registro vai aos autos como qualquer cumprimento, com
+  "Cumprida automaticamente: o dado já consta do processo" e o autor
+  "Sistema (dado do processo)". Ação de confirmar se cumpre com o campo
+  preenchido; de lista, só se o valor é uma das opções; formulário, só com
+  todos os obrigatórios preenchidos. Tipos que não combinam não se ligam.
+- **Quando roda**: ao autuar (fase inicial) e depois de cada ato que muda o
+  processo (avançar, tramitar, alterar dados, marcar ação, mudar a
+  situação), só no processo em tramitação e só se o rito tem alguma ligação
+  (o rito sem ligação não paga nada a mais). Até 30 passos por vez
+  (`MAX_PASSOS_AUTO`), um a um, cada um em transação própria.
+- **Desfazer e mudar**: campo apagado desfaz a ação que o sistema cumpriu;
+  campo alterado desfaz e cumpre de novo com o valor novo (os dois
+  registros ficam nos autos). Ação cumprida à mão o sistema não mexe. Quem
+  desfaz à mão uma ação cumprida pelo sistema manda nela até o processo
+  sair da fase (`acoes_auto_off`); ao voltar à fase, tudo recomeça.
+  `acoes_auto[fase][idx]` guarda o valor com que o sistema cumpriu.
+- **Volta**: a ação ligada cumprida à mão preenche o campo do processo, se
+  ele está vazio e é do mesmo tipo ("Passa a constar dos dados do
+  processo"). Nunca sobrescreve um campo preenchido, nem o assunto e a
+  descrição (esses só pela retificação). Ação reservada a quem gere a
+  unidade não preenche.
+- **Dispensar quando já veio**: a condição de um campo do processo aceita
+  os valores especiais `@preenchido` e `@vazio` (para qualquer campo do
+  tipo, não só lista). Ex.: "Converter em PGEA no SIM" vale só quando o
+  campo "Número do PGEA" está vazio; com o número, ela é dispensada e não
+  impede a fase.
+- **Editor**: na ação, "Vem do processo" escolhe o campo (no formulário, um
+  por campo). No topo do editor, "Ligações sugeridas" compara o nome das
+  ações e dos campos dos tipos que usam o rito e propõe as ligações e as
+  dispensas; nada muda até aplicar e salvar.
+- **Permissão e auditoria**: a ação automática segue as regras da ação
+  (quem vê, onde fica o registro); o sistema não cumpre ação que não vale
+  agora nem refaz o que a pessoa desfez. Tudo fica no histórico, com a
+  marca `do_processo` no movimento.
+
+**Documento detalhado na entrada** (`DetalharDocumentos.jsx`):
+
+- Ao escolher um arquivo no "Novo processo" ou em "Novo documento" no
+  processo, abre na hora o detalhe de cada arquivo: título, tipo, do que se
+  trata (`descricao`, até 500 caracteres), data do documento
+  (`data_documento`, nunca futura) e o que fazer: juntar aos autos (padrão),
+  guardar fora dos autos ou deixar como minuta. Ao juntar: assinar (a
+  assinatura entra antes do PDF), portal das partes e pendência para o
+  decisor. No processo, também o que o rito exige e o documento cumpre.
+- Os arquivos entram um a um, na ordem da lista, cada um com a data e a
+  hora do próprio ato (no "Novo processo", logo depois da autuação). Só o
+  último deixa a fase seguir sozinha (`aguardar`). Falha num não desfaz os
+  anteriores; o que faltou volta ao diálogo sem enviar o arquivo de novo.
+- A descrição e a data do documento entram no texto da juntada ou da
+  guarda ("Documento datado de …. Do que se trata: …").
+
 ### Ação que pede um formulário (13/11/2026)
 
 - **O que é**: em "O que pede", a opção "Um formulário (vários campos)". O
@@ -1847,7 +1908,7 @@ só quando o guia abre; textos e lógica em `src/lib/tutorialRito.js`) tem:
   e autos; tipo de processo; testar, implantar e manter). Cada etapa tem o
   objetivo, o que fazer em ordem, perguntas e respostas da etapa e o que
   conferir (caixas que ficam marcadas enquanto o guia está aberto).
-- **Quero fazer…:** 58 receitas "quero isto, use aquilo", com onde fica a
+- **Quero fazer…:** 60 receitas "quero isto, use aquilo", com onde fica a
   opção e os modelos da biblioteca que já fazem assim. Busca sem acento e
   filtro por tema.
 - **Qual modelo usar?:** assunto, contraditório (o modelo espera resposta da

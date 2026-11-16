@@ -41,6 +41,7 @@ import { resumoAndamento, textoAvanco } from '@/lib/andamentoFase';
 import { notaDoPrazo, prazoAbertoDaAcao } from '@/lib/efeitosFase';
 import { atorNoProcesso, podeQuem, podeReserva, resumoPermissoes, textoQuem, textoReserva, unidadeDecide, unidadeExpede } from '@/lib/permissoesFase';
 import { RegistroContexto } from './SeletorRegistro';
+import { ligada, nomeDoCampo } from '@/lib/doProcesso';
 import { FORMAS, ROTULO_DESTINO, acaoAtiva, exigeDoDocumento, alternativaCumprida, soOrienta, destinoDaAcao, destinoDaMudanca, faltaNaFase, niveisDaFase, pedidoDaAcao, pendentesDaFase, recomendadosNaFase, respostasDoProcesso, saidaPadrao, saidasComCondicao, situacaoDaFase, sugeridas, textoCondicao } from '@/lib/exigencias';
 import { AcaoDaFase, RegistrarAcao } from './AcoesNoProcesso';
 import { alvosDaComunicacao, comunicacoesDaAcao, situacaoDaResposta } from '@/lib/comunicacaoRito';
@@ -50,6 +51,7 @@ import { membrosDoJulgamento, nomeOrgao, unidadeComOrgao } from '@/lib/orgaos';
 import RedacaoDocumento, { VisualizadorPdf } from './RedacaoDocumento';
 import CapaProcesso from './CapaProcesso';
 import JuntadaConjunta from './JuntadaConjunta';
+import DetalharDocumentos, { detalheInicial, enviarDetalhados } from './DetalharDocumentos';
 import VersoesMinuta from './VersoesMinuta';
 import ImpressaoInterna from './ImpressaoInterna';
 import { rotuloFinalizar } from '@/lib/juntadaConjunta';
@@ -76,6 +78,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     const [editor, setEditor] = useState(null); // {docId?, titulo, tipo, conteudo, somenteLeitura, modeloId?}
     const [pdf, setPdf] = useState(null); // {base64, nome, titulo}
     const [novoDoc, setNovoDoc] = useState(false);
+    const [detalhar, setDetalhar] = useState(null); // arquivos enviados agora, a detalhar antes de entrar no processo
     const [conjunta, setConjunta] = useState(false); // juntada em conjunto (botão Finalizar da fase)
     const [versoesDe, setVersoesDe] = useState(null); // documento cujas redações anteriores estão abertas
     const [interna, setInterna] = useState(false); // impressão interna (o que fica fora dos autos)
@@ -91,7 +94,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     const julgador = q.data?.leitura_julgador === true;
     const arquivado = p?.status === 'arquivado';
     const podeMexer = !!posse && !arquivado;
-    const algoAberto = !!(acao || editor || pdf || novoDoc || leitura || linkConvite);
+    const algoAberto = !!(acao || editor || pdf || novoDoc || leitura || linkConvite || detalhar);
 
     // Atalhos: N novo documento, T tramitar, J ir às pendências. Só com nada aberto e fora de campos.
     useEffect(() => {
@@ -201,6 +204,24 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     // Fixos primeiro: o servidor corta por ordem e o fixo ganha de campo com a mesma chave.
     const valoresCampos = { ...fixos, ...Object.fromEntries(Object.entries(variaveisDoProcesso(p, informacoes)).filter(([k]) => !(k in fixos))) };
 
+    // Arquivo escolhido no "Novo documento": abre na hora o detalhe (tipo, do que se trata, data, juntar ou guardar, assinatura).
+    const detalharArquivo = (file) => {
+        if (!file) return;
+        if (file.size > MAX_MB * 1024 * 1024) { toast.error(`Arquivo acima de ${MAX_MB} MB`); return; }
+        setNovoDoc(false);
+        setDetalhar([detalheInicial(file, tipoPadrao)]);
+    };
+    const registrarDetalhados = (itens) => executar(async () => {
+        const aviso = toast.loading('Enviando…');
+        const r = await enviarDetalhados(orgId, procId, itens, {
+            version: p.version, onProgresso: (d, x) => toast.loading(`Enviando ${d.file.name}: ${Math.round(x * 100)}%`, { id: aviso }),
+        }).finally(() => toast.dismiss(aviso));
+        // Falhou no meio: os anteriores ficam; o diálogo volta só com os que faltam.
+        if (r.falhou) { setDetalhar([r.falhou, ...itens.slice(r.feitos.length + 1)]); throw new Error(`${r.feitos.length ? `${r.feitos.length} registrado(s); ` : ''}"${r.falhou.titulo}" não entrou: ${r.erro}`); }
+        setDetalhar(null);
+        return r.ultimo;
+    }, itens.every((d) => d.destino === 'minuta') ? 'Arquivo enviado como minuta' : 'Documento registrado no processo').then((ok) => { if (!ok) atualizar(); });
+
     const enviarArquivo = async (file) => {
         if (!file) return;
         if (file.size > MAX_MB * 1024 * 1024) { toast.error(`Arquivo acima de ${MAX_MB} MB`); return; }
@@ -269,6 +290,15 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     const podeAssumir = podeMexer && !p.responsavel_uid && p.status === 'em_tramitacao' && (estado.minhasUnidades || []).includes(p.unidade_atual);
     // Informação registrada nesta rodada da fase, por ação (a última de cada uma).
     const infoDaAcao = (i) => [...informacoes].reverse().find((x) => x.fase_id === p.fase_atual && x.acao_idx === i);
+    // "Vem do processo": cumprida pelo dado que o processo já tem, ou como fazer para que se cumpra sozinha.
+    const autoDaFase = p.acoes_auto?.[p.fase_atual] || {};
+    const notaDoProcesso = (i, r) => {
+        if (!ligada(r)) return '';
+        if (feitas.has(i)) return String(i) in autoDaFase ? 'Cumprida sozinha: o dado já consta do processo.' : '';
+        const ids = r.do_processo ? [r.do_processo] : Object.values(r.do_processo_campos || {});
+        const nomes = ids.map((id) => nomeDoCampo(estado.tipos, id)).filter(Boolean);
+        return nomes.length ? `Vem do processo: preenchido ${nomes.map((n) => `"${n}"`).join(', ')} nos dados, ela se cumpre sozinha.` : '';
+    };
     const temControlePendente = exigencias.some((e) => e.destino && !e.cumprida);
 
     // Botão único da fase: o que o rito espera agora.
@@ -625,7 +655,8 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                     texto: `"${a}" volta a ficar pendente${pedidoDaAcao(r) !== 'confirmar' ? ' e a informação registrada sai das informações do processo' : ''}. ${
                                         destinoDaAcao(r) === 'consolidar' && p.consolidacao?.itens?.some((x) => x.fase_id === p.fase_atual && x.acao_idx === i)
                                             ? 'O item sai da certidão conjunta, que ainda não foi emitida.'
-                                            : `O desfazimento fica registrado${['autos', 'consolidar'].includes(destinoDaAcao(r)) ? ' nos autos, em certidão' : ' nos eventos'}.`}`,
+                                            : `O desfazimento fica registrado${['autos', 'consolidar'].includes(destinoDaAcao(r)) ? ' nos autos, em certidão' : ' nos eventos'}.`}${
+                                        ligada(r) ? ' Desfeita à mão, ela não se cumpre mais sozinha nesta passagem pela fase, mesmo com o dado no processo.' : ''}`,
                                     rotulo: 'Desfazer',
                                     fn: () => mov('marcarAcao', { acao_idx: i, feita: false }, 'Ação desfeita'),
                                 });
@@ -639,7 +670,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                             partes={p.partes || []} comunicacao={r?.pede === 'comunicacao' ? { alvos, faltam } : null}
                                             espera={r?.pede === 'resposta' ? situacaoDaResposta(faseAtual, i, p.comunicacoes, hoje) : null}
                                             onExpedir={() => setAcao({ tipo: 'comunicar', daAcao: { idx: i, nome: a, cfg: r.comunicacao, alvos, faltam } })}
-                                            nota={alternativaCumprida(faseAtual, i, feitas, respostas) ? 'Dispensada: a alternativa a esta ação já foi cumprida.' : notaDoPrazo(prazoAbertoDaAcao(p.prazos, faseAtual.id, i), hoje)}
+                                            nota={alternativaCumprida(faseAtual, i, feitas, respostas) ? 'Dispensada: a alternativa a esta ação já foi cumprida.' : notaDoProcesso(i, r) || notaDoPrazo(prazoAbertoDaAcao(p.prazos, faseAtual.id, i), hoje)}
                                             onMarcar={(feita) => mov('marcarAcao', { acao_idx: i, feita })}
                                             certame={r?.pede === 'disputa' && p.certame?.fase_id === faseAtual.id && p.certame?.acao_idx === i ? p.certame : null}
                                             onRegistrar={() => (r?.pede === 'disputa' ? setDisputa(true) : setRegistrar({ idx: i, acao: a, r, fase: p.fase_nome, version: p.version,
@@ -975,7 +1006,9 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                 onDespacho={(pend) => { setAcao(null); setEditor({ titulo: `Despacho: ${pend.descricao}`.slice(0, 200), tipo: 'Despacho', conteudo: null, modeloId: modelos.find((m) => /despacho/i.test(m.nome) && m.formato !== 'original')?.id }); }} />
 
             <NovoDocumento aberto={novoDoc} onFechar={() => setNovoDoc(false)} tipos={documentoDaUnidade(estado, p.unidade_atual).tipos_documento || []} tipoPadrao={tipoPadrao}
-                modelosDaFase={modelosDaFase} modelos={modelos} onModelo={usarModelo} onEmBranco={redigirEmBranco} onArquivo={enviarArquivo} ocupado={ocupado} />
+                modelosDaFase={modelosDaFase} modelos={modelos} onModelo={usarModelo} onEmBranco={redigirEmBranco} onArquivo={detalharArquivo} ocupado={ocupado} />
+            <DetalharDocumentos aberto={!!detalhar} itens={detalhar} tipos={documentoDaUnidade(estado, p.unidade_atual).tipos_documento || []}
+                exigencias={exigencias} ocupado={ocupado} onConfirmar={registrarDetalhados} onFechar={() => setDetalhar(null)} />
 
             <Dialog open={!!linkConvite} onOpenChange={(o) => !o && setLinkConvite(null)}>
                 <DialogContent className="max-h-[92vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">
