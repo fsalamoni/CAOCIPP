@@ -11,7 +11,7 @@ var __rest = (this && this.__rest) || function (s, e) {
     return t;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PROVIMENTOS = exports.julgamentoConcluido = exports.proximoDoDesempate = exports.proximaVez = exports.ofertaMelhor = exports.ETAPAS_JULGAMENTO = exports.SITUACOES_JULGAMENTO = exports.MAX_ARQUIVOS_CONVOCACAO = exports.DIAS_RECURSO = exports.HORAS_CONVOCACAO = exports.MINUTOS_INTENCAO = exports.MINUTOS_DESEMPATE = exports.MARGEM_EMPATE_FICTO = exports.valorTexto = exports.totalDoValor = exports.fimDosLances = exports.SEGUNDOS_ENTRE_LANCES = exports.SEGUNDOS_PARA_DESFAZER = exports.moeda = exports.instanteDaAbertura = exports.num = exports.DECLARACOES = exports.HORAS_LANCES = exports.DIAS_UTEIS_MINIMOS = exports.MAX_FORNECEDORES = exports.MAX_CONVITES = exports.MAX_ITENS = exports.SITUACOES_CERTAME = exports.RESULTADOS_DISPUTA = exports.PORTES = exports.UNIDADES_DISPUTA = exports.CRITERIOS = exports.PERFIS_DISPUTA = void 0;
+exports.MAX_APOIO = exports.PROVIMENTOS = exports.julgamentoConcluido = exports.proximoDoDesempate = exports.proximaVez = exports.ofertaMelhor = exports.ETAPAS_JULGAMENTO = exports.SITUACOES_JULGAMENTO = exports.MAX_ARQUIVOS_CONVOCACAO = exports.DIAS_RECURSO = exports.HORAS_CONVOCACAO = exports.MINUTOS_INTENCAO = exports.MINUTOS_DESEMPATE = exports.MARGEM_EMPATE_FICTO = exports.valorTexto = exports.totalDoValor = exports.fimDosLances = exports.SEGUNDOS_ENTRE_LANCES = exports.SEGUNDOS_PARA_DESFAZER = exports.moeda = exports.instanteDaAbertura = exports.num = exports.DECLARACOES = exports.HORAS_LANCES = exports.DIAS_UTEIS_MINIMOS = exports.MAX_FORNECEDORES = exports.MAX_CONVITES = exports.MAX_ITENS = exports.SITUACOES_CERTAME = exports.RESULTADOS_DISPUTA = exports.PORTES = exports.UNIDADES_DISPUTA = exports.CRITERIOS = exports.PERFIS_DISPUTA = void 0;
 exports.sanitizeDisputaDaAcao = sanitizeDisputaDaAcao;
 exports.aberturaMinima = aberturaMinima;
 exports.sanitizeDadosCertame = sanitizeDadosCertame;
@@ -38,6 +38,11 @@ exports.fimDoPrazoUtil = fimDoPrazoUtil;
 exports.momentoDoRecurso = momentoDoRecurso;
 exports.linhaDaUnidade = linhaDaUnidade;
 exports.textoDaAta = textoDaAta;
+exports.podeNaDisputa = podeNaDisputa;
+exports.uidsDaEquipe = uidsDaEquipe;
+exports.papeisNaEquipe = papeisNaEquipe;
+exports.podeObservar = podeObservar;
+exports.textoDaEquipe = textoDaEquipe;
 /**
  * Disputa de preços como ação do rito (`pede: 'disputa'`), S11: o certame.
  * A unidade que tem o processo monta o aviso (objeto, itens, critério, prazo)
@@ -447,6 +452,8 @@ exports.PROVIMENTOS = { nao: 'Negado provimento', sim: 'Dado provimento', parcia
 function momentoDoRecurso(r, agora) {
     if (r.decisao)
         return 'decidido';
+    if (r.encaminhado)
+        return 'autoridade';
     if (agora <= r.intencao_ate)
         return 'intencao';
     if (!r.intencoes.length)
@@ -494,10 +501,55 @@ function textoDaAta(x, unidades, quem, recursos, resultado, lances) {
             l.push(`Intenção de ${i.nome}: ${i.motivo}${i.razoes ? ' (razões apresentadas)' : ' (sem razões no prazo)'}`);
         if (r.contrarrazoes.length)
             l.push(`Contrarrazões de ${r.contrarrazoes.map((c) => c.nome).join(', ')}.`);
+        if (r.encaminhado)
+            l.push(`Mantida a decisão por ${r.encaminhado.por}, que encaminhou o recurso à autoridade superior: ${r.encaminhado.fundamentos}`);
         if (r.decisao)
-            l.push(`Decisão: ${exports.PROVIMENTOS[r.decisao.provimento]}. ${r.decisao.fundamentos}`);
+            l.push(`Decisão${r.encaminhado ? ' da autoridade superior' : ''}: ${exports.PROVIMENTOS[r.decisao.provimento]}. ${r.decisao.fundamentos}`);
     });
     l.push('', `Resultado: ${resultado}.`);
     return l.join('\n');
+}
+exports.MAX_APOIO = 10;
+function podeNaDisputa(eq, uid, posse, ato) {
+    var _a;
+    const conduz = (eq === null || eq === void 0 ? void 0 : eq.agente) ? eq.agente.uid === uid : posse;
+    if (ato === 'conduzir')
+        return conduz;
+    if (ato === 'conversar')
+        return conduz || !!((_a = eq === null || eq === void 0 ? void 0 : eq.apoio) === null || _a === void 0 ? void 0 : _a.some((m) => m.uid === uid));
+    return (eq === null || eq === void 0 ? void 0 : eq.autoridade) ? eq.autoridade.uid === uid : conduz;
+}
+function uidsDaEquipe(eq) {
+    var _a, _b;
+    if (!eq)
+        return [];
+    return [...new Set([(_a = eq.agente) === null || _a === void 0 ? void 0 : _a.uid, (_b = eq.autoridade) === null || _b === void 0 ? void 0 : _b.uid, ...eq.apoio.map((m) => m.uid)].filter((v) => !!v))];
+}
+/** Papéis de alguém na equipe, para a tela e a lista "Minhas disputas". */
+function papeisNaEquipe(eq, uid) {
+    var _a, _b;
+    if (!eq)
+        return [];
+    return [((_a = eq.agente) === null || _a === void 0 ? void 0 : _a.uid) === uid && 'Agente de contratação', eq.apoio.some((m) => m.uid === uid) && 'Equipe de apoio', ((_b = eq.autoridade) === null || _b === void 0 ? void 0 : _b.uid) === uid && 'Autoridade superior']
+        .filter((v) => !!v);
+}
+/**
+ * Observador (S14): na dispensa, cujo aviso é público, qualquer conta acompanha
+ * a sessão pública depois da abertura (lances por apelido, avisos do agente,
+ * julgamento e ata). Na cotação privada, só quem participa.
+ */
+function podeObservar(x, uid, agora) {
+    if ((x.fornecedores_uids || []).includes(uid))
+        return true;
+    return x.perfil === 'dispensa' && !!x.abertura_em && x.abertura_em <= agora && (x.situacao === 'publicado' || x.situacao === 'encerrado');
+}
+/** Texto do ato de designação, para os autos. */
+function textoDaEquipe(eq) {
+    var _a, _b;
+    return [
+        `Agente de contratação: ${((_a = eq.agente) === null || _a === void 0 ? void 0 : _a.nome) || 'não designado (conduz quem tem o processo)'}.`,
+        `Equipe de apoio: ${eq.apoio.length ? eq.apoio.map((m) => m.nome).join(', ') : 'nenhuma'}.`,
+        `Autoridade superior: ${((_b = eq.autoridade) === null || _b === void 0 ? void 0 : _b.nome) || 'não designada (o agente homologa e decide o recurso)'}.`,
+    ].join('\n');
 }
 //# sourceMappingURL=certames.js.map

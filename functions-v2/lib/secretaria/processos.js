@@ -897,6 +897,8 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, a
             pode_excluir: !julgador && (0, secretaria_1.podeExcluirProcesso)(data, movimentos, c.ctx),
             // Julgador do colegiado lendo pela pauta: a tela mostra só a leitura, sem atos.
             leitura_julgador: julgador,
+            // Equipe da disputa de outra unidade (S14): a tela explica por que lê.
+            leitura_equipe: julgador && !(0, context_1.julgadorLe)(c, data) && (0, context_1.equipeLe)(c, data),
             // Quem leu pela pauta: para a unidade que tem o processo e a administração.
             leituras: !julgador && (posse || c.ctx.isAdmin || c.gestorDe.includes(String(data.unidade_atual))) ? await (0, sessoes_2.leiturasDoProcesso)(ref) : [],
         };

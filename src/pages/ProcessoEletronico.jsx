@@ -35,6 +35,7 @@ import { STATUS_ROTULO, NativeSelect, SeloUrgente } from '@/components/secretari
 import AjudaTermo, { focoSemAjuda } from '@/components/secretaria/AjudaTermo';
 import GuiaRito from '@/components/secretaria/GuiaRito';
 import Sessoes from '@/components/secretaria/Sessoes';
+import { DisputasEmQueAtuo } from '@/components/secretaria/DisputaPrecos';
 import { veSessoes } from '@/lib/sessoes';
 
 export default function ProcessoEletronico() {
@@ -220,6 +221,7 @@ export default function ProcessoEletronico() {
                 </div>
             )}
 
+            {!procId && <DisputasEmQueAtuo orgId={orgId} onAbrir={abrir} />}
             {procId ? (
                 <ProcessoView orgId={orgId} procId={procId} estado={estado} onVoltar={() => abrir(null)} />
             ) : (

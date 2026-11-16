@@ -18,7 +18,7 @@ import { COL, Contexto } from './context';
  */
 
 export const TIPO_NOTIFICACAO = 'processo_eletronico';
-export type Subtipo = 'recebido' | 'assinatura' | 'pendencia' | 'peticao' | 'prazo' | 'sessao';
+export type Subtipo = 'recebido' | 'assinatura' | 'pendencia' | 'peticao' | 'prazo' | 'sessao' | 'disputa';
 export interface PrefAvisos { sino: boolean; email: 'cada' | 'resumo' | 'nenhum' }
 
 const escapar = (s: string) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);

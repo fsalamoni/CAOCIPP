@@ -361,6 +361,16 @@ informado.
   contrarrazões em 3 dias úteis cada, decisão fundamentada), e só então vem
   o resultado, com a ata nos autos. O resultado cumpre a ação sozinho: não
   se marca à mão, como o julgamento proclamado na sessão.
+  A disputa pode ter equipe designada nos autos (Lei 14.133/2021, arts. 7º,
+  8º e 165): o agente de contratação conduz, a equipe de apoio conversa com
+  os licitantes e acompanha, e a autoridade superior homologa e decide o
+  recurso que o agente não reconsiderou. Quem conduz não decide o recurso
+  contra o próprio ato, por isso a autoridade não pode ser o agente. A
+  equipe pode ser de outra unidade: ela lê os autos juntados, sem restritos,
+  só enquanto a disputa está em curso, e cada leitura fica registrada. Sem
+  equipe, tudo segue com quem tem o processo. Na dispensa, cujo aviso é
+  público, qualquer conta acompanha a sessão depois da abertura, sem nomes
+  até a declaração do vencedor.
 - **Reunião deliberativa.** O colegiado também decide assuntos que não são
   processos. Cada assunto tem a forma de votação e a maioria que ele exige:
   simples (mais votos a favor que contra), absoluta (mais da metade dos

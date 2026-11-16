@@ -5,7 +5,7 @@ import MinhasAnotacoes from './MinhasAnotacoes';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
-    AlertCircle, ArrowLeft, BookOpen, CalendarClock, CheckCircle2, ChevronDown, Circle, Download, Eye, FilePen, Info, Loader2, MoreHorizontal,
+    AlertCircle, ArrowLeft, Gavel, BookOpen, CalendarClock, CheckCircle2, ChevronDown, Circle, Download, Eye, FilePen, Info, Loader2, MoreHorizontal,
     PenLine, Plus, Send, ShieldCheck, ShieldAlert, Paperclip, Trash2, Undo2, UserPlus, Camera, Archive, Hourglass, History, ListChecks, Printer,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -430,10 +430,20 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
             {julgador && (
                 <div role="status" className="rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/50 px-4 py-3 text-sm text-indigo-950 dark:text-indigo-100 flex gap-2">
                     <Eye className="w-4 h-4 mt-0.5 shrink-0" aria-hidden />
-                    <p>
-                        Você lê estes autos como membro do {(p.sessao || p.ultima_sessao)?.colegiado || 'colegiado'}, porque o processo {p.sessao ? `está na pauta da ${p.sessao.titulo}` : 'foi julgado pelo colegiado e ainda está com ele'}.
-                        Aparecem os documentos juntados; minutas e documentos guardados fora dos autos, não. Cada leitura fica registrada para a unidade que tem o processo.
-                    </p>
+                    {q.data?.leitura_equipe ? (
+                        <div className="space-y-2">
+                            <p>
+                                Você lê estes autos como membro da equipe da disputa de preços, enquanto ela está em curso.
+                                Aparecem os documentos juntados; minutas e documentos guardados fora dos autos, não. Cada leitura fica registrada para a unidade que tem o processo.
+                            </p>
+                            <Button size="sm" className="gap-1" onClick={() => setDisputa(true)}><Gavel className="w-4 h-4" aria-hidden /> Abrir a disputa</Button>
+                        </div>
+                    ) : (
+                        <p>
+                            Você lê estes autos como membro do {(p.sessao || p.ultima_sessao)?.colegiado || 'colegiado'}, porque o processo {p.sessao ? `está na pauta da ${p.sessao.titulo}` : 'foi julgado pelo colegiado e ainda está com ele'}.
+                            Aparecem os documentos juntados; minutas e documentos guardados fora dos autos, não. Cada leitura fica registrada para a unidade que tem o processo.
+                        </p>
+                    )}
                 </div>
             )}
             <MinhasAnotacoes orgId={orgId} procId={procId} />
@@ -1006,7 +1016,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                 onFechar={() => setConjunta(false)}
             />
             {salaAud && <SalaAudiencia orgId={orgId} procId={procId} audienciaId={salaAud} onFechar={() => { setSalaAud(null); atualizar(); }} />}
-            {disputa && <DisputaPrecos orgId={orgId} procId={procId} onFechar={() => { setDisputa(false); atualizar(); }} />}
+            {disputa && <DisputaPrecos orgId={orgId} procId={procId} membros={estado?.membros} onFechar={() => { setDisputa(false); atualizar(); }} />}
             <ImpressaoInterna aberto={interna} movimentos={movimentos} documentos={documentos} gerar={(sel) => secExportarInterno(orgId, procId, sel)} onFechar={() => setInterna(false)} />
             <VersoesMinuta orgId={orgId} procId={procId} documento={versoesDe} ocupado={ocupado} onLer={(v) => lerVersao(versoesDe, v)} onFechar={() => setVersoesDe(null)} />
             <Dialog open={!!confirmar} onOpenChange={(o) => !o && setConfirmar(null)}>

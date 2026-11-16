@@ -10,6 +10,7 @@ exports.exigirAdmin = exigirAdmin;
 exports.exigirGestor = exigirGestor;
 exports.julgadorLe = julgadorLe;
 exports.lerProcesso = lerProcesso;
+exports.equipeLe = equipeLe;
 exports.exigirPosse = exigirPosse;
 exports.atorDe = atorDe;
 exports.conferirVersao = conferirVersao;
@@ -179,7 +180,19 @@ async function lerProcesso(c, id, tx, opts = {}) {
         return { ref, data, julgador: false };
     if (opts.julgador && julgadorLe(c, data))
         return { ref, data, julgador: true };
+    // Equipe da disputa de outra unidade: lê como o julgador (juntados, sem restritos, leitura registrada).
+    if ((opts.julgador || opts.equipe) && equipeLe(c, data))
+        return { ref, data, julgador: true };
     throw new https_1.HttpsError('not-found', 'Processo não encontrado');
+}
+/**
+ * Membro da equipe da disputa de preços (S14) que não vê o processo pela
+ * lotação: lê os autos e age na disputa enquanto ela é a do processo (até o
+ * resultado, quando vira `ultimo_certame`).
+ */
+function equipeLe(c, proc) {
+    var _a;
+    return (((_a = proc.certame) === null || _a === void 0 ? void 0 : _a.equipe_uids) || []).includes(c.ctx.uid);
 }
 function exigirPosse(c, proc) {
     if (!(0, secretaria_1.podeAgir)(proc, c.ctx)) {

@@ -46,7 +46,7 @@ import { avisarEntradaNaFase, avisarPendencia, avisarUnidadeRecebeu } from './av
 import { acertarAcoesDoRito, configComunicacoes, expedir, tornarSemEfeito } from './comunicacoes';
 import {
     COL, REGION, atorDe, carregarContexto, contextoDoSistema, conferirVersao, erroUsuario, exigirAdmin, exigirAuth, exigirPosse, lerProcesso,
-    nomeUnidade, registrarInternos, registrarMovimento,
+    equipeLe, julgadorLe, nomeUnidade, registrarInternos, registrarMovimento,
 } from './context';
 
 /**
@@ -978,6 +978,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, async 
             pode_excluir: !julgador && podeExcluirProcesso(data as never, movimentos as never, c.ctx),
             // Julgador do colegiado lendo pela pauta: a tela mostra só a leitura, sem atos.
             leitura_julgador: julgador,
+            // Equipe da disputa de outra unidade (S14): a tela explica por que lê.
+            leitura_equipe: julgador && !julgadorLe(c, data) && equipeLe(c, data),
             // Quem leu pela pauta: para a unidade que tem o processo e a administração.
             leituras: !julgador && (posse || c.ctx.isAdmin || c.gestorDe.includes(String(data.unidade_atual))) ? await leiturasDoProcesso(ref) : [],
         };

@@ -71,7 +71,7 @@ export function Mensagens({ lista, onEnviar, rotulo, id }) {
 
 // ─── Fornecedor ────────────────────────────────────────────────────────────
 
-function UnidadeLance({ u, aviso, certameId, onFeito }) {
+function UnidadeLance({ u, aviso, certameId, onFeito, observador }) {
     const [v, setV] = useState('');
     const [indo, setIndo] = useState(false);
     const desc = aviso.criterio === 'maior_desconto';
@@ -96,8 +96,8 @@ function UnidadeLance({ u, aviso, certameId, onFeito }) {
             </div>
             <div className="grid gap-2 sm:grid-cols-3 text-sm">
                 <p><span className="block text-xs text-slate-600 dark:text-slate-400">Melhor oferta</span><b>{u.melhor ? valorTexto(u.melhor.valor, aviso.criterio) : '—'}</b>{porUnitario && u.melhor ? <span className="block text-xs text-slate-600 dark:text-slate-400">total {valorTexto(u.melhor.total, 'menor_preco')}</span> : null}</p>
-                <p><span className="block text-xs text-slate-600 dark:text-slate-400">Sua oferta</span><b>{u.meu ? valorTexto(u.meu.valor, aviso.criterio) : 'não cotou'}</b></p>
-                <p><span className="block text-xs text-slate-600 dark:text-slate-400">Sua posição</span>
+                {!observador && <p><span className="block text-xs text-slate-600 dark:text-slate-400">Sua oferta</span><b>{u.meu ? valorTexto(u.meu.valor, aviso.criterio) : 'não cotou'}</b></p>}
+                <p className={observador ? 'hidden' : ''}><span className="block text-xs text-slate-600 dark:text-slate-400">Sua posição</span>
                     {u.posicao ? <b className={primeiro ? 'text-emerald-800 dark:text-emerald-300 flex items-center gap-1' : ''}>{primeiro && <Trophy className="w-4 h-4" aria-hidden />}{u.posicao}º de {u.participantes}</b> : '—'}</p>
             </div>
             {u.meu && (
@@ -130,7 +130,8 @@ export function SalaLancesFornecedor({ certameId, aviso, onFim }) {
                 <h2 className="text-base font-semibold flex items-center gap-2"><Gavel className="w-5 h-5 text-indigo-600 dark:text-indigo-400" aria-hidden /> Sala de lances <Badge className="bg-indigo-600 hover:bg-indigo-600">Em lances</Badge></h2>
                 <Relogio fim={d.fim} agora={agora} />
             </div>
-            <p className="text-xs text-slate-600 dark:text-slate-400">
+            {d.observador && <p className="text-xs text-slate-600 dark:text-slate-400">Você acompanha a sessão pública: vê o melhor valor de cada item e os avisos do órgão, sem saber quem deu cada lance.</p>}
+            <p className={d.observador ? 'hidden' : 'text-xs text-slate-600 dark:text-slate-400'}>
                 Ninguém vê o seu nome: os outros veem só o melhor valor, e o órgão vê você como <b>{d.apelido}</b> até o fim. Cada lance precisa ser melhor que o seu último
                 {aviso.intervalo?.valor ? `, respeitado o intervalo mínimo de ${aviso.intervalo.tipo === 'valor' && aviso.criterio !== 'maior_desconto' ? valorTexto(aviso.intervalo.valor, 'menor_preco') : `${String(aviso.intervalo.valor).replace('.', ',')}${aviso.criterio === 'maior_desconto' ? ' ponto(s) percentual(is)' : '%'}`}` : ''};
                 não precisa vencer o melhor. Você pode desfazer o último lance uma vez por item, em até 15 segundos.
@@ -140,7 +141,7 @@ export function SalaLancesFornecedor({ certameId, aviso, onFim }) {
                     try { await secPortal('disputaDesfazer', { certame_id: certameId, lance_id: d.pode_desfazer.lance_id }); toast.success('Lance desfeito'); atualizar(); } catch (e) { toast.error(e?.message || 'Não foi possível desfazer'); }
                 }}><Undo2 className="w-4 h-4" aria-hidden /> Desfazer meu último lance ({Math.min(15, Math.ceil(desfazAte / 1000))} s)</Button>
             )}
-            <div className="space-y-3">{d.unidades.map((u) => <UnidadeLance key={u.chave} u={u} aviso={aviso} certameId={certameId} onFeito={atualizar} />)}</div>
+            <div className="space-y-3">{d.unidades.map((u) => <UnidadeLance key={u.chave} u={u} aviso={aviso} certameId={certameId} onFeito={atualizar} observador={d.observador} />)}</div>
             {d.meus.length > 0 && (
                 <details className="rounded-md border border-slate-200 dark:border-slate-700 p-2">
                     <summary className="text-sm font-semibold cursor-pointer">Meus lances ({d.meus.length})</summary>
@@ -154,8 +155,8 @@ export function SalaLancesFornecedor({ certameId, aviso, onFim }) {
                     </ul>
                 </details>
             )}
-            <Mensagens lista={d.mensagens} id="ln-msg" rotulo="Mensagem ao órgão (os outros licitantes não veem)"
-                onEnviar={async (texto) => { await secPortal('disputaMensagem', { certame_id: certameId, texto }); atualizar(); }} />
+            <Mensagens lista={d.mensagens} id="ln-msg" rotulo={d.observador ? 'Avisos do órgão' : 'Mensagem ao órgão (os outros licitantes não veem)'}
+                onEnviar={d.observador ? null : async (texto) => { await secPortal('disputaMensagem', { certame_id: certameId, texto }); atualizar(); }} />
         </section>
     );
 }
@@ -230,7 +231,7 @@ export function SalaLancesOrgao({ orgId, procId }) {
                 </div>
             )}
             <Mensagens lista={d.mensagens} id="ln-aviso" rotulo="Mensagem a todos os licitantes"
-                onEnviar={d.pode.gerir ? async (texto) => { await secProcesso(orgId, 'certameMensagem', { processo_id: procId, texto }); atualizar(); } : null} />
+                onEnviar={d.pode.conversar ? async (texto) => { await secProcesso(orgId, 'certameMensagem', { processo_id: procId, texto }); atualizar(); } : null} />
         </section>
     );
 }

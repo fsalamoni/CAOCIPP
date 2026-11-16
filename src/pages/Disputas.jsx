@@ -287,6 +287,12 @@ function Disputa({ id, codigo, onVoltar, onAbrir }) {
                     {d.participa && d.proposta && d.aviso.momento !== 'lances' && ['publicado', 'encerrado'].includes(d.aviso.situacao) && Date.parse(d.aviso.abertura_em) <= agora && (
                         <JulgamentoFornecedor certameId={d.aviso.id} criterio={d.aviso.criterio} />
                     )}
+                    {!d.participa && d.aviso.participacao === 'aberta' && ['publicado', 'encerrado'].includes(d.aviso.situacao) && Date.parse(d.aviso.abertura_em) <= agora && (
+                        // S14: na dispensa, quem não participa acompanha a sessão pública.
+                        d.aviso.momento === 'lances'
+                            ? <SalaLancesFornecedor certameId={d.aviso.id} aviso={d.aviso} onFim={fimDosLances} />
+                            : <JulgamentoFornecedor certameId={d.aviso.id} criterio={d.aviso.criterio} />
+                    )}
                     {d.participa && !d.proposta && !d.pode.propor && d.aviso.situacao === 'publicado' && Date.parse(d.aviso.abertura_em) <= agora && (
                         <p className="text-sm text-slate-700 dark:text-slate-300">O prazo de propostas terminou. Sem proposta, não se dá lance nem se participa do julgamento.</p>
                     )}

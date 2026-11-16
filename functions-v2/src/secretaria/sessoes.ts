@@ -8,7 +8,7 @@ import {
     AtaSessao, PedidoSessao, Votacao, reordenar, votacaoAberta, virtualEncerrou, sanitizeDadosSessao, textoDaInclusao, textoDaRetirada,
 } from '../shared/sessoes';
 import { auditar } from './config';
-import { COL, Contexto, administraOrgao, erroUsuario, julgadorLe, lerProcesso, registrarMovimento } from './context';
+import { COL, Contexto, administraOrgao, equipeLe, erroUsuario, julgadorLe, lerProcesso, registrarMovimento } from './context';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { ACOES_VOTACAO, acaoVotacao, resumoVotacao } from './votacao';
 import { ACOES_S8, COL_PAINEIS, acaoAta, ataParaTela, atualizarPainel, avisarComposicao } from './painelAta';
@@ -139,7 +139,8 @@ export function incluirNaSessao(
 
 /** Leitura dos autos pelo julgador, pela pauta: registrada fora dos autos (secProcessos/{id}/leituras). */
 export async function registrarLeitura(c: Contexto, ref: admin.firestore.DocumentReference, proc: admin.firestore.DocumentData, oQue: string) {
-    const s = proc.sessao || proc.ultima_sessao || {};
+    // Equipe da disputa (S14) que não é julgador: a leitura fica em nome da disputa.
+    const s = !julgadorLe(c, proc) && equipeLe(c, proc) ? { titulo: 'Disputa de preços', colegiado: 'Equipe da disputa' } : proc.sessao || proc.ultima_sessao || {};
     await ref.collection('leituras').add({
         uid: c.ctx.uid, nome: c.userName, em: new Date().toISOString(), o_que: oQue.slice(0, 200),
         sessao_id: s.id || null, sessao: s.titulo || '', colegiado: s.colegiado || '',
