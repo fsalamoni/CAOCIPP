@@ -39,6 +39,7 @@ import PermissoesDaFase from './PermissoesDaFase';
 import { alguemTem, resumoPermissoes } from '@/lib/permissoesFase';
 import { ALERTA_PADRAO, AVISO_PARA, DESIGNA, MAX_ALERTA_DIAS, MAX_MENSAGEM_AVISO, MAX_PENDENCIA_FASE, SIGILO_FASE, abrePrazo, comAoEntrar, comAviso, comPrazoVencido, efeitosAoEntrar, problemasDosEfeitos, textoDoAviso, textosDosPrazos } from '@/lib/efeitosFase';
 import { CampoAtribuicao } from './PermissoesDaFase';
+import { aplicarSugestoes, sugestoesDeLigacao } from '@/lib/doProcesso';
 
 const MAX_MB = 5;
 const MAX_FASES = 60; // igual ao servidor (MAX_FASES em functions-v2/src/shared/secretaria.ts)
@@ -48,6 +49,38 @@ const MAX_DESFAZER = 30;
 const ICONE = 'h-11 w-11 sm:h-8 sm:w-8';
 const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
 const mudarDeLugar = (lista, de, para) => { const l = [...lista]; const [x] = l.splice(de, 1); l.splice(para, 0, x); return l; };
+
+/**
+ * Ligações que o SIGO propõe pelo nome entre as ações do rito e os campos do
+ * "Novo processo" dos tipos que o usam (src/lib/doProcesso.js). O admin
+ * desmarca o que não quer e aplica; nada muda sem ele salvar o rito.
+ */
+function SugestoesLigacao({ fases, tipos, nomeFase, onAplicar }) {
+    const sugestoes = useMemo(() => sugestoesDeLigacao(fases, tipos), [fases, tipos]);
+    const chave = (s) => `${s.fase}:${s.idx}:${s.tipo}:${s.alvo || ''}`;
+    const [fora, setFora] = useState(() => new Set());
+    if (!sugestoes.length) return null;
+    const escolhidas = sugestoes.filter((s) => !fora.has(chave(s)));
+    return (
+        <section aria-labelledby="sug-ligacao" className="rounded-md border border-indigo-200 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-950/40 p-3 space-y-2">
+            <h3 id="sug-ligacao" className="text-sm font-semibold text-indigo-950 dark:text-indigo-100">{plural(sugestoes.length, 'ação pode vir', 'ações podem vir')} dos dados do "Novo processo"</h3>
+            <p className="text-xs text-slate-700 dark:text-slate-300">
+                O que já é informado ao criar o processo não precisa ser pedido de novo na fase: ligada ao campo, a ação se cumpre sozinha quando ele está preenchido, e a que perde o sentido fica dispensada. Confira, desmarque o que não quiser e aplique. Depois, salve o rito.
+            </p>
+            <ul className="space-y-1">
+                {sugestoes.map((s) => (
+                    <li key={chave(s)}>
+                        <label className="flex min-h-[2.75rem] sm:min-h-0 items-start gap-2 text-sm">
+                            <Checkbox className="mt-0.5" checked={!fora.has(chave(s))} onCheckedChange={(c) => setFora((x) => { const n = new Set(x); if (c === true) n.delete(chave(s)); else n.add(chave(s)); return n; })} />
+                            <span>{s.texto}. <span className="text-xs text-slate-600 dark:text-slate-400">Fase {nomeFase(s.fase)}.</span></span>
+                        </label>
+                    </li>
+                ))}
+            </ul>
+            <Button size="sm" disabled={!escolhidas.length} onClick={() => onAplicar(escolhidas)}>Aplicar {plural(escolhidas.length, 'ligação', 'ligações')}</Button>
+        </section>
+    );
+}
 const ehCampoDeTexto = (el) => el?.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el?.tagName);
 const ACEITOS = '.xlsx,.xlsm,.xls,.csv,.ods,.docx,.pdf,.txt,.md,.bpm,.bpmn,.xpdl,.xml,.drawio,.mmd,.json';
 const MIME_DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
@@ -730,6 +763,8 @@ function Revisao({
                                 </ul>
                             </section>
                         )}
+                        <SugestoesLigacao fases={p.fases} tipos={tiposDoRito} nomeFase={(id) => p.fases.find((f) => f.id === id)?.nome || 'fase'}
+                            onAplicar={(escolhidas) => { setConfirmar(false); setP({ ...p, fases: aplicarSugestoes(p.fases, escolhidas) }, true); anunciar(`${plural(escolhidas.length, 'ligação aplicada', 'ligações aplicadas')}. Confira e salve o rito.`); }} />
                         <div className="flex flex-wrap items-center gap-2 pt-1">
                             <h3 className="text-sm font-semibold">{plural(p.fases.length, 'fase', 'fases')}</h3>
                             {p.fases.length > 10 && (

@@ -309,16 +309,29 @@ export const partesDaCondicao = (c) => {
 export const juntarPartes = (partes) => (partes.length ? { ...partes[0], ...(partes.length > 1 ? { e: partes.slice(1) } : {}) } : undefined);
 /** Alguma parte da condição está sem resposta marcada? */
 export const condicaoIncompleta = (c) => partesDaCondicao(c).some((x) => !x.valores?.length);
-/** Campos de escolha (lista ou sim/não) dos formulários dos tipos de processo: um por id. */
+/**
+ * Campos dos formulários dos tipos de processo: um por id. Os de escolha (lista
+ * ou sim/não) condicionam pelo valor; todos, por "preenchido" ou "vazio".
+ */
 const camposDosTipos = (tipos) => {
     const vistos = new Map();
     for (const t of tipos || []) {
         for (const c of t.formulario?.campos || []) {
-            if (c.id && (c.tipo === 'lista' || c.tipo === 'sim_nao') && c.uso !== 'oculto' && !vistos.has(c.id)) vistos.set(c.id, c);
+            if (c.id && c.uso !== 'oculto' && !vistos.has(c.id)) vistos.set(c.id, c);
         }
     }
     return [...vistos.values()];
 };
+/** "Preenchido" e "vazio": valem para qualquer campo do tipo (igual ao servidor, valorAtende). */
+export const PREENCHIMENTO = [['@preenchido', 'preenchido'], ['@vazio', 'vazio']];
+/** O valor lido atende a parte da condição? Igual a valorAtende, no servidor. */
+export function valorAtende(x, v) {
+    if (x.dado?.startsWith('campo:')) {
+        if (x.valores.includes('@vazio') && v === undefined) return true;
+        if (x.valores.includes('@preenchido') && v !== undefined) return true;
+    }
+    return v !== undefined && x.valores.includes(v);
+}
 
 /** Ações de escolha da fase que podem condicionar (antes de `limite`): [índice, texto]. */
 export const acoesDeEscolha = (f, limite = Infinity) => (f?.acoes || [])
@@ -366,7 +379,8 @@ export function opcoesDaParte(f, c, { fases = [], tipos = [], origens = [] } = {
         if (c.dado === 'tipo') return tipos.map((t) => [t.id, t.nome || 'tipo']);
         if (c.dado.startsWith('campo:')) {
             const campo = camposDosTipos(tipos).find((x) => x.id === c.dado.slice(6));
-            return !campo ? null : campo.tipo === 'lista' ? opcoesEmPares(campo.opcoes) : SIM_NAO;
+            if (!campo) return null;
+            return [...(campo.tipo === 'lista' ? opcoesEmPares(campo.opcoes) : campo.tipo === 'sim_nao' ? SIM_NAO : []), ...PREENCHIMENTO];
         }
         return DADOS_CONDICAO.find(([d]) => d === c.dado)?.[2] || null;
     }
@@ -395,7 +409,7 @@ export function parteDaFonte(fonte, valores = [], opcoes = []) {
 // A resposta de outra fase e o dado do processo valem como estão. Todas as partes precisam valer.
 export const condicaoAtendida = (c, resp, f) => partesDaCondicao(c).every((x) => {
     const k = chaveDaCondicao(x);
-    return resp?.[k] !== undefined && x.valores.includes(resp[k]) && (!condicaoLocal(x) || !f || acaoAtiva(f, x.acao, resp));
+    return valorAtende(x, resp?.[k]) && (!condicaoLocal(x) || !f || acaoAtiva(f, x.acao, resp));
 });
 
 /**
@@ -420,6 +434,8 @@ export function respostasDoProcesso(p) {
     for (const c of Array.isArray(p?.campos) ? p.campos : []) {
         if (typeof c?.id === 'string' && c.id && c.valor !== null && c.valor !== undefined && c.valor !== '' && typeof c.valor !== 'object') {
             out[`@campo:${c.id}`] = typeof c.valor === 'boolean' ? (c.valor ? 'sim' : 'nao') : String(c.valor);
+        } else if (typeof c?.id === 'string' && c.id && Array.isArray(c.valor) && c.valor.length) {
+            out[`@campo:${c.id}`] = '@preenchido';
         }
     }
     return out;
@@ -456,8 +472,9 @@ function rotuloDaParte(f, c, fases) {
 /** "Decisão" for Deferido ou Parcial e "Urgente" for Sim. `fases`: o rito, para a resposta de outra fase. */
 export function textoCondicao(f, c, fases) {
     return partesDaCondicao(c).map((x) => {
-        const nomes = Object.fromEntries(opcoesDaParte(f, x, { fases: fases || [] }) || []);
-        return `"${rotuloDaParte(f, x, fases)}" for ${x.valores.map((v, i) => nomes[v] || x.nomes?.[i] || v).join(' ou ')}`;
+        const nomes = { ...Object.fromEntries(PREENCHIMENTO), ...Object.fromEntries(opcoesDaParte(f, x, { fases: fases || [] }) || []) };
+        const lista = x.valores.map((v, i) => nomes[v] || x.nomes?.[i] || v).join(' ou ');
+        return x.valores.every((v) => v.startsWith('@')) ? `"${rotuloDaParte(f, x, fases)}" estiver ${lista}` : `"${rotuloDaParte(f, x, fases)}" for ${lista}`;
     }).join(' e ');
 }
 

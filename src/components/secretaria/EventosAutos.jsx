@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { baixarBase64 } from '@/services/secretariaService';
+import { baixarResposta } from '@/services/secretariaService';
 import { dataHora } from './comum';
 import LeitorAutos from './LeitorAutos';
 
@@ -151,7 +151,7 @@ function GerarPdf({ marcados, total, ultimaFolha, gerarPdf, onFechar }) {
         setOcupado(true);
         try {
             const r = await gerarPdf({ modo, eventos: [...marcados], folha_de: Number(de), folha_a: Number(a), capa, indice });
-            baixarBase64(r.base64, r.nome);
+            baixarResposta(r);
             toast.success('PDF gerado');
             onFechar();
         } catch (e) { toast.error(e?.message || 'Não foi possível gerar o PDF'); } finally { setOcupado(false); }

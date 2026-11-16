@@ -17,7 +17,7 @@ import { PROCESSO_ELETRONICO_TAB } from '@/lib/organizationModules';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import OrgTabBar from '@/components/organization/OrgTabBar';
-import { arquivoParaBase64, secConfig, secDocumento, secProcesso } from '@/services/secretariaService';
+import { MAX_ENVIO_MB, secConfig, secProcesso } from '@/services/secretariaService';
 // Partes pesadas (tela do processo com o editor, sessões, painel) baixadas
 // quando usadas: a lista aparece sem esperar por elas.
 const carregarProcessoView = () => import('@/components/secretaria/ProcessoView');
@@ -35,7 +35,8 @@ import { unidadeComOrgao } from '@/lib/orgaos';
 import { unidadeDecide } from '@/lib/permissoesFase';
 const PainelSecretaria = lazy(() => import('@/components/secretaria/PainelSecretaria'));
 import MeuTrabalho, { MesaDecisao, gruposDeTrabalho } from '@/components/secretaria/MeuTrabalho';
-import { STATUS_ROTULO, NativeSelect, SeloUrgente } from '@/components/secretaria/comum';
+import { STATUS_ROTULO, NativeSelect, SeloUrgente, documentoDaUnidade } from '@/components/secretaria/comum';
+import DetalharDocumentos, { detalheInicial, enviarDetalhados, resumoDetalhe } from '@/components/secretaria/DetalharDocumentos';
 import AjudaTermo, { focoSemAjuda } from '@/components/secretaria/AjudaTermo';
 import GuiaRito from '@/components/secretaria/GuiaRito';
 const Sessoes = lazy(() => import('@/components/secretaria/Sessoes'));
@@ -493,15 +494,16 @@ export function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
 /** Processos por página na lista (o servidor aceita até 200). */
 const PAGINA = 100;
 
-const MAX_MB_ANEXO = 5;
+const MAX_MB_ANEXO = MAX_ENVIO_MB;
 const MAX_ANEXOS = 10;
 
 function NovoProcesso({ orgId, estado, onCriado, semente = null, onSementeUsada }) {
     const qc = useQueryClient();
     const [aberto, setAberto] = useState(false);
     const [salvando, setSalvando] = useState(false);
-    // Arquivos que entram como minutas logo depois de autuar.
+    // Arquivos detalhados (tipo, do que se trata, juntar/guardar/minuta) que entram logo depois de autuar.
     const [anexos, setAnexos] = useState([]);
+    const [detalhando, setDetalhando] = useState(null); // {inicio, itens, troca?}
     const ritosAtivos = estado.ritos.filter((r) => r.ativo);
     // Rito que só se autua por tipo não aparece em "Sem tipo".
     const ritosSemTipo = ritosAtivos.filter((r) => !r.exigir_tipo);
@@ -540,6 +542,7 @@ function NovoProcesso({ orgId, estado, onCriado, semente = null, onSementeUsada 
     const numTipo = tipoSel?.numeracao || { modo: 'orgao' };
     const numeracao = numTipo.modo === 'nenhuma' ? null : numTipo.modo === 'propria' ? numTipo : estado.numeracao || NUMERACAO_PADRAO;
     const unidadeSel = estado.unidades.find((u) => u.id === f.unidade_id);
+    const tiposDoc = documentoDaUnidade(estado, f.unidade_id).tipos_documento || [];
     const exemploNumero = numeracao && formatarNumero(numeracao, {
         hoje: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }), tipo: tipoSel, unidade: unidadeSel,
         orgao: (estado.orgaos || []).find((o) => o.id === unidadeSel?.orgao_id),
@@ -564,16 +567,13 @@ function NovoProcesso({ orgId, estado, onCriado, semente = null, onSementeUsada 
         setSalvando(true);
         try {
             const r = await secProcesso(orgId, 'autuar', f);
-            // Os arquivos vão como minutas, um a um; falha num não desfaz a autuação.
-            const falharam = [];
-            for (const file of anexos) {
-                try {
-                    const base64 = await arquivoParaBase64(file);
-                    await secDocumento(orgId, r.id, 'upload', { titulo: file.name.replace(/\.[^.]+$/, ''), tipo: 'Documento', nomeArquivo: file.name, mime: file.type, base64 });
-                } catch { falharam.push(file.name); }
-            }
-            if (falharam.length) toast.warning(`Processo ${r.numero} autuado. Não foi possível anexar ${falharam.join(', ')}: anexe no processo.`);
-            else toast.success(`Processo ${r.numero} autuado${anexos.length ? ` com ${anexos.length} ${anexos.length === 1 ? 'minuta' : 'minutas'}` : ''}`);
+            // Os arquivos entram como foram detalhados (juntados, guardados ou minutas), um a um e na
+            // ordem, com a data e a hora de agora; falha num não desfaz a autuação nem os anteriores.
+            const env = anexos.length ? await enviarDetalhados(orgId, r.id, anexos) : { falhou: null };
+            if (env.falhou) {
+                const resto = anexos.slice(env.feitos.length).map((d) => d.titulo || d.file.name);
+                toast.warning(`Processo ${r.numero} autuado. Não entrou: ${resto.join(', ')} (${env.erro}). Envie no processo, em Novo documento.`);
+            } else toast.success(`Processo ${r.numero} autuado${anexos.length ? ` com ${anexos.length} ${anexos.length === 1 ? 'documento' : 'documentos'}` : ''}`);
             qc.invalidateQueries({ queryKey: ['sec-processos', orgId] });
             setAberto(false);
             setF(vazio);
@@ -624,20 +624,29 @@ function NovoProcesso({ orgId, estado, onCriado, semente = null, onSementeUsada 
                                 e.target.value = '';
                                 const grandes = novos.filter((x) => x.size > MAX_MB_ANEXO * 1024 * 1024);
                                 if (grandes.length) toast.error(`Acima de ${MAX_MB_ANEXO} MB: ${grandes.map((x) => x.name).join(', ')}`);
-                                setAnexos((a) => [...a, ...novos.filter((x) => x.size <= MAX_MB_ANEXO * 1024 * 1024)].slice(0, MAX_ANEXOS));
+                                const cabem = novos.filter((x) => x.size <= MAX_MB_ANEXO * 1024 * 1024).slice(0, Math.max(0, MAX_ANEXOS - anexos.length));
+                                // Cada arquivo é detalhado na hora: tipo, do que se trata, data, juntar ou guardar, assinatura.
+                                if (cabem.length) setDetalhando({ inicio: anexos.length, itens: cabem.map((x) => detalheInicial(x, tiposDoc[0] || 'Documento')) });
                             }} />
-                        <p id="sec-anexos-ajuda" className="text-xs text-slate-600 dark:text-slate-400 mt-1">Entram como minutas, só para a equipe, até {MAX_MB_ANEXO} MB cada. Junte aos autos no processo; a minuta não cumpre a exigência de juntar documento até ser juntada.</p>
+                        <p id="sec-anexos-ajuda" className="text-xs text-slate-600 dark:text-slate-400 mt-1">Até {MAX_ANEXOS} arquivos de até {MAX_MB_ANEXO} MB. Ao escolher, você diz o tipo, do que se trata e se o documento é juntado aos autos, guardado fora deles ou fica como minuta. Ao autuar, eles entram nessa ordem, com a data e a hora da autuação.</p>
                         {anexos.length > 0 && (
                             <ul className="mt-2 space-y-1">
                                 {anexos.map((a, i) => (
-                                    <li key={`${a.name}-${i}`} className="flex items-center gap-2 text-sm">
+                                    <li key={`${a.file.name}-${i}`} className="flex items-center gap-2 text-sm">
                                         <Paperclip className="w-3.5 h-3.5 shrink-0 text-slate-500" aria-hidden />
-                                        <span className="flex-1 min-w-0 truncate">{a.name}</span>
-                                        <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label={`Tirar ${a.name}`} onClick={() => setAnexos((x) => x.filter((_, j) => j !== i))}><X className="w-4 h-4" aria-hidden /></Button>
+                                        <span className="flex-1 min-w-0"><span className="block truncate">{a.titulo}</span><span className="block text-xs text-slate-600 dark:text-slate-400 truncate">{resumoDetalhe(a)}</span></span>
+                                        <Button type="button" variant="ghost" size="sm" className="h-8 px-2" aria-label={`Detalhar ${a.titulo}`} onClick={() => setDetalhando({ inicio: i, itens: [a], troca: true })}>Detalhar</Button>
+                                        <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label={`Tirar ${a.titulo}`} onClick={() => setAnexos((x) => x.filter((_, j) => j !== i))}><X className="w-4 h-4" aria-hidden /></Button>
                                     </li>
                                 ))}
                             </ul>
                         )}
+                        <DetalharDocumentos aberto={!!detalhando} itens={detalhando?.itens} tipos={tiposDoc} naAutuacao
+                            onFechar={() => setDetalhando(null)}
+                            onConfirmar={(itens) => {
+                                setAnexos((a) => (detalhando.troca ? a.map((x, j) => (j === detalhando.inicio ? itens[0] : x)) : [...a, ...itens]));
+                                setDetalhando(null);
+                            }} />
                     </div>
                     <p className="text-xs text-slate-600 dark:text-slate-400">{exemploNumero ? <>Número no formato <b className="font-mono">{exemploNumero}</b>, dado ao autuar.</> : 'Este tipo de processo não tem número: recebe um identificador (SN-…).'}</p>
                     {tocado && falta.length > 0 && (

@@ -33,6 +33,7 @@ exports.textoDaCondicao = textoDaCondicao;
 exports.grupoDeAlternativas = grupoDeAlternativas;
 exports.alternativaCumprida = alternativaCumprida;
 exports.condicaoAtendida = condicaoAtendida;
+exports.valorAtende = valorAtende;
 exports.acaoAtiva = acaoAtiva;
 exports.respostasDaFase = respostasDaFase;
 exports.destinoDoAto = destinoDoAto;
@@ -62,6 +63,7 @@ const audiencias_1 = require("./audiencias");
 const julgamento_1 = require("./julgamento");
 const certames_1 = require("./certames");
 const listasOrgao_1 = require("./listasOrgao");
+const doProcesso_1 = require("./doProcesso");
 // Sem importar ./secretaria (que importa este módulo): o mesmo corte de texto.
 const MAX_TEXTO_CURTO = 200;
 const texto = (v, max = MAX_TEXTO_CURTO) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
@@ -132,7 +134,7 @@ exports.DADOS_CONDICAO = {
 };
 const ROTULO_DADO = { urgente: 'Urgente', sigilo: 'Sigilo', partes: 'Tem partes', origem: 'Origem', tipo: 'Tipo de processo' };
 const ROTULO_VALOR = {
-    sim: 'Sim', nao: 'Não', normal: 'Normal', restrito: 'Restrito', requerimento: 'Requerimento', representacao: 'Representação',
+    '@preenchido': 'preenchido', '@vazio': 'vazio', sim: 'Sim', nao: 'Não', normal: 'Normal', restrito: 'Restrito', requerimento: 'Requerimento', representacao: 'Representação',
     oficio: 'Ofício', de_oficio: 'De ofício', outro_processo: 'Outro processo', outro: 'Outra',
 };
 /** A condição (uma parte dela) lê a rodada da própria fase? */
@@ -304,6 +306,8 @@ function sanitizeRegra(raw, acao) {
         delete out.partes;
         out.ve = r.ve;
     }
+    // "Vem do processo": o campo do tipo que, preenchido, cumpre a ação sozinho (ver shared/doProcesso.ts).
+    Object.assign(out, (0, doProcesso_1.sanitizeDoProcesso)(r, out));
     return Object.keys(out).length ? out : null;
 }
 /** Campos do formulário da ação que condicionam: os de escolha, e nunca os de ação com dado reservado. */
@@ -463,7 +467,9 @@ function textoDaCondicao(f, c, fases) {
         const r = x.dado ? undefined : (_b = dona === null || dona === void 0 ? void 0 : dona.acoes_regras) === null || _b === void 0 ? void 0 : _b[x.acao];
         const simNao = !x.dado && (x.campo ? (_d = (_c = r === null || r === void 0 ? void 0 : r.campos) === null || _c === void 0 ? void 0 : _c.find((y) => y.id === x.campo)) === null || _d === void 0 ? void 0 : _d.tipo : r === null || r === void 0 ? void 0 : r.pede) === 'sim_nao';
         const fixo = !!x.dado && !!exports.DADOS_CONDICAO[x.dado];
-        const rot = (v, i) => { var _b, _c; return (simNao || fixo ? ROTULO_VALOR[v] || ((_b = x.nomes) === null || _b === void 0 ? void 0 : _b[i]) || v : ((_c = x.nomes) === null || _c === void 0 ? void 0 : _c[i]) || v); };
+        const rot = (v, i) => { var _b, _c; return (simNao || fixo || v.startsWith('@') ? ROTULO_VALOR[v] || ((_b = x.nomes) === null || _b === void 0 ? void 0 : _b[i]) || v : ((_c = x.nomes) === null || _c === void 0 ? void 0 : _c[i]) || v); };
+        if (x.valores.every((v) => v === '@preenchido' || v === '@vazio'))
+            return `"${rotuloDaCondicao(f, x, fases)}" estiver ${x.valores.map(rot).join(' ou ')}`;
         return `"${rotuloDaCondicao(f, x, fases)}" for ${x.valores.map(rot).join(' ou ')}`;
     };
     return [c, ...(c.e || [])].map(uma).join(' e ');
@@ -506,13 +512,27 @@ function condicaoAtendida(c, resp, f) {
         return true;
     const uma = (x) => {
         const k = (0, exports.chaveDaCondicao)(x);
-        if ((resp === null || resp === void 0 ? void 0 : resp[k]) === undefined || !x.valores.includes(resp[k]))
+        if (!valorAtende(x, resp === null || resp === void 0 ? void 0 : resp[k]))
             return false;
         // Na própria fase, a condição só aponta para ação anterior (o rito é validado assim): a recursão termina.
         // A resposta de outra fase e o dado do processo valem como estão.
         return !condicaoLocal(x) || !f || acaoAtiva(f, x.acao, resp);
     };
     return uma(c) && (c.e || []).every(uma);
+}
+/**
+ * O valor lido atende a parte da condição? No campo do tipo de processo, além
+ * dos valores, valem '@preenchido' (tem qualquer valor) e '@vazio' (não tem).
+ */
+function valorAtende(x, v) {
+    var _b;
+    if ((_b = x.dado) === null || _b === void 0 ? void 0 : _b.startsWith('campo:')) {
+        if (x.valores.includes('@vazio') && v === undefined)
+            return true;
+        if (x.valores.includes('@preenchido') && v !== undefined)
+            return true;
+    }
+    return v !== undefined && x.valores.includes(v);
 }
 /** A ação vale agora (sem condição, ou com a resposta que ela pede, de ação que também vale)? */
 function acaoAtiva(f, i, resp) {
@@ -553,6 +573,10 @@ function respostasDaFase(proc) {
     for (const c of (Array.isArray(proc.campos) ? proc.campos : [])) {
         if (typeof (c === null || c === void 0 ? void 0 : c.id) === 'string' && c.id && c.valor !== null && c.valor !== undefined && c.valor !== '' && typeof c.valor !== 'object') {
             out[`@campo:${c.id}`] = (0, exports.chaveDaResposta)(c.valor);
+        }
+        else if (typeof (c === null || c === void 0 ? void 0 : c.id) === 'string' && c.id && Array.isArray(c.valor) && c.valor.length) {
+            // Múltipla escolha marcada: só conta como preenchida.
+            out[`@campo:${c.id}`] = '@preenchido';
         }
     }
     return out;
@@ -754,6 +778,14 @@ function camposAoEntrarNaFase(proc, faseId) {
     if (faseId in rs) {
         const _f = rs, _g = faseId, _z = _f[_g], resto = __rest(_f, [typeof _g === "symbol" ? _g : _g + ""]);
         out.acoes_respostas = resto;
+    }
+    // O que o sistema cumpriu pelo campo do processo e o que alguém desfez à mão valem só para a rodada.
+    for (const k of ['acoes_auto', 'acoes_auto_off']) {
+        const m = (proc[k] || {});
+        if (faseId in m) {
+            const _h = m, _j = faseId, _w = _h[_j], resto = __rest(_h, [typeof _j === "symbol" ? _j : _j + ""]);
+            out[k] = resto;
+        }
     }
     return out;
 }

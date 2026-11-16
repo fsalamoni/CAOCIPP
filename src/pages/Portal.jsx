@@ -22,7 +22,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { secPortal, baixarBase64, base64ParaUrl, arquivoParaBase64 } from '@/services/secretariaService';
+import { secPortal, baixarResposta, base64ParaUrl, prepararEnvio, MAX_ENVIO_MB, TIPOS_ENVIO } from '@/services/secretariaService';
 import { STATUS_ROTULO, SeloUrgente, copiarTexto, dataHora } from '@/components/secretaria/comum';
 import FluxoRito from '@/components/secretaria/FluxoRito';
 import { BotaoAgenda } from '@/components/secretaria/PainelSessao';
@@ -415,7 +415,7 @@ function ProcessoParte({ id, onVoltar }) {
         setOcupado(d.id);
         try {
             const r = await secPortal('baixar', { processoId: id, docId: d.id });
-            baixarBase64(r.base64, r.nomeArquivo || r.titulo, r.mime);
+            baixarResposta(r, r.nomeArquivo || r.titulo, r.mime);
         } catch (e) { toast.error(e?.message || 'Não foi possível baixar'); } finally { setOcupado(''); }
     };
     const pdfDe = async (acao, extra = {}) => {
@@ -426,12 +426,12 @@ function ProcessoParte({ id, onVoltar }) {
         const r = await pdfDe('exportar');
         if (!r) return;
         if (imprimir) {
-            const w = window.open(base64ParaUrl(r.base64, 'application/pdf'), '_blank');
-            if (!w) baixarBase64(r.base64, r.nome);
-        } else baixarBase64(r.base64, r.nome);
+            const w = window.open(r.url || base64ParaUrl(r.base64, 'application/pdf'), '_blank');
+            if (!w) baixarResposta(r);
+        } else baixarResposta(r);
     };
-    const certidao = async () => { const r = await pdfDe('certidao'); if (r) baixarBase64(r.base64, r.nome); };
-    const comprovante = async (docId) => { const r = await pdfDe('comprovante', { docId }); if (r) baixarBase64(r.base64, r.nome); };
+    const certidao = async () => { const r = await pdfDe('certidao'); if (r) baixarResposta(r); };
+    const comprovante = async (docId) => { const r = await pdfDe('comprovante', { docId }); if (r) baixarResposta(r); };
     const irParaManifestar = (prazo) => {
         setResponderPrazo(prazo || null);
         formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -647,7 +647,7 @@ function ProcessoParte({ id, onVoltar }) {
     );
 }
 
-const MAX_MB = 5;
+const MAX_MB = MAX_ENVIO_MB;
 const MODELOS_PETICAO = {
     'Manifestação': { texto: 'Venho me manifestar sobre ', dica: 'Diga sobre o que se manifesta e o que pede ao final.' },
     'Juntada de documento': { texto: 'Junto aos autos o documento anexo, ', dica: 'Anexe o arquivo e diga em poucas palavras o que ele é e por que o junta.' },
@@ -771,7 +771,7 @@ function Peticionar({ id, prazos, tipos = [], prazoInicial, aviso, onFeito, onCo
         if (arquivo && arquivo.size > MAX_MB * 1024 * 1024) { toast.error(`O arquivo passa de ${MAX_MB} MB`); return; }
         setOcupado(true);
         try {
-            const extra = arquivo ? { base64: await arquivoParaBase64(arquivo), mime: arquivo.type, nomeArquivo: arquivo.name } : {};
+            const extra = arquivo ? await prepararEnvio(arquivo, { tipos: [TIPOS_ENVIO.pdf, TIPOS_ENVIO.docx, TIPOS_ENVIO.png, TIPOS_ENVIO.jpg] }) : {};
             const r = await secPortal('peticionar', { processoId: id, titulo: titulo.trim() || tipo || 'Petição', texto, tipo: tipo || undefined, prazo_id: prazoId || undefined, ...extra });
             setProtocolo(r);
             setTipo(''); setTitulo(''); setTexto(''); setArquivo(null); setPrazoId('');

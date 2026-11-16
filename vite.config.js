@@ -23,6 +23,8 @@ export default defineConfig({
         // mantém em cache entre um deploy e outro e só baixa o código do SIGO.
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined;
+          // Storage só no envio de arquivos: fora do pacote que toda página baixa.
+          if (/node_modules\/(@firebase\/storage|firebase\/storage)\//.test(id)) return 'vendor-firebase-storage';
           if (/node_modules\/(@firebase|firebase)\//.test(id)) return 'vendor-firebase';
           if (/node_modules\/(react|react-dom|scheduler|react-router|react-router-dom|@remix-run)\//.test(id)) return 'vendor-react';
           return undefined;

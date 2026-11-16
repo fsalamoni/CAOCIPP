@@ -18,6 +18,7 @@ const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const secretaria_1 = require("../shared/secretaria");
 const documento_1 = require("../shared/documento");
+const arquivo_1 = require("../shared/arquivo");
 const camposProcesso_1 = require("../shared/camposProcesso");
 const numeracao_1 = require("../shared/numeracao");
 const context_1 = require("./context");
@@ -130,7 +131,8 @@ async function guardarVersao(ref, atual, campos) {
 const CAMPOS_RITO = ['nome', 'descricao', 'fases', 'exigir_tipo'];
 /** Tipo de processo: o que o editor do tipo grava (a versão é aberta no editor, não restaurada direto). */
 const CAMPOS_TIPO = ['nome', 'sigla', 'descricao', 'rito_id', 'formulario', 'numeracao', 'pode_nascer_de', 'sigilo_padrao', 'urgente', 'unidade_inicial', 'orgao_id', 'cria_registro'];
-const CAMPOS_MODELO = ['nome', 'tipo_documento', 'descricao', 'conteudo'];
+/** `conteudo` é o mapa antigo; `conteudo_json`, o texto do editor em JSON (shared/arquivo.ts). */
+const CAMPOS_MODELO = ['nome', 'tipo_documento', 'descricao', 'conteudo', 'conteudo_json'];
 const RITO_PADRAO = {
     nome: 'Rito comum',
     descricao: 'Rito inicial criado na ativação. Pode ser editado ou substituído.',
@@ -331,7 +333,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         if (!m || m.organization_id !== orgId)
             throw new https_1.HttpsError('not-found', 'Modelo não encontrado');
         return {
-            id: p.id, nome: m.nome, tipo_documento: m.tipo_documento || '', descricao: m.descricao || '', conteudo: m.conteudo,
+            id: p.id, nome: m.nome, tipo_documento: m.tipo_documento || '', descricao: m.descricao || '', conteudo: (0, arquivo_1.conteudoGravado)(m),
             ativo: m.ativo !== false, unidade_id: m.unidade_id || null, orgao_id: m.orgao_id || null, formato: m.formato || 'editor', arquivo_nome: m.arquivo_nome || '',
         };
     }
@@ -438,7 +440,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
                 throw new https_1.HttpsError('invalid-argument', 'Modelo grande demais (imagens pesadas); reduza as imagens ou guarde o arquivo original');
             }
         }
-        const dados = Object.assign(Object.assign({ nome, tipo_documento: (0, secretaria_1.texto)(m.tipo_documento, 60), descricao: (0, secretaria_1.texto)(m.descricao, 500), conteudo, unidade_id: unidadeId }, ('orgao_id' in m || unidadeId ? { orgao_id: orgaoModelo || null } : {})), { ativo: m.ativo !== false, updated_at: agora, updated_by: auth.uid });
+        const dados = Object.assign(Object.assign(Object.assign(Object.assign({ nome, tipo_documento: (0, secretaria_1.texto)(m.tipo_documento, 60), descricao: (0, secretaria_1.texto)(m.descricao, 500) }, (conteudo ? { conteudo_json: JSON.stringify(conteudo) } : {})), { unidade_id: unidadeId }), ('orgao_id' in m || unidadeId ? { orgao_id: orgaoModelo || null } : {})), { ativo: m.ativo !== false, updated_at: agora, updated_by: auth.uid });
         const ref = p.id ? col.doc(p.id) : col.doc();
         if (!p.id && naoExcluidos(await col.where('organization_id', '==', orgId).select('excluido').get()).length >= MAX_MODELOS) {
             throw new https_1.HttpsError('resource-exhausted', 'Limite de modelos atingido');
@@ -452,7 +454,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             // Versão anterior fica guardada (só modelos do editor têm conteúdo a versionar).
             if (formato === 'editor' && atual)
                 await guardarVersao(ref, atual, CAMPOS_MODELO);
-            await ref.update(Object.assign(Object.assign({}, dados), { versao: (Number(atual === null || atual === void 0 ? void 0 : atual.versao) || 1) + 1 }));
+            await ref.update(Object.assign(Object.assign(Object.assign({}, dados), (conteudo ? { conteudo: firestore_1.FieldValue.delete() } : {})), { versao: (Number(atual === null || atual === void 0 ? void 0 : atual.versao) || 1) + 1 }));
         }
         else
             await ref.set(Object.assign(Object.assign({}, dados), { versao: 1, formato, organization_id: orgId, created_at: agora, created_by: auth.uid }));
@@ -540,6 +542,11 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         for (const k of campos)
             if (v[k] !== undefined)
                 volta[k] = v[k];
+        // Modelo: a versão traz o texto numa das duas formas; a outra sai, para não valer a atual.
+        if (col === context_1.COL.modelos)
+            for (const k of ['conteudo', 'conteudo_json'])
+                if (v[k] === undefined)
+                    volta[k] = firestore_1.FieldValue.delete();
         // Versão de antes da opção: o rito volta sem exigir tipo.
         if (col === context_1.COL.ritos)
             volta.exigir_tipo = v.exigir_tipo === true;
@@ -575,7 +582,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             db.collection(context_1.COL.tipos).where('organization_id', '==', orgId).where('rito_id', '==', id).get(),
         ]);
         const modelos = modSnaps.filter((s) => s.exists && s.data().organization_id === orgId && s.data().excluido !== true)
-            .map((s) => (Object.assign({ id: s.id }, s.data())));
+            .map((s) => (Object.assign(Object.assign({ id: s.id }, s.data()), { conteudo: (0, arquivo_1.conteudoGravado)(s.data()) })));
         const t = tiposSnap.docs.map((x) => x.data()).filter((x) => x.excluido !== true).sort((a, b) => Number(b.ativo !== false) - Number(a.ativo !== false))[0];
         const tipo = t ? { nome: String(t.nome || ''), sigla: String(t.sigla || ''), descricao: String(t.descricao || ''), formulario: (0, camposProcesso_1.formularioDe)(t), sigilo_padrao: t.sigilo_padrao } : null;
         const paginas = {};
@@ -809,7 +816,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             batch.set(m.ref, {
                 organization_id: orgId, nome: m.nome, tipo_documento: m.tipo_documento,
                 descricao: m.conteudo ? (m.descricao || `Modelo do rito "${rito.nome}", vindo de outro órgão.`) : `Modelo do rito "${rito.nome}". Complete o texto.`,
-                conteudo: m.conteudo || (0, documento_1.sanitizeDoc)(esqueletoModelo(m.nome)), unidade_id: m.unidade_id, formato: 'editor', ativo: true,
+                conteudo_json: JSON.stringify(m.conteudo || (0, documento_1.sanitizeDoc)(esqueletoModelo(m.nome))), unidade_id: m.unidade_id, formato: 'editor', ativo: true,
                 created_at: agora, created_by: auth.uid, updated_at: agora, updated_by: auth.uid,
             });
         }

@@ -71,6 +71,8 @@ export async function migrarRito(c: Contexto, p: Payload, auditar: Auditar) {
             tx.update(d.ref, {
                 ...mov, rito_nome: rito.nome, rito_versao: versao, fases: est.fases, fase_atual: est.fase_atual,
                 acoes_feitas: est.acoes_feitas, acoes_respostas: est.acoes_respostas, exigencias_cumpridas: est.exigencias_cumpridas,
+                // As ações podem ter mudado de lugar: o que o sistema cumpriu pelo campo do processo recomeça a contar daqui.
+                acoes_auto: {}, acoes_auto_off: {},
                 ...(est.prazos ? { prazos: est.prazos, ...derivados((atual.pendencias || []) as Pendencia[], est.prazos as Prazo[]) } : {}),
             });
             return true;

@@ -2,7 +2,7 @@ import * as admin from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import {
-    MAX_UPLOAD_BYTES, Pendencia, Prazo, TIPOS_ARQUIVO_PERMITIDOS, derivados, jsonCanonico, minutaAcessivel, sha256, texto, versaoAnterior,
+    Pendencia, Prazo, TIPOS_ARQUIVO_PERMITIDOS, derivados, jsonCanonico, minutaAcessivel, sha256, texto, versaoAnterior,
 } from '../shared/secretaria';
 import { sanitizeDoc } from '../shared/documento';
 import type { Fase } from '../shared/secretaria';
@@ -19,8 +19,9 @@ import {
 } from './context';
 import {
     caminhoPdf, conteudoDoDocumento, folhasDoProcesso, lerConfigDocumento, novoCodigo, paginasDeArquivo, pdfCarimbado,
-    registroVerificacao, textoFolhas,
+    registroVerificacao, textoFolhas, versaoDeLeitura,
 } from './autos';
+import { camposDoConteudo, copiaDoConteudo, entregar, gravarOriginal, lerArquivoEnviado, lerOriginal, semApagar } from './arquivos';
 import { renderizarDocumento } from './pdfDocumento';
 import { reabrirSala } from './audienciaSala';
 
@@ -65,6 +66,8 @@ interface DocRequest {
     nomeArquivo?: string;
     mime?: string;
     base64?: string;
+    /** upload: caminho do arquivo que o navegador pôs na área de espera do Storage (até 50 MB). */
+    envio?: string;
     /** Juntada: 'nao' | 'sim' (abre pendência) | 'interrompe' (abre e suspende a fase). */
     pendencia?: string;
     /** Juntada: false deixa o documento fora do portal das partes. */
@@ -73,14 +76,38 @@ interface DocRequest {
     atende?: string[];
     /** criarMinuta/upload: modelo de onde a minuta nasceu. */
     modelo_id?: string;
+    /** criarMinuta/upload: do que se trata o documento (vai ao registro da juntada). */
+    descricao?: string;
+    /** criarMinuta/upload: data do próprio documento (assinatura ou emissão), AAAA-MM-DD, até hoje. */
+    data_documento?: string;
 }
+
+const MAX_DESCRICAO_DOC = 500;
+
+/** Descrição e data do documento, conferidas (data futura ou inválida é recusada). Lança HttpsError. */
+export function descritivos(p: { descricao?: unknown; data_documento?: unknown }, hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })) {
+    const descricao = texto(p.descricao, MAX_DESCRICAO_DOC);
+    const data = typeof p.data_documento === 'string' ? p.data_documento.trim() : '';
+    if (data) {
+        const d = new Date(`${data}T00:00:00Z`);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(data) || Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== data) throw new HttpsError('invalid-argument', 'Data do documento inválida');
+        if (data > hoje) throw new HttpsError('invalid-argument', 'A data do documento não pode ser futura');
+    }
+    return { ...(descricao ? { descricao } : {}), ...(data ? { data_documento: data } : {}) };
+}
+
+/** O que a juntada (ou a guarda) diz do documento, além do título: a data dele e do que se trata. */
+export const textoDescritivo = (doc: { descricao?: unknown; data_documento?: unknown }) =>
+    `${typeof doc.data_documento === 'string' && doc.data_documento ? ` Documento datado de ${doc.data_documento.split('-').reverse().join('/')}.` : ''}`
+    + `${typeof doc.descricao === 'string' && doc.descricao ? ` Do que se trata: ${doc.descricao.replace(/\.$/, '')}.` : ''}`;
 
 export function caminhoArquivo(orgId: string, procId: string, docId: string) {
     return `secretaria/${orgId}/${procId}/${docId}`;
 }
 
 export const secretariaDocumento = onCall<DocRequest>(
-    { region: REGION, memory: '512MiB' },
+    // Arquivos de até 50 MB: imagem recomprimida e PDF reorganizado pedem memória e tempo.
+    { region: REGION, memory: '1GiB', timeoutSeconds: 300 },
     comSinal(async (request) => {
         const auth = exigirAuth(request);
         const p = request.data || ({} as DocRequest);
@@ -141,11 +168,12 @@ export const secretariaDocumento = onCall<DocRequest>(
             exigirLeitura(doc);
             if (p.versaoId) {
                 const v = await lerVersao(ref);
-                return { origem: 'editor', titulo: v.titulo, tipo: v.tipo, conteudo: v.conteudo };
+                return { origem: 'editor', titulo: v.titulo, tipo: v.tipo, conteudo: await conteudoDoDocumento(v) };
             }
-            if (doc.origem === 'editor') return { origem: 'editor', titulo: doc.titulo, tipo: doc.tipo, conteudo: conteudoDoDocumento(doc) };
-            const [buf] = await admin.storage().bucket().file(doc.storage_path).download();
-            return { origem: 'upload', titulo: doc.titulo, mime: doc.mime, nomeArquivo: doc.nome_arquivo, base64: buf.toString('base64') };
+            if (doc.origem === 'editor') return { origem: 'editor', titulo: doc.titulo, tipo: doc.tipo, conteudo: await conteudoDoDocumento(doc) };
+            // O original, byte a byte como foi enviado (é a prova; o SHA-256 confere).
+            const arq = await entregar(await lerOriginal(doc), String(doc.nome_arquivo || doc.titulo), String(doc.mime), auth.uid);
+            return { origem: 'upload', titulo: doc.titulo, nomeArquivo: doc.nome_arquivo, ...arq };
         }
 
         // PDF do documento: juntado, como está nos autos (com folhas e carimbo);
@@ -156,14 +184,14 @@ export const secretariaDocumento = onCall<DocRequest>(
             if (p.versaoId) {
                 exigirLeitura(doc);
                 const v = await lerVersao(ref);
-                const r = await renderizarDocumento(v.conteudo, await lerConfigDocumento(c.db, c.orgId, doc.unidade_origem), { assinaturas: [], sha256: v.sha256, marcaDagua: 'VERSÃO ANTERIOR' });
+                const r = await renderizarDocumento(await conteudoDoDocumento(v), await lerConfigDocumento(c.db, c.orgId, doc.unidade_origem), { assinaturas: [], sha256: v.sha256, marcaDagua: 'VERSÃO ANTERIOR' });
                 return { base64: r.buffer.toString('base64'), nome: `versao-anterior-${nome}`, paginas: r.paginas };
             }
-            if (doc.status === 'juntado') return { base64: await pdfCarimbado(c.db, c.orgId, procRef.id, String(proc.numero), p.docId!, doc), nome };
+            if (doc.status === 'juntado') return entregar(await pdfCarimbado(c.db, c.orgId, procRef.id, String(proc.numero), p.docId!, doc), nome, 'application/pdf', auth.uid);
             const controle = doc.status === 'controle';
             if (!controle && !minutaAcessivel(doc, c.ctx.unidadeIds)) throw new HttpsError('not-found', 'Documento não encontrado');
             if (doc.origem !== 'editor') throw new HttpsError('failed-precondition', controle ? 'Baixe o arquivo original do documento' : 'Baixe o arquivo original da minuta');
-            const r = await renderizarDocumento(conteudoDoDocumento(doc), await lerConfigDocumento(c.db, c.orgId, doc.unidade_origem), {
+            const r = await renderizarDocumento(await conteudoDoDocumento(doc), await lerConfigDocumento(c.db, c.orgId, doc.unidade_origem), {
                 assinaturas: doc.assinaturas || [], sha256: doc.sha256, marcaDagua: controle ? 'FORA DOS AUTOS' : 'MINUTA',
             });
             return { base64: r.buffer.toString('base64'), nome, paginas: r.paginas };
@@ -184,30 +212,44 @@ export const secretariaDocumento = onCall<DocRequest>(
                 criado_em: agoraIso,
                 assinaturas: [],
                 ...(texto(p.modelo_id, 40) ? { modelo_id: texto(p.modelo_id, 40) } : {}),
+                // Detalhado ao entrar no processo: do que se trata e a data do próprio documento (assinatura ou emissão).
+                ...descritivos(p),
             };
             if (p.action === 'criarMinuta') {
                 let conteudo;
                 try { conteudo = sanitizeDoc(p.conteudo); } catch (e) { erroUsuario(e); }
-                await ref.set({ ...base, origem: 'editor', conteudo, sha256: sha256(jsonCanonico(conteudo)) });
+                const hash = sha256(jsonCanonico(conteudo));
+                const campos = semApagar(await camposDoConteudo(caminhoArquivo(c.orgId, procRef.id, ref.id), conteudo!, hash));
+                await ref.set({ ...base, origem: 'editor', ...campos, sha256: hash });
                 return { success: true, id: ref.id };
             }
             const mime = String(p.mime || '');
             if (!TIPOS_ARQUIVO_PERMITIDOS[mime]) throw new HttpsError('invalid-argument', 'Tipo de arquivo não aceito');
-            const buf = Buffer.from(String(p.base64 || ''), 'base64');
-            if (!buf.length) throw new HttpsError('invalid-argument', 'Arquivo vazio');
-            if (buf.length > MAX_UPLOAD_BYTES) throw new HttpsError('invalid-argument', 'Arquivo acima de 5 MB');
+            const buf = await lerArquivoEnviado(p, auth.uid, mime);
             const path = caminhoArquivo(c.orgId, procRef.id, ref.id);
+            const nomeArquivo = texto(p.nomeArquivo) || titulo;
+            const hash = sha256(buf);
             const paginas = await paginasDeArquivo(buf, mime);
-            const arquivo = admin.storage().bucket().file(path);
-            await arquivo.save(buf, { contentType: mime, resumable: false });
+            const bucket = admin.storage().bucket();
+            const guardado = await gravarOriginal(path, buf, mime);
+            // Versão de leitura (folhas, tela, PDF do processo); se falhar, os autos usam o original.
+            let leitura: { leitura_path: string; leitura_tamanho: number } | null = null;
+            try {
+                const v = await versaoDeLeitura(buf, { mime, titulo, nome_arquivo: nomeArquivo, sha256: hash });
+                if (v) {
+                    await bucket.file(`${path}.leitura.pdf`).save(Buffer.from(v), { contentType: 'application/pdf', resumable: false });
+                    leitura = { leitura_path: `${path}.leitura.pdf`, leitura_tamanho: v.length };
+                }
+            } catch (e) { console.warn('[documentos] versão de leitura não gerada', e); }
             try {
                 await ref.set({
-                    ...base, origem: 'upload', mime, nome_arquivo: texto(p.nomeArquivo) || titulo,
-                    tamanho: buf.length, sha256: sha256(buf), storage_path: path, paginas,
+                    ...base, origem: 'upload', mime, nome_arquivo: nomeArquivo,
+                    tamanho: buf.length, sha256: hash, storage_path: path, paginas, ...guardado, ...(leitura || {}),
                 });
             } catch (e) {
                 // Sem o registro, o arquivo ficaria no armazenamento sem dono.
-                await arquivo.delete({ ignoreNotFound: true }).catch(() => undefined);
+                await bucket.file(path).delete({ ignoreNotFound: true }).catch(() => undefined);
+                if (leitura) await bucket.file(leitura.leitura_path).delete({ ignoreNotFound: true }).catch(() => undefined);
                 throw e;
             }
             return { success: true, id: ref.id };
@@ -218,6 +260,8 @@ export const secretariaDocumento = onCall<DocRequest>(
             let conteudo: unknown;
             try { conteudo = sanitizeDoc(p.conteudo); } catch (e) { erroUsuario(e); }
             const novoSha = sha256(jsonCanonico(conteudo));
+            // Texto grande vai ao Storage antes (num arquivo por versão, então a redação anterior não é sobrescrita).
+            const campos = await camposDoConteudo(caminhoArquivo(c.orgId, procRef.id, String(p.docId)), conteudo as never, novoSha);
             // Lido e gravado juntos: dois revisores ao mesmo tempo não perdem a redação anterior.
             await c.db.runTransaction(async (tx) => {
                 const { ref, doc } = await lerDoc(tx);
@@ -226,10 +270,10 @@ export const secretariaDocumento = onCall<DocRequest>(
                 if ((doc.assinaturas || []).length) throw new HttpsError('failed-precondition', 'Minuta já assinada não se edita');
                 const anterior = versaoAnterior(doc, auth.uid, novoSha);
                 if (anterior) {
-                    tx.set(ref.collection('versoes').doc(), { ...anterior, conteudo: conteudoDoDocumento(doc), substituida_em: agoraIso, substituida_por: c.userName });
+                    tx.set(ref.collection('versoes').doc(), { ...anterior, ...copiaDoConteudo(doc), substituida_em: agoraIso, substituida_por: c.userName });
                 }
                 tx.update(ref, {
-                    conteudo, sha256: novoSha, delta: FieldValue.delete(),
+                    ...campos, sha256: novoSha, delta: FieldValue.delete(),
                     ...(texto(p.titulo) ? { titulo: texto(p.titulo) } : {}),
                     ...(texto(p.tipo, 60) ? { tipo: texto(p.tipo, 60) } : {}),
                     editado_em: agoraIso, editado_por: auth.uid, editado_por_nome: c.userName,
@@ -262,8 +306,10 @@ export const secretariaDocumento = onCall<DocRequest>(
             }
             const bucket = admin.storage().bucket();
             if (doc.storage_path) await bucket.file(doc.storage_path).delete({ ignoreNotFound: true });
-            // PDF que uma juntada interrompida tenha deixado.
+            if (doc.leitura_path) await bucket.file(doc.leitura_path).delete({ ignoreNotFound: true });
+            // PDF que uma juntada interrompida tenha deixado e os textos grandes (de todas as redações).
             await bucket.file(caminhoPdf(caminhoArquivo(c.orgId, procRef.id, p.docId!))).delete({ ignoreNotFound: true });
+            await bucket.deleteFiles({ prefix: `${caminhoArquivo(c.orgId, procRef.id, p.docId!)}.conteudo.` }).catch(() => undefined);
             return { success: true };
         }
 
@@ -355,15 +401,14 @@ export const secretariaDocumento = onCall<DocRequest>(
             let paginas = Number(antes.paginas) || 0;
             let pdf: { path: string; sha256: string } | null = null;
             if (antes.origem === 'editor') {
-                const r = await renderizarDocumento(conteudoDoDocumento(antes), await lerConfigDocumento(c.db, c.orgId, antes.unidade_origem), {
+                const r = await renderizarDocumento(await conteudoDoDocumento(antes), await lerConfigDocumento(c.db, c.orgId, antes.unidade_origem), {
                     assinaturas: antes.assinaturas || [], sha256: antes.sha256,
                 });
                 paginas = r.paginas;
                 pdf = { path: caminhoPdf(caminhoArquivo(c.orgId, procRef.id, p.docId!)), sha256: sha256(r.buffer) };
                 await bucket.file(pdf.path).save(r.buffer, { contentType: 'application/pdf', resumable: false });
             } else if (!paginas) {
-                const [buf] = await bucket.file(antes.storage_path).download();
-                paginas = await paginasDeArquivo(buf, antes.mime);
+                paginas = await paginasDeArquivo(await lerOriginal(antes), antes.mime);
             }
             const r = await c.db.runTransaction(async (tx) => {
                 const { ref: pr, data: atual } = await lerProcesso(c, p.processoId, tx);
@@ -397,7 +442,7 @@ export const secretariaDocumento = onCall<DocRequest>(
                 // o rito também pode pedir isso para o documento exigido (só esconde, nunca mostra).
                 const visivel = p.visivel_partes !== false && !cumpridas.some((e) => e.partes === false);
                 const mov = registrarMovimento(tx, c, pr, atual, 'juntada',
-                    `Juntado o documento nº ${ordem}: ${doc.titulo} (${doc.tipo}), ${textoFolhas(folha, paginas)}.${assin ? ` Assinado por ${assin}.` : ''}${pend.length ? ` Pendência aberta para o decisor${pend[0].interrompe ? ', com interrupção da fase' : ''}.` : ''}${resolvida ? ` Decide a pendência${resolvida.tipo === 'manual' ? '' : `: ${resolvida.descricao}`}.` : ''}`
+                    `Juntado o documento nº ${ordem}: ${doc.titulo} (${doc.tipo}), ${textoFolhas(folha, paginas)}.${textoDescritivo(doc)}${assin ? ` Assinado por ${assin}.` : ''}${pend.length ? ` Pendência aberta para o decisor${pend[0].interrompe ? ', com interrupção da fase' : ''}.` : ''}${resolvida ? ` Decide a pendência${resolvida.tipo === 'manual' ? '' : `: ${resolvida.descricao}`}.` : ''}`
                     + `${cumpridas.length ? ` Cumpre o exigido pelo rito: ${cumpridas.map((e) => e.descricao).join('; ')}.` : ''}`,
                     { documento_id: ref.id, ordem, sha256: doc.sha256, visivel_partes: visivel, folha_inicial: folha, paginas, ...(pdf ? { pdf_sha256: pdf.sha256 } : {}), ...(resolvida ? { pendencia_id: resolvida.id } : {}),
                         ...(cumpridas.length ? { exigencias: cumpridas.map((e) => e.chave) } : {}) });
@@ -455,7 +500,7 @@ export const secretariaDocumento = onCall<DocRequest>(
                 const destino = destinoDaGuarda(fase, cumpridas);
                 const assin = (doc.assinaturas || []).map((a: { nome: string }) => a.nome).join(', ');
                 const mov = registrarMovimento(tx, c, pr, atual, 'guarda',
-                    `Guardado no processo, fora dos autos, o documento "${doc.titulo}" (${doc.tipo}).${assin ? ` Assinado por ${assin}.` : ''}`
+                    `Guardado no processo, fora dos autos, o documento "${doc.titulo}" (${doc.tipo}).${textoDescritivo(doc)}${assin ? ` Assinado por ${assin}.` : ''}`
                     + `${cumpridas.length ? ` Cumpre o exigido pelo rito: ${cumpridas.map((e) => e.descricao).join('; ')}.` : ''}`,
                     { documento_id: ref.id, titulo: doc.titulo, sha256: doc.sha256, visivel_partes: false, ...marcasDoDestino(destino),
                         ...(cumpridas.length ? { exigencias: cumpridas.map((e) => e.chave) } : {}) });

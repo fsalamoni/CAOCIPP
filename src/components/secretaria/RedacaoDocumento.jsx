@@ -4,7 +4,8 @@ import { Download, Eye, FileText, Loader2, Save, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { base64ParaUrl, baixarBase64, secConfig } from '@/services/secretariaService';
+import { baixarResposta, secConfig } from '@/services/secretariaService';
+import VisorPdf from './VisorPdf';
 import EditorDocumento, { preencherCampos } from './EditorDocumento';
 import { documentoDaUnidade, modelosDaUnidade } from './comum';
 
@@ -12,24 +13,16 @@ const DIALOGO_CHEIO = 'max-w-none w-screen h-[100dvh] sm:w-[96vw] sm:h-[96vh] sm
 
 /** Pré-visualização de PDF dentro da plataforma, com download. */
 export function VisualizadorPdf({ pdf, onFechar }) {
-    const [url, setUrl] = useState(null);
-    useEffect(() => {
-        if (!pdf) return undefined;
-        const u = base64ParaUrl(pdf.base64);
-        setUrl(u);
-        return () => URL.revokeObjectURL(u);
-    }, [pdf]);
     return (
         <Dialog open={!!pdf} onOpenChange={(o) => !o && onFechar()}>
             <DialogContent className={DIALOGO_CHEIO}>
                 <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-700 px-3 py-2">
                     <DialogTitle className="text-base truncate flex-1">{pdf?.titulo || 'Documento'}</DialogTitle>
                     <DialogDescription className="sr-only">Visualização do PDF</DialogDescription>
-                    <Button size="sm" variant="outline" className="gap-1" onClick={() => baixarBase64(pdf.base64, pdf.nome)}><Download className="w-4 h-4" /> Baixar</Button>
+                    <Button size="sm" variant="outline" className="gap-1" onClick={() => baixarResposta(pdf)}><Download className="w-4 h-4" /> Baixar</Button>
                     <Button size="sm" variant="ghost" onClick={onFechar} aria-label="Fechar"><X className="w-4 h-4" /></Button>
                 </div>
-                {url && <iframe title={pdf?.titulo || 'PDF'} src={url} className="flex-1 w-full bg-slate-200 dark:bg-slate-800" />}
-                <p className="sm:hidden text-xs text-slate-600 px-3 py-2">No celular, se o PDF não aparecer inteiro, use Baixar.</p>
+                {pdf && <VisorPdf fonte={pdf} titulo={pdf.titulo || 'PDF'} onBaixar={() => baixarResposta(pdf)} className="flex-1 min-h-0 w-full bg-slate-200 dark:bg-slate-800" />}
             </DialogContent>
         </Dialog>
     );

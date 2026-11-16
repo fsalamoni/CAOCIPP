@@ -96,7 +96,7 @@ export async function acaoSalaAudiencia(c: Contexto, p: Payload): Promise<unknow
             const dref = ref.collection('documentos').doc();
             tx.set(dref, {
                 titulo, tipo: 'Termo de audiência', status: 'minuta', unidade_origem: data.unidade_atual, autor_uid: quem.uid, autor_nome: quem.nome,
-                criado_em: agora, origem: 'editor', conteudo, sha256: hash, audiencia_id: a.id,
+                criado_em: agora, origem: 'editor', conteudo_json: JSON.stringify(conteudo), sha256: hash, audiencia_id: a.id,
                 assinaturas: [{ uid: quem.uid, nome: quem.nome, em: agora, sha256: hash, nivel: 'simples' }],
             });
             tx.set(sref, { ...base, encerrada_em: agora, realizada, ...(realizada ? {} : { motivo }), termo_documento_id: dref.id });

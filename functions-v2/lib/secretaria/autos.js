@@ -6,6 +6,8 @@ exports.conteudoDoDocumento = conteudoDoDocumento;
 exports.paginasDeArquivo = paginasDeArquivo;
 exports.folhaSimples = folhaSimples;
 exports.pdfDoDocumento = pdfDoDocumento;
+exports.pdfDeArquivo = pdfDeArquivo;
+exports.versaoDeLeitura = versaoDeLeitura;
 exports.novoCodigo = novoCodigo;
 exports.normalizarCodigo = normalizarCodigo;
 exports.registroVerificacao = registroVerificacao;
@@ -23,6 +25,8 @@ const secretaria_1 = require("../shared/secretaria");
 const context_1 = require("./context");
 const pdfDocumento_1 = require("./pdfDocumento");
 const conversao_1 = require("./conversao");
+const arquivos_1 = require("./arquivos");
+const imagem_1 = require("./imagem");
 /**
  * Peças dos autos em PDF: cada documento juntado vira páginas numeradas em
  * folhas (fls.) contínuas no processo, com carimbo de processo, folha,
@@ -41,8 +45,9 @@ async function lerConfigDocumento(db, orgId, unidadeId) {
     const un = u === null || u === void 0 ? void 0 : u.data();
     return (0, secretaria_1.documentoEfetivo)((((_a = s.data()) === null || _a === void 0 ? void 0 : _a.documento) || {}), (un === null || un === void 0 ? void 0 : un.organization_id) === orgId ? un : null);
 }
-function conteudoDoDocumento(d) {
-    return d.conteudo ? d.conteudo : (0, documento_1.deltaParaDoc)((d.delta || []));
+/** Texto do editor de um documento ou versão (JSON no banco ou no Storage, mapa antigo, Delta do Quill). */
+async function conteudoDoDocumento(d) {
+    return (await (0, arquivos_1.lerConteudo)(d)) || (0, documento_1.deltaParaDoc)((d.delta || []));
 }
 const caminhoPdf = (storagePath) => `${storagePath}.pdf`;
 exports.caminhoPdf = caminhoPdf;
@@ -100,31 +105,68 @@ async function pdfDoDocumento(d, cfg) {
             }
             catch ( /* gera de novo abaixo */_a) { /* gera de novo abaixo */ }
         }
-        return (await (0, pdfDocumento_1.renderizarDocumento)(conteudoDoDocumento(d), d.peticao ? {} : cfg, {
+        return (await (0, pdfDocumento_1.renderizarDocumento)(await conteudoDoDocumento(d), d.peticao ? {} : cfg, {
             assinaturas: d.assinaturas || [], sha256: d.sha256, semCabecalho: !!d.peticao,
         })).buffer;
     }
-    try {
-        const [buf] = await bucket.file(d.storage_path).download();
-        if (d.mime === 'application/pdf') {
-            await pdfLib().PDFDocument.load(buf, { ignoreEncryption: true }); // valida
-            return buf;
+    // Versão de leitura feita no envio (imagem otimizada, PDF reorganizado, Word convertido).
+    if (d.leitura_path) {
+        try {
+            return (await bucket.file(d.leitura_path).download())[0];
         }
-        if (d.mime === 'image/png' || d.mime === 'image/jpeg')
-            return folhaSimples(d.titulo, [], { buf, mime: d.mime });
-        if (d.mime === 'text/plain')
-            return (await (0, pdfDocumento_1.renderizarDocumento)((0, pdfDocumento_1.textoParaDoc)(buf.toString('utf8')), {}, { semCabecalho: true })).buffer;
-        if ((0, conversao_1.conversivel)(d.mime))
-            return (await (0, pdfDocumento_1.renderizarDocumento)((await (0, conversao_1.officeParaDoc)(buf, d.mime)), {}, { semCabecalho: true })).buffer;
+        catch ( /* volta ao original abaixo */_b) { /* volta ao original abaixo */ }
     }
-    catch (_b) {
+    try {
+        return await pdfDeArquivo(await (0, arquivos_1.lerOriginal)(d), d);
+    }
+    catch (_c) {
         return folhaSimples(String(d.titulo), ['Não foi possível incorporar este arquivo (corrompido ou protegido).', 'O original continua nos autos eletrônicos.', `SHA-256 ${d.sha256}`]);
     }
+}
+/** O arquivo enviado como páginas dos autos (sem carimbo). Lança se o arquivo não abrir. */
+async function pdfDeArquivo(buf, d) {
+    const mime = String(d.mime);
+    if (mime === 'application/pdf') {
+        await pdfLib().PDFDocument.load(buf, { ignoreEncryption: true }); // valida
+        return buf;
+    }
+    if (mime === 'image/png' || mime === 'image/jpeg')
+        return folhaSimples(String(d.titulo), [], { buf, mime });
+    if (mime === 'text/plain')
+        return (await (0, pdfDocumento_1.renderizarDocumento)((0, pdfDocumento_1.textoParaDoc)(buf.toString('utf8')), {}, { semCabecalho: true })).buffer;
+    if ((0, conversao_1.conversivel)(mime))
+        return (await (0, pdfDocumento_1.renderizarDocumento)((await (0, conversao_1.officeParaDoc)(buf, mime)), {}, { semCabecalho: true })).buffer;
     return folhaSimples(String(d.titulo), [
-        `Arquivo ${d.nome_arquivo} (${d.mime}), sem conversão para PDF nesta versão.`,
+        `Arquivo ${d.nome_arquivo} (${mime}), sem conversão para PDF nesta versão.`,
         'O original está nos autos eletrônicos e pode ser baixado no Processo Eletrônico.',
         `SHA-256 ${d.sha256}`,
     ]);
+}
+/**
+ * Versão de leitura de um arquivo enviado: o que vai às folhas dos autos, à
+ * tela e ao PDF do processo. O original fica intacto (é a prova, com o
+ * SHA-256) e pode ser baixado a qualquer tempo.
+ *   - Imagem: reduzida a até 300 dpi numa folha A4 e recomprimida sem perda
+ *     perceptível (JPEG de alta qualidade ou PNG sem perda, o menor), já na
+ *     orientação certa da câmera.
+ *   - PDF: reorganizado sem perda (fluxos de objetos); só se ficar ao menos
+ *     10% menor. PDF protegido por senha fica como veio.
+ *   - Word, planilha e texto: a conversão para PDF, feita uma vez só.
+ * Devolve null quando o original já serve como está.
+ */
+async function versaoDeLeitura(buf, d) {
+    if (d.mime === 'image/png' || d.mime === 'image/jpeg') {
+        const img = await (0, imagem_1.otimizarImagem)(buf, d.mime);
+        return folhaSimples(d.titulo, [], img || { buf, mime: d.mime });
+    }
+    if (d.mime === 'application/pdf') {
+        const pdf = await pdfLib().PDFDocument.load(buf, { ignoreEncryption: true, updateMetadata: false });
+        if (pdf.isEncrypted)
+            return null;
+        const novo = await pdf.save({ useObjectStreams: true });
+        return novo.length <= buf.length * 0.9 ? novo : null;
+    }
+    return pdfDeArquivo(buf, d);
 }
 // ---------------------------------------------------------------------------
 // Código de verificação: cada documento juntado ganha um código aleatório
@@ -244,6 +286,6 @@ async function pdfCarimbado(db, orgId, procId, numero, docId, d) {
         processo: numero, folha: typeof d.folha_inicial === 'number' ? d.folha_inicial : null, ordem: d.ordem,
         titulo: String(d.titulo), juntadoEm: d.juntado_em, juntadoPor: d.juntado_por_nome, sha256: d.sha256, codigo,
     });
-    return Buffer.from(await destino.save()).toString('base64');
+    return Buffer.from(await destino.save());
 }
 //# sourceMappingURL=autos.js.map

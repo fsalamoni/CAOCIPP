@@ -1,13 +1,27 @@
 rules_version = '2';
 
-// O navegador nunca acessa o Cloud Storage diretamente. Os arquivos da
-// Secretaria Processual (secretaria/{órgão}/{processo}/{documento}) são
-// enviados e baixados pelas Cloud Functions, que conferem posse, lotação e
+// O navegador não lê nem altera os arquivos do Cloud Storage. Os arquivos do
+// Processo Eletrônico (secretaria/{órgão}/{processo}/{documento}) são
+// gravados e baixados pelas Cloud Functions, que conferem posse, lotação e
 // sigilo antes de cada operação. O Admin SDK ignora estas regras.
+//
+// Única exceção: a área de espera dos envios. A pessoa logada põe ali o
+// arquivo que vai juntar (até 50 MB, só os tipos aceitos), e a função que
+// recebe o pedido confere o dono pelo caminho, lê, valida o conteúdo, guarda
+// no lugar definitivo e apaga a cópia de espera. Ninguém lê nem sobrescreve
+// arquivo da área de espera pelo navegador.
 service firebase.storage {
   match /b/{bucket}/o {
     match /{allPaths=**} {
       allow read, write: if false;
+    }
+    match /secretaria-envios/{uid}/{envio} {
+      allow create: if request.auth != null
+        && request.auth.uid == uid
+        && envio.matches('^[A-Za-z0-9_-]{16,64}$')
+        && request.resource.size > 0
+        && request.resource.size <= 50 * 1024 * 1024
+        && request.resource.contentType.matches('^(application/pdf|image/png|image/jpeg|text/plain|application/msword|application/vnd[.]openxmlformats-officedocument[.](wordprocessingml[.]document|spreadsheetml[.]sheet)|application/vnd[.]oasis[.]opendocument[.]text)$');
     }
   }
 }

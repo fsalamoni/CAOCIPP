@@ -3,13 +3,14 @@ import { numeroArquivo } from '../shared/numeracao';
 import { FieldValue } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import {
-    Fase, MAX_TEXTO_LONGO, MAX_UPLOAD_BYTES, Pendencia, Prazo, derivados, hojeBrasil, jsonCanonico, sha256, texto, verificarCadeia,
+    Fase, MAX_TEXTO_LONGO, Pendencia, Prazo, derivados, hojeBrasil, jsonCanonico, sha256, texto, verificarCadeia,
 } from '../shared/secretaria';
 import { Cumpridas, camposDoCumprimento, pendentesDaFase, reconhecer, respostasDaFase } from '../shared/exigencias';
 import { camposDosPrazosDasAcoes } from '../shared/prazosFase';
 import { COL, Contexto, REGION, calendarioDasAcoes, exigirAuth, registrarMovimento } from './context';
 import { caminhoArquivo } from './documentos';
-import { caminhoPdf, conteudoDoDocumento, folhasDoProcesso, novoCodigo, paginasDeArquivo, pdfCarimbado, registroVerificacao, textoFolhas } from './autos';
+import { caminhoPdf, conteudoDoDocumento, folhasDoProcesso, novoCodigo, paginasDeArquivo, pdfCarimbado, registroVerificacao, textoFolhas, versaoDeLeitura } from './autos';
+import { entregar, gravarOriginal, lerArquivoEnviado, lerOriginal } from './arquivos';
 import { renderizarDocumento, textoParaDoc } from './pdfDocumento';
 import { montarPdfAutos, selecaoOuErro } from './exportar';
 import { extrasDoEvento, visivelParaPartes } from '../shared/autos';
@@ -66,6 +67,8 @@ interface PortalRequest {
     nomeArquivo?: string;
     mime?: string;
     base64?: string;
+    /** Caminho do arquivo que o navegador pôs na área de espera do Storage (até 50 MB). */
+    envio?: string;
     avisos?: string;
 }
 
@@ -408,7 +411,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             campos: camposPartes.filter((x) => aberta(x.ref)),
             informacoes: infosPartes.filter((i) => aberta(i.ref) && (i.refs || []).every(aberta)),
         });
-        return { base64: Buffer.from(bytes).toString('base64'), nome: `processo-${numeroArquivo(proc.numero)}.pdf` };
+        return entregar(bytes, `processo-${numeroArquivo(proc.numero)}.pdf`, 'application/pdf', uid);
     }
 
     if (p.action === 'certidao') {
@@ -461,10 +464,10 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
         const { ref, data: proc } = await lerComoParte(db, uid, p.processoId);
         const d = (await ref.collection('documentos').doc(String(p.docId || '_')).get()).data();
         if (!d || d.status !== 'juntado' || d.visivel_partes === false) throw new HttpsError('not-found', 'Documento não encontrado');
-        if (p.action === 'pdf') return { base64: await pdfCarimbado(db, proc.organization_id, ref.id, String(proc.numero), String(p.docId), d), nome: `documento-${d.ordem}.pdf` };
-        if (d.origem === 'editor') return { origem: 'editor', titulo: d.titulo, conteudo: conteudoDoDocumento(d) };
-        const [buf] = await admin.storage().bucket().file(d.storage_path).download();
-        return { origem: 'upload', titulo: d.titulo, mime: d.mime, nomeArquivo: d.nome_arquivo, base64: buf.toString('base64') };
+        if (p.action === 'pdf') return entregar(await pdfCarimbado(db, proc.organization_id, ref.id, String(proc.numero), String(p.docId), d), `documento-${d.ordem}.pdf`, 'application/pdf', uid);
+        if (d.origem === 'editor') return { origem: 'editor', titulo: d.titulo, conteudo: await conteudoDoDocumento(d) };
+        const arq = await entregar(await lerOriginal(d), String(d.nome_arquivo || d.titulo), String(d.mime), uid);
+        return { origem: 'upload', titulo: d.titulo, nomeArquivo: d.nome_arquivo, ...arq };
     }
 
     // S7: sustentação oral, preferência, destaque e esclarecimento de fato para a sessão em que o processo está pautado.
@@ -500,13 +503,12 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
         const titulo = texto(p.titulo) || tipoPeticao || 'Petição';
         const prazoId = texto(p.prazo_id, 60);
         const corpo = texto(p.texto, MAX_TEXTO_LONGO * 10);
-        const temArquivo = !!p.base64;
+        const temArquivo = !!(p.base64 || p.envio);
         if (!corpo && !temArquivo) throw new HttpsError('invalid-argument', 'Escreva a petição ou anexe um arquivo');
         let buf: Buffer | null = null;
         if (temArquivo) {
             if (!TIPOS_PETICAO[String(p.mime)]) throw new HttpsError('invalid-argument', 'Anexe PDF, Word (DOCX), PNG ou JPG');
-            buf = Buffer.from(String(p.base64), 'base64');
-            if (!buf.length || buf.length > MAX_UPLOAD_BYTES) throw new HttpsError('invalid-argument', 'Arquivo vazio ou acima de 5 MB');
+            buf = await lerArquivoEnviado(p, uid, String(p.mime));
         }
         // Confere acesso antes de gravar o arquivo.
         const { ref: procRef, data: procAntes } = await lerComoParte(db, uid, p.processoId);
@@ -518,9 +520,18 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
         }
         const docRef = procRef.collection('documentos').doc();
         let path: string | null = null;
+        let guardado: Record<string, unknown> = {};
         if (buf) {
             path = caminhoArquivo(procAntes.organization_id, procRef.id, docRef.id);
-            await admin.storage().bucket().file(path).save(buf, { contentType: String(p.mime), resumable: false });
+            guardado = await gravarOriginal(path, buf, String(p.mime));
+            // Versão de leitura para as folhas (o original fica intacto, com o SHA-256).
+            try {
+                const v = await versaoDeLeitura(buf, { mime: String(p.mime), titulo, nome_arquivo: texto(p.nomeArquivo) || titulo, sha256: sha256(buf) });
+                if (v) {
+                    await admin.storage().bucket().file(`${path}.leitura.pdf`).save(Buffer.from(v), { contentType: 'application/pdf', resumable: false });
+                    guardado = { ...guardado, leitura_path: `${path}.leitura.pdf`, leitura_tamanho: v.length };
+                }
+            } catch (e) { console.warn('[portal] versão de leitura não gerada', e); }
         }
         const agora = new Date().toISOString();
         // Petição escrita vira documento do editor, com PDF próprio (sem o
@@ -570,7 +581,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             const dadosDoc = {
                 titulo, tipo: 'Petição', origem: buf ? 'upload' : 'editor', peticao: true, status: 'juntado', ordem,
                 ...(tipoPeticao ? { peticao_tipo: tipoPeticao } : {}), ...(prazoId ? { prazo_id: prazoId } : {}),
-                ...(buf ? { mime: p.mime, nome_arquivo: texto(p.nomeArquivo) || titulo, tamanho: buf.length, storage_path: path } : { conteudo: conteudoDoc }),
+                ...(buf ? { mime: p.mime, nome_arquivo: texto(p.nomeArquivo) || titulo, tamanho: buf.length, storage_path: path, ...guardado } : { conteudo: conteudoDoc }),
                 ...(pdf ? { pdf_path: pdf.path, pdf_sha256: pdf.sha256 } : {}),
                 ...(buf && corpo ? { observacao: corpo } : {}),
                 paginas, folha_inicial: folha, folha_final: folha + paginas - 1,

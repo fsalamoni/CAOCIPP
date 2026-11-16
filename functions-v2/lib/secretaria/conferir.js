@@ -15,6 +15,7 @@ const prazosFase_1 = require("../shared/prazosFase");
 const email_1 = require("../shared/email");
 const autos_1 = require("./autos");
 const context_1 = require("./context");
+const arquivos_1 = require("./arquivos");
 const portalAvisos_1 = require("./portalAvisos");
 const avisosEquipe_1 = require("./avisosEquipe");
 const comunicacoes_1 = require("./comunicacoes");
@@ -126,6 +127,8 @@ async function respostasPorDecurso(db, hoje = (0, secretaria_1.hojeBrasil)()) {
 exports.secretariaAlertaPrazos = (0, scheduler_1.onSchedule)({ schedule: 'every day 07:00', timeZone: 'America/Sao_Paulo', region: context_1.REGION }, async () => {
     var _a, _b, _c, _d, _e;
     const db = admin.firestore();
+    // Envios e entregas temporárias de arquivo que ficaram para trás.
+    await (0, arquivos_1.limparTemporarios)().catch((e) => console.warn('[arquivos] limpeza dos temporários falhou', e));
     // Antes dos alertas: a ciência por decurso abre prazos que entram neles.
     await (0, comunicacoes_1.cienciaPorDecurso)(db).catch((e) => console.warn('[comunicacoes] ciência por decurso falhou', e));
     await respostasPorDecurso(db).catch((e) => console.warn('[comunicacoes] decurso do prazo de resposta falhou', e));

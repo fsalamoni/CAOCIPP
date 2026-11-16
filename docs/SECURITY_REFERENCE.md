@@ -160,9 +160,16 @@ dependem de autorização expressa; nenhuma foi feita.
   aplicam a autorização: vínculo com o órgão, módulo ativo, posse (só a unidade
   que tem o processo movimenta), lotação, sigilo restrito e minutas visíveis só
   à unidade de origem. Id de outro órgão responde "não encontrado".
-- `storage.rules` (novo) nega todo acesso do navegador ao bucket; upload e
-  download passam por `secretariaDocumento`, que valida tipo (lista fechada) e
-  tamanho (5 MB) e grava o SHA-256.
+- `storage.rules` nega ao navegador ler ou alterar qualquer arquivo do
+  bucket. A única exceção é criar arquivo na área de espera da própria conta
+  (`secretaria-envios/{uid}/{id}`, até 50 MB, só os tipos aceitos, sem ler
+  nem sobrescrever). A função que recebe o envio confere o dono pelo caminho,
+  o tamanho e a assinatura do conteúdo contra o tipo declarado, guarda o
+  original sem alteração (SHA-256 sobre os bytes enviados) e apaga a cópia de
+  espera. Download passa pelas funções; arquivo acima de 15 MB sai por link
+  com token aleatório de 128 bits, gerado só depois da conferência de acesso,
+  numa cópia em `secretaria-temp/{uid}/` apagada em até um dia (risco aceito:
+  quem tiver o link baixa enquanto a cópia existir).
 - Conteúdo redigido é guardado como JSON do ProseMirror, não como HTML.
   `sanitizeDoc` (`functions-v2/src/shared/documento.ts`) descarta nós, marcas e
   atributos fora da lista fechada: link só `http(s)`/`mailto`, imagem só data
@@ -194,7 +201,7 @@ dependem de autorização expressa; nenhuma foi feita.
   o SHA-256 do token (24 bytes aleatórios), vale 7 dias, é aceito por uma única
   conta e é invalidado na revogação ou em novo convite. A parte vê somente
   documentos juntados marcados como visíveis e movimentos públicos; petição
-  aceita só PDF/DOCX/PNG/JPG até 5 MB. A íntegra, a certidão e o comprovante
+  aceita só PDF/DOCX/PNG/JPG até 50 MB. A íntegra, a certidão e o comprovante
   do portal são montados no servidor só com esses dados; o comprovante só sai
   para a petição da própria conta. Quem não é parte recebe "não encontrado",
   sem revelar que o processo existe. `secPortalAcessos` (preferência de aviso

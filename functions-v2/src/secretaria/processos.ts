@@ -44,6 +44,7 @@ import { lerOrgaos } from './orgaos';
 import { acaoAnotacao, acaoSessao, leiturasDoProcesso, registrarLeitura } from './sessoes';
 import { avisarEntradaNaFase, avisarPendencia, avisarUnidadeRecebeu } from './avisosEquipe';
 import { acertarAcoesDoRito, configComunicacoes, expedir, tornarSemEfeito } from './comunicacoes';
+import { CampoDoProcesso, camposParaLigar, camposPelaAcao, chaveDoValor, ligada, passosPeloProcesso } from '../shared/doProcesso';
 import {
     COL, REGION, atorDe, carregarContexto, contextoDoSistema, conferirVersao, erroUsuario, exigirAdmin, exigirAuth, exigirPosse, lerProcesso,
     equipeLe, julgadorLe, nomeUnidade, registrarInternos, registrarMovimento,
@@ -955,6 +956,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, comSin
                 nomes_polos: data.nomes_polos || {},
                 acoes_feitas: data.acoes_feitas || {},
                 acoes_respostas: data.acoes_respostas || {},
+                // Ações cumpridas sozinhas pelo dado do processo (a tela diz que foi assim).
+                acoes_auto: data.acoes_auto || {},
                 // Atos aguardando a certidão conjunta (para "Emitir certidão agora").
                 consolidacao: data.consolidacao || null,
                 exigencias_cumpridas: data.exigencias_cumpridas || {},
@@ -1153,6 +1156,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, comSin
         if (au && fase1?.aviso?.para) void avisarEntradaNaFase(c, fase1, unidadeId, au.proc, procRef.id, false, '');
         if (au?.pendencia) void avisarPendencia(c, au.proc, procRef.id, au.pendencia);
         avisarArquivado(orgId, registroArquivado);
+        // O que veio na autuação já cumpre as ações ligadas da primeira fase (ex.: número do PGEA informado na entrada).
+        if (temLigacoes([(rito.fases as Fase[])[0]])) await cumprirPeloProcesso(c, procRef.id);
         return { success: true, id: procRef.id, numero };
     }
 
@@ -1189,6 +1194,52 @@ export async function avancarSozinho(c: Ctx, id: string): Promise<Record<string,
         console.warn('[secretaria] avanço automático não aplicado', id, (e as Error)?.message);
         return null;
     }
+}
+
+/** O rito do processo tem alguma ação ligada a campo do processo ("Vem do processo")? */
+const temLigacoes = (fases: unknown) => ((fases || []) as Fase[]).some((f) => (f.acoes_regras || []).some((r) => ligada(r)));
+
+// ponytail: até MAX_PASSOS_AUTO passos por chamada (um por ação ligada, nas fases que seguem sozinhas); acima disso, fica para a equipe.
+const MAX_PASSOS_AUTO = 30;
+
+/**
+ * "Vem do processo" (shared/doProcesso.ts): cumpre ou desfaz, uma a uma, as
+ * ações da fase atual ligadas a campos do processo, pelo mesmo caminho da
+ * caixa de marcar (registro, folha de dados, prazos, respostas, avanço
+ * automático). Roda depois da autuação, da mudança de fase e da correção dos
+ * dados. Quem aparece no registro é o sistema, com a marca de que foi
+ * automático. Nunca desfaz o ato que a chamou: o que não couber (campo
+ * obrigatório do formulário sem valor, permissão, processo parado) fica para
+ * a equipe marcar à mão. Devolve o resultado do último passo, ou null.
+ */
+export async function cumprirPeloProcesso(c: Ctx, id: string): Promise<Record<string, unknown> | null> {
+    const sis: Ctx = {
+        ...c, ctx: { uid: 'sistema', isAdmin: true, unidadeIds: c.unidades.filter((u) => u.ativa !== false).map((u) => String(u.id)) },
+        papel: 'sistema', userName: 'Sistema (dado do processo)', gestorDe: [], adminOrgaos: [],
+    } as Ctx;
+    let ultimo: Record<string, unknown> | null = null;
+    const tentados = new Set<string>();
+    for (let n = 0; n < MAX_PASSOS_AUTO; n++) {
+        const d = (await c.db.collection(COL.processos).doc(id).get()).data();
+        if (!d || d.status !== 'em_tramitacao') break;
+        const fase = ((d.fases || []) as Fase[]).find((f) => f.id === d.fase_atual);
+        const resp = respostasDaFase(d);
+        const passo = passosPeloProcesso(fase, camposParaLigar(d), (d.acoes_feitas || {})[String(d.fase_atual)] || [],
+            ((d.acoes_auto || {}) as Record<string, Record<string, string>>)[String(d.fase_atual)] || {},
+            ((d.acoes_auto_off || {}) as Record<string, number[]>)[String(d.fase_atual)] || [],
+            (i) => acaoAtiva(fase, i, resp))
+            .find((x) => !tentados.has(`${d.fase_atual}:${x.idx}:${x.feita}`));
+        if (!passo) break;
+        tentados.add(`${d.fase_atual}:${passo.idx}:${passo.feita}`);
+        try {
+            ultimo = await movimentar(sis, {
+                organizationId: c.orgId, action: 'marcarAcao', id, version: d.version, acao_idx: passo.idx, feita: passo.feita, valor: passo.valor,
+            } as unknown as ProcRequest, { doProcesso: true });
+        } catch (e) {
+            console.warn('[secretaria] ação pelo dado do processo não aplicada', id, passo.idx, (e as Error)?.message);
+        }
+    }
+    return ultimo;
 }
 
 /**
@@ -1239,7 +1290,7 @@ export async function registrarResultadoDaDisputa(db: admin.firestore.Firestore,
  * Movimentação de um processo existente. `opcoes.automatico`: chamada do
  * próprio servidor (avanço automático da fase); nunca vem do cliente.
  */
-async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean } = {}): Promise<Record<string, unknown>> {
+async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean; doProcesso?: boolean } = {}): Promise<Record<string, unknown>> {
     const { db, orgId } = c;
     const textoAuto = opcoes.automatico ? ' Avanço automático: o que a fase exigia foi cumprido.' : '';
     let tentarAuto = false;
@@ -1257,10 +1308,13 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
     let pendenciaAberta: { proc: admin.firestore.DocumentData; descricao: string } | null = null;
     // Entrada em fase (com ou sem remessa): a fase diz quem é avisado.
     let entrou: { fase: Fase; unidadeId: string; proc: admin.firestore.DocumentData; remessa: boolean } | null = null;
+    // Ações ligadas a campos do processo: depois do ato, o sistema confere o que se cumpre sozinho (cumprirPeloProcesso).
+    let ligacoes = false;
     const resultado = await db.runTransaction(async (tx) => {
         const { ref, data } = await lerProcesso(c, p.id, tx);
         conferirVersao(data, p.version);
         exigirPosse(c, data);
+        ligacoes = temLigacoes(data.fases);
         // Campos exigidos por fase: valem os que o tipo ainda pede (lido antes de qualquer escrita).
         const tipoAtual = data.campos_exigidos && data.tipo_id && ['tramitar', 'avancarFase', 'alterarStatus'].includes(String(p.action))
             ? (await tx.get(db.collection(COL.tipos).doc(String(data.tipo_id)))).data() : null;
@@ -1520,6 +1574,39 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             const reservado = !!dado && regra?.ve === 'gestor';
             // Registro de origem restrita: as partes nunca o veem.
             const vePartes = partesVeem(regra) && !dado?.restrito && !reservado;
+            // "Vem do processo" (shared/doProcesso.ts): o que o sistema cumpriu sozinho com o campo do processo,
+            // o que alguém desfez à mão (o sistema não refaz na rodada) e, na volta, o campo vazio que a ação cumprida à mão preenche.
+            const doProc = opcoes.doProcesso === true;
+            let comLigacao: Record<string, unknown> = {};
+            let notaLigacao = '';
+            if (ligada(regra)) {
+                const autoTodas = { ...((data.acoes_auto || {}) as Record<string, Record<string, string>>) };
+                const offTodas = { ...((data.acoes_auto_off || {}) as Record<string, number[]>) };
+                const autoFase = { ...(autoTodas[fase.id] || {}) };
+                delete autoFase[String(idx)];
+                if (feita && doProc) autoFase[String(idx)] = chaveDoValor(p.valor);
+                const offFase = (offTodas[fase.id] || []).filter((k) => k !== idx);
+                if (!feita && !doProc) offFase.push(idx);
+                autoTodas[fase.id] = autoFase;
+                offTodas[fase.id] = offFase;
+                comLigacao = { acoes_auto: autoTodas, acoes_auto_off: offTodas };
+                if (feita && !doProc && !regra?.ve && data.tipo_id) {
+                    const t = (await tx.get(db.collection(COL.tipos).doc(String(data.tipo_id)))).data();
+                    const defs = t && t.organization_id === orgId ? formularioDe(t).campos : [];
+                    const novos = camposPelaAcao(regra, p.valor, (data.campos || []) as CampoDoProcesso[], defs).flatMap(({ def: d, valor: bruto }) => {
+                        const def = defs.find((x) => x.id === d.id)!;
+                        // Conferido como na correção dos dados: o que não passa fica só na ação.
+                        try {
+                            const v = valorDe(def, bruto);
+                            return v === null ? [] : [{ id: def.id, rotulo: def.rotulo, tipo: def.tipo, valor: v, visivel_partes: def.visivel_partes, ...(def.formato ? { formato: def.formato } : {}) } as CampoValor];
+                        } catch { return []; }
+                    });
+                    if (novos.length) {
+                        comLigacao.campos = [...((data.campos || []) as CampoValor[]), ...novos];
+                        notaLigacao = ` Passa a constar dos dados do processo: ${novos.map((x) => `${x.rotulo}: ${valorTexto(x)}`).join('; ')}.`;
+                    }
+                }
+            }
             if (feita) lista.add(idx); else lista.delete(idx);
             feitas[fase.id] = [...lista].sort((a, b) => a - b);
             // Resposta de escolha guardada na rodada da fase: as ações e saídas condicionadas a leem.
@@ -1563,7 +1650,9 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
                 : regra?.pede === 'disputa' && feita && data.certame ? { certame: FieldValue.delete(), ultimo_certame: data.certame } : {};
             // O rito diz onde fica: certidão nos autos (com folha), evento no extrato, só no sistema ou sem evento.
             const dest = destinoDaAcao(regra);
-            const comDado = (!dado ? '' : reservado ? ` ${dado.rotulo}: reservado a quem gere a unidade.` : ` ${dado.rotulo}: ${dado.valor_texto}.`) + cancelada;
+            const sufixoAuto = !doProc ? '' : feita ? ' Cumprida automaticamente: o dado já consta do processo.' : ' Desfeita automaticamente: o dado do processo foi apagado ou mudou.';
+            const comDado = (!dado ? '' : reservado ? ` ${dado.rotulo}: reservado a quem gere a unidade.` : ` ${dado.rotulo}: ${dado.valor_texto}.`) + cancelada + sufixoAuto + notaLigacao;
+            const marcaAuto = doProc ? { do_processo: true } : {};
             if (dest === 'consolidar') {
                 // Certidão conjunta: o ato fica oculto e entra como item da certidão do grupo.
                 const grupo = grupoDe(fase);
@@ -1574,9 +1663,9 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
                     // Já saiu em certidão emitida: desfazer precisa constar dos autos.
                     const mov = registrarMovimento(tx, c, ref, data, 'acao_fase',
                         `Certifico que foi desfeita a providência "${acao}", da fase ${fase.nome}.`,
-                        { fase_id: fase.id, acao_idx: idx, feita, destino: 'autos', nos_autos: true, visivel_partes: partesVeem(regra) });
+                        { fase_id: fase.id, acao_idx: idx, feita, ...marcaAuto, destino: 'autos', nos_autos: true, visivel_partes: partesVeem(regra) });
                     const mi = registrarInternos(tx, c, ref, { ...data, ...mov }, notasPrazo);
-                    tx.update(ref, { ...mov, ...mi, acoes_feitas: feitas, ...comResposta, ...comPrazos });
+                    tx.update(ref, { ...mov, ...mi, acoes_feitas: feitas, ...comLigacao, ...comResposta, ...comPrazos });
                     return { ...mov, ...mi };
                 }
                 const item: ItemCertidao = {
@@ -1589,7 +1678,7 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
                 const mov = registrarMovimento(tx, c, ref, em.proc, 'acao_fase',
                     `${feita ? 'Feita' : 'Desfeita'} a ação "${acao}" da fase ${fase.nome}.${comDado} ${feita ? 'Entra na' : 'Sai da'} certidão conjunta, ainda não emitida.`,
                     {
-                        fase_id: fase.id, acao_idx: idx, feita,
+                        fase_id: fase.id, acao_idx: idx, feita, ...marcaAuto,
                         ...(dado ? { rotulo: dado.rotulo, tipo_valor: dado.tipo, valor: dado.valor, valor_texto: dado.valor_texto, ...(dado.ref ? { ref: dado.ref } : {}) } : {}),
                         ...(dado && regra?.folha_dados ? { folha_dados: true } : {}),
                         // O ato fica oculto; o dado segue a regra (as partes o veem nas informações, se ela disser).
@@ -1599,7 +1688,7 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
                     ? itensDepois(em.proc, grupo, { ...item, seq: Number(mov.mov_seq) })
                     : { grupo, itens: pendente.filter((_, j) => j !== k) };
                 const mi = registrarInternos(tx, c, ref, { ...em.proc, ...mov }, notasPrazo);
-                tx.update(ref, { ...em.mov, ...mov, ...mi, acoes_feitas: feitas, ...comResposta, ...comPrazos, ...comSessao, consolidacao: consolidacao.itens.length ? consolidacao : FieldValue.delete(), ...vinculoDaAcao(dado) });
+                tx.update(ref, { ...em.mov, ...mov, ...mi, acoes_feitas: feitas, ...comLigacao, ...comResposta, ...comPrazos, ...comSessao, consolidacao: consolidacao.itens.length ? consolidacao : FieldValue.delete(), ...vinculoDaAcao(dado) });
                 return { ...mov, ...mi };
             }
             const mov = registrarMovimento(tx, c, ref, data, 'acao_fase',
@@ -1607,7 +1696,7 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
                     ? `Certifico que ${feita ? 'foi cumprida' : 'foi desfeita'} a providência "${acao}", da fase ${fase.nome}.${comDado}`
                     : `${feita ? 'Feita' : 'Desfeita'} a ação "${acao}" da fase ${fase.nome}.${comDado}`,
                 {
-                    fase_id: fase.id, acao_idx: idx, feita,
+                    fase_id: fase.id, acao_idx: idx, feita, ...marcaAuto,
                     ...(dado ? { rotulo: dado.rotulo, tipo_valor: dado.tipo, valor: dado.valor, valor_texto: dado.valor_texto, ...(dado.ref ? { ref: dado.ref } : {}) } : {}),
                     ...(reservado ? { reservado: 'gestor', ve_unidade: String(data.unidade_atual || '') } : {}),
                     // O rito manda o dado para a folha de dados do processo (evento 1 do PDF).
@@ -1619,7 +1708,7 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
                     ...(dest === 'nenhum' ? marcasDoDestino('nenhum') : {}),
                 });
             const mi = registrarInternos(tx, c, ref, { ...data, ...mov }, notasPrazo);
-            tx.update(ref, { ...mov, ...mi, acoes_feitas: feitas, ...comResposta, ...comPrazos, ...comAudiencia, ...comSessao, ...vinculoDaAcao(dado) });
+            tx.update(ref, { ...mov, ...mi, acoes_feitas: feitas, ...comLigacao, ...comResposta, ...comPrazos, ...comAudiencia, ...comSessao, ...vinculoDaAcao(dado) });
             return { ...mov, ...mi };
         }
 
@@ -1953,6 +2042,11 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
     if (tentarAuto) {
         const auto = await avancarSozinho(c, String(p.id));
         if (auto) return auto;
+    }
+    // Entrou em fase, os dados mudaram ou a ação preencheu um campo: o que o processo já informa cumpre as ações ligadas.
+    if (ligacoes && !opcoes.doProcesso && ['avancarFase', 'tramitar', 'alterarDados', 'marcarAcao', 'alterarStatus'].includes(String(p.action))) {
+        const a = await cumprirPeloProcesso(c, String(p.id));
+        if (a) return { success: true, version: a.version, automaticas: true };
     }
     return { success: true, version: resultado.version };
 }

@@ -6,7 +6,7 @@ const path = require('node:path');
 
 // Partida a frio: a instância de cada function carrega o index e o módulo da
 // função. Bibliotecas de PDF, Word e Excel só entram quando o ato as usa.
-const PESADAS = ['pdf-lib', 'pdfmake', 'qrcode', 'mammoth', 'jszip', 'xlsx', 'node-html-parser', '@google-cloud/bigquery'];
+const PESADAS = ['sharp', 'pdf-lib', 'pdfmake', 'qrcode', 'mammoth', 'jszip', 'xlsx', 'node-html-parser', '@google-cloud/bigquery'];
 
 function pacotesAoCarregar(arquivo, exportado) {
     const codigo = `

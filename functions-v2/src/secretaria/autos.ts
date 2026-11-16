@@ -9,6 +9,8 @@ import { DeltaOp, documentoEfetivo } from '../shared/secretaria';
 import { COL } from './context';
 import { ConfigDocumento, dataHora, renderizarDocumento, textoParaDoc, winAnsi } from './pdfDocumento';
 import { conversivel, officeParaDoc } from './conversao';
+import { lerConteudo, lerOriginal } from './arquivos';
+import { otimizarImagem } from './imagem';
 
 /**
  * Peças dos autos em PDF: cada documento juntado vira páginas numeradas em
@@ -29,8 +31,9 @@ export async function lerConfigDocumento(db: admin.firestore.Firestore, orgId: s
     return documentoEfetivo((s.data()?.documento || {}) as ConfigDocumento, un?.organization_id === orgId ? un as never : null);
 }
 
-export function conteudoDoDocumento(d: admin.firestore.DocumentData): No {
-    return d.conteudo ? (d.conteudo as No) : deltaParaDoc((d.delta || []) as DeltaOp[]);
+/** Texto do editor de um documento ou versão (JSON no banco ou no Storage, mapa antigo, Delta do Quill). */
+export async function conteudoDoDocumento(d: admin.firestore.DocumentData): Promise<No> {
+    return (await lerConteudo(d)) || deltaParaDoc((d.delta || []) as DeltaOp[]);
 }
 
 export const caminhoPdf = (storagePath: string) => `${storagePath}.pdf`;
@@ -77,27 +80,62 @@ export async function pdfDoDocumento(d: admin.firestore.DocumentData, cfg: Confi
         if (d.pdf_path) {
             try { return (await bucket.file(d.pdf_path).download())[0]; } catch { /* gera de novo abaixo */ }
         }
-        return (await renderizarDocumento(conteudoDoDocumento(d), d.peticao ? {} : cfg, {
+        return (await renderizarDocumento(await conteudoDoDocumento(d), d.peticao ? {} : cfg, {
             assinaturas: d.assinaturas || [], sha256: d.sha256, semCabecalho: !!d.peticao,
         })).buffer;
     }
+    // Versão de leitura feita no envio (imagem otimizada, PDF reorganizado, Word convertido).
+    if (d.leitura_path) {
+        try { return (await bucket.file(d.leitura_path).download())[0]; } catch { /* volta ao original abaixo */ }
+    }
     try {
-        const [buf] = await bucket.file(d.storage_path).download();
-        if (d.mime === 'application/pdf') {
-            await pdfLib().PDFDocument.load(buf, { ignoreEncryption: true }); // valida
-            return buf;
-        }
-        if (d.mime === 'image/png' || d.mime === 'image/jpeg') return folhaSimples(d.titulo, [], { buf, mime: d.mime });
-        if (d.mime === 'text/plain') return (await renderizarDocumento(textoParaDoc(buf.toString('utf8')), {}, { semCabecalho: true })).buffer;
-        if (conversivel(d.mime)) return (await renderizarDocumento((await officeParaDoc(buf, d.mime))!, {}, { semCabecalho: true })).buffer;
+        return await pdfDeArquivo(await lerOriginal(d), d);
     } catch {
         return folhaSimples(String(d.titulo), ['Não foi possível incorporar este arquivo (corrompido ou protegido).', 'O original continua nos autos eletrônicos.', `SHA-256 ${d.sha256}`]);
     }
+}
+
+/** O arquivo enviado como páginas dos autos (sem carimbo). Lança se o arquivo não abrir. */
+export async function pdfDeArquivo(buf: Buffer, d: { mime?: string; titulo?: string; nome_arquivo?: string; sha256?: string }): Promise<Uint8Array> {
+    const mime = String(d.mime);
+    if (mime === 'application/pdf') {
+        await pdfLib().PDFDocument.load(buf, { ignoreEncryption: true }); // valida
+        return buf;
+    }
+    if (mime === 'image/png' || mime === 'image/jpeg') return folhaSimples(String(d.titulo), [], { buf, mime });
+    if (mime === 'text/plain') return (await renderizarDocumento(textoParaDoc(buf.toString('utf8')), {}, { semCabecalho: true })).buffer;
+    if (conversivel(mime)) return (await renderizarDocumento((await officeParaDoc(buf, mime))!, {}, { semCabecalho: true })).buffer;
     return folhaSimples(String(d.titulo), [
-        `Arquivo ${d.nome_arquivo} (${d.mime}), sem conversão para PDF nesta versão.`,
+        `Arquivo ${d.nome_arquivo} (${mime}), sem conversão para PDF nesta versão.`,
         'O original está nos autos eletrônicos e pode ser baixado no Processo Eletrônico.',
         `SHA-256 ${d.sha256}`,
     ]);
+}
+
+/**
+ * Versão de leitura de um arquivo enviado: o que vai às folhas dos autos, à
+ * tela e ao PDF do processo. O original fica intacto (é a prova, com o
+ * SHA-256) e pode ser baixado a qualquer tempo.
+ *   - Imagem: reduzida a até 300 dpi numa folha A4 e recomprimida sem perda
+ *     perceptível (JPEG de alta qualidade ou PNG sem perda, o menor), já na
+ *     orientação certa da câmera.
+ *   - PDF: reorganizado sem perda (fluxos de objetos); só se ficar ao menos
+ *     10% menor. PDF protegido por senha fica como veio.
+ *   - Word, planilha e texto: a conversão para PDF, feita uma vez só.
+ * Devolve null quando o original já serve como está.
+ */
+export async function versaoDeLeitura(buf: Buffer, d: { mime: string; titulo: string; nome_arquivo?: string; sha256?: string }): Promise<Uint8Array | null> {
+    if (d.mime === 'image/png' || d.mime === 'image/jpeg') {
+        const img = await otimizarImagem(buf, d.mime);
+        return folhaSimples(d.titulo, [], img || { buf, mime: d.mime });
+    }
+    if (d.mime === 'application/pdf') {
+        const pdf = await pdfLib().PDFDocument.load(buf, { ignoreEncryption: true, updateMetadata: false });
+        if (pdf.isEncrypted) return null;
+        const novo = await pdf.save({ useObjectStreams: true });
+        return novo.length <= buf.length * 0.9 ? novo : null;
+    }
+    return pdfDeArquivo(buf, d);
 }
 
 // ---------------------------------------------------------------------------
@@ -222,7 +260,7 @@ export const textoFolhas = (ini: number, qtd: number) => (qtd > 1 ? `fls. ${ini}
 /** Um documento juntado, carimbado, em PDF próprio (download avulso). */
 export async function pdfCarimbado(
     db: admin.firestore.Firestore, orgId: string, procId: string, numero: string, docId: string, d: admin.firestore.DocumentData,
-): Promise<string> {
+): Promise<Buffer> {
     const cfg = await lerConfigDocumento(db, orgId, d.unidade_origem);
     const destino = await pdfLib().PDFDocument.create();
     const codigo = d.codigo_verificacao || await garantirCodigo(db, orgId, procId, numero, docId);
@@ -230,5 +268,5 @@ export async function pdfCarimbado(
         processo: numero, folha: typeof d.folha_inicial === 'number' ? d.folha_inicial : null, ordem: d.ordem,
         titulo: String(d.titulo), juntadoEm: d.juntado_em, juntadoPor: d.juntado_por_nome, sha256: d.sha256, codigo,
     });
-    return Buffer.from(await destino.save()).toString('base64');
+    return Buffer.from(await destino.save());
 }
