@@ -34,14 +34,15 @@ import {
     fimDosLances, momentoDaDisputa, valorTexto,
 } from '../shared/certames';
 import { ACOES_SALA_FORNECEDOR, ACOES_SALA_ORGAO, acaoSalaFornecedor, acaoSalaOrgao, lerEstado } from './salaLances';
+import { ACOES_JULGAMENTO_FORNECEDOR, ACOES_JULGAMENTO_ORGAO, acaoJulgamentoFornecedor, acaoJulgamentoOrgao } from './julgamentoDisputa';
 import { sendEmail } from '../shared/email';
 import { auditar } from './config';
 import { COL, Contexto, atorDe, erroUsuario, exigirPosse, lerProcesso, registrarMovimento } from './context';
 
 export const COL_CERTAMES = 'secCertames';
 const COL_ACESSOS = 'secPortalAcessos';
-export const ACOES_CERTAME = ['certameLer', 'certameSalvar', 'certamePublicar', 'certameAdiar', 'certameCancelar', 'certameConvidar', 'certameRevogarConvite', 'certamePropostas', ...ACOES_SALA_ORGAO];
-export const ACOES_FORNECEDOR = ['disputaMinhas', 'disputaAviso', 'disputaConvite', 'disputaParticipar', 'disputaProposta', 'disputaRetirar', ...ACOES_SALA_FORNECEDOR];
+export const ACOES_CERTAME = ['certameLer', 'certameSalvar', 'certamePublicar', 'certameAdiar', 'certameCancelar', 'certameConvidar', 'certameRevogarConvite', 'certamePropostas', ...ACOES_SALA_ORGAO, ...ACOES_JULGAMENTO_ORGAO];
+export const ACOES_FORNECEDOR = ['disputaMinhas', 'disputaAviso', 'disputaConvite', 'disputaParticipar', 'disputaProposta', 'disputaRetirar', ...ACOES_SALA_FORNECEDOR, ...ACOES_JULGAMENTO_FORNECEDOR];
 const APP_URL = process.env.APP_URL || 'https://sigo-caocipp.web.app';
 const escapar = (s: string) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
 const CONVITE_DIAS = 60;
@@ -54,10 +55,12 @@ export type Certame = DadosCertame & {
     convites: ConviteCertame[]; convites_hashes?: string[]; fornecedores_uids: string[]; propostas_n: number;
     adiamentos?: Array<{ de: string; para: string; motivo: string; em: string; por: string }>;
     cancelado?: { motivo: string; em: string; por: string };
+    /** S13: o resultado registrado no fim do julgamento. */
+    resultado?: string; encerrado_em?: string;
     version: number;
 };
 /** O que o processo guarda do certame (para a tela e para não haver dois na mesma ação). */
-export interface CertameNoProcesso { id: string; situacao: SituacaoCertame; perfil: PerfilDisputa; fase_id: string; acao_idx: number; abertura_em?: string; codigo?: string; resultado?: string }
+export interface CertameNoProcesso { id: string; situacao: SituacaoCertame; perfil: PerfilDisputa; fase_id: string; acao_idx: number; abertura_em?: string; codigo?: string; resultado?: string; resumo?: string }
 
 const brData = (s: string) => s.split('-').reverse().join('/');
 const quando = (iso: string) => {
@@ -97,19 +100,21 @@ function avisoPublico(id: string, x: Certame) {
         abertura_data: x.abertura_data, abertura_hora: x.abertura_hora, abertura_em: x.abertura_em, condicoes: x.condicoes, habilitacao: x.habilitacao,
         participacao: x.perfil === 'cotacao' ? 'convidados' : 'aberta', codigo: x.codigo, adiamentos: (x.adiamentos || []).map(({ por: _p, ...a }) => a),
         cancelado: x.cancelado ? { motivo: x.cancelado.motivo, em: x.cancelado.em } : undefined,
-        fim_lances: fimDosLances(x), momento: x.situacao === 'publicado' ? momentoDaDisputa(x, new Date().toISOString()) : null,
+        fim_lances: fimDosLances(x), momento: x.situacao === 'publicado' ? momentoDaDisputa(x, new Date().toISOString()) : null, resultado: x.resultado || null,
     };
 }
 
 export async function acaoCertame(c: Contexto, p: Payload): Promise<unknown> {
     if (ACOES_SALA_ORGAO.includes(String(p.action))) return acaoSalaOrgao(c, p, (data) => (data.certame as CertameNoProcesso | undefined)?.id || null);
+    if (ACOES_JULGAMENTO_ORGAO.includes(String(p.action))) return acaoJulgamentoOrgao(c, p, classificacaoComLances);
     const quem = { uid: c.ctx.uid, nome: c.userName };
     const col = c.db.collection(COL_CERTAMES);
 
     if (p.action === 'certameLer' || p.action === 'certamePropostas') {
         const { ref, data } = await lerProcesso(c, p.processo_id);
-        const atual = data.certame as CertameNoProcesso | undefined;
         const alvo = acaoDaDisputa(data);
+        // Cumprida a ação, o certame fica como o último (a tela mostra o resultado), salvo se o rito já pede outra disputa.
+        const atual = (data.certame || (alvo ? undefined : data.ultimo_certame)) as CertameNoProcesso | undefined;
         const posse = c.ctx.unidadeIds.includes(data.unidade_atual);
         const podeCumprir = !!alvo && (!alvo.regra.quem || podeQuem(alvo.regra.quem, alvo.regra.atribuicao, atorDe(c, data)));
         const cal = await calendario(c.db, c.orgId);
@@ -329,7 +334,7 @@ async function classificacaoComLances(c: Contexto, pref: admin.firestore.Documen
 }
 
 /** E-mail a quem participa (fora da transação; a falha de envio não desfaz o ato). */
-async function avisarPorEmail(db: admin.firestore.Firestore, certameId: string, uids: string[], assunto: string, corpo: string) {
+export async function avisarPorEmail(db: admin.firestore.Firestore, certameId: string, uids: string[], assunto: string, corpo: string) {
     if (!uids.length) return;
     const props = await db.getAll(...uids.slice(0, MAX_FORNECEDORES).map((u) => db.collection(COL_CERTAMES).doc(certameId).collection('participantes').doc(u)));
     const emails = [...new Set(props.map((d) => String(d.data()?.email || '')).filter(Boolean))];
@@ -363,6 +368,7 @@ export async function acaoFornecedor(db: admin.firestore.Firestore, auth: { uid:
     const emailConta = String(auth.token.email || '');
     const agora = () => new Date().toISOString();
     if (ACOES_SALA_FORNECEDOR.includes(String(p.action))) return acaoSalaFornecedor(db, uid, p, lerCertame);
+    if (ACOES_JULGAMENTO_FORNECEDOR.includes(String(p.action))) return acaoJulgamentoFornecedor(db, uid, p, lerCertame);
 
     if (p.action === 'disputaMinhas') {
         const snap = await db.collection(COL_CERTAMES).where('fornecedores_uids', 'array-contains', uid).limit(200).get();

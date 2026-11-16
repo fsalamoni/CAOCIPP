@@ -91,7 +91,13 @@ function exigirLances(x: Certame, quando = agora()) {
     if (m === 'encerrada') throw new HttpsError('failed-precondition', 'A fase de lances terminou');
 }
 
-const resumoUnidades = (x: Certame) => unidadesDeDisputa(x).map((u) => ({
+/** A conversa da sala segue aberta do início dos lances (ou da abertura, sem lances) até o resultado (S13). */
+function exigirConversa(x: Certame, quando = agora()) {
+    if (x.situacao !== 'publicado') throw new HttpsError('failed-precondition', x.situacao === 'encerrado' ? 'A disputa já tem resultado: a conversa está encerrada' : 'A disputa não está em curso');
+    if (momentoDaDisputa(x, quando) === 'propostas') throw new HttpsError('failed-precondition', 'A conversa da disputa abre na hora da abertura');
+}
+
+const resumoUnidades =(x: Certame) => unidadesDeDisputa(x).map((u) => ({
     chave: u.chave, nome: u.nome, descricao: u.itens.map((i) => i.descricao).join('; ').slice(0, 300),
     quantidade: x.unidade_disputa === 'item' ? u.itens[0].quantidade : undefined, unidade: x.unidade_disputa === 'item' ? u.itens[0].unidade : undefined,
 }));
@@ -197,7 +203,7 @@ export async function acaoSalaFornecedor(db: Db, uid: string, p: Payload, lerCer
         if (t.length < 2) throw new HttpsError('invalid-argument', 'Escreva a mensagem');
         return db.runTransaction(async (tx) => {
             const { ref, x } = await lerCertame(db, p.certame_id, tx);
-            exigirLances(x);
+            exigirConversa(x);
             if (!(x.fornecedores_uids || []).includes(uid)) throw new HttpsError('permission-denied', 'Você não participa desta disputa');
             const { estado: e, novo } = await lerEstado(db, ref, x, tx);
             if (novo) gravarEstado(ref, tx, e);
@@ -259,7 +265,7 @@ export async function acaoSalaOrgao(c: Contexto, p: Payload, certameDoProcesso: 
         const ref = col.doc(id);
         const x = (await tx.get(ref)).data() as Certame;
         const quando = agora();
-        exigirLances(x, quando);
+        if (p.action === 'certameMensagem') exigirConversa(x, quando); else exigirLances(x, quando);
         const { estado: e } = await lerEstado(db, ref, x, tx);
         if (p.action === 'certameMensagem') {
             const t = texto(p.texto, 1000);

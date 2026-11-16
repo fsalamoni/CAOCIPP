@@ -4,8 +4,8 @@
  * e o publica; fornecedores entram por convite (cotação privada) ou pelo link
  * do aviso (dispensa eletrônica, IN SEGES/ME 67/2021) e enviam a proposta.
  * Até a abertura, o conteúdo das propostas é sigiloso: o órgão sabe só quantas
- * chegaram. A sala de lances (S12) está no fim deste arquivo; o julgamento e o
- * resultado vêm na S13.
+ * chegaram. A sala de lances (S12) e o julgamento com o resultado (S13) estão
+ * no fim deste arquivo.
  *
  * Lógica pura; o servidor grava. Ver docs/PROCESSO_ELETRONICO.md.
  */
@@ -346,4 +346,162 @@ export function posicaoDe(uid: string, p: Pick<Proposta, 'itens' | 'atualizada_e
     if (base == null) return null;
     const ult = lances.filter((l) => l.uid === uid && l.chave === u.chave && !l.excluido).sort((a, b) => a.seq - b.seq).at(-1);
     return ult ? { uid, valor: ult.valor, total: ult.total, em: ult.em, seq: ult.seq } : { uid, valor: base, total: totalDoValor(base, u, d), em: p.atualizada_em, seq: 0 };
+}
+
+// ─── Julgamento e resultado (S13) ─────────────────────────────────────────
+
+/** Empate ficto: ME/EPP até 5% acima da melhor oferta (LC 123/2006, art. 44, § 2º), com 5 minutos para cobrir (art. 45, § 3º). */
+export const MARGEM_EMPATE_FICTO = 0.05;
+export const MINUTOS_DESEMPATE = 5;
+/** Janela da intenção de recurso, em minutos: ao menos 10, logo depois de declarado o vencedor (Lei 14.133/2021, art. 165, § 1º, I). */
+export const MINUTOS_INTENCAO: [number, number] = [10, 60];
+/** Prazo para enviar proposta ajustada ou documentos de habilitação, em horas (IN SEGES 73/2022: ao menos 2 horas). */
+export const HORAS_CONVOCACAO: [number, number] = [2, 72];
+/** Razões e contrarrazões: 3 dias úteis cada (Lei 14.133/2021, art. 165, I e § 4º). */
+export const DIAS_RECURSO = 3;
+export const MAX_ARQUIVOS_CONVOCACAO = 10;
+
+export type SituacaoJulgamento = 'desempate' | 'analise' | 'aceita' | 'habilitada' | 'fracassada' | 'deserta';
+export const SITUACOES_JULGAMENTO: Record<SituacaoJulgamento, string> = {
+    desempate: 'Em desempate (ME/EPP)', analise: 'Proposta em análise', aceita: 'Proposta aceita, habilitação em análise',
+    habilitada: 'Vencedor habilitado', fracassada: 'Fracassado', deserta: 'Deserto',
+};
+export type EtapaJulgamento = 'julgamento' | 'recurso' | 'resultado' | 'encerrado';
+export const ETAPAS_JULGAMENTO: Record<EtapaJulgamento, string> = {
+    julgamento: 'Julgamento e habilitação', recurso: 'Prazo de recurso', resultado: 'Pronto para o resultado', encerrado: 'Encerrado',
+};
+
+export interface Classificado { uid: string; valor: number; total: number; porte: 'me_epp' | 'demais'; em: string; desempate?: true; negociado?: true }
+export interface Recusa { uid: string; etapa: 'proposta' | 'habilitacao'; motivo: string; em: string; por: string }
+export interface ArquivoConvocacao { id: string; nome: string; mime: string; bytes: number; em: string; path: string }
+export interface UnidadeJulgamento {
+    situacao: SituacaoJulgamento;
+    /** Classificação vigente (depois do desempate e da negociação). */
+    ordem: Classificado[];
+    /** Quem está em análise agora (null no desempate e no fim). */
+    vez: string | null;
+    recusas: Recusa[];
+    desempate?: { candidatos: string[]; feitos: string[]; atual?: { uid: string; ate: string; recusou?: true } };
+    negociacao?: { uid: string; desde: string };
+    convocacao?: { uid: string; o_que: 'proposta' | 'documentos'; ate: string; em: string; arquivos: ArquivoConvocacao[] };
+    aceita?: { uid: string; total: number; em: string; por: string };
+    habilitada?: { uid: string; total: number; em: string; por: string };
+}
+
+const melhor = (a: number, b: number, d: Pick<DadosCertame, 'criterio'>) => (d.criterio === 'maior_desconto' ? a > b : a < b);
+export { melhor as ofertaMelhor };
+
+/**
+ * ME/EPP em empate ficto com a primeira colocada, na ordem de classificação.
+ * Não há empate ficto se a primeira já é ME/EPP. No desconto, compara-se o
+ * preço equivalente (100 menos o desconto).
+ */
+export function candidatosDoDesempate(ordem: Classificado[], d: Pick<DadosCertame, 'criterio'>): string[] {
+    const [primeira, ...resto] = ordem;
+    if (!primeira || primeira.porte === 'me_epp') return [];
+    const preco = (c: Classificado) => (d.criterio === 'maior_desconto' ? 100 - c.total : c.total);
+    const limite = preco(primeira) * (1 + MARGEM_EMPATE_FICTO);
+    return resto.filter((c) => c.porte === 'me_epp' && preco(c) <= limite + 1e-9).map((c) => c.uid);
+}
+
+/** Abre o julgamento de uma unidade a partir das posições finais. */
+export function abrirUnidade(ordem: Classificado[], d: Pick<DadosCertame, 'criterio'>): UnidadeJulgamento {
+    if (!ordem.length) return { situacao: 'deserta', ordem, vez: null, recusas: [] };
+    const candidatos = candidatosDoDesempate(ordem, d);
+    return candidatos.length
+        ? { situacao: 'desempate', ordem, vez: null, recusas: [], desempate: { candidatos, feitos: [] } }
+        : { situacao: 'analise', ordem, vez: ordem[0].uid, recusas: [] };
+}
+
+/** Próximo a analisar: o melhor classificado ainda não recusado. */
+export const proximaVez = (u: Pick<UnidadeJulgamento, 'ordem' | 'recusas'>): string | null =>
+    u.ordem.find((c) => !u.recusas.some((r) => r.uid === c.uid))?.uid || null;
+
+/** Próximo candidato do desempate ainda não chamado (ou null: o desempate acabou). */
+export const proximoDoDesempate = (u: UnidadeJulgamento): string | null =>
+    u.desempate?.candidatos.find((x) => !u.desempate!.feitos.includes(x)) || null;
+
+/** Encerra o desempate sem oferta vencedora: vai à análise a primeira colocada. */
+export function fimDoDesempate(u: UnidadeJulgamento): UnidadeJulgamento {
+    const { desempate: _d, ...resto } = u;
+    return { ...resto, situacao: 'analise', vez: proximaVez(u) };
+}
+
+/** Oferta da ME/EPP no desempate: precisa ser melhor que a primeira; se for, passa à frente e vai à análise. */
+export function aplicarDesempate(u: UnidadeJulgamento, uid: string, valor: number, total: number, em: string, d: Pick<DadosCertame, 'criterio'>): UnidadeJulgamento | string {
+    const primeira = u.ordem[0];
+    if (!melhor(total, primeira.total, d)) return `A oferta precisa ser ${d.criterio === 'maior_desconto' ? 'maior' : 'menor'} que a da primeira colocada (${valorTexto(primeira.total, d)})`;
+    const eu = u.ordem.find((c) => c.uid === uid)!;
+    const ordem = [{ ...eu, valor, total, em, desempate: true as const }, ...u.ordem.filter((c) => c.uid !== uid)];
+    const { desempate: _d, ...resto } = u;
+    return { ...resto, ordem, situacao: 'analise', vez: uid };
+}
+
+/** Todas as unidades decididas: pode declarar o vencedor (ou concluir sem ele). */
+export const julgamentoConcluido = (us: UnidadeJulgamento[]) => us.every((u) => ['habilitada', 'fracassada', 'deserta'].includes(u.situacao));
+
+/** Resultado da disputa: homologada se há vencedor em ao menos uma unidade; deserta se ninguém propôs; fracassada nos demais casos. */
+export function resultadoDaDisputa(us: UnidadeJulgamento[]): 'Homologada' | 'Deserta' | 'Fracassada' {
+    if (us.some((u) => u.situacao === 'habilitada')) return 'Homologada';
+    return us.every((u) => u.situacao === 'deserta') ? 'Deserta' : 'Fracassada';
+}
+
+/** Fim do dia útil (23:59 de Brasília) do vencimento de n dias úteis contados de `inicio` (AAAA-MM-DD). */
+export function fimDoPrazoUtil(inicio: string, n: number, cal?: CalendarioOrgao): string {
+    const d = new Date(`${inicio}T00:00:00Z`);
+    let k = n;
+    while (k > 0) { d.setUTCDate(d.getUTCDate() + 1); if (diaUtil(d, cal)) k--; }
+    return new Date(`${d.toISOString().slice(0, 10)}T23:59:59-03:00`).toISOString();
+}
+
+export interface Intencao { uid: string; nome: string; motivo: string; em: string; razoes?: { texto: string; em: string } }
+export interface Recurso {
+    declarado_em: string; intencao_ate: string; razoes_ate: string; contrarrazoes_ate: string;
+    intencoes: Intencao[]; contrarrazoes: Array<{ uid: string; nome: string; texto: string; em: string }>;
+    decisao?: { provimento: 'nao' | 'sim' | 'parcial'; fundamentos: string; em: string; por: string };
+}
+export const PROVIMENTOS: Record<string, string> = { nao: 'Negado provimento', sim: 'Dado provimento', parcial: 'Dado provimento em parte' };
+
+/** Em que ponto está o recurso: intenção, razões, contrarrazões, decisão, ou sem recurso (ninguém manifestou). */
+export function momentoDoRecurso(r: Recurso, agora: string): 'intencao' | 'razoes' | 'contrarrazoes' | 'decisao' | 'sem_recurso' | 'decidido' {
+    if (r.decisao) return 'decidido';
+    if (agora <= r.intencao_ate) return 'intencao';
+    if (!r.intencoes.length) return 'sem_recurso';
+    if (agora <= r.razoes_ate) return 'razoes';
+    // Ninguém arrazoou: o recurso não segue (decide-se já).
+    if (!r.intencoes.some((i) => i.razoes)) return 'decisao';
+    return agora <= r.contrarrazoes_ate ? 'contrarrazoes' : 'decisao';
+}
+
+/** Linha de cada unidade para a certidão e o resumo: vencedor e valor, ou o desfecho. */
+export function linhaDaUnidade(nome: string, u: UnidadeJulgamento, quem: (uid: string) => string, d: Pick<DadosCertame, 'criterio'>): string {
+    if (u.situacao === 'habilitada' && u.habilitada) return `${nome}: ${quem(u.habilitada.uid)}, ${valorTexto(u.habilitada.total, d)}`;
+    return `${nome}: ${u.situacao === 'deserta' ? 'deserto (sem proposta)' : 'fracassado (nenhuma proposta aceita e habilitada)'}`;
+}
+
+/** Ata da disputa: o que aconteceu em cada unidade, o recurso e o resultado. Texto puro, nos autos. */
+export function textoDaAta(x: Pick<DadosCertame, 'criterio' | 'objeto'> & { perfil: PerfilDisputa; processo_numero: string; abertura_em?: string },
+    unidades: Array<{ nome: string; u: UnidadeJulgamento }>, quem: (uid: string) => string, recursos: Recurso[], resultado: string, lances: number): string {
+    const br = (iso: string) => {
+        const d = new Date(Date.parse(iso) - 3 * 3600e3).toISOString();
+        return `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}, ${d.slice(11, 16)}`;
+    };
+    const l: string[] = [`ATA DA ${PERFIS_DISPUTA[x.perfil].toUpperCase()}`, `Processo ${x.processo_numero}. Objeto: ${x.objeto}.`];
+    if (x.abertura_em) l.push(`Abertura em ${br(x.abertura_em)} (horário de Brasília)${lances ? `, com ${lances} lance${lances === 1 ? '' : 's'}` : ', sem fase de lances'}.`);
+    for (const { nome, u } of unidades) {
+        l.push('', `${nome}`);
+        if (!u.ordem.length) { l.push('Sem proposta: deserto.'); continue; }
+        l.push(...u.ordem.map((c, k) => `${k + 1}º ${quem(c.uid)}${c.porte === 'me_epp' ? ' (ME/EPP)' : ''}: ${valorTexto(c.total, x)}${c.desempate ? ', oferta de desempate' : ''}${c.negociado ? ', após negociação' : ''}`));
+        for (const r of u.recusas) l.push(`${r.etapa === 'proposta' ? 'Proposta recusada' : 'Inabilitado'}: ${quem(r.uid)}. Motivo: ${r.motivo}`);
+        l.push(linhaDaUnidade('Desfecho', u, quem, x) + '.');
+    }
+    recursos.forEach((r, k) => {
+        l.push('', recursos.length > 1 ? `Recurso (${k + 1}ª rodada)` : 'Recurso');
+        if (!r.intencoes.length) { l.push(`Aberta a intenção de recurso até ${br(r.intencao_ate)}, ninguém manifestou.`); return; }
+        for (const i of r.intencoes) l.push(`Intenção de ${i.nome}: ${i.motivo}${i.razoes ? ' (razões apresentadas)' : ' (sem razões no prazo)'}`);
+        if (r.contrarrazoes.length) l.push(`Contrarrazões de ${r.contrarrazoes.map((c) => c.nome).join(', ')}.`);
+        if (r.decisao) l.push(`Decisão: ${PROVIMENTOS[r.decisao.provimento]}. ${r.decisao.fundamentos}`);
+    });
+    l.push('', `Resultado: ${resultado}.`);
+    return l.join('\n');
 }

@@ -13,6 +13,7 @@ var __rest = (this && this.__rest) || function (s, e) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ACOES_FORNECEDOR = exports.ACOES_CERTAME = exports.COL_CERTAMES = void 0;
 exports.acaoCertame = acaoCertame;
+exports.avisarPorEmail = avisarPorEmail;
 exports.acaoFornecedor = acaoFornecedor;
 const crypto_1 = require("crypto");
 const firestore_1 = require("firebase-admin/firestore");
@@ -22,13 +23,14 @@ const exigencias_1 = require("../shared/exigencias");
 const permissoesFase_1 = require("../shared/permissoesFase");
 const certames_1 = require("../shared/certames");
 const salaLances_1 = require("./salaLances");
+const julgamentoDisputa_1 = require("./julgamentoDisputa");
 const email_1 = require("../shared/email");
 const config_1 = require("./config");
 const context_1 = require("./context");
 exports.COL_CERTAMES = 'secCertames';
 const COL_ACESSOS = 'secPortalAcessos';
-exports.ACOES_CERTAME = ['certameLer', 'certameSalvar', 'certamePublicar', 'certameAdiar', 'certameCancelar', 'certameConvidar', 'certameRevogarConvite', 'certamePropostas', ...salaLances_1.ACOES_SALA_ORGAO];
-exports.ACOES_FORNECEDOR = ['disputaMinhas', 'disputaAviso', 'disputaConvite', 'disputaParticipar', 'disputaProposta', 'disputaRetirar', ...salaLances_1.ACOES_SALA_FORNECEDOR];
+exports.ACOES_CERTAME = ['certameLer', 'certameSalvar', 'certamePublicar', 'certameAdiar', 'certameCancelar', 'certameConvidar', 'certameRevogarConvite', 'certamePropostas', ...salaLances_1.ACOES_SALA_ORGAO, ...julgamentoDisputa_1.ACOES_JULGAMENTO_ORGAO];
+exports.ACOES_FORNECEDOR = ['disputaMinhas', 'disputaAviso', 'disputaConvite', 'disputaParticipar', 'disputaProposta', 'disputaRetirar', ...salaLances_1.ACOES_SALA_FORNECEDOR, ...julgamentoDisputa_1.ACOES_JULGAMENTO_FORNECEDOR];
 const APP_URL = process.env.APP_URL || 'https://sigo-caocipp.web.app';
 const escapar = (s) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
 const CONVITE_DIAS = 60;
@@ -75,19 +77,22 @@ function avisoPublico(id, x) {
             return a;
         }),
         cancelado: x.cancelado ? { motivo: x.cancelado.motivo, em: x.cancelado.em } : undefined,
-        fim_lances: (0, certames_1.fimDosLances)(x), momento: x.situacao === 'publicado' ? (0, certames_1.momentoDaDisputa)(x, new Date().toISOString()) : null,
+        fim_lances: (0, certames_1.fimDosLances)(x), momento: x.situacao === 'publicado' ? (0, certames_1.momentoDaDisputa)(x, new Date().toISOString()) : null, resultado: x.resultado || null,
     };
 }
 async function acaoCertame(c, p) {
     var _a, _b;
     if (salaLances_1.ACOES_SALA_ORGAO.includes(String(p.action)))
         return (0, salaLances_1.acaoSalaOrgao)(c, p, (data) => { var _a; return ((_a = data.certame) === null || _a === void 0 ? void 0 : _a.id) || null; });
+    if (julgamentoDisputa_1.ACOES_JULGAMENTO_ORGAO.includes(String(p.action)))
+        return (0, julgamentoDisputa_1.acaoJulgamentoOrgao)(c, p, classificacaoComLances);
     const quem = { uid: c.ctx.uid, nome: c.userName };
     const col = c.db.collection(exports.COL_CERTAMES);
     if (p.action === 'certameLer' || p.action === 'certamePropostas') {
         const { ref, data } = await (0, context_1.lerProcesso)(c, p.processo_id);
-        const atual = data.certame;
         const alvo = acaoDaDisputa(data);
+        // Cumprida a ação, o certame fica como o último (a tela mostra o resultado), salvo se o rito já pede outra disputa.
+        const atual = (data.certame || (alvo ? undefined : data.ultimo_certame));
         const posse = c.ctx.unidadeIds.includes(data.unidade_atual);
         const podeCumprir = !!alvo && (!alvo.regra.quem || (0, permissoesFase_1.podeQuem)(alvo.regra.quem, alvo.regra.atribuicao, (0, context_1.atorDe)(c, data)));
         const cal = await calendario(c.db, c.orgId);
@@ -358,6 +363,8 @@ async function acaoFornecedor(db, auth, p) {
     const agora = () => new Date().toISOString();
     if (salaLances_1.ACOES_SALA_FORNECEDOR.includes(String(p.action)))
         return (0, salaLances_1.acaoSalaFornecedor)(db, uid, p, lerCertame);
+    if (julgamentoDisputa_1.ACOES_JULGAMENTO_FORNECEDOR.includes(String(p.action)))
+        return (0, julgamentoDisputa_1.acaoJulgamentoFornecedor)(db, uid, p, lerCertame);
     if (p.action === 'disputaMinhas') {
         const snap = await db.collection(exports.COL_CERTAMES).where('fornecedores_uids', 'array-contains', uid).limit(200).get();
         const perfil = ((_a = (await db.collection(COL_ACESSOS).doc(uid).get()).data()) === null || _a === void 0 ? void 0 : _a.fornecedor) || null;
