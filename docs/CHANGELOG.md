@@ -5,6 +5,18 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 16/11/2026 — Levar rito e modelo de documento a outro órgão
+- Em Ritos, "Exportar para outro órgão" baixa o rito inteiro, com todas as
+  regras, as unidades e os modelos de documento que usa (com o texto) e o
+  tipo de processo. No outro órgão, "Importar de outro órgão" abre a mesma
+  revisão dos modelos da biblioteca: o que tem o mesmo nome é usado, o que
+  falta é proposto para criar. O arquivo não leva nada que identifique o
+  órgão de origem, e o servidor confere tudo de novo ao implantar.
+- Em Documentos, cada modelo do editor também se exporta e se importa.
+- Os modelos da biblioteca seguem sendo da plataforma: usar um cria uma
+  cópia só do órgão, que não muda quando a biblioteca muda. Guia do rito,
+  parte 20.
+
 ### 16/11/2026 — Relatório do colegiado, guia da secretaria e modelos com sessão
 - Na aba Sessões, o Relatório do colegiado mostra, no período escolhido, as
   sessões realizadas e canceladas, os processos julgados por resultado e por

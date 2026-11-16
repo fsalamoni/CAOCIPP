@@ -26,6 +26,7 @@ import {
     excluirUnidade, revogarConviteEquipe, salvarUnidade, salvarUnidadeDocumento, verConviteEquipe,
 } from './unidades';
 import { migrarRito } from './migrarRito';
+import { pacoteDoRito, paginasCitadas } from '../shared/pacoteRito';
 
 export { TIPOS_DOCUMENTO_PADRAO } from './documentoConfig';
 
@@ -44,6 +45,8 @@ const caminhoModelo = (orgId: string, id: string) => `secretaria/${orgId}/modelo
 
 const MAX_UNIDADES_PROPOSTA = 30;
 const MAX_MODELOS_PROPOSTA = 60;
+/** Soma do texto dos modelos que um pacote de outro órgão traz (a chamada aceita até 10 MB). */
+const MAX_TEXTO_MODELOS_PROPOSTA = 6_000_000;
 
 /** Tira do rito referências a unidades e modelos que não são do órgão. */
 function filtrarRefsRito(rito: Rito, unidades: Set<string>, modelos: Set<string>): Rito {
@@ -135,7 +138,7 @@ type Acao = 'estado' | 'ativar' | 'salvarUnidade' | 'salvarRito' | 'salvarPrefer
     | 'pedirLotacao' | 'decidirPedido' | 'verConviteEquipe' | 'aceitarConviteEquipe'
     | 'importarModelo' | 'baixarModelo' | 'extrairTextoRito' | 'aplicarPropostaRito'
     | 'versoes' | 'restaurarVersao' | 'excluirRito' | 'salvarOrgao' | 'removerOrgao' | 'criarEstrutura' | 'salvarTextosComunicacao' | 'salvarListas' | 'excluirUnidade' | 'migrarRito'
-    | 'excluirTipo' | 'excluirModelo' | 'restaurar' | 'salvarIntegracoes' | 'historico';
+    | 'excluirTipo' | 'excluirModelo' | 'restaurar' | 'salvarIntegracoes' | 'historico' | 'exportarRito';
 
 interface ConfigRequest extends Record<string, unknown> {
     organizationId: string;
@@ -538,6 +541,33 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
 
     exigirAdmin(c);
 
+    if (p.action === 'exportarRito') {
+        // Pacote para outro órgão: o rito inteiro, as unidades e os modelos que usa e o tipo de processo; nada que identifique este órgão.
+        const id = typeof p.rito_id === 'string' ? p.rito_id : '';
+        const d = id ? (await db.collection(COL.ritos).doc(id).get()).data() : null;
+        if (!d || d.organization_id !== orgId || d.excluido === true) throw new HttpsError('not-found', 'Rito não encontrado');
+        let rito: Rito;
+        try { rito = sanitizeRito(d); } catch (e) { erroUsuario(e); }
+        const ids = [...new Set(rito!.fases.flatMap((f) => [...(f.modelos || []), ...(f.documentos || []).map((x) => x.modelo_id), ...(f.acoes_regras || []).map((r) => r?.documento?.modelo_id)]).filter((x): x is string => !!x))];
+        const [modSnaps, tiposSnap] = await Promise.all([
+            ids.length ? db.getAll(...ids.map((m) => db.collection(COL.modelos).doc(m))) : Promise.resolve([]),
+            db.collection(COL.tipos).where('organization_id', '==', orgId).where('rito_id', '==', id).get(),
+        ]);
+        const modelos = modSnaps.filter((s) => s.exists && s.data()!.organization_id === orgId && s.data()!.excluido !== true)
+            .map((s) => ({ id: s.id, ...(s.data() as { nome: string }) }));
+        const t = tiposSnap.docs.map((x) => x.data()).filter((x) => x.excluido !== true).sort((a, b) => Number(b.ativo !== false) - Number(a.ativo !== false))[0];
+        const tipo = t ? { nome: String(t.nome || ''), sigla: String(t.sigla || ''), descricao: String(t.descricao || ''), formulario: formularioDe(t), sigilo_padrao: t.sigilo_padrao } : null;
+        const paginas: Record<string, string> = {};
+        for (const pg of paginasCitadas(rito!, tipo?.formulario)) {
+            const e = (await db.collection('entityTypes').doc(pg).get()).data();
+            if (e && e.organization_id === orgId) paginas[pg] = String(e.label_singular || '');
+        }
+        const unidades = c.unidades.filter((u) => !u.excluida).map((u) => ({ id: u.id, nome: String(u.nome || ''), sigla: String(u.sigla || ''), tipo: String(u.tipo || '') }));
+        const pacote = pacoteDoRito(rito!, { unidades, modelos, tipo, paginas });
+        await audit('SECRETARIA_RITO_EXPORTADO', { rito_id: id, nome: rito!.nome, modelos: pacote.modelos.length, unidades: pacote.unidades.length, tipo: !!tipo });
+        return { pacote };
+    }
+
     if (p.action === 'salvarDocumentoConfig') {
         let documento;
         try { documento = sanitizeDocumentoConfig(p.documento); } catch (e) { erroUsuario(e); }
@@ -686,14 +716,27 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             return unidadesValidas.has(id) ? id : null;
         };
         const refMod = new Map<string, string>();
+        let tamanhoPacote = 0;
         const novosModelos = modelosIn.map((m) => {
             const nome = texto(m.nome, 120);
             if (!nome) throw new HttpsError('invalid-argument', 'Modelo novo sem nome');
             const ref = db.collection(COL.modelos).doc();
             refMod.set(String(m.ref), ref.id);
-            return { ref, nome, unidade_id: unidadeDe(m.unidade_ref), tipo_documento: texto(m.tipo_documento, 60) };
+            // Modelo vindo de pacote de outro órgão traz o texto: saneado como em salvarModelo.
+            let conteudo = null;
+            if (m.conteudo) {
+                try { conteudo = sanitizeDoc(m.conteudo); } catch (e) { erroUsuario(e); }
+                tamanhoPacote += JSON.stringify(conteudo).length;
+                if (JSON.stringify(conteudo).length > MAX_MODELO_JSON) throw new HttpsError('invalid-argument', `O modelo "${nome}" é grande demais para o editor`);
+                if (tamanhoPacote > MAX_TEXTO_MODELOS_PROPOSTA) throw new HttpsError('invalid-argument', 'Os modelos do pacote passam do tamanho que cabe numa implantação: implante e importe os modelos maiores à parte');
+            }
+            return { ref, nome, unidade_id: unidadeDe(m.unidade_ref), tipo_documento: texto(m.tipo_documento, 60), descricao: texto(m.descricao, 500), conteudo };
         });
         const modelosValidos = new Set([...naoExcluidos(modelosSnap).map((d) => d.id), ...refMod.values()]);
+        const comModeloNovo = (e: unknown) => {
+            const o = e && typeof e === 'object' ? e as Record<string, unknown> : null;
+            return o && typeof o.modelo_id === 'string' && refMod.has(o.modelo_id) ? { ...o, modelo_id: refMod.get(o.modelo_id) } : e;
+        };
         const ritoIn = (pr.rito && typeof pr.rito === 'object' ? pr.rito : {}) as Record<string, unknown>;
         const fasesIn = (Array.isArray(ritoIn.fases) ? ritoIn.fases : []) as Array<Record<string, unknown>>;
         let rito: Rito;
@@ -704,6 +747,9 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
                     ...f,
                     unidade_id: unidadeDe(f.unidade_ref ?? f.unidade_id) || undefined,
                     modelos: (Array.isArray(f.modelos_ref) ? f.modelos_ref : []).map((r) => refMod.get(String(r)) || String(r)),
+                    // "Modelo indicado" de documento exigido também pode ser um modelo novo ("+N").
+                    ...(Array.isArray(f.documentos) ? { documentos: f.documentos.map(comModeloNovo) } : {}),
+                    ...(Array.isArray(f.acoes_regras) ? { acoes_regras: f.acoes_regras.map((r) => (r && typeof r === 'object' && (r as Record<string, unknown>).documento ? { ...r, documento: comModeloNovo((r as Record<string, unknown>).documento) } : r)) } : {}),
                 })),
             });
         } catch (e) { erroUsuario(e); }
@@ -720,8 +766,9 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         }
         for (const m of novosModelos) {
             batch.set(m.ref, {
-                organization_id: orgId, nome: m.nome, tipo_documento: m.tipo_documento, descricao: `Modelo do rito "${rito.nome}". Complete o texto.`,
-                conteudo: sanitizeDoc(esqueletoModelo(m.nome)), unidade_id: m.unidade_id, formato: 'editor', ativo: true,
+                organization_id: orgId, nome: m.nome, tipo_documento: m.tipo_documento,
+                descricao: m.conteudo ? (m.descricao || `Modelo do rito "${rito.nome}", vindo de outro órgão.`) : `Modelo do rito "${rito.nome}". Complete o texto.`,
+                conteudo: m.conteudo || sanitizeDoc(esqueletoModelo(m.nome)), unidade_id: m.unidade_id, formato: 'editor', ativo: true,
                 created_at: agora, created_by: auth.uid, updated_at: agora, updated_by: auth.uid,
             });
         }

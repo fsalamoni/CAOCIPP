@@ -398,6 +398,22 @@ export default function GuiaRito({ variante = 'outline', className = '', inicial
                                 </tbody>
                             </table>
                         </Parte>
+                        <Parte titulo="20. Modelos da plataforma, modelos do órgão e levar a outro órgão">
+                            <p>Os modelos da biblioteca e o Rito Consultas CAOCIPP são da plataforma: ninguém de um órgão os altera. <strong>Usar</strong> cria uma cópia que é só do seu órgão, gravada no banco do órgão, e você muda tudo nela. Se a plataforma atualizar um modelo depois, a sua cópia não muda; se quiser a novidade, use o modelo de novo e compare.</p>
+                            <p>Toda ferramenta que um modelo usa (julgamento em sessão de colegiado, disputa de preços, audiência, comunicação com prazo de resposta, formulário, documento exigido, andamento automático, quem pode em cada fase) é uma opção do editor e vale em qualquer rito que o órgão criar, do zero ou a partir de outro.</p>
+                            <table className={tabela}>
+                                <thead><tr><th>Para levar</th><th>No órgão de origem</th><th>No outro órgão</th></tr></thead>
+                                <tbody>
+                                    <tr><td>Um rito inteiro</td><td>Em Ritos, no menu do rito (⋯), <strong>Exportar para outro órgão</strong>. Baixa um arquivo .json com todas as fases e regras, as unidades e os modelos de documento que o rito usa (com o texto) e o tipo de processo que o usa.</td><td>Em Ritos, <strong>Importar de outro órgão</strong> (ou o arquivo em <strong>Novo rito</strong>). A revisão abre como a de um modelo: unidade e modelo de mesmo nome são os do órgão; o que falta aparece para criar ou trocar por um que já existe. Nada é gravado até implantar.</td></tr>
+                                    <tr><td>Um modelo de documento</td><td>Em Documentos, no menu do modelo, <strong>Exportar para outro órgão</strong>. Modelo guardado como arquivo original (Word ou PDF) se leva baixando o próprio arquivo.</td><td>Em Documentos, <strong>Importar de arquivo</strong>, com o .json. O modelo abre no editor para revisar e salvar.</td></tr>
+                                </tbody>
+                            </table>
+                            <ul className="list-disc space-y-1 pl-5">
+                                <li>O arquivo não leva nada que identifique o órgão de origem: nem ids, nem quem criou, nem e-mails, nem processos. Páginas próprias vão pelo nome e casam com as do outro órgão; a que não existe lá aparece na revisão para escolher.</li>
+                                <li>Só a administração do Processo Eletrônico exporta e implanta rito. Ao implantar, o servidor confere de novo cada fase, regra e texto, como em qualquer rito, e registra no histórico quem exportou e quem implantou.</li>
+                                <li>O que vem de fora vira do seu órgão: mudar depois não afeta o órgão de origem, e o de origem mudar o dele não afeta o seu.</li>
+                            </ul>
+                        </Parte>
                     </div>
                 </DialogContent>
             </Dialog>

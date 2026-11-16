@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Building2, CalendarDays, FileText, GitBranch, Hash, History, ListPlus, Loader2, Network, Plug, Plus, RefreshCw, Shapes, SlidersHorizontal, Trash2, Users } from 'lucide-react';
+import { Building2, CalendarDays, Download, FileText, FileUp, GitBranch, Hash, History, ListPlus, Loader2, Network, Plug, Plus, RefreshCw, Shapes, SlidersHorizontal, Trash2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -26,6 +26,7 @@ import MigrarRitoDialog from './MigrarRitoDialog';
 import EstruturaOrgaos from './Orgaos';
 import { TextosComunicacao } from './Comunicacoes';
 import { BloqueioRito, CartaoComMenu, ConfirmarExclusao, Excluidos, LixeiraConfiguracao } from './Lixeira';
+import { MAX_MB_PACOTE, baixarPacote, lerPacote, nomeArquivoPacote } from '@/lib/pacoteModelos';
 
 const item = 'w-full text-left p-3 rounded-md border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400';
 
@@ -196,16 +197,41 @@ function Ritos({ orgId, estado, onIr, onAbrirTipo, pedido, onPedidoAtendido }) {
     const [excluir, setExcluir] = useState(null);
     const [migrar, setMigrar] = useState(null);
     const tiposDe = (id) => (estado.tipos || []).filter((t) => t.rito_id === id);
+    // Levar a outro órgão: o servidor monta o pacote sem nada que identifique este órgão.
+    const exportar = async (r) => {
+        try {
+            const { pacote } = await secConfig(orgId, 'exportarRito', { rito_id: r.id });
+            baixarPacote(pacote, nomeArquivoPacote('rito', r.nome));
+            toast.success(`Pacote de "${r.nome}" baixado. No outro órgão, use "Importar de outro órgão" em Ritos.`);
+        } catch (e) { toast.error(e?.message || 'Não foi possível exportar o rito'); }
+    };
+    const importar = async (e) => {
+        const file = e.target.files?.[0];
+        e.target.value = '';
+        if (!file) return;
+        if (file.size > MAX_MB_PACOTE * 1024 * 1024) { toast.error(`Arquivo acima de ${MAX_MB_PACOTE} MB`); return; }
+        try {
+            const pac = lerPacote(await file.text());
+            if (pac.conteudo !== 'rito') throw new Error('Este pacote é de um modelo de documento: importe na aba Documentos, em "Importar de arquivo".');
+            setAberto({ pacote: pac });
+        } catch (err) { toast.error(err?.message || 'Não foi possível ler o arquivo'); }
+    };
     const bloqueio = excluir && tiposDe(excluir.id).length ? <BloqueioRito tipos={tiposDe(excluir.id)} onAbrirTipo={(id) => { setExcluir(null); onAbrirTipo(id); }} /> : null;
     return (
         <Card>
             <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
                 <div className="min-w-[14rem] flex-1">
                     <CardTitle className="text-base">Ritos</CardTitle>
-                    <CardDescription>O caminho do processo, fase a fase, e o que cada ação pede e registra. Monte do zero, parta de um modelo ou importe de planilha, Word, PDF ou diagrama (BPMN, draw.io, Mermaid). Criar e editar usam a mesma tela; cada alteração gera uma versão.</CardDescription>
+                    <CardDescription>O caminho do processo, fase a fase, e o que cada ação pede e registra. Monte do zero, parta de um modelo ou importe de planilha, Word, PDF ou diagrama (BPMN, draw.io, Mermaid). Criar e editar usam a mesma tela; cada alteração gera uma versão. Os modelos da biblioteca são da plataforma: usar um cria uma cópia só deste órgão, que você ajusta à vontade, e mudanças na biblioteca não a alteram. Para levar um rito a outro órgão, use &quot;Exportar para outro órgão&quot; no menu dele; lá, &quot;Importar de outro órgão&quot;.</CardDescription>
                 </div>
                 <div className="flex flex-wrap gap-2 shrink-0">
                     <Button size="sm" className="gap-1" onClick={() => setAberto({})}><Plus className="w-4 h-4" /> Novo rito</Button>
+                    <Button asChild size="sm" variant="outline" className="gap-1 cursor-pointer focus-within:ring-2 focus-within:ring-indigo-400">
+                        <label>
+                            <FileUp className="w-4 h-4" aria-hidden /> Importar de outro órgão
+                            <input id="ritos-importar-pacote" type="file" accept=".json,application/json" className="sr-only" onChange={importar} />
+                        </label>
+                    </Button>
                 </div>
             </CardHeader>
             <CardContent className="grid md:grid-cols-2 gap-2">
@@ -213,7 +239,10 @@ function Ritos({ orgId, estado, onIr, onAbrirTipo, pedido, onPedidoAtendido }) {
                 {estado.ritos.map((r) => (
                     <CartaoComMenu key={r.id} nome={r.nome} className={item} onEditar={() => setAberto({ rito: r })} onDuplicar={() => setAberto({ copia: r })}
                         onExcluir={() => setExcluir({ colecao: 'rito', id: r.id, nome: r.nome })}
-                        extras={r.versao > 1 ? [{ rotulo: 'Atualizar processos', icone: RefreshCw, onSelect: () => setMigrar(r) }] : []}>
+                        extras={[
+                            { rotulo: 'Exportar para outro órgão', icone: Download, onSelect: () => exportar(r) },
+                            ...(r.versao > 1 ? [{ rotulo: 'Atualizar processos', icone: RefreshCw, onSelect: () => setMigrar(r) }] : []),
+                        ]}>
                         <div className="flex flex-wrap items-center gap-2"><span className="font-medium"><span className="sr-only">Editar o rito </span>{r.nome}</span><span className="text-xs text-slate-600">versão {r.versao}</span>{!r.ativo && <Badge variant="secondary">Inativo</Badge>}</div>
                         <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">{r.fases.length} fases: {r.fases.map((f) => f.nome).join(' → ')}</p>
                         {tiposDe(r.id).length > 0 && <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">Usado por: {tiposDe(r.id).map((t) => t.nome).join(', ')}</p>}
@@ -222,7 +251,8 @@ function Ritos({ orgId, estado, onIr, onAbrirTipo, pedido, onPedidoAtendido }) {
                 <Excluidos orgId={orgId} estado={estado} colecao="rito" />
             </CardContent>
             {aberto && (
-                <PropostaRito key={aberto.rito?.id || (aberto.copia ? `copia-${aberto.copia.id}` : 'novo')} aberto orgId={orgId} estado={estado} rito={aberto.rito || null} copia={aberto.copia || null}
+                <PropostaRito key={aberto.rito?.id || (aberto.copia ? `copia-${aberto.copia.id}` : aberto.pacote ? `pacote-${aberto.pacote.gerado_em}` : 'novo')} aberto orgId={orgId} estado={estado}
+                    rito={aberto.rito || null} copia={aberto.copia || null} pacote={aberto.pacote || null}
                     onFechar={() => setAberto(null)} onIr={onIr} onAbrirTipo={onAbrirTipo}
                     extra={aberto.rito && <VersoesDialog orgId={orgId} colecao="rito" id={aberto.rito.id} nome={aberto.rito.nome} estado={estado} onRestaurado={() => setAberto(null)} />} />
             )}

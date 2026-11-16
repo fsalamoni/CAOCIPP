@@ -1796,6 +1796,45 @@ designada, nada muda: todo ato do órgão é de quem tem o processo.
   avisos do agente, julgamento, recurso e ata; nomes só depois da
   declaração). Na cotação privada, só quem participa.
 
+### Modelos da plataforma, do órgão e pacote para outro órgão (16/11/2026)
+
+Princípio: modelos e padrões são da plataforma e ficam no código
+(`src/lib/bibliotecaRitos.js`, `src/lib/modelos/*.js`, `ritoConsultas` em
+`src/lib/secretariaRito.js`); nenhum órgão os altera. "Usar" copia o modelo
+para o rito do órgão (`aplicarPropostaRito`, coleção `secRitos` com
+`organization_id`), e a cópia não muda quando a plataforma atualiza o modelo.
+Toda ferramenta que os modelos usam (`pede` julgamento, disputa, audiência,
+comunicação, resposta, formulário, documento, registro; andamento automático,
+permissões, certidão conjunta) é opção do editor e vale em qualquer rito.
+
+- **Exportar rito:** `secretariaConfig` ação `exportarRito { rito_id }`, só
+  administração do PE. Monta o pacote em `shared/pacoteRito.ts`
+  (`pacoteDoRito`, testado em `test/pacoteRito.test.js`): `{ formato:
+  'sigo-pacote', versao: 1, conteudo: 'rito', rito, unidades, modelos,
+  paginas, tipo, avisos }`. O rito é relido por `sanitizeRito` (só campos
+  conhecidos). Unidades, modelos e páginas próprias viram referências locais
+  (`u1`, `m1`, `p1`) com o nome; modelo do editor leva o texto, modelo
+  original só o nome (com aviso). O tipo é o que usa o rito (o ativo
+  primeiro): nome, sigla, descrição, formulário e sigilo. Não vão ids do
+  órgão, `organization_id`, autor, e-mails nem processos. Auditoria
+  `SECRETARIA_RITO_EXPORTADO`.
+- **Importar rito:** em Ritos, "Importar de outro órgão", ou o .json em
+  Novo rito. `src/lib/pacoteModelos.js` (`lerPacote`, `propostaDePacote`)
+  casa unidade (nome ou sigla), modelo (nome, do órgão ou da unidade) e
+  página (nome) com as do órgão; o que falta vira novo (`+N`). Página que
+  não existe: a regra de andamento sai, a ação e o campo da ação ficam para
+  escolher (pendência grave), e o campo do tipo sai, com aviso. A revisão é
+  a de sempre; implantar usa `aplicarPropostaRito`, que agora aceita
+  `conteudo` e `descricao` nos modelos novos (saneados por `sanitizeDoc`,
+  até 900 mil caracteres cada e 6 milhões no total) e troca `+N` também no
+  "modelo indicado" dos documentos exigidos (da fase e da ação).
+- **Modelo de documento:** em Documentos, "Exportar para outro órgão" (só
+  modelo do editor) baixa `{ conteudo: 'documento', modelo: { nome,
+  tipo_documento, descricao, conteudo } }`; "Importar de arquivo" aceita o
+  .json e abre o editor; salvar passa por `salvarModelo`.
+- O que vem de fora vira do órgão que importou: mudanças de um lado não
+  afetam o outro.
+
 ### Relatório do colegiado, guia da secretaria e modelos com sessão (16/11/2026)
 
 Etapa S15, sobre as sessões das etapas S1 a S10 e a disputa de S11 a S14.
