@@ -2,9 +2,11 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.deleteExpediente = void 0;
 const admin = require("firebase-admin");
+const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const permissions_1 = require("../shared/permissions");
 const vinculo_1 = require("../shared/vinculo");
+const aditivos_1 = require("../registros/aditivos");
 exports.deleteExpediente = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
     var _a;
     if (!request.auth) {
@@ -41,11 +43,14 @@ exports.deleteExpediente = (0, https_1.onCall)({ region: 'southamerica-east1' },
     }
     // 3. Delete (recursivo: remove também as subcoleções history/comments,
     // mesma razão da correção equivalente em processes/delete.ts).
+    const depois = await (0, aditivos_1.conferirExclusao)('expedientes', organizationId, id, expedienteSnap.data() || {});
     await db.recursiveDelete(expedienteRef);
+    if (depois)
+        await depois(userId, request.auth.token.name || 'Usuário desconhecido');
     // 4. Update stats
     await db.collection('organizations').doc(organizationId).update({
-        'stats.expedientes_count': admin.firestore.FieldValue.increment(-1),
-        'stats.active_expedientes': admin.firestore.FieldValue.increment(-1)
+        'stats.expedientes_count': firestore_1.FieldValue.increment(-1),
+        'stats.active_expedientes': firestore_1.FieldValue.increment(-1)
     });
     // 5. Audit
     await db.collection('auditLogs').add({
@@ -54,7 +59,7 @@ exports.deleteExpediente = (0, https_1.onCall)({ region: 'southamerica-east1' },
         user_name: request.auth.token.name || '',
         action: 'DELETE_EXPEDIENTE',
         details: { expediente_id: id },
-        timestamp: admin.firestore.FieldValue.serverTimestamp()
+        timestamp: firestore_1.FieldValue.serverTimestamp()
     });
     return { success: true };
 });

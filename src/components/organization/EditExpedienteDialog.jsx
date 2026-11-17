@@ -356,7 +356,7 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center justify-between">
-              <DialogTitle>Editar Expediente - {formData.expediente_number || expediente?.expediente_number || 'Sem Número'}</DialogTitle>
+              <DialogTitle>Editar Expediente - {formData.expediente_number || expediente?.expediente_number || 'Sem Número'}{expediente?.aditivo_de ? ` · Aditivo ${expediente.aditivo_numero}` : ''}</DialogTitle>
             </div>
           </DialogHeader>
 
@@ -379,12 +379,19 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
                     <Input
                       id="expediente_number"
                       value={formData.expediente_number || ''}
+                      disabled={Boolean(expediente?.aditivo_de)}
+                      aria-describedby={expediente?.aditivo_de || Number(expediente?.aditivos_count) > 0 ? 'expediente_number_vinculo' : undefined}
                       onChange={(e) => setFormData({ ...formData, expediente_number: e.target.value })}
                       className={cn(
                         "mt-1 transition-all duration-300",
                         formData.expediente_number ? "border-emerald-200 focus-visible:ring-emerald-500" : ""
                       )}
                     />
+                    {expediente?.aditivo_de ? (
+                      <p id="expediente_number_vinculo" className="mt-1 text-xs text-violet-700 dark:text-violet-300">O aditivo usa o número do expediente original; ele muda junto com o original.</p>
+                    ) : Number(expediente?.aditivos_count) > 0 ? (
+                      <p id="expediente_number_vinculo" className="mt-1 text-xs text-slate-500 dark:text-slate-400">Este é o original: mudar o número muda também nos aditivos.</p>
+                    ) : null}
                   </div>
                   <div>
                     <div className="flex items-center justify-between">

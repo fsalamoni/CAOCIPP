@@ -82,6 +82,8 @@ export function registroDe(modulo, id, d) {
         juri: [d.numero_processo, d.comarca],
     }[modulo] || [];
     const s = (v) => (v === undefined || v === null ? '' : String(v).trim());
+    // Aditivo de Consulta/Expediente tem o mesmo nº do original: o rótulo diferencia (espelho de refDe).
+    if (d.aditivo_de && s(par[0])) par[0] = `${s(par[0]).slice(0, 60)} (Aditivo ${d.aditivo_numero})`;
     const restrito = /^sim$/i.test(s(d.access_restriction)) || d.access_restriction === true || d.anonymized === true;
     return { id, numero: s(par[0]).slice(0, 80) || 'sem número', titulo: s(par[1]).slice(0, 160), ...(restrito ? { restrito: true } : { dados: dadosDe(modulo, d) }) };
 }

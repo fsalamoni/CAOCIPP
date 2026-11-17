@@ -1,10 +1,12 @@
 import * as admin from 'firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { calculateStatus } from '../shared/status';
 import { historyEntryId } from '../shared/history';
 import { formatPersonName } from '../shared/normalization';
 import { fireOrgWebhook } from '../shared/webhooks';
 import { vinculoBloqueado } from '../shared/vinculo';
+import { protegerVinculo, propagarNumero } from '../registros/aditivos';
 
 interface UpdateExpedienteRequest {
     id: string;
@@ -59,12 +61,16 @@ export const updateExpediente = onCall<UpdateExpedienteRequest>(
         delete changes.anonymized;
         delete changes.anonymized_at;
         delete changes.anonymized_by;
+        // Vínculo original/aditivo só pelo servidor; aditivo segue o nº do original.
+        protegerVinculo(changes, expedienteData, 'expediente_number');
+        const numeroMudou = !expedienteData.aditivo_de && typeof changes.expediente_number === 'string'
+            && changes.expediente_number.trim() !== '' && changes.expediente_number !== expedienteData.expediente_number;
 
         if (typeof changes.responsible_user_name === 'string') {
             changes.responsible_user_name = formatPersonName(changes.responsible_user_name);
         }
 
-        changes.updated_at = admin.firestore.FieldValue.serverTimestamp();
+        changes.updated_at = FieldValue.serverTimestamp();
         changes.updated_by = userId;
 
         // Auto-fill distribution_date when responsible changes
@@ -141,9 +147,10 @@ export const updateExpediente = onCall<UpdateExpedienteRequest>(
             timestamp: now.toISOString(),
         };
 
-        changes.activity_log = admin.firestore.FieldValue.arrayUnion(logEntry);
+        changes.activity_log = FieldValue.arrayUnion(logEntry);
 
         await expedienteRef.update(changes);
+        if (numeroMudou) await propagarNumero('expedientes', organizationId, id, 'expediente_number', changes.expediente_number, userId, userName);
 
         // Fase 3 (escrita dupla, ADITIVA): espelha a entrada de log na subcoleção
         // expedientes/{id}/history. Best-effort: NUNCA falha a atualização principal.
@@ -151,7 +158,7 @@ export const updateExpediente = onCall<UpdateExpedienteRequest>(
         try {
             await expedienteRef.collection('history').doc(historyEntryId(logEntry)).set({
                 ...logEntry,
-                created_at: admin.firestore.FieldValue.serverTimestamp(),
+                created_at: FieldValue.serverTimestamp(),
             });
         } catch (histErr) {
             console.error('[history dual-write] expediente update', id, histErr);
@@ -164,7 +171,7 @@ export const updateExpediente = onCall<UpdateExpedienteRequest>(
             user_name: userName,
             action: 'UPDATE_EXPEDIENTE',
             details: { expediente_id: id, changes: Object.keys(changes) },
-            timestamp: admin.firestore.FieldValue.serverTimestamp()
+            timestamp: FieldValue.serverTimestamp()
         });
 
         // Webhooks de integração externa (flag `outbound_webhooks`).

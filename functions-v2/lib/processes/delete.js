@@ -2,9 +2,11 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.deleteProcess = void 0;
 const admin = require("firebase-admin");
+const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const permissions_1 = require("../shared/permissions");
 const vinculo_1 = require("../shared/vinculo");
+const aditivos_1 = require("../registros/aditivos");
 exports.deleteProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
     var _a;
     if (!request.auth) {
@@ -43,11 +45,14 @@ exports.deleteProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
     // um `.delete()` simples deixava essas subcoleções órfãs e, pelas
     // regras de leitura delas dependerem de um get() no doc pai, também
     // permanentemente inacessíveis, sem nenhuma forma de limpeza depois).
+    const depois = await (0, aditivos_1.conferirExclusao)('processes', organizationId, id, processSnap.data() || {});
     await db.recursiveDelete(processRef);
+    if (depois)
+        await depois(userId, request.auth.token.name || 'Usuário desconhecido');
     // 4. Update stats
     await db.collection('organizations').doc(organizationId).update({
-        'stats.processes_count': admin.firestore.FieldValue.increment(-1),
-        'stats.active_processes': admin.firestore.FieldValue.increment(-1)
+        'stats.processes_count': firestore_1.FieldValue.increment(-1),
+        'stats.active_processes': firestore_1.FieldValue.increment(-1)
     });
     // 5. Audit
     await db.collection('auditLogs').add({
@@ -56,7 +61,7 @@ exports.deleteProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
         user_name: request.auth.token.name || '',
         action: 'DELETE_PROCESS',
         details: { process_id: id },
-        timestamp: admin.firestore.FieldValue.serverTimestamp()
+        timestamp: firestore_1.FieldValue.serverTimestamp()
     });
     return { success: true };
 });

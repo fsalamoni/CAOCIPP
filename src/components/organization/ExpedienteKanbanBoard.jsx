@@ -1025,6 +1025,9 @@ export default function ExpedienteKanbanBoard({
                 }}
                 onEdit={handleEditFromDetail}
                 getExpedienteField={getExpedienteField}
+                organization={organization}
+                members={members}
+                onAbrirRegistro={(r) => { setDetailExpediente(r); setDetailOpen(true); }}
             />
 
             {/* Edit Dialog */}

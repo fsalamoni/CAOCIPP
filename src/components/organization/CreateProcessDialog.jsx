@@ -41,12 +41,15 @@ import { logger } from '@/utils/logger';
 
 import { RS_CITIES } from '@/utils/cities';
 import VerificacaoNumeroPgea from './VerificacaoNumeroPgea';
+import NovoAditivoDialog from './NovoAditivoDialog';
 
 export default function CreateProcessDialog({ open, setOpen, organization, members, onSuccess }) {
   const { user } = useAuth();
   const [isCreating, setIsCreating] = useState(false);
   const [locationOpen, setLocationOpen] = useState(false);
   const [numeroEstado, setNumeroEstado] = useState('vazio');
+  // Número que já existe: "Criar aditivo" fecha o cadastro e abre o aditivo daquele procedimento.
+  const [aditivoDe, setAditivoDe] = useState(null);
   const [formData, setFormData] = useState({
     process_number: '',
     consultant: '',
@@ -123,6 +126,7 @@ export default function CreateProcessDialog({ open, setOpen, organization, membe
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -153,6 +157,7 @@ export default function CreateProcessDialog({ open, setOpen, organization, membe
                   numero={formData.process_number}
                   onEstado={setNumeroEstado}
                   onFechar={() => setOpen(false)}
+                  onCriarAditivo={(r) => { setOpen(false); setAditivoDe(r); }}
                 />
               </div>
             </div>
@@ -321,5 +326,15 @@ export default function CreateProcessDialog({ open, setOpen, organization, membe
         </form>
       </DialogContent>
     </Dialog>
+    <NovoAditivoDialog
+      open={Boolean(aditivoDe)}
+      onOpenChange={(v) => { if (!v) setAditivoDe(null); }}
+      modulo="consultas"
+      organization={organization}
+      members={members}
+      origem={aditivoDe}
+      onCriado={() => { resetForm(); if (onSuccess) onSuccess(); }}
+    />
+    </>
   );
 }

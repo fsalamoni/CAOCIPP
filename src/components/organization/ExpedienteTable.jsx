@@ -1,3 +1,5 @@
+import SeloVinculo from './SeloVinculo';
+import { rotuloVinculo } from '@/lib/registrosPgea';
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -207,6 +209,7 @@ export default function ExpedienteTable({
               </Tooltip>
             )}
             <span className="font-semibold text-slate-800 dark:text-slate-100">{getExpedienteField(exp, 'expediente_number')}</span>
+            <SeloVinculo registro={exp} />
             {pe?.ids.has(exp.id) && <SeloPE />}
           </div>
         );
@@ -693,6 +696,10 @@ export default function ExpedienteTable({
   const DATE_EXPORT_KEYS = new Set(['entry_date', 'distribution_date', 'analysis_start_date', 'third_party_referral_date', 'review_submission_date', 'reviewed_date', 'review_return_date', 'archived_date']);
 
   const getExportValue = (col, exp) => {
+    if (col.key === 'expediente_number') {
+      const v = rotuloVinculo(exp);
+      return [getExpedienteField(exp, 'expediente_number'), v && `(${v})`].filter(Boolean).join(' ');
+    }
     if (col.key === 'status') return calculateExpedienteDerivedStatus(exp);
     if (col.key === 'stage_time') {
       const status = calculateExpedienteDerivedStatus(exp);
@@ -1161,6 +1168,9 @@ export default function ExpedienteTable({
         onClose={() => setSelectedExpediente(null)}
         onEdit={onEdit}
         getExpedienteField={getExpedienteField}
+        organization={organization}
+        members={members}
+        onAbrirRegistro={setSelectedExpediente}
       />
 
       {filteredAndSortedExpedientes.length > 0 && (

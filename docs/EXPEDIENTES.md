@@ -91,7 +91,18 @@ ignora linhas vazias.
 |---|---|
 | Ver | Qualquer membro do órgão |
 | Criar, editar, importar | Qualquer membro do órgão (`createExpediente`, `updateExpediente`, `importExpedientesFromExcel`) |
-| Excluir | Quem tem `delete_records` — `deleteExpediente` |
+| Excluir | Quem tem `delete_records` — `deleteExpediente`. Original com aditivos não é excluído. |
+| Criar aditivo | Qualquer membro ativo do órgão — `criarAditivo` |
+
+### Aditivos
+
+Expedientes têm aditivos como as Consultas: na ficha (qualquer fase), seção
+*Original e aditivos* → **Criar aditivo**, ou pelo aviso de número existente
+no **Novo Expediente**. O aditivo é um expediente novo, com o mesmo
+`expediente_number`, sistema, origem e objeto copiados, que entra em Pendente
+com tramitação e linha do tempo próprias; o original fica como está. Regras,
+campos (`aditivo_de`, `aditivo_numero`, `aditivo_motivo`, `aditivos_seq`,
+`aditivos_count`) e telas em [CONSULTAS.md](./CONSULTAS.md#9-aditivos).
 
 ---
 

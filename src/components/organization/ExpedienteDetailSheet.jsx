@@ -1,3 +1,5 @@
+import ProcedimentosVinculados from './ProcedimentosVinculados';
+import SeloVinculo from './SeloVinculo';
 import ProcessosVinculados from '@/components/secretaria/ProcessosVinculados';
 import { registroDe } from '@/lib/registrosModulos';
 import React from 'react';
@@ -33,7 +35,7 @@ import { calculateExpedienteDerivedStatus, isExpedienteUrgent } from "@/utils/ex
 /**
  * ExpedienteDetailSheet — Side panel for viewing all details of an Expediente.
  */
-export default function ExpedienteDetailSheet({ expediente, open, onClose, onEdit, getExpedienteField }) {
+export default function ExpedienteDetailSheet({ expediente, open, onClose, onEdit, getExpedienteField, organization, members = [], onAbrirRegistro }) {
     if (!expediente) return null;
 
     const formatDate = (dateStr) => {
@@ -75,6 +77,7 @@ export default function ExpedienteDetailSheet({ expediente, open, onClose, onEdi
                                 <SheetTitle className="text-xl font-bold text-slate-900 dark:text-white">
                                     {field('expediente_number')}
                                 </SheetTitle>
+                                <SeloVinculo registro={expediente} contagem />
                                 {isUrgent && (
                                     <Badge variant="destructive" className="text-[10px] px-2 py-0.5 h-5 border-none bg-rose-500 animate-pulse">
                                         URGENTE
@@ -105,6 +108,11 @@ export default function ExpedienteDetailSheet({ expediente, open, onClose, onEdi
                     <div className="mt-3">
                         <StatusBadge status={derivedStatus} className="" />
                     </div>
+                    {expediente.aditivo_de && (
+                        <p className="mt-3 rounded-md border border-violet-200 dark:border-violet-700 bg-violet-50 dark:bg-violet-950/50 px-3 py-2 text-xs text-violet-900 dark:text-violet-100">
+                            <strong>Aditivo nº {expediente.aditivo_numero}</strong> do expediente original, com tramitação própria. A fase e a linha do tempo abaixo são só deste aditivo.
+                        </p>
+                    )}
                 </SheetHeader>
 
                 {/* Content */}
@@ -124,7 +132,7 @@ export default function ExpedienteDetailSheet({ expediente, open, onClose, onEdi
                     </Section>
 
                     {/* Timeline do Workflow */}
-                    <Section title="Timeline do Expediente">
+                    <Section title={expediente.aditivo_de ? `Linha do tempo do aditivo ${expediente.aditivo_numero}` : (Number(expediente.aditivos_count) > 0 ? 'Linha do tempo do original' : 'Timeline do Expediente')}>
                         <div className="space-y-0">
                             {timelineSteps.map((step, idx) => {
                                 const dateVal = field(step.key);
@@ -189,6 +197,10 @@ export default function ExpedienteDetailSheet({ expediente, open, onClose, onEdi
                     )}
 
                     {/* Processos eletrônicos ligados (integração do Processo Eletrônico) */}
+                    {expediente?.id && expediente.organization_id && (
+                        <ProcedimentosVinculados modulo="expedientes" registro={expediente} organization={organization} members={members} onAbrir={onAbrirRegistro} />
+                    )}
+
                     {expediente?.id && expediente.organization_id && <ProcessosVinculados orgId={expediente.organization_id} registro={{ modulo: 'expedientes', ...registroDe('expedientes', expediente.id, expediente) }} />}
                 </div>
             </SheetContent>

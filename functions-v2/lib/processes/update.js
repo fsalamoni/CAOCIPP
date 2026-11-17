@@ -2,12 +2,14 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.updateProcess = void 0;
 const admin = require("firebase-admin");
+const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const status_1 = require("../shared/status");
 const normalization_1 = require("../shared/normalization");
 const history_1 = require("../shared/history");
 const webhooks_1 = require("../shared/webhooks");
 const vinculo_1 = require("../shared/vinculo");
+const aditivos_1 = require("../registros/aditivos");
 exports.updateProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
@@ -57,10 +59,14 @@ exports.updateProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
     delete changes.anonymized;
     delete changes.anonymized_at;
     delete changes.anonymized_by;
+    // Vínculo original/aditivo só pelo servidor; aditivo segue o nº do original.
+    (0, aditivos_1.protegerVinculo)(changes, processData, 'process_number');
+    const numeroMudou = !processData.aditivo_de && typeof changes.process_number === 'string'
+        && changes.process_number.trim() !== '' && changes.process_number !== processData.process_number;
     if (typeof changes.responsible_user_name === 'string') {
         changes.responsible_user_name = (0, normalization_1.formatPersonName)(changes.responsible_user_name);
     }
-    changes.updated_at = admin.firestore.FieldValue.serverTimestamp();
+    changes.updated_at = firestore_1.FieldValue.serverTimestamp();
     changes.updated_by = userId;
     // Auto-fill distribution_date when responsible changes
     if (changes.responsible_user_id &&
@@ -135,14 +141,16 @@ exports.updateProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
         timestamp: now.toISOString(),
     };
     // Append to activity_log array
-    changes.activity_log = admin.firestore.FieldValue.arrayUnion(logEntry);
+    changes.activity_log = firestore_1.FieldValue.arrayUnion(logEntry);
     await processRef.update(changes);
+    if (numeroMudou)
+        await (0, aditivos_1.propagarNumero)('processes', organizationId, id, 'process_number', changes.process_number, userId, userName);
     // Fase 3 (escrita dupla, ADITIVA): espelha a entrada de log na subcoleção
     // processes/{id}/history. Best-effort: NUNCA falha a atualização principal.
     // A leitura continua vindo do array activity_log (flag controla a troca futura).
     // ID determinístico => idempotente (não duplica; mantém paridade com o array).
     try {
-        await processRef.collection('history').doc((0, history_1.historyEntryId)(logEntry)).set(Object.assign(Object.assign({}, logEntry), { created_at: admin.firestore.FieldValue.serverTimestamp() }));
+        await processRef.collection('history').doc((0, history_1.historyEntryId)(logEntry)).set(Object.assign(Object.assign({}, logEntry), { created_at: firestore_1.FieldValue.serverTimestamp() }));
     }
     catch (histErr) {
         console.error('[history dual-write] process update', id, histErr);
@@ -154,7 +162,7 @@ exports.updateProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
         user_name: userName,
         action: 'UPDATE_PROCESS',
         details: { process_id: id, changes: Object.keys(changes) },
-        timestamp: admin.firestore.FieldValue.serverTimestamp()
+        timestamp: firestore_1.FieldValue.serverTimestamp()
     });
     // Webhooks de integração externa (flag `outbound_webhooks`).
     if (changes.archived_date && !processData.archived_date) {

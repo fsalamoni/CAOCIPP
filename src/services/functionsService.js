@@ -515,3 +515,11 @@ export const verificarNumeroPgea = async ({ organizationId, modulo, numero }) =>
     const result = await fn({ organizationId, modulo, numero });
     return result.data;
 };
+
+// Aditivo de uma Consulta ou Expediente: registro novo, vinculado ao original,
+// com o mesmo nº do PGEA e tramitação própria (entra em Pendente).
+export const criarAditivo = async (dados) => {
+    const fn = httpsCallable(functions, 'criarAditivo');
+    const result = await fn(dados);
+    return result.data;
+};

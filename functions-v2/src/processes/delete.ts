@@ -1,7 +1,9 @@
 import * as admin from 'firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { hasOrgPermission, MembershipLike } from '../shared/permissions';
 import { vinculoBloqueado } from '../shared/vinculo';
+import { conferirExclusao } from '../registros/aditivos';
 
 interface DeleteProcessRequest {
     id: string;
@@ -53,12 +55,14 @@ export const deleteProcess = onCall<DeleteProcessRequest>(
         // um `.delete()` simples deixava essas subcoleções órfãs e, pelas
         // regras de leitura delas dependerem de um get() no doc pai, também
         // permanentemente inacessíveis, sem nenhuma forma de limpeza depois).
+        const depois = await conferirExclusao('processes', organizationId, id, processSnap.data() || {});
         await db.recursiveDelete(processRef);
+        if (depois) await depois(userId, request.auth.token.name || 'Usuário desconhecido');
 
         // 4. Update stats
         await db.collection('organizations').doc(organizationId).update({
-            'stats.processes_count': admin.firestore.FieldValue.increment(-1),
-            'stats.active_processes': admin.firestore.FieldValue.increment(-1)
+            'stats.processes_count': FieldValue.increment(-1),
+            'stats.active_processes': FieldValue.increment(-1)
         });
 
         // 5. Audit
@@ -68,7 +72,7 @@ export const deleteProcess = onCall<DeleteProcessRequest>(
             user_name: request.auth.token.name || '',
             action: 'DELETE_PROCESS',
             details: { process_id: id },
-            timestamp: admin.firestore.FieldValue.serverTimestamp()
+            timestamp: FieldValue.serverTimestamp()
         });
 
         return { success: true };

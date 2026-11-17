@@ -1023,6 +1023,8 @@ export default function KanbanBoard({
                 onEdit={handleEditFromDetail}
                 getProcessField={getProcessField}
                 organization={organization}
+                members={members}
+                onAbrirRegistro={(r) => { setDetailProcess(r); setDetailOpen(true); }}
             />
 
             {/* Edit Process Dialog (same as Controle de Processos) */}

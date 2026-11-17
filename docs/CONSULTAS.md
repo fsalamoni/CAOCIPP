@@ -163,7 +163,8 @@ totalmente vazias são ignoradas.
 |---|---|
 | Ver | Qualquer membro do órgão |
 | Criar, editar, importar | Qualquer membro do órgão (Cloud Functions `createProcess`, `updateProcess`, `importProcessesFromExcel`) |
-| Excluir | Quem tem `delete_records` (o criador sempre tem) — `deleteProcess` |
+| Excluir | Quem tem `delete_records` (o criador sempre tem) — `deleteProcess`. Original com aditivos não é excluído (exclua antes os aditivos). |
+| Criar aditivo | Qualquer membro ativo do órgão — `criarAditivo` |
 
 ---
 
@@ -176,3 +177,63 @@ totalmente vazias são ignoradas.
 | Regras no cliente | `src/utils/processUtils.js`, `src/config/processStatus.js` (cores por fase), `src/lib/stageTime.js` |
 | Cloud Functions | `functions-v2/src/processes/*`, `functions-v2/src/import/fromExcel.ts` |
 | Regras compartilhadas | `functions-v2/src/shared/status.ts`, `fields.ts`, `phaseDates.ts`, `history.ts` |
+| Nº do PGEA e aditivos | `functions-v2/src/registros/verificarNumero.ts`, `registros/aditivos.ts`, `shared/registrosPgea.ts`; no cliente `src/lib/registrosPgea.js`, `VerificacaoNumeroPgea.jsx`, `NovoAditivoDialog.jsx`, `ProcedimentosVinculados.jsx`, `SeloVinculo.jsx` |
+
+---
+
+## 9. Aditivos
+
+Um aditivo é uma nova tramitação de uma consulta já cadastrada (fato novo,
+reiteração, complementação), sem mexer no que já foi feito. Vale igual para
+[Expedientes](./EXPEDIENTES.md).
+
+**Como se cria.** Na ficha da consulta (qualquer fase, inclusive "Na pasta"),
+seção *Original e aditivos* → **Criar aditivo**; ou no **+ Adicionar
+Consulta**, quando o número digitado já existe, pelo botão **Criar aditivo**
+do aviso. Pede o motivo (obrigatório), a data de entrada (hoje, por padrão),
+o assessor (opcional; se escolhido, a distribuição fica com a data de
+entrada) e a urgência. Cloud Function `criarAditivo`
+(`functions-v2/src/registros/aditivos.ts`).
+
+**O que o aditivo é.** Um documento novo em `processes/`, com:
+- o mesmo `process_number` do original e os dados de identificação copiados
+  (consulente, local, matérias, objeto, restrição de acesso);
+- a tramitação em branco: entra em **Pendente** e percorre todas as fases,
+  com datas, pasta na rede, observações e histórico próprios;
+- `aditivo_de` (id do original), `aditivo_numero` (1, 2, ...) e
+  `aditivo_motivo`.
+
+Aditivo criado a partir de outro aditivo vira o próximo aditivo do original
+(não há aditivo de aditivo). Pode haver quantos forem necessários.
+
+**O que acontece com o original.** Nada na fase, nas datas, no responsável ou
+na ordem da lista (`updated_at` não muda): se estava arquivado, segue
+arquivado; se estava em andamento, os dois tramitam em paralelo, cada um no
+seu card. Ele só ganha `aditivos_seq` (numeração, nunca diminui),
+`aditivos_count` (quantos existem) e uma entrada no histórico ("Aditivo nº N
+criado").
+
+**Como cada um se mostra.**
+- Cards do quadro e tabela: selo **Aditivo N** ou **Original · N aditivos**
+  (registro sem aditivos não tem selo). Na exportação, o número sai como
+  `00021.000.125/2024 (Aditivo 1)`.
+- Ficha: o selo no título; no aditivo, o aviso "Aditivo nº N ..., com
+  tramitação própria" e a *Linha do tempo do aditivo N*; a seção *Original e
+  aditivos* lista todos, ao vivo, com fase, responsável, entrada e motivo,
+  marca "você está aqui" e abre qualquer um deles.
+- Edição: no aditivo o nº do PGEA fica travado (acompanha o original). Mudar
+  o número do original muda também o dos aditivos, com entrada no histórico
+  de cada um.
+- Processo Eletrônico: ao ligar um processo a um aditivo, o registro aparece
+  como `número (Aditivo N)`.
+
+**Regras no servidor.** `updateProcess` ignora `aditivo_de`,
+`aditivo_numero`, `aditivo_motivo`, `aditivos_seq` e `aditivos_count` vindos
+do cliente e, num aditivo, o `process_number`. `deleteProcess` recusa o
+original que ainda tem aditivos e, ao excluir um aditivo, desconta
+`aditivos_count` do original. As métricas contam cada aditivo como uma
+consulta (cada tramitação conta). A importação por planilha não cria nem
+reconhece aditivos.
+
+Testes: `functions-v2/test/registrosPgea.test.js`; e2e
+`scripts/e2e-aditivos.mjs` e `scripts/e2e-aditivos-tela.mjs`.

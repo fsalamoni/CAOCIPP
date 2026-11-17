@@ -411,7 +411,7 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center justify-between">
-              <DialogTitle>Editar Consulta - {formData.process_number || process?.process_number || 'Sem Número'}</DialogTitle>
+              <DialogTitle>Editar Consulta - {formData.process_number || process?.process_number || 'Sem Número'}{process?.aditivo_de ? ` · Aditivo ${process.aditivo_numero}` : ''}</DialogTitle>
             </div>
           </DialogHeader>
 
@@ -434,6 +434,8 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
                     <Input
                       id="process_number"
                       value={formData.process_number || ''}
+                      disabled={Boolean(process?.aditivo_de)}
+                      aria-describedby={process?.aditivo_de || Number(process?.aditivos_count) > 0 ? 'process_number_vinculo' : undefined}
                       onChange={(e) => setFormData({ ...formData, process_number: e.target.value })}
                       required
                       className={cn(
@@ -441,6 +443,11 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
                         formData.process_number ? "border-emerald-200 focus-visible:ring-emerald-500" : ""
                       )}
                     />
+                    {process?.aditivo_de ? (
+                      <p id="process_number_vinculo" className="mt-1 text-xs text-violet-700 dark:text-violet-300">O aditivo usa o número da consulta original; ele muda junto com o original.</p>
+                    ) : Number(process?.aditivos_count) > 0 ? (
+                      <p id="process_number_vinculo" className="mt-1 text-xs text-slate-500 dark:text-slate-400">Este é o original: mudar o número muda também nos aditivos.</p>
+                    ) : null}
                   </div>
                   <div>
                     <div className="flex items-center justify-between">
