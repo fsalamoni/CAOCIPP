@@ -34,14 +34,41 @@ test('numeração: recusa o que repetiria números ou não tem contagem', () => 
     assert.throws(() => n.sanitizeNumeracao({ partes: [seq(), seq(), { t: 'ano' }] }), /exatamente um/);
     assert.throws(() => n.sanitizeNumeracao({ partes: [seq()] }), /inclua o ano/);
     assert.throws(() => n.sanitizeNumeracao({ partes: [seq({ reinicia: 'mes' }), { t: 'ano' }] }), /inclua o mês/);
-    assert.throws(() => n.sanitizeNumeracao({ partes: [seq({ escopo: 'tipo', reinicia: 'nunca' })] }), /sigla do tipo/);
-    assert.throws(() => n.sanitizeNumeracao({ partes: [seq({ escopo: 'unidade', reinicia: 'nunca' })] }), /sigla da unidade/);
-    assert.throws(() => n.sanitizeNumeracao({ partes: [seq({ escopo: 'orgao', reinicia: 'nunca' })] }), /sigla do órgão/);
+    assert.throws(() => n.sanitizeNumeracao({ partes: [seq({ escopo: 'tipo', reinicia: 'nunca' })] }), /sigla ou o código do tipo/);
+    assert.throws(() => n.sanitizeNumeracao({ partes: [seq({ escopo: 'unidade', reinicia: 'nunca' })] }), /sigla ou o código da unidade/);
+    assert.throws(() => n.sanitizeNumeracao({ partes: [seq({ escopo: 'orgao', reinicia: 'nunca' })] }), /sigla ou o código do órgão/);
     assert.throws(() => n.sanitizeNumeracao({ partes: [seq({ reinicia: 'nunca' }), { t: 'texto', v: '<b>' }] }), /Texto fixo/);
     assert.throws(() => n.sanitizeNumeracao({ partes: [seq({ reinicia: 'nunca' }), { t: 'xx' }] }), /desconhecida/);
     assert.ok(n.sanitizeNumeracao({ partes: [seq({ reinicia: 'nunca' })] }));
     const longo = [...Array(6)].map(() => ({ t: 'texto', v: 'ABCDEFGHIJ' }));
     assert.throws(() => n.sanitizeNumeracao({ partes: [...longo, seq({ reinicia: 'nunca' })] }), /60 caracteres/);
+});
+
+test('códigos numéricos: zeros à esquerda, contagem pelo código e o que impede de numerar', () => {
+    const cods = {
+        partes: [
+            { t: 'seq', escopo: 'tipo', reinicia: 'ano', digitos: 6 }, { t: 'texto', v: '.' }, { t: 'cod_orgao', digitos: 3 },
+            { t: 'texto', v: '.' }, { t: 'cod_tipo', digitos: 3 }, { t: 'texto', v: '/' }, { t: 'ano', digitos: 4 },
+        ],
+    };
+    const num = n.sanitizeNumeracao(cods);
+    assert.deepEqual(num, cods);
+    const c = { ...ctx, tipo: { ...ctx.tipo, codigo: 2 }, orgao: { ...ctx.orgao, codigo: 1 } };
+    assert.equal(n.formatarNumero(num, c, 7), '000007.001.002/2026');
+    // Conta pelo código, não pela sigla (dois tipos com a mesma sigla e códigos diferentes contam à parte).
+    assert.equal(n.chaveContador('org', num, c), 'org_tipo_c2_2026');
+    assert.deepEqual(n.faltasCodigo(num, c), []);
+    assert.match(n.faltasCodigo(num, { ...c, tipo: { ...c.tipo, codigo: null } })[0], /Requerimento" ainda não tem código/);
+    assert.match(n.faltasCodigo(num, { ...c, orgao: { ...c.orgao, codigo: 1234 } })[0], /1234, maior que 3/);
+    assert.match(n.faltasCodigo(num, { ...c, orgao: null })[0], /não tem um/);
+    // O código substitui a sigla na contagem por unidade; dígitos de 1 a 6.
+    assert.equal(n.sanitizeNumeracao({ partes: [{ t: 'seq', escopo: 'unidade', reinicia: 'nunca', digitos: 4 }, { t: 'cod_unidade', digitos: 9 }] }).partes[1].digitos, 6);
+    assert.equal(n.codigoDe('007'), 7);
+    assert.equal(n.codigoDe(0), 0);
+    assert.equal(n.codigoDe('1234567'), null);
+    assert.equal(n.codigoDe('1a'), null);
+    assert.equal(n.codigoDe(''), null);
+    assert.deepEqual(n.codigosRepetidos([{ nome: 'A', codigo: 1 }, { nome: 'B', codigo: '001' }, { nome: 'C', codigo: null }, { nome: 'D' }]), [[1, ['A', 'B']]]);
 });
 
 test('numeração do tipo: do órgão, própria ou nenhuma; arquivo sem barras', () => {

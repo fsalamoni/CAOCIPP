@@ -3378,6 +3378,32 @@ livre (até 200 pulos) e grava o contador já adiantado. Unidade fixa pelo tipo
 quando quem autua está lotado nela. Polo que o tipo não aceita é recusado. O "Novo processo" mostra o
 formato do número do tipo escolhido. Nomes de arquivo usam `numeroArquivo`.
 
+**Códigos numéricos** (nov/2026). Além da sigla, o número pode levar o
+código fixo do tipo (`cod_tipo`), da unidade que autua (`cod_unidade`) ou do
+órgão interno dela (`cod_orgao`), cada parte com 1 a 6 dígitos e zeros à
+esquerda (código 1 com 3 dígitos sai `001`). Ex.: sequencial + `.` + código do
+órgão + `.` + código do tipo + `/` + ano = `000007.001.002/2026`. O código é
+um inteiro de 0 a 999999 em `secTipos.codigo`, `secUnidades.codigo` e
+`secConfig/{org}.orgaos[].codigo`, gravado só pela ação `salvarCodigos`
+(admin da entidade; Tipos de processo › Códigos), que lê e grava tudo numa
+transação e recusa código repetido na mesma seção (tipos e unidades
+excluídos não contam). Salvar o órgão interno (`salvarOrgao`) preserva o
+código gravado e ignora o que vier do formulário; a cópia de um tipo nasce sem
+código; um tipo restaurado da lixeira volta sem código se outro tipo ativo já
+o usa. A contagem por tipo, unidade ou órgão aceita a sigla **ou** o código no
+número e, com o código presente, conta pelo código (`..._c{codigo}_...`).
+Na autuação, `faltasCodigo` recusa (failed-precondition, com o nome do item)
+quando o item não tem código, quando o código passa dos dígitos da parte ou
+quando o processo não tem o item (unidade fora de órgão interno com
+`cod_orgao`): o número sairia incompleto e podia repetir outro. Mudar um
+código não renumera nada: o número é gravado no processo na autuação. A
+tela mostra, por seção, os dígitos usados, o código como sai no número, os
+repetidos (impedem salvar) e os itens sem código ou longos demais (avisos), e
+um botão que numera os vazios em ordem a partir do maior código. A prévia da
+numeração mostra `???` no lugar de um código que falta. Lógica e testes em
+`shared/numeracao.ts` e `test/numeracao.test.js`; espelho da prévia em
+`src/lib/numeracao.js`; tela em `components/secretaria/CodigosNumeracao.jsx`.
+
 **Tipo de processo** (`secTipos`): nome, sigla, descrição, rito, sigilo padrão,
 unidade sugerida para autuar, formulário e numeração. Na autuação, escolher o tipo preenche rito,
 sigilo e unidade; o processo guarda `tipo_id` e `tipo_nome`. A lista filtra

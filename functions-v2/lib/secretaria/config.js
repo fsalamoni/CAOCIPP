@@ -263,7 +263,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             unidades: c.unidades.filter((u) => !u.excluida).map((u) => {
                 const gere = c.ctx.isAdmin || c.gestorDe.includes(u.id);
                 const lotacoes = (0, secretaria_1.lotacoesDe)(u);
-                return Object.assign(Object.assign({ id: u.id, nome: u.nome, sigla: u.sigla || '', tipo: u.tipo || 'secretaria', descricao: u.descricao || '', 
+                return Object.assign(Object.assign({ id: u.id, nome: u.nome, sigla: u.sigla || '', codigo: (0, numeracao_1.codigoDe)(u.codigo), tipo: u.tipo || 'secretaria', descricao: u.descricao || '', 
                     // O que a unidade faz no processo, já resolvido (escolha da unidade ou padrão do tipo).
                     decide: (0, secretaria_1.unidadeDecide)(u), expede: (0, secretaria_1.unidadeExpede)(u), orgao_id: u.orgao_id || null, competencias: (0, orgaos_1.sanitizeCompetencias)(u.competencias), ativa: u.ativa !== false, membros_uids: lotacoes.map((l) => l.uid), lotacoes }, (gere ? { pedidos: Array.isArray(u.pedidos) ? u.pedidos : [] } : {})), { pedi_lotacao: Array.isArray(u.pedidos) && u.pedidos.some((x) => x.uid === auth.uid), criada_por_mim: u.created_by === auth.uid });
             }).sort((a, b) => String(a.nome).localeCompare(String(b.nome))),
@@ -275,7 +275,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             tipos: naoExcluidos(tiposSnap).map((d) => {
                 const t = d.data();
                 return {
-                    id: d.id, nome: t.nome, sigla: t.sigla || '', descricao: t.descricao || '', rito_id: t.rito_id,
+                    id: d.id, nome: t.nome, sigla: t.sigla || '', codigo: (0, numeracao_1.codigoDe)(t.codigo), descricao: t.descricao || '', rito_id: t.rito_id,
                     sigilo_padrao: t.sigilo_padrao || 'normal', urgente: t.urgente === true, unidade_inicial: t.unidade_inicial || null, ativo: t.ativo !== false,
                     orgao_id: t.orgao_id || null, formulario: (0, camposProcesso_1.formularioDe)(t), numeracao: (0, numeracao_1.numeracaoTipoDe)(t.numeracao), pode_nascer_de: nascerDe(t.pode_nascer_de),
                     cria_registro: (0, registroCriado_1.sanitizeCriaRegistro)(t.cria_registro), versao: Number(t.versao) || 1,
@@ -681,6 +681,55 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         await audit('SECRETARIA_NUMERACAO', { partes: numeracao.partes.map((x) => x.t).join(',') });
         return { success: true };
     }
+    if (p.action === 'salvarCodigos') {
+        // Códigos numéricos que entram no número do processo no lugar das siglas:
+        // um por tipo, por unidade e por órgão interno, sem repetição em cada
+        // seção (itens excluídos não contam). Processos já autuados mantêm o número.
+        const pedido = (p.codigos && typeof p.codigos === 'object' ? p.codigos : {});
+        const secao = (k) => (pedido[k] && typeof pedido[k] === 'object' ? pedido[k] : {});
+        const ler = (v) => {
+            if (v === null || v === undefined || v === '')
+                return null;
+            const cod = (0, numeracao_1.codigoDe)(v);
+            if (cod === null)
+                throw new https_1.HttpsError('invalid-argument', 'Código numérico: só números, até 6 dígitos');
+            return cod;
+        };
+        const final = (lista, pedidos) => lista.map((x) => ({
+            id: x.id, nome: String(x.nome || ''), antes: (0, numeracao_1.codigoDe)(x.codigo), codigo: x.id in pedidos ? ler(pedidos[x.id]) : (0, numeracao_1.codigoDe)(x.codigo),
+        }));
+        const cfgRef = db.collection(context_1.COL.config).doc(orgId);
+        const mudados = await db.runTransaction(async (tx) => {
+            var _a;
+            const [tiposSnap, unidadesSnap, cfg] = await Promise.all([
+                tx.get(db.collection(context_1.COL.tipos).where('organization_id', '==', orgId)),
+                tx.get(db.collection(context_1.COL.unidades).where('organization_id', '==', orgId)),
+                tx.get(cfgRef),
+            ]);
+            const tiposDocs = tiposSnap.docs.filter((d) => d.data().excluido !== true);
+            const unidadesDocs = unidadesSnap.docs.filter((d) => d.data().excluida !== true);
+            const orgaos = (0, orgaos_1.orgaosDe)((_a = cfg.data()) === null || _a === void 0 ? void 0 : _a.orgaos);
+            const tipos = final(tiposDocs.map((d) => (Object.assign({ id: d.id }, d.data()))), secao('tipos'));
+            const unidades = final(unidadesDocs.map((d) => (Object.assign({ id: d.id }, d.data()))), secao('unidades'));
+            const orgs = final(orgaos, secao('orgaos'));
+            for (const [nome, lista] of [['tipos de processo', tipos], ['unidades', unidades], ['órgãos internos', orgs]]) {
+                const rep = (0, numeracao_1.codigosRepetidos)(lista)[0];
+                if (rep)
+                    throw new https_1.HttpsError('invalid-argument', `O código ${rep[0]} se repete em ${nome}: ${rep[1].join(' e ')}. Cada um precisa de um código próprio.`);
+            }
+            const marca = { updated_at: agora, updated_by: auth.uid };
+            tiposDocs.forEach((d, i) => { if (tipos[i].codigo !== tipos[i].antes)
+                tx.update(d.ref, Object.assign({ codigo: tipos[i].codigo }, marca)); });
+            unidadesDocs.forEach((d, i) => { if (unidades[i].codigo !== unidades[i].antes)
+                tx.update(d.ref, Object.assign({ codigo: unidades[i].codigo }, marca)); });
+            if (orgs.some((o) => o.codigo !== o.antes))
+                tx.set(cfgRef, Object.assign({ orgaos: orgaos.map((o, i) => (Object.assign(Object.assign({}, o), { codigo: orgs[i].codigo }))) }, marca), { merge: true });
+            const mud = (l) => l.filter((x) => x.codigo !== x.antes).map((x) => { var _a, _b; return `${x.nome}: ${(_a = x.antes) !== null && _a !== void 0 ? _a : '—'} → ${(_b = x.codigo) !== null && _b !== void 0 ? _b : '—'}`; });
+            return { tipos: mud(tipos), unidades: mud(unidades), orgaos: mud(orgs) };
+        });
+        await audit('SECRETARIA_CODIGOS', mudados);
+        return { success: true };
+    }
     if (p.action === 'salvarTextosComunicacao') {
         let textos;
         try {
@@ -1006,6 +1055,10 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
                 throw new https_1.HttpsError('failed-precondition', 'O rito deste tipo foi excluído. Escolha outro rito para restaurá-lo.');
             }
             volta.rito_id = ritoId;
+            // O código numérico pode ter ido para outro tipo enquanto este estava na lixeira: volta sem código.
+            const cod = (0, numeracao_1.codigoDe)(atual.codigo);
+            if (cod !== null && naoExcluidos(await db.collection(context_1.COL.tipos).where('organization_id', '==', orgId).where('codigo', '==', cod).get()).length)
+                volta.codigo = null;
         }
         await ref.update(volta);
         await audit(col === context_1.COL.ritos ? 'SECRETARIA_RITO_RESTAURADO' : 'SECRETARIA_TIPO_RESTAURADO', { id: ref.id, nome: atual.nome });

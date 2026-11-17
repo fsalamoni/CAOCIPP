@@ -27,7 +27,7 @@ import { sendEmail } from '../shared/email';
 import {
     CampoExigido, CampoValor, nomeDoPolo, Formulario, POLOS, ParteGravada, TipoCampo, camposExigidos, camposFaltando, dadoDoFormulario, formParaCorrecao, diferencasCampos, formularioDe, retificarPartes, validarCampos, validarPadrao, valorDe, valorTexto,
 } from '../shared/camposProcesso';
-import { chaveContador, formatarNumero, identificadorSemNumero, numeracaoDe, numeracaoTipoDe } from '../shared/numeracao';
+import { chaveContador, faltasCodigo, formatarNumero, identificadorSemNumero, numeracaoDe, numeracaoTipoDe } from '../shared/numeracao';
 import { informacaoVisivel, informacoesDoAndamento, semReservado } from '../shared/informacoes';
 import { COLECAO, MODULOS, Modulo, ROTULO_MODULO, Ref, ehInterno, ehModuloOrigem, idEscolhido, integracoesDe, lerFlags, TipoPagina, refDe, refDePagina, refsDoFormulario, refsFechadas, resolverRegistro, vinculosDe } from '../shared/modulos';
 import { ModuloSituacao, chaveDoRegistro, mudancasDaPagina, mudancasDaParceria, mudancasDaSituacao, registroDoProcesso } from '../shared/situacaoRegistro';
@@ -1051,9 +1051,12 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, comSin
         const numeracao = numTipo.modo === 'nenhuma' ? null
             : numTipo.modo === 'propria' ? { partes: numTipo.partes! }
                 : numeracaoDe((await db.collection(COL.config).doc(orgId).get()).data()?.numeracao);
-        const usaOrgao = numeracao?.partes.some((x) => x.t === 'sigla_orgao' || (x.t === 'seq' && x.escopo === 'orgao'));
+        const usaOrgao = numeracao?.partes.some((x) => x.t === 'sigla_orgao' || x.t === 'cod_orgao' || (x.t === 'seq' && x.escopo === 'orgao'));
         const orgao = usaOrgao && unidade.orgao_id ? (await lerOrgaos(db, orgId)).find((o) => o.id === unidade.orgao_id) || null : null;
-        const ctxNumero = { hoje: hojeBrasil(), tipo: tipo ? { id: String(p.tipo_id), sigla: tipo.sigla, nome: tipo.nome } : null, unidade, orgao };
+        const ctxNumero = { hoje: hojeBrasil(), tipo: tipo ? { id: String(p.tipo_id), sigla: tipo.sigla, nome: tipo.nome, codigo: tipo.codigo } : null, unidade, orgao };
+        // Número com código: sem o código do tipo, da unidade ou do órgão, não autua (o número sairia incompleto).
+        const faltas = numeracao ? faltasCodigo(numeracao, ctxNumero) : [];
+        if (faltas.length) throw new HttpsError('failed-precondition', faltas[0]);
         const procRef = db.collection(COL.processos).doc();
         // Primeira fase com prazo automático: a contagem usa o calendário do órgão.
         const fase1 = (rito.fases as Fase[])[0];

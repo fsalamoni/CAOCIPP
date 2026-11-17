@@ -2,7 +2,7 @@ import React from 'react';
 import { ArrowLeft, ArrowRight, Hash, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ESCOPOS, PARTES_NUMERO, REINICIOS, formatarNumero, novaParte, problemasNumeracao, resumoContagem } from '@/lib/numeracao';
+import { COD_PARTES, ESCOPOS, MAX_COD_DIGITOS, PARTES_NUMERO, REINICIOS, formatarNumero, novaParte, problemasNumeracao, resumoContagem } from '@/lib/numeracao';
 
 // ============================================================================
 // Montagem da numeração única por partes, com prévia ao vivo. Serve à
@@ -22,7 +22,8 @@ export default function EditorNumeracao({ valor, onChange, exemplo = {} }) {
     const temSeq = partes.some((p) => p.t === 'seq');
     const problemas = problemasNumeracao({ partes });
     const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
-    const ctx = { hoje, tipo: exemplo.tipo || { sigla: 'REQ', nome: 'Requerimento' }, unidade: exemplo.unidade || { sigla: 'SEC', nome: 'Secretaria' }, orgao: exemplo.orgao || { sigla: 'ORG', nome: 'Órgão' } };
+    const ctx = { hoje, tipo: exemplo.tipo || { sigla: 'REQ', nome: 'Requerimento', codigo: 2 }, unidade: exemplo.unidade || { sigla: 'SEC', nome: 'Secretaria', codigo: 3 }, orgao: exemplo.orgao || { sigla: 'ORG', nome: 'Órgão', codigo: 1 } };
+    const usaCodigo = partes.some((p) => p.t in COD_PARTES);
 
     return (
         <div className="space-y-3">
@@ -52,6 +53,11 @@ export default function EditorNumeracao({ valor, onChange, exemplo = {} }) {
                                     <Input type="number" min={1} max={10} className="h-8 w-16" value={p.digitos} onChange={(e) => setParte(i, { digitos: Math.min(10, Math.max(1, Number(e.target.value) || 1)) })} />
                                 </label>
                             </div>
+                        )}
+                        {p.t in COD_PARTES && (
+                            <label className="flex items-center gap-1.5 text-xs">Dígitos
+                                <Input type="number" min={1} max={MAX_COD_DIGITOS} className="h-8 w-16" value={p.digitos} onChange={(e) => setParte(i, { digitos: Math.min(MAX_COD_DIGITOS, Math.max(1, Number(e.target.value) || 1)) })} />
+                            </label>
                         )}
                         {p.t === 'ano' && (
                             <select aria-label="Formato do ano" className={seletor} value={p.digitos} onChange={(e) => setParte(i, { digitos: Number(e.target.value) })}>
@@ -83,6 +89,11 @@ export default function EditorNumeracao({ valor, onChange, exemplo = {} }) {
                 </ul>
             )}
             <p className="text-xs text-slate-600 dark:text-slate-400">Sem sigla cadastrada, entram as iniciais do nome. O número nunca se repete: se uma mudança fizer a contagem cair num número já usado, ela pula para o próximo livre.</p>
+            {usaCodigo && (
+                <p className="text-xs text-slate-600 dark:text-slate-400">
+                    O código é o número fixo que você dá a cada tipo, unidade ou órgão interno, completado com zeros à esquerda até os dígitos escolhidos (o código 1 com 3 dígitos sai 001). Cadastre os códigos no botão <span className="font-medium">Códigos</span>, em Tipos de processo. Enquanto faltar o código, a prévia mostra <span className="font-mono">???</span> e quem autua recebe um aviso para pedir o cadastro.
+                </p>
+            )}
         </div>
     );
 }

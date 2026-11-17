@@ -976,9 +976,13 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, (
         const numeracao = numTipo.modo === 'nenhuma' ? null
             : numTipo.modo === 'propria' ? { partes: numTipo.partes }
                 : (0, numeracao_1.numeracaoDe)((_h = (await db.collection(context_1.COL.config).doc(orgId).get()).data()) === null || _h === void 0 ? void 0 : _h.numeracao);
-        const usaOrgao = numeracao === null || numeracao === void 0 ? void 0 : numeracao.partes.some((x) => x.t === 'sigla_orgao' || (x.t === 'seq' && x.escopo === 'orgao'));
+        const usaOrgao = numeracao === null || numeracao === void 0 ? void 0 : numeracao.partes.some((x) => x.t === 'sigla_orgao' || x.t === 'cod_orgao' || (x.t === 'seq' && x.escopo === 'orgao'));
         const orgao = usaOrgao && unidade.orgao_id ? (await (0, orgaos_2.lerOrgaos)(db, orgId)).find((o) => o.id === unidade.orgao_id) || null : null;
-        const ctxNumero = { hoje: (0, secretaria_1.hojeBrasil)(), tipo: tipo ? { id: String(p.tipo_id), sigla: tipo.sigla, nome: tipo.nome } : null, unidade, orgao };
+        const ctxNumero = { hoje: (0, secretaria_1.hojeBrasil)(), tipo: tipo ? { id: String(p.tipo_id), sigla: tipo.sigla, nome: tipo.nome, codigo: tipo.codigo } : null, unidade, orgao };
+        // Número com código: sem o código do tipo, da unidade ou do órgão, não autua (o número sairia incompleto).
+        const faltas = numeracao ? (0, numeracao_1.faltasCodigo)(numeracao, ctxNumero) : [];
+        if (faltas.length)
+            throw new https_1.HttpsError('failed-precondition', faltas[0]);
         const procRef = db.collection(context_1.COL.processos).doc();
         // Primeira fase com prazo automático: a contagem usa o calendário do órgão.
         const fase1 = rito.fases[0];
