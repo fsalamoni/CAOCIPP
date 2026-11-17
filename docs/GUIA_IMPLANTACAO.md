@@ -57,7 +57,7 @@ Cada passo corresponde a uma aba da configuração. No guia dentro do SIGO, o bo
 3. **Rito.** Em Novo rito, comece de um modelo da biblioteca, de um arquivo ou em branco. Troque as unidades genéricas pelas do órgão e confira prazos e contagem com a norma local.
 4. **Tipo de processo.** O tipo liga o rito ao "Novo processo". Nele se definem:
    - o formulário, com os campos, as partes e os nomes dos polos;
-   - a numeração;
+   - a numeração (siglas ou códigos numéricos: se o número usa códigos, como 000001.001.002/2026, dê o código de cada tipo, unidade e órgão interno no botão Códigos, em Tipos de processo);
    - o sigilo padrão;
    - a unidade de entrada;
    - de onde o processo pode nascer;

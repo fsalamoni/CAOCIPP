@@ -16,6 +16,7 @@ exports.nomeOrgao = nomeOrgao;
 exports.sanitizeProposta = sanitizeProposta;
 const secretaria_1 = require("./secretaria");
 const sessoes_1 = require("./sessoes");
+const numeracao_1 = require("./numeracao");
 /**
  * Órgãos internos de uma entidade (ex.: Conselho, Presidência, Diretorias).
  * A entidade pode ser singular (lista vazia: as unidades ficam ligadas direto
@@ -106,6 +107,7 @@ function sanitizeOrgao(raw, id, ordem = 0) {
         ordem: Number.isFinite(Number(o.ordem)) ? Math.max(0, Math.min(999, Math.round(Number(o.ordem)))) : ordem,
         ativo: o.ativo !== false,
         criado_por: typeof o.criado_por === 'string' && o.criado_por ? o.criado_por.slice(0, 128) : null,
+        codigo: (0, numeracao_1.codigoDe)(o.codigo),
     };
 }
 /** Lê a lista gravada, tolerando lixo (nunca lança). */

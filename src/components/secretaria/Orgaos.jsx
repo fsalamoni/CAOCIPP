@@ -35,6 +35,7 @@ export function Organograma({ nos, unidadesDe, nomeTitular, nomeMembro, onAbrir,
                         <span className="flex flex-wrap items-center gap-2">
                             <span className="font-medium text-slate-900 dark:text-slate-100">{o.nome || 'Órgão sem nome'}</span>
                             {o.sigla && <span className="text-xs text-slate-600 dark:text-slate-400">{o.sigla}</span>}
+                            {o.codigo != null && <span className="text-xs font-mono text-slate-600 dark:text-slate-400" title="Código numérico na numeração">nº {o.codigo}</span>}
                             <Badge variant="outline">{rotuloNatureza(o.natureza)}</Badge>
                             {o.ativo === false && <Badge variant="secondary">Inativo</Badge>}
                         </span>

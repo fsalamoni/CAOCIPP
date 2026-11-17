@@ -5,7 +5,7 @@ import { HISTORICO_CONFIG, MAX_TEXTO_LONGO, ROTULO_ORIGEM, Rito, acoesHistorico,
 import { sanitizeDoc } from '../shared/documento';
 import { conteudoGravado } from '../shared/arquivo';
 import { formularioDe, sanitizeFormulario } from '../shared/camposProcesso';
-import { numeracaoDe, numeracaoTipoDe, sanitizeNumeracao, sanitizeNumeracaoTipo } from '../shared/numeracao';
+import { codigoDe, codigosRepetidos, numeracaoDe, numeracaoTipoDe, sanitizeNumeracao, sanitizeNumeracaoTipo } from '../shared/numeracao';
 import { COL, REGION, administraOrgao, carregarContexto, erroUsuario, exigirAdmin, exigirAdminDoOrgao, exigirAuth, exigirGestor } from './context';
 import { ESPECIES, cienciaDias, sanitizeTextosProntos, textosProntosDe } from '../shared/comunicacoes';
 import { ESPECIES_AUDIENCIA } from '../shared/audiencias';
@@ -135,7 +135,7 @@ const RITO_PADRAO = {
     ],
 };
 
-type Acao = 'estado' | 'ativar' | 'salvarUnidade' | 'salvarRito' | 'salvarPreferencias' | 'salvarTipo' | 'salvarNumeracao'
+type Acao = 'estado' | 'ativar' | 'salvarUnidade' | 'salvarRito' | 'salvarPreferencias' | 'salvarTipo' | 'salvarNumeracao' | 'salvarCodigos'
     | 'salvarDocumentoConfig' | 'salvarModelo' | 'obterModelo' | 'salvarCalendario'
     | 'obterUnidadeDocumento' | 'salvarUnidadeDocumento' | 'convidarEquipe' | 'revogarConviteEquipe'
     | 'pedirLotacao' | 'decidirPedido' | 'verConviteEquipe' | 'aceitarConviteEquipe'
@@ -287,7 +287,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
                 const gere = c.ctx.isAdmin || c.gestorDe.includes(u.id);
                 const lotacoes = lotacoesDe(u);
                 return {
-                    id: u.id, nome: u.nome, sigla: u.sigla || '', tipo: u.tipo || 'secretaria', descricao: u.descricao || '',
+                    id: u.id, nome: u.nome, sigla: u.sigla || '', codigo: codigoDe(u.codigo), tipo: u.tipo || 'secretaria', descricao: u.descricao || '',
                     // O que a unidade faz no processo, já resolvido (escolha da unidade ou padrão do tipo).
                     decide: unidadeDecide(u), expede: unidadeExpede(u),
                     orgao_id: u.orgao_id || null, competencias: sanitizeCompetencias(u.competencias),
@@ -305,7 +305,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             tipos: naoExcluidos(tiposSnap).map((d) => {
                 const t = d.data();
                 return {
-                    id: d.id, nome: t.nome, sigla: t.sigla || '', descricao: t.descricao || '', rito_id: t.rito_id,
+                    id: d.id, nome: t.nome, sigla: t.sigla || '', codigo: codigoDe(t.codigo), descricao: t.descricao || '', rito_id: t.rito_id,
                     sigilo_padrao: t.sigilo_padrao || 'normal', urgente: t.urgente === true, unidade_inicial: t.unidade_inicial || null, ativo: t.ativo !== false,
                     orgao_id: t.orgao_id || null, formulario: formularioDe(t), numeracao: numeracaoTipoDe(t.numeracao), pode_nascer_de: nascerDe(t.pode_nascer_de),
                     cria_registro: sanitizeCriaRegistro(t.cria_registro), versao: Number(t.versao) || 1,
@@ -657,6 +657,50 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         return { success: true };
     }
 
+    if (p.action === 'salvarCodigos') {
+        // Códigos numéricos que entram no número do processo no lugar das siglas:
+        // um por tipo, por unidade e por órgão interno, sem repetição em cada
+        // seção (itens excluídos não contam). Processos já autuados mantêm o número.
+        const pedido = (p.codigos && typeof p.codigos === 'object' ? p.codigos : {}) as Record<string, unknown>;
+        const secao = (k: string) => (pedido[k] && typeof pedido[k] === 'object' ? pedido[k] : {}) as Record<string, unknown>;
+        const ler = (v: unknown) => {
+            if (v === null || v === undefined || v === '') return null;
+            const cod = codigoDe(v);
+            if (cod === null) throw new HttpsError('invalid-argument', 'Código numérico: só números, até 6 dígitos');
+            return cod;
+        };
+        type Item = { id: string; nome: string; antes: number | null; codigo: number | null };
+        const final = (lista: Array<{ id: string; nome?: unknown; codigo?: unknown }>, pedidos: Record<string, unknown>): Item[] => lista.map((x) => ({
+            id: x.id, nome: String(x.nome || ''), antes: codigoDe(x.codigo), codigo: x.id in pedidos ? ler(pedidos[x.id]) : codigoDe(x.codigo),
+        }));
+        const cfgRef = db.collection(COL.config).doc(orgId);
+        const mudados = await db.runTransaction(async (tx) => {
+            const [tiposSnap, unidadesSnap, cfg] = await Promise.all([
+                tx.get(db.collection(COL.tipos).where('organization_id', '==', orgId)),
+                tx.get(db.collection(COL.unidades).where('organization_id', '==', orgId)),
+                tx.get(cfgRef),
+            ]);
+            const tiposDocs = tiposSnap.docs.filter((d) => d.data().excluido !== true);
+            const unidadesDocs = unidadesSnap.docs.filter((d) => d.data().excluida !== true);
+            const orgaos = orgaosDe(cfg.data()?.orgaos);
+            const tipos = final(tiposDocs.map((d) => ({ id: d.id, ...d.data() })), secao('tipos'));
+            const unidades = final(unidadesDocs.map((d) => ({ id: d.id, ...d.data() })), secao('unidades'));
+            const orgs = final(orgaos, secao('orgaos'));
+            for (const [nome, lista] of [['tipos de processo', tipos], ['unidades', unidades], ['órgãos internos', orgs]] as const) {
+                const rep = codigosRepetidos(lista)[0];
+                if (rep) throw new HttpsError('invalid-argument', `O código ${rep[0]} se repete em ${nome}: ${rep[1].join(' e ')}. Cada um precisa de um código próprio.`);
+            }
+            const marca = { updated_at: agora, updated_by: auth.uid };
+            tiposDocs.forEach((d, i) => { if (tipos[i].codigo !== tipos[i].antes) tx.update(d.ref, { codigo: tipos[i].codigo, ...marca }); });
+            unidadesDocs.forEach((d, i) => { if (unidades[i].codigo !== unidades[i].antes) tx.update(d.ref, { codigo: unidades[i].codigo, ...marca }); });
+            if (orgs.some((o) => o.codigo !== o.antes)) tx.set(cfgRef, { orgaos: orgaos.map((o, i) => ({ ...o, codigo: orgs[i].codigo })), ...marca }, { merge: true });
+            const mud = (l: Item[]) => l.filter((x) => x.codigo !== x.antes).map((x) => `${x.nome}: ${x.antes ?? '—'} → ${x.codigo ?? '—'}`);
+            return { tipos: mud(tipos), unidades: mud(unidades), orgaos: mud(orgs) };
+        });
+        await audit('SECRETARIA_CODIGOS', mudados);
+        return { success: true };
+    }
+
     if (p.action === 'salvarTextosComunicacao') {
         let textos;
         try { textos = sanitizeTextosProntos(p.textos); } catch (e) { erroUsuario(e); }
@@ -943,6 +987,9 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
                 throw new HttpsError('failed-precondition', 'O rito deste tipo foi excluído. Escolha outro rito para restaurá-lo.');
             }
             volta.rito_id = ritoId;
+            // O código numérico pode ter ido para outro tipo enquanto este estava na lixeira: volta sem código.
+            const cod = codigoDe(atual.codigo);
+            if (cod !== null && naoExcluidos(await db.collection(COL.tipos).where('organization_id', '==', orgId).where('codigo', '==', cod).get()).length) volta.codigo = null;
         }
         await ref.update(volta);
         await audit(col === COL.ritos ? 'SECRETARIA_RITO_RESTAURADO' : 'SECRETARIA_TIPO_RESTAURADO', { id: ref.id, nome: atual.nome });

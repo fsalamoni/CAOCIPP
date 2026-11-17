@@ -9,7 +9,7 @@ export const ROTULOS = {
     SECRETARIA_EQUIPE_CONVITE: 'Convite à equipe', SECRETARIA_EQUIPE_CONVITE_REVOGADO: 'Convite revogado', SECRETARIA_EQUIPE_CONVITE_ACEITO: 'Convite à equipe aceito',
     SECRETARIA_LOTACAO_ADMITIDA: 'Pedido de lotação admitido', SECRETARIA_LOTACAO_RECUSADA: 'Pedido de lotação recusado',
     SECRETARIA_TIPO_SALVO: 'Tipo de processo salvo', SECRETARIA_TIPO_EXCLUIDO: 'Tipo de processo excluído', SECRETARIA_TIPO_RESTAURADO: 'Tipo de processo restaurado',
-    SECRETARIA_NUMERACAO: 'Numeração do órgão alterada',
+    SECRETARIA_NUMERACAO: 'Numeração do órgão alterada', SECRETARIA_CODIGOS: 'Códigos numéricos alterados',
     SECRETARIA_RITO_SALVO: 'Rito salvo', SECRETARIA_RITO_IMPLANTADO: 'Rito implantado de arquivo', SECRETARIA_RITO_EXPORTADO: 'Rito exportado para outro órgão', SECRETARIA_RITO_EXCLUIDO: 'Rito excluído', SECRETARIA_RITO_RESTAURADO: 'Rito restaurado', SECRETARIA_RITO_PROCESSOS_ATUALIZADOS: 'Processos levados à versão atual do rito',
     SECRETARIA_DOCUMENTO_CONFIG: 'Papel timbrado do órgão', SECRETARIA_MODELO_SALVO: 'Modelo salvo', SECRETARIA_MODELO_EXCLUIDO: 'Modelo excluído',
     SECRETARIA_MODELO_RESTAURADO: 'Modelo restaurado', SECRETARIA_TEXTOS_COMUNICACAO: 'Textos prontos de comunicação',

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Building2, CalendarDays, Download, FileText, FileUp, GitBranch, Hash, History, ListPlus, Loader2, Network, Plug, Plus, RefreshCw, Shapes, SlidersHorizontal, Trash2, Users } from 'lucide-react';
+import { Building2, CalendarDays, Download, FileText, FileUp, GitBranch, Hash, History, ListOrdered, ListPlus, Loader2, Network, Plug, Plus, RefreshCw, Shapes, SlidersHorizontal, Trash2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -15,6 +15,7 @@ import EditorTipo from './EditorTipo';
 import { formularioDe, formularioPadrao } from '@/lib/camposProcesso';
 import { NUMERACAO_PADRAO, formatarNumero, problemasNumeracao, resumoContagem } from '@/lib/numeracao';
 import EditorNumeracao from './EditorNumeracao';
+import CodigosNumeracao from './CodigosNumeracao';
 import { nomeOrgao } from '@/lib/orgaos';
 import ConfiguracaoDocumentos from './ConfiguracaoDocumentos';
 import ConfiguracaoCalendario from './ConfiguracaoCalendario';
@@ -124,6 +125,7 @@ export function CartaoUnidade({ u, estado, onAbrir, carga }) {
             <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium">{u.nome}</span>
                 {u.sigla && <span className="text-xs text-slate-600">{u.sigla}</span>}
+                {u.codigo != null && <span className="text-xs font-mono text-slate-600 dark:text-slate-400" title="Código numérico na numeração">nº {u.codigo}</span>}
                 <Badge variant="outline">{TIPOS_UNIDADE[u.tipo]?.rotulo || 'Secretaria'}</Badge>
                 {/* Papel que a unidade tem além do que o tipo dela já dá. */}
                 {unidadeDecide(u) && u.tipo !== 'gabinete' && <Badge variant="outline">Decide</Badge>}
@@ -268,6 +270,7 @@ function Tipos({ orgId, estado, pedido, onPedidoAtendido, onAbrirRito }) {
     const [tipo, setTipo] = useState(null);
     const [excluir, setExcluir] = useState(null);
     const [numOrg, setNumOrg] = useState(null);
+    const [codigos, setCodigos] = useState(false);
     const tipos = estado.tipos || [];
     const nomeRito = (id) => estado.ritos.find((r) => r.id === id)?.nome || 'Rito removido';
     const nomeUnidade = (id) => estado.unidades.find((u) => u.id === id)?.nome;
@@ -293,6 +296,7 @@ function Tipos({ orgId, estado, pedido, onPedidoAtendido, onAbrirRito }) {
                 </div>
                 <div className="flex flex-wrap gap-2 shrink-0">
                     <Button size="sm" variant="outline" className="gap-1" onClick={() => setNumOrg(numeracaoOrgao)}><Hash className="w-4 h-4" aria-hidden /> Numeração</Button>
+                    <Button size="sm" variant="outline" className="gap-1" onClick={() => setCodigos(true)}><ListOrdered className="w-4 h-4" aria-hidden /> Códigos</Button>
                     <Button size="sm" className="gap-1" disabled={!estado.ritos.length}
                         onClick={() => setTipo({ nome: '', sigla: '', descricao: '', rito_id: estado.ritos.find((r) => r.ativo)?.id || '', sigilo_padrao: 'normal', unidade_inicial: '', orgao_id: '', ativo: true, formulario: formularioPadrao(), numeracao: { modo: 'orgao' } })}>
                         <Plus className="w-4 h-4" /> Novo tipo
@@ -308,6 +312,7 @@ function Tipos({ orgId, estado, pedido, onPedidoAtendido, onAbrirRito }) {
                         <div className="flex flex-wrap items-center gap-2">
                             <span className="font-medium">{t.nome}</span>
                             {t.sigla && <span className="text-xs text-slate-600">{t.sigla}</span>}
+                            {t.codigo != null && <span className="text-xs font-mono text-slate-600 dark:text-slate-400" title="Código numérico na numeração">nº {t.codigo}</span>}
                             {t.sigilo_padrao === 'restrito' && <Badge variant="outline">Restrito</Badge>}
                             {t.urgente && <SeloUrgente />}
                             {!t.ativo && <Badge variant="secondary">Inativo</Badge>}
@@ -329,6 +334,9 @@ function Tipos({ orgId, estado, pedido, onPedidoAtendido, onAbrirRito }) {
                     onAbrirVersao={(v) => setTipo(paraEditar({ ...tipo, ...v, id: tipo.id, ativo: tipo.ativo, versao: tipo.versao }))}
                     onSalvar={() => salvar('salvarTipo', { id: tipo.id, tipo }, setTipo)} onExcluir={() => setExcluir({ colecao: 'tipo', id: tipo.id, nome: tipo.nome })} />
             )}
+
+            <CodigosNumeracao aberto={codigos} onFechar={() => setCodigos(false)} estado={estado} salvar={salvar} salvando={salvando}
+                numeracoes={[numeracaoOrgao, ...tipos.filter((t) => t.numeracao?.modo === 'propria').map((t) => t.numeracao)]} />
 
             <Dialog open={!!numOrg} onOpenChange={(o) => !o && setNumOrg(null)}>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">

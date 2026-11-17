@@ -1,5 +1,6 @@
 import { texto, tipoUnidade, TipoUnidade } from './secretaria';
 import { RegrasSessao, sanitizeRegrasSessao } from './sessoes';
+import { codigoDe } from './numeracao';
 
 /**
  * Órgãos internos de uma entidade (ex.: Conselho, Presidência, Diretorias).
@@ -64,6 +65,8 @@ export interface Orgao {
     ativo: boolean;
     /** Quem criou (o servidor grava; nunca vem do formulário). */
     criado_por?: string | null;
+    /** Código numérico na numeração dos processos (só pela ação salvarCodigos; nunca vem do formulário do órgão). */
+    codigo?: number | null;
 }
 
 /** Lista de competências ou atribuições: textos curtos, sem repetição. */
@@ -141,6 +144,7 @@ export function sanitizeOrgao(raw: unknown, id: string, ordem = 0): Orgao {
         ordem: Number.isFinite(Number(o.ordem)) ? Math.max(0, Math.min(999, Math.round(Number(o.ordem)))) : ordem,
         ativo: o.ativo !== false,
         criado_por: typeof o.criado_por === 'string' && o.criado_por ? o.criado_por.slice(0, 128) : null,
+        codigo: codigoDe(o.codigo),
     };
 }
 

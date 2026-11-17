@@ -75,8 +75,9 @@ export async function salvarOrgao(c: Contexto, p: Payload, uid: string, auditar:
         const i = atuais.findIndex((o) => o.id === id);
         if (p.id && i < 0) throw new HttpsError('not-found', 'Órgão não encontrado');
         if (!c.ctx.isAdmin) conferirDelegado(atuais, uid, orgao);
-        if (i < 0) return [...atuais, { ...orgao, ordem: atuais.length, criado_por: uid }];
-        return atuais.map((o) => (o.id === id ? { ...orgao, criado_por: o.criado_por || null } : o));
+        // O código numérico só muda pela tela de códigos (salvarCodigos), que confere a repetição.
+        if (i < 0) return [...atuais, { ...orgao, ordem: atuais.length, criado_por: uid, codigo: null }];
+        return atuais.map((o) => (o.id === id ? { ...orgao, criado_por: o.criado_por || null, codigo: o.codigo ?? null } : o));
     });
     await auditar('SECRETARIA_ORGAO_SALVO', { orgao_id: id, nome: orgao!.nome, superior: orgao!.pai_id, admins: orgao!.admins_uids.length, mandatos: orgao!.composicao.length });
     return { success: true, id };

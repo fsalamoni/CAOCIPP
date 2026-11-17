@@ -27,7 +27,7 @@ import AvisosEquipe from '@/components/secretaria/AvisosEquipe';
 import UnidadesDoUsuario, { ConviteEquipe } from '@/components/secretaria/UnidadesDoUsuario';
 import FluxoRito from '@/components/secretaria/FluxoRito';
 import FormularioAutuacao from '@/components/secretaria/FormularioAutuacao';
-import { NUMERACAO_PADRAO, formatarNumero } from '@/lib/numeracao';
+import { NUMERACAO_PADRAO, codigosFaltando, formatarNumero } from '@/lib/numeracao';
 import { ROTULO_REF, camposDaOrigem, faltando, formularioDe, integracoesLigadas } from '@/lib/camposProcesso';
 import { buscarRegistro } from '@/lib/registrosModulos';
 import { ProvedorRegistros } from '@/components/secretaria/SeletorRegistro';
@@ -543,10 +543,13 @@ function NovoProcesso({ orgId, estado, onCriado, semente = null, onSementeUsada 
     const numeracao = numTipo.modo === 'nenhuma' ? null : numTipo.modo === 'propria' ? numTipo : estado.numeracao || NUMERACAO_PADRAO;
     const unidadeSel = estado.unidades.find((u) => u.id === f.unidade_id);
     const tiposDoc = documentoDaUnidade(estado, f.unidade_id).tipos_documento || [];
-    const exemploNumero = numeracao && formatarNumero(numeracao, {
+    const ctxNumero = {
         hoje: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }), tipo: tipoSel, unidade: unidadeSel,
         orgao: (estado.orgaos || []).find((o) => o.id === unidadeSel?.orgao_id),
-    }, 1);
+    };
+    const exemploNumero = numeracao && formatarNumero(numeracao, ctxNumero, 1);
+    // Número com código e item sem código: o servidor recusa a autuação; avisa antes.
+    const semCodigo = numeracao && unidadeSel ? codigosFaltando(numeracao, ctxNumero) : [];
 
     // Nascendo de um registro: origem, assunto e, se só um tipo é sugerido para esse módulo, o tipo.
     const sugeridosDe = (t, ref) => !!ref && (t.pode_nascer_de || []).includes(ref.modulo);
@@ -649,13 +652,18 @@ function NovoProcesso({ orgId, estado, onCriado, semente = null, onSementeUsada 
                             }} />
                     </div>
                     <p className="text-xs text-slate-600 dark:text-slate-400">{exemploNumero ? <>Número no formato <b className="font-mono">{exemploNumero}</b>, dado ao autuar.</> : 'Este tipo de processo não tem número: recebe um identificador (SN-…).'}</p>
+                    {semCodigo.length > 0 && (
+                        <p className="text-sm text-amber-800 dark:text-amber-300" role="status">
+                            O número deste processo usa o código numérico de {semCodigo.join(' e ')}, que ainda não foi cadastrado (ou tem mais dígitos que o número aceita). Peça ao administrador para cadastrá-lo em Configuração, Tipos de processo, Códigos.
+                        </p>
+                    )}
                     {tocado && falta.length > 0 && (
                         <p className="text-sm text-amber-800 dark:text-amber-300" role="status">Para autuar: {falta.join('; ')}.</p>
                     )}
                 </div>
                 <DialogFooter className="border-t border-slate-200 dark:border-slate-700 px-4 pt-3 sm:px-6 flex-row justify-end gap-2 sm:space-x-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
                     <Button variant="outline" onClick={() => setAberto(false)}>Cancelar</Button>
-                    <Button onClick={salvar} disabled={salvando || !f.rito_id || falta.length > 0}>
+                    <Button onClick={salvar} disabled={salvando || !f.rito_id || falta.length > 0 || semCodigo.length > 0}>
                         {salvando && <Loader2 className="w-4 h-4 animate-spin mr-2" />} Autuar
                     </Button>
                 </DialogFooter>

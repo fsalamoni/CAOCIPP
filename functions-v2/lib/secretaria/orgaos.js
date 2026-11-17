@@ -90,9 +90,10 @@ async function salvarOrgao(c, p, uid, auditar) {
             throw new https_1.HttpsError('not-found', 'Órgão não encontrado');
         if (!c.ctx.isAdmin)
             (0, orgaos_1.conferirDelegado)(atuais, uid, orgao);
+        // O código numérico só muda pela tela de códigos (salvarCodigos), que confere a repetição.
         if (i < 0)
-            return [...atuais, Object.assign(Object.assign({}, orgao), { ordem: atuais.length, criado_por: uid })];
-        return atuais.map((o) => (o.id === id ? Object.assign(Object.assign({}, orgao), { criado_por: o.criado_por || null }) : o));
+            return [...atuais, Object.assign(Object.assign({}, orgao), { ordem: atuais.length, criado_por: uid, codigo: null })];
+        return atuais.map((o) => { var _a; return (o.id === id ? Object.assign(Object.assign({}, orgao), { criado_por: o.criado_por || null, codigo: (_a = o.codigo) !== null && _a !== void 0 ? _a : null }) : o); });
     });
     await auditar('SECRETARIA_ORGAO_SALVO', { orgao_id: id, nome: orgao.nome, superior: orgao.pai_id, admins: orgao.admins_uids.length, mandatos: orgao.composicao.length });
     return { success: true, id };

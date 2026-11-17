@@ -5,6 +5,19 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 17/11/2026 — Códigos numéricos na numeração dos processos
+- A numeração própria aceita **Código do tipo**, **Código da unidade** e
+  **Código do órgão interno** no lugar das siglas, cada um com 1 a 6 dígitos e
+  zeros à esquerda. Ex.: `000007.001.002/2026` (sequencial, órgão, tipo, ano).
+- Nova tela **Tipos de processo › Códigos**: um código fixo por item em cada
+  seção, sem repetição, com a forma como sai no número, avisos de item sem
+  código ou longo demais e um botão que numera os vazios em ordem.
+- Processo cujo tipo, unidade ou órgão ainda não tem código não é autuado: a
+  pessoa recebe o aviso para pedir o cadastro. Mudar um código não muda o
+  número de processos já autuados.
+- Os códigos aparecem nos cartões de tipos, unidades e órgãos internos e no
+  histórico da configuração.
+
 ### 17/11/2026 — Custos e uso (etapa 10 de 10)
 - **Uso do banco por dia** (leituras, gravações) nos últimos 30 dias contra a
   cota gratuita, com média, pico e dias acima; **chamadas às funções** do SIGO
