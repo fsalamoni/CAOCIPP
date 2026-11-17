@@ -5,6 +5,13 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 17/11/2026 — Aviso para todos e modo manutenção (etapa 5 de 10)
+- **Aviso para todos:** faixa no topo das telas e na tela de entrada, com
+  tom, link, período agendado, prévia e opção de não poder ser fechada.
+- **Modo manutenção:** com uma mensagem e a previsão de volta, só a
+  administração da plataforma usa o sistema; os demais veem a tela de
+  manutenção, que some sozinha quando a manutenção é desligada.
+
 ### 17/11/2026 — Identidade da plataforma e termos de uso com aceite (etapa 4 de 10)
 - **Nome, cor e logo** da plataforma editáveis em *Identidade e termos*, com
   prévia ao vivo e conferência de contraste; valem no topo das telas, na tela

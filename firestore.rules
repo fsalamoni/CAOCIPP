@@ -362,9 +362,10 @@ service cloud.firestore {
       // compartilhado com os outros apps do projeto Firebase, então
       // "autenticado" não quer dizer usuário do SIGO.
       allow read: if isAuthenticated() && (docId == 'featureFlags' || isPlatformAdmin());
-      // Identidade da plataforma (nome, cor, logo, textos, termos): aparece na
+      // Identidade da plataforma (nome, cor, logo, textos, termos) e avisos
+      // (faixa para todos, modo manutenção): aparecem na
       // tela de entrada, antes do login. Não guarda nada sensível.
-      allow read: if docId == 'branding';
+      allow read: if docId == 'branding' || docId == 'avisos';
 
       // Escrita exclusiva de Cloud Functions (setFeatureFlag valida super-admin).
       allow write: if false;

@@ -129,6 +129,9 @@ assert.equal(await pedir(estranho, 'GET', 'platformConfig/featureFlags'), 200, '
 assert.equal(await pedir(estranho, 'GET', 'platformConfig/emailProvider'), 403, 'config de e-mail fechada');
 await semear('platformConfig/branding', { nome_curto: 'SIGO' });
 assert.equal(await pedir(null, 'GET', 'platformConfig/branding'), 200, 'identidade legível antes do login');
+await semear('platformConfig/avisos', { manutencao: { ativa: false } });
+assert.equal(await pedir(null, 'GET', 'platformConfig/avisos'), 200, 'avisos legíveis antes do login');
+assert.equal(await pedir(estranho, 'PATCH', 'platformConfig/avisos', { fields: { x: { stringValue: 'y' } } }), 403, 'avisos só pelas Functions');
 assert.equal(await pedir(estranho, 'PATCH', 'platformConfig/branding', { fields: { nome_curto: { stringValue: 'X' } } }), 403, 'identidade só pelas Functions');
 
 console.log('REGRAS OK');

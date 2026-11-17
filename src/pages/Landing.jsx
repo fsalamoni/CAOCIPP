@@ -6,13 +6,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { FileText, TrendingUp, Users, Shield, Chrome, AlertCircle, Loader2 } from 'lucide-react';
 import Logo from '@/components/Logo';
-import { useBranding } from '@/lib/BrandingContext';
+import { useBranding, useAvisos } from '@/lib/BrandingContext';
+import { AvisoPlataforma } from '@/components/AvisoPlataforma';
 import { logger } from '@/utils/logger';
 
 export default function Landing() {
   const navigate = useNavigate();
   const { isAuthenticated, isLoadingAuth, signInWithGoogle, authError, clearAuthError } = useAuth();
   const marca = useBranding();
+  const { manutencao } = useAvisos();
   const suporte = [marca.suporte.email, marca.suporte.telefone].filter(Boolean);
   const [isSigningIn, setIsSigningIn] = useState(false);
 
@@ -77,6 +79,14 @@ export default function Landing() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-16">
+        <div className="max-w-3xl mx-auto mb-8 space-y-3 empty:hidden">
+          {manutencao?.ativa && (
+            <p role="status" className="rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/60 p-3 text-sm text-amber-950 dark:text-amber-50">
+              <span className="font-semibold">Sistema em manutenção.</span> {manutencao.mensagem}
+            </p>
+          )}
+          <AvisoPlataforma />
+        </div>
         {/* Hero Section */}
         <div className="text-center mb-16 max-w-3xl mx-auto">
           <h2 className="text-5xl font-bold text-slate-900 dark:text-white mb-6">

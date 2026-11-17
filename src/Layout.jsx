@@ -4,6 +4,9 @@ import { createPageUrl } from './utils';
 import { useAuth } from '@/lib/FirebaseAuthContext';
 import { useOrganizations, useOrganizationRealtime } from '@/hooks/useFirestore';
 import { usePlatformAdmin } from '@/hooks/usePlatformAdmin';
+import { useAvisos } from '@/lib/BrandingContext';
+import { bloqueadoPorManutencao } from '@/lib/platformAvisos';
+import { AvisoPlataforma, TelaManutencao } from '@/components/AvisoPlataforma';
 import { useFlag } from '@/lib/FeatureFlagsContext';
 import { FEATURE_FLAGS } from '@/constants/featureFlags';
 import { orgTabUrl } from '@/lib/organizationModules';
@@ -133,7 +136,8 @@ export default function Layout({ children, currentPageName }) {
   ), [membershipOrgs, activeOrgLive]);
 
   /* Super-admin de plataforma (controla a página Administração da plataforma) */
-  const { isPlatformAdmin } = usePlatformAdmin();
+  const { isPlatformAdmin, isLoading: adminCarregando } = usePlatformAdmin();
+  const { manutencao } = useAvisos();
 
   /* Abas do órgão ativo (as mesmas da barra horizontal). O sub-menu só é
      desenhado para ele. */
@@ -144,6 +148,15 @@ export default function Layout({ children, currentPageName }) {
     await signOut();
     window.location.href = createPageUrl('Landing');
   };
+
+  // Modo manutenção: quem não é super-admin vê só a tela de manutenção (a
+  // tela de entrada continua, para a administração poder entrar).
+  if (bloqueadoPorManutencao(manutencao, isPlatformAdmin) && currentPageName !== 'Landing') {
+    if (user && adminCarregando) {
+      return <div role="status" className="min-h-screen flex items-center justify-center text-slate-600 dark:text-slate-300">Carregando…</div>;
+    }
+    return <TelaManutencao onSair={user ? handleLogout : undefined} />;
+  }
 
   if (isPublicPage) {
     return <>{children}</>;
@@ -392,6 +405,12 @@ export default function Layout({ children, currentPageName }) {
 
         {/* Page Content */}
         <main className="p-6 mt-16 lg:mt-0">
+          {manutencao?.ativa && isPlatformAdmin && (
+            <p role="status" className="mb-4 rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/60 p-3 text-sm text-amber-950 dark:text-amber-50">
+              <span className="font-semibold">Modo manutenção ligado.</span> Só a administração da plataforma está usando o sistema. Desligue em Administração da plataforma, Avisos e manutenção.
+            </p>
+          )}
+          <AvisoPlataforma className="mb-4" />
           {userProfile?.portal_partes && (
             <React.Suspense fallback={null}>
               <ComunicacoesPendentes onAbrirProcesso={(id) => navigate(`${createPageUrl('Portal')}?p=${id}`)} />

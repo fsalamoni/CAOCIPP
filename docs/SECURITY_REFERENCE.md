@@ -77,7 +77,7 @@ a pessoa saiu. Coberto por `scripts/test-rules.mjs` (leitura e lista).
 | `notifications` | Só o destinatário | Só marcar como lida (`read`, `read_at`); criadas só pelas Functions (menções e avisos do Processo Eletrônico) |
 | `presence` | Membros do órgão | Só o próprio heartbeat |
 | `otpCodes` | **Nenhuma** | **Nenhuma** |
-| `platformConfig` | `featureFlags`: qualquer autenticado. `branding`: público, mesmo sem login (a tela de entrada mostra; só texto de vitrine, sem dado pessoal). Demais documentos (`emailProvider`, `quotas`): só super-admin | **Nenhuma** |
+| `platformConfig` | `featureFlags`: qualquer autenticado. `branding` e `avisos`: públicos, mesmo sem login (a tela de entrada mostra; só texto de vitrine, sem dado pessoal). Demais documentos (`emailProvider`, `quotas`): só super-admin | **Nenhuma** |
 | `platformAdmins` | O próprio registro ou super-admin | **Nenhuma** |
 | `platformStats` | Só super-admin | **Nenhuma** |
 | `sec*` (Processo Eletrônico) | **Nenhuma** (tudo pelas Functions `secretaria*`), salvo `secPaineis` (quem está em `leitores`) e `secSinais` | **Nenhuma** |
@@ -113,6 +113,13 @@ isso significa, de fato:
   recusado: pode carregar script), e-mail e site de suporte (só `https://`).
   O aceite dos termos (`termos_versao_aceita`, `termos_aceitos_em`) fica no
   perfil da pessoa; é registro de ciência, não controle de acesso.
+- **Aviso e modo manutenção (desde 17/11/2026).** Só a Function
+  `platformAvisos` grava (super-admin, auditado; link do aviso só `https://`
+  ou página interna `/…`). O modo manutenção é **bloqueio de tela**, não de
+  segurança: quem não é super-admin vê só a tela de manutenção, mas as regras
+  e as Functions continuam valendo como sempre. Serve para ninguém trabalhar
+  durante uma intervenção; para barrar alguém de fato, suspenda o órgão ou
+  bloqueie a pessoa.
 - **Servidor e IAM.** Functions de qualquer app do projeto rodam com contas de
   serviço que leem e escrevem qualquer banco e bucket do projeto, e quem é
   Proprietário ou Editor do projeto também. Regras não limitam o Admin SDK.

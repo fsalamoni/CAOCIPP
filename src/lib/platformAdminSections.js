@@ -9,7 +9,7 @@
 
 import {
     Settings, Flag, Mail, Building2, Users, ShieldCheck, Gavel, Activity,
-    HeartPulse, SlidersHorizontal, HardDrive, Wrench, DollarSign, Palette,
+    HeartPulse, SlidersHorizontal, HardDrive, Wrench, DollarSign, Palette, Megaphone,
 } from 'lucide-react';
 
 export { searchAdminSections as searchPlatformSections } from './adminSections.js';
@@ -62,6 +62,11 @@ export const PLATFORM_SECTIONS = [
         key: 'secretaria', group: 'modulos', label: 'Processo Eletrônico', icon: Gavel,
         description: 'Órgãos com o Processo Eletrônico ligado, volume de processos e suspensão pela plataforma.',
         keywords: 'secretaria processo eletrônico suspender reativar ritos unidades',
+    },
+    {
+        key: 'avisos', group: 'operacao', label: 'Avisos e manutenção', icon: Megaphone,
+        description: 'Faixa de aviso para todas as pessoas, com período e prévia, e o modo manutenção, que deixa só a administração usar o sistema.',
+        keywords: 'aviso comunicado banner faixa mensagem todos manutenção fora do ar parada indisponível',
     },
     {
         key: 'activity', group: 'operacao', label: 'Movimentações', icon: Activity,

@@ -211,6 +211,37 @@ try {
     await mbp.getByRole('heading', { name: 'Termos de uso' }).waitFor({ state: 'detached', timeout: 60000 });
     assert.equal((await db.doc(`users/${comumUid}`).get()).data().termos_versao_aceita, 1);
     console.log('ok 16: termos publicados pedem aceite e o aceite fica no perfil');
+
+    // Aviso para todos: aparece para o membro e some ao dispensar.
+    await dp.goto(`${SITE}/Admin?secao=avisos`);
+    const gate = dp.getByRole('button', { name: 'Li e aceito os termos' });
+    await gate.click({ timeout: 60000 }); // quem publicou os termos também aceita
+    await dp.getByLabel('Título', { exact: true }).fill('Nova versão no ar');
+    await dp.getByLabel('Texto (opcional)').fill('Confira as novidades na Central de Ajuda.');
+    await dp.getByLabel('Link (opcional)').fill('/Help');
+    await dp.getByRole('button', { name: 'Publicar aviso' }).click();
+    await dp.getByRole('dialog').getByRole('button', { name: 'Confirmar' }).click();
+    await dp.getByText('No ar', { exact: true }).waitFor({ timeout: 60000 });
+    await dp.screenshot({ path: `${SHOTS}/admin-avisos.png`, fullPage: true });
+    await mbp.goto(`${SITE}/Dashboard`);
+    await mbp.getByRole('status', { name: 'Aviso: Nova versão no ar' }).waitFor({ timeout: 60000 });
+    await mbp.screenshot({ path: `${SHOTS}/aviso-membro.png` });
+    await mbp.getByRole('button', { name: 'Dispensar aviso' }).click();
+    assert.equal(await mbp.getByRole('status', { name: 'Aviso: Nova versão no ar' }).count(), 0);
+    console.log('ok 17: aviso aparece para todos e pode ser dispensado');
+
+    // Manutenção: o membro vê a tela de manutenção; o super-admin segue usando; desligar devolve.
+    await dp.getByLabel('Mensagem para quem tentar entrar').fill('Atualização do banco. Volta em 30 minutos.');
+    await dp.getByRole('button', { name: 'Ligar manutenção' }).click();
+    await dp.getByRole('dialog').getByRole('button', { name: 'Confirmar' }).click();
+    await dp.getByText('Modo manutenção ligado.').first().waitFor({ timeout: 60000 });
+    await mbp.getByRole('heading', { name: /em manutenção/ }).waitFor({ timeout: 60000 });
+    await mbp.getByText('Atualização do banco. Volta em 30 minutos.').waitFor();
+    await mbp.screenshot({ path: `${SHOTS}/manutencao-membro.png` });
+    await dp.getByRole('button', { name: 'Desligar manutenção' }).click();
+    await dp.getByRole('dialog').getByRole('button', { name: 'Confirmar' }).click();
+    await mbp.getByRole('heading', { name: /em manutenção/ }).waitFor({ state: 'detached', timeout: 60000 });
+    console.log('ok 18: manutenção barra o membro, não o super-admin, e desligar devolve');
 } finally {
     await browser.close();
 }

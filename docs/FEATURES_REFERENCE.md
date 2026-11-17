@@ -306,6 +306,7 @@ pendências da configuração inicial (`platformAlerts`, a partir de
 | Órgãos e pessoas | Usuários (`users`) | Só pessoas do SIGO (vínculo, perfil com `platform_name` ou super-admin), com busca e filtros (bloqueadas, sem órgão, sem acesso há 90 dias, super-admins); ficha em `&pessoa=<uid>` com órgãos e papéis, conta (provedor, e-mail confirmado, duas etapas, último acesso), termos e atividade; bloquear e desbloquear no SIGO | `platformUser` (`listar`, `ficha`, `bloquear`, `desbloquear`) |
 | Órgãos e pessoas | Administradores da plataforma (`admins`) | Concede/revoga super-admin | `grantPlatformAdmin`, `revokePlatformAdmin`, `listPlatformAdmins` |
 | Módulos | Processo Eletrônico (`secretaria`) | Órgãos com PE e suspensão | `secretariaPlataforma` |
+| Operação e diagnóstico | Avisos e manutenção (`avisos`) | Aviso para todos (tom, título, texto, link, período, dispensável, prévia; aparece no topo das telas e na tela de entrada) e modo manutenção (mensagem e previsão; só super-admin usa o sistema) | `platformAvisos` (`publicarAviso`, `encerrarAviso`, `ligarManutencao`, `desligarManutencao`) |
 | Operação e diagnóstico | Movimentações (`activity`) | Feed do `auditLogs` | `getActivityFeed` |
 | Operação e diagnóstico | Saúde do sistema (`health`) | Banco, atividade e erros recentes | `getSystemHealth` |
 | Operação e diagnóstico | Cotas e limites (`quotas`) | Valores gravados; **nenhum é aplicado ainda** | `getPlatformQuotas`, `setPlatformQuota` |

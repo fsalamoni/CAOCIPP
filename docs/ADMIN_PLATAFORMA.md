@@ -60,6 +60,26 @@ Quem não é vê "Acesso restrito"; as Functions recusam do mesmo jeito.
   do aceite aparecem na ficha da pessoa. Cada versão publicada fica guardada
   com data e autor, e a página *Termos de Uso* passa a mostrar o texto novo.
 
+## Avisos e manutenção: receitas
+
+- **Avisar todo mundo** (nova versão, instabilidade, prazo): em *Avisos e
+  manutenção*, escolha o tom (Informação, Atenção ou Urgente), escreva o
+  título e, se quiser, um texto e um link (`https://…` ou uma página do SIGO,
+  como `/Help`). Confira a prévia e clique em *Publicar aviso*. A faixa
+  aparece no topo de todas as telas e na tela de entrada.
+- **Agendar:** preencha *Começa em* e *Sai do ar em*. Fora desse período a
+  faixa não aparece; o painel mostra se está agendado, no ar ou expirado.
+- **Aviso que não pode ser fechado:** desligue *Pode ser dispensado*.
+  Publicar um aviso novo substitui o anterior e o faz reaparecer para quem o
+  tinha fechado. *Encerrar aviso atual* tira a faixa na hora.
+- **Modo manutenção** (migração, correção de dados, incidente): escreva a
+  mensagem e, se souber, a previsão de volta; *Ligar manutenção*. Na hora,
+  quem não administra a plataforma vê só a tela de manutenção; você continua
+  usando tudo, com uma faixa lembrando que a manutenção está ligada. *Desligar
+  manutenção* devolve o acesso a todos, sem precisar recarregar a página.
+  Atenção: é um bloqueio de tela. Para impedir o acesso de alguém de fato,
+  suspenda o órgão ou bloqueie a pessoa.
+
 ## Órgãos: receitas
 
 - **Achar um órgão:** digite parte do nome na busca. Os filtros mostram só os
