@@ -132,7 +132,7 @@ export default function CommandPalette() {
             { key: 'Terms', label: 'Termos de Uso', icon: FileText },
         ];
         if (isPlatformAdmin) {
-            list.push({ key: 'Admin', label: 'Administração & Custos', icon: ShieldCheck });
+            list.push({ key: 'Admin', label: 'Administração da plataforma', icon: ShieldCheck });
         }
         return list;
     }, [isPlatformAdmin]);

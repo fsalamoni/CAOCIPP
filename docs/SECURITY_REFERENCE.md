@@ -384,7 +384,7 @@ Tetos: 500 júris por `deleteJuris`/`bulkUpdateJuris`, 20.000 linhas por importa
 
 ### Feature flag `jurimetria_enabled`
 
-Default OFF (zero impacto em produção). O painel "Administração & Custos" liga/desliga globalmente. Com a flag ligada e `custom_entities` também ligada, cada órgão ativa o módulo em *Páginas e Módulos* (`moduleConfig.jurimetria.enabled`).
+Default OFF (zero impacto em produção). O painel "Administração da plataforma" liga/desliga globalmente. Com a flag ligada e `custom_entities` também ligada, cada órgão ativa o módulo em *Páginas e Módulos* (`moduleConfig.jurimetria.enabled`).
 
 **Defesa em profundidade**: a flag global é checada em `getOrganizationTabs`, `getActiveDataPages`, `AdminManagement`, `ModulesManager`, `Organization.jsx` (guarda de aba e assinatura de dados) e no `CommandPalette` — mesmo com `moduleConfig.jurimetria.enabled = true`, a flag global OFF esconde tudo e **nenhuma leitura** da coleção `juris` é feita.
 

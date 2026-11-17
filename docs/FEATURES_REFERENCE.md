@@ -274,7 +274,7 @@ Todos integrados ao produto, salvo indicação:
 | Escalonamento automático de urgentes parados (`autoEscalateStalledUrgent`) | Código pronto, **exportação comentada** em `functions-v2/src/index.ts` — não roda |
 | Resumo diário e relatório semanal por e-mail (`sendDailyUrgentSummary`, `sendWeeklyOrgReport`) | Código pronto, **exportação comentada** — não roda |
 | Webhooks de saída (`outbound_webhooks`) | Ativo. Eventos `urgent_created`, `archived`, `parceria_created`, `parceria_extinguished`; teste por `testOrgWebhook`. |
-| E-mail transacional (2FA) | Resend, com chave `EMAIL_API_KEY` ou configurada em *Administração & Custos → E-mail* |
+| E-mail transacional (2FA) | Resend, com chave `EMAIL_API_KEY` ou configurada em *Administração da plataforma → E-mail* |
 
 As configurações de automação continuam editáveis no Painel Administrativo,
 mas, enquanto as funções agendadas estiverem comentadas, não produzem efeito.
@@ -283,21 +283,37 @@ mas, enquanto as funções agendadas estiverem comentadas, não produzem efeito.
 
 ## 8. Administração da plataforma (super-admin)
 
-Página `/Admin` (*Administração & Custos*), acessível a quem tem o custom claim
+Página `/Admin` (*Administração da plataforma*), acessível a quem tem o custom claim
 `platformAdmin`, um documento ativo em `platformAdmins/{uid}` ou o e-mail
 listado na variável `PLATFORM_ADMIN_EMAILS` das Cloud Functions (usada para
 conceder o primeiro acesso).
 
-| Aba | Para quê | Function |
-|---|---|---|
-| Visão geral | Totais da plataforma | `getPlatformOverview` |
-| Configuração | Passo a passo dos segredos e integrações | `getSetupStatus` |
-| Custos | Custos reais via export do Cloud Billing no BigQuery | `getCostReport` |
-| Funcionalidades | Liga/desliga as flags opcionais | `getFeatureFlags`, `setFeatureFlag` |
-| Administradores | Concede/revoga super-admin | `grantPlatformAdmin`, `revokePlatformAdmin`, `listPlatformAdmins` |
-| E-mail | Provedor de e-mail | `getEmailProviderConfig`, `setEmailProviderConfig` |
-| Órgãos, Usuários, Movimentações, Armazenamento | Relatórios da plataforma | `getOrgsReport`, `listPlatformUsers`, `getActivityFeed`, `getStorageFootprint` |
-| Cotas, Saúde, Ferramentas de dados | Limites, saúde, auditoria de integridade, recálculo de estatísticas, backfill de histórico | `getPlatformQuotas`, `setPlatformQuota`, `getSystemHealth`, `runIntegrityAudit`, `recalcOrgStats`, `backfillHistory` |
+A página tem menu lateral por grupos (no celular, um seletor), busca por
+palavra e endereço por seção (`/Admin?secao=<chave>`). O mapa único das
+seções está em `src/lib/platformAdminSections.js`. A visão geral mostra as
+pendências da configuração inicial (`platformAlerts`, a partir de
+`getSetupStatus`), os totais e um cartão por seção. Guia prático:
+[ADMIN_PLATAFORMA.md](./ADMIN_PLATAFORMA.md).
+
+| Grupo | Seção (`secao=`) | Para quê | Function |
+|---|---|---|---|
+| — | Visão geral | Pendências, totais e atalhos | `getSetupStatus`, `getPlatformOverview` |
+| Plataforma | Configuração inicial (`setup`) | Passo a passo dos segredos e integrações | `getSetupStatus` |
+| Plataforma | Funcionalidades (`flags`) | Liga/desliga as flags opcionais | `getFeatureFlags`, `setFeatureFlag` |
+| Plataforma | E-mail (`email`) | Remetente dos e-mails | `getEmailProviderConfig`, `setEmailProviderConfig` |
+| Órgãos e pessoas | Órgãos (`orgs`) | Lista e exclusão de órgão | `getOrgsReport`, `deleteOrganization` |
+| Órgãos e pessoas | Usuários (`users`) | Pessoas e vínculos | `listPlatformUsers` |
+| Órgãos e pessoas | Administradores da plataforma (`admins`) | Concede/revoga super-admin | `grantPlatformAdmin`, `revokePlatformAdmin`, `listPlatformAdmins` |
+| Módulos | Processo Eletrônico (`secretaria`) | Órgãos com PE e suspensão | `secretariaPlataforma` |
+| Operação e diagnóstico | Movimentações (`activity`) | Feed do `auditLogs` | `getActivityFeed` |
+| Operação e diagnóstico | Saúde do sistema (`health`) | Banco, atividade e erros recentes | `getSystemHealth` |
+| Operação e diagnóstico | Cotas e limites (`quotas`) | Valores gravados; **nenhum é aplicado ainda** | `getPlatformQuotas`, `setPlatformQuota` |
+| Dados e custos | Armazenamento (`footprint`) | Documentos e espaço por coleção | `getStorageFootprint` |
+| Dados e custos | Ferramentas de dados (`datatools`) | Integridade e recálculo de contadores, backfill de histórico | `runIntegrityAudit`, `recalcOrgStats`, `backfillHistory` |
+| Dados e custos | Custos (`costs`) | Custos reais via export do Cloud Billing no BigQuery | `getCostReport` |
+
+Desde 17/11/2026 as flags `admin_wave_2` e `admin_wave_3` não escondem mais
+nenhuma seção: todas aparecem sempre para o super-admin.
 
 ---
 
