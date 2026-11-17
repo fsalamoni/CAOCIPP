@@ -5,6 +5,19 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 17/11/2026 — Central de segurança (etapa 7 de 10)
+- **Checklist com nota de 0 a 100:** quem administra (quantas pessoas, sem
+  entrar há 90 dias, e-mail confirmado, código por e-mail), acesso por e-mail
+  fixo, cópia diária do banco, recuperação dos últimos 7 dias e proteção
+  contra exclusão (lidas do próprio Firestore), termos publicados, e App Check
+  e chave de API, que a administração confirma depois de fazer no console.
+- **Revisão de acessos:** último login, código por e-mail e e-mail confirmado
+  de cada super-admin, e os acessos já retirados.
+- **Auditoria da administração** com filtro por ação e período e exportação em CSV.
+- **Retirar o acesso de super-admin vale na hora** (Functions e regras), sem
+  revogar os tokens da pessoa, o que a desconectava dos outros apps do mesmo
+  Firebase. A exclusão de órgão por super-admin passa a entrar nessa auditoria.
+
 ### 17/11/2026 — Cotas que valem de fato (etapa 6 de 10)
 - **Cotas conferidas no servidor:** órgãos criados por pessoa, membros
   ativos por órgão (o convite para de aceitar entradas no limite) e linhas por

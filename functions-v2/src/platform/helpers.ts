@@ -45,14 +45,21 @@ export async function assertPlatformAdmin(
     const email = String(token.email || '').toLowerCase();
     const name = String(token.name || 'Desconhecido');
 
+    // A allowlist manda: acesso retirado (active === false) vale na hora, mesmo
+    // com o claim ainda no token já emitido ou com o e-mail no bootstrap. Assim
+    // não é preciso revogar tokens (o Auth é compartilhado com outros apps).
+    const db = admin.firestore();
+    const adminDoc = await db.collection('platformAdmins').doc(uid).get();
+    if (adminDoc.exists && adminDoc.data()?.active === false) {
+        throw new HttpsError('permission-denied', 'Acesso restrito ao super-administrador da plataforma.');
+    }
+
     // 1. Custom claim
     if (token.platformAdmin === true) {
         return { uid, email, name };
     }
 
     // 2. Allowlist em Firestore
-    const db = admin.firestore();
-    const adminDoc = await db.collection('platformAdmins').doc(uid).get();
     if (adminDoc.exists && adminDoc.data()?.active === true) {
         return { uid, email, name };
     }

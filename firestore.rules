@@ -33,8 +33,12 @@ service cloud.firestore {
     }
     
     // Super-admin de plataforma (custom claim emitido por Cloud Function)
+    // Acesso retirado (platformAdmins/{uid}.active == false) vale na hora,
+    // mesmo com o claim ainda no token já emitido.
     function isPlatformAdmin() {
-      return isAuthenticated() && request.auth.token.platformAdmin == true;
+      return isAuthenticated() && request.auth.token.platformAdmin == true
+        && !(exists(/databases/$(database)/documents/platformAdmins/$(request.auth.uid))
+             && get(/databases/$(database)/documents/platformAdmins/$(request.auth.uid)).data.active == false);
     }
     
     // ========== USERS ==========

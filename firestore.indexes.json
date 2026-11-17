@@ -531,9 +531,46 @@
                     "arrayConfig": "CONTAINS"
                 }
             ]
+        },
+        {
+            "collectionGroup": "auditLogs",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "scope",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "timestamp",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "auditLogs",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "scope",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "action",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "timestamp",
+                    "order": "DESCENDING"
+                }
+            ]
         }
     ],
     "fieldOverrides": [
-        { "collectionGroup": "secLimites", "fieldPath": "expira_em", "ttl": true, "indexes": [] }
+        {
+            "collectionGroup": "secLimites",
+            "fieldPath": "expira_em",
+            "ttl": true,
+            "indexes": []
+        }
     ]
 }

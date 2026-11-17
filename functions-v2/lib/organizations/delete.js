@@ -4,6 +4,7 @@ exports.deleteOrganization = void 0;
 exports.isPlatformAdmin = isPlatformAdmin;
 const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
+const helpers_1 = require("../platform/helpers");
 /**
  * Coleções de nível superior cujos documentos pertencem a UM órgão via o campo
  * `organization_id`. Cada documento pode ter subcoleções (ex.: `history`), por
@@ -41,28 +42,14 @@ const ORG_SCOPED_COLLECTIONS = [
  * bootstrap por e-mail). Não lança — apenas retorna boolean.
  */
 async function isPlatformAdmin(request) {
-    var _a;
-    if (!request.auth)
-        return false;
-    const token = request.auth.token || {};
-    if (token.platformAdmin === true)
-        return true;
-    const db = admin.firestore();
+    // Uma regra só (assertPlatformAdmin): acesso retirado vale aqui também.
     try {
-        const adminDoc = await db.collection('platformAdmins').doc(request.auth.uid).get();
-        if (adminDoc.exists && ((_a = adminDoc.data()) === null || _a === void 0 ? void 0 : _a.active) === true)
-            return true;
+        await (0, helpers_1.assertPlatformAdmin)(request);
+        return true;
     }
-    catch (_b) {
-        // ignora — cai no bootstrap por e-mail
+    catch (_a) {
+        return false;
     }
-    const email = String(token.email || '').toLowerCase();
-    const bootstrap = (process.env.PLATFORM_ADMIN_EMAILS || '')
-        .split(',')
-        .map((e) => e.trim().toLowerCase())
-        .filter(Boolean);
-    // Só e-mail confirmado: conta de e-mail e senha criada com o endereço de outra pessoa não vira super-admin.
-    return !!email && token.email_verified === true && bootstrap.includes(email);
 }
 /**
  * Exclui, em lotes, todos os documentos de uma coleção que pertençam ao órgão,
@@ -146,19 +133,12 @@ exports.deleteOrganization = (0, https_1.onCall)({ region: 'southamerica-east1',
     await db.recursiveDelete(orgRef, bulkWriter);
     await bulkWriter.close();
     // 6. Registro de auditoria (mantido para rastreabilidade).
-    await db.collection('auditLogs').add({
-        organization_id: organizationId,
-        user_id: userId,
-        user_name: request.auth.token.name || '',
-        action: 'DELETE_ORGANIZATION',
-        details: {
+    await db.collection('auditLogs').add(Object.assign(Object.assign({ organization_id: organizationId, user_id: userId, user_name: request.auth.token.name || '', action: 'DELETE_ORGANIZATION' }, (platformAdmin ? { scope: 'platform' } : {})), { details: {
             organization_name: orgName,
             deleted_by: platformAdmin ? 'platform_admin' : 'creator',
             deleted: deletedByCollection,
             timestamp: new Date().toISOString(),
-        },
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
-    });
+        }, timestamp: admin.firestore.FieldValue.serverTimestamp() }));
     console.log(`[DeleteOrg] Concluída exclusão de ${organizationId}. Removidos:`, JSON.stringify(deletedByCollection));
     const totalDeleted = Object.values(deletedByCollection).reduce((a, b) => a + b, 0);
     return {

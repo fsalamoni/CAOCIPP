@@ -14,6 +14,7 @@ import FeatureFlagsPanel from '@/components/admin/FeatureFlagsPanel';
 import PlatformAdminsPanel from '@/components/admin/PlatformAdminsPanel';
 import BrandingPanel from '@/components/admin/BrandingPanel';
 import AvisosPanel from '@/components/admin/AvisosPanel';
+import SecurityPanel from '@/components/admin/SecurityPanel';
 import OrgsPanel from '@/components/admin/OrgsPanel';
 import UsersPanel from '@/components/admin/UsersPanel';
 import ActivityPanel from '@/components/admin/ActivityPanel';
@@ -36,6 +37,7 @@ const SECTION_COMPONENTS = {
     users: UsersPanel,
     admins: PlatformAdminsPanel,
     secretaria: SecretariaPanel,
+    seguranca: SecurityPanel,
     avisos: AvisosPanel,
     activity: ActivityPanel,
     health: HealthPanel,

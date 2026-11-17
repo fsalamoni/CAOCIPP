@@ -36,7 +36,7 @@ async function marcarVinculos(db, orgId, suspensao) {
 async function auditarNoOrgao(db, orgId, ator, action, details) {
     await db.collection('auditLogs').add({
         organization_id: orgId, user_id: ator.uid, user_name: ator.name, action, details,
-        scope: 'platform', timestamp: firestore_1.FieldValue.serverTimestamp(),
+        scope: 'platform_no_orgao', timestamp: firestore_1.FieldValue.serverTimestamp(),
     });
 }
 exports.platformOrg = (0, https_1.onCall)({ region: helpers_1.REGION }, async (request) => {
@@ -97,7 +97,7 @@ exports.platformOrg = (0, https_1.onCall)({ region: helpers_1.REGION }, async (r
             membros,
             atividade: ((atividade === null || atividade === void 0 ? void 0 : atividade.docs) || []).map((d) => {
                 const a = d.data();
-                return { id: d.id, acao: String(a.action || ''), quem: String(a.user_name || ''), quando: iso(a.timestamp), plataforma: a.scope === 'platform' };
+                return { id: d.id, acao: String(a.action || ''), quem: String(a.user_name || ''), quando: iso(a.timestamp), plataforma: String(a.scope || '').startsWith('platform') };
             }),
         };
     }

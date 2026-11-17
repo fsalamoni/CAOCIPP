@@ -51,7 +51,7 @@ async function marcarVinculos(db: admin.firestore.Firestore, orgId: string, susp
 async function auditarNoOrgao(db: admin.firestore.Firestore, orgId: string, ator: { uid: string; name: string }, action: string, details: Record<string, unknown>) {
     await db.collection('auditLogs').add({
         organization_id: orgId, user_id: ator.uid, user_name: ator.name, action, details,
-        scope: 'platform', timestamp: FieldValue.serverTimestamp(),
+        scope: 'platform_no_orgao', timestamp: FieldValue.serverTimestamp(),
     });
 }
 
@@ -112,7 +112,7 @@ export const platformOrg = onCall<Pedido>({ region: REGION }, async (request) =>
             membros,
             atividade: (atividade?.docs || []).map((d) => {
                 const a = d.data();
-                return { id: d.id, acao: String(a.action || ''), quem: String(a.user_name || ''), quando: iso(a.timestamp), plataforma: a.scope === 'platform' };
+                return { id: d.id, acao: String(a.action || ''), quem: String(a.user_name || ''), quando: iso(a.timestamp), plataforma: String(a.scope || '').startsWith('platform') };
             }),
         };
     }

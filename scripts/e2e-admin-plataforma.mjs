@@ -260,6 +260,46 @@ try {
     })).json();
     assert.equal(r.error?.status, 'RESOURCE_EXHAUSTED', JSON.stringify(r));
     console.log('ok 19: cota de membros vale no convite e o painel mostra o uso');
+
+    // Central de segurança: checklist, confirmação de item de console, auditoria e exportação.
+    await dp.goto(`${SITE}/Admin?secao=seguranca`);
+    await dp.getByRole('img', { name: /Pontuação de segurança: \d+ de 100/ }).waitFor({ timeout: 60000 });
+    await dp.getByText('Só uma pessoa. Se ela perder o acesso, ninguém administra a plataforma.').waitFor();
+    await dp.getByText('Não foi possível consultar o banco agora.').first().waitFor();
+    await dp.getByRole('button', { name: 'Já está feito no console' }).first().click();
+    await dp.getByText(/Confirmado por /).waitFor({ timeout: 60000 });
+    await dp.getByText(/confirmou item de segurança/).waitFor({ timeout: 60000 });
+    await dp.getByText(/suspendeu órgão/).first().waitFor();
+    await dp.getByLabel('Ação', { exact: true }).selectOption('PLATFORM_USER_BLOCKED');
+    await dp.getByText(/bloqueou pessoa no sigo/).first().waitFor({ timeout: 60000 });
+    assert.equal(await dp.getByText(/suspendeu órgão/).count(), 0, 'filtro por ação');
+    const baixar = dp.waitForEvent('download');
+    await dp.getByRole('button', { name: /Exportar .*em CSV/ }).click();
+    assert.match((await baixar).suggestedFilename(), /^auditoria-plataforma-.*\.csv$/);
+    await dp.getByLabel('Ação', { exact: true }).selectOption('');
+    await dp.screenshot({ path: `${SHOTS}/admin-seguranca.png`, fullPage: true });
+    const m2 = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, colorScheme: 'dark', isMobile: true });
+    const mp2 = await m2.newPage();
+    await entrar(mp2, 'super@teste.dev');
+    await mp2.goto(`${SITE}/Admin?secao=seguranca`);
+    await mp2.getByRole('img', { name: /Pontuação de segurança/ }).waitFor({ timeout: 60000 });
+    await mp2.screenshot({ path: `${SHOTS}/admin-seguranca-celular.png`, fullPage: true });
+    await m2.close();
+    console.log('ok 20: central de segurança com checklist, confirmação, auditoria filtrada e CSV');
+
+    // Acesso de super-admin retirado vale na hora, mesmo com o claim no token já emitido.
+    const saUid = await criar('sa2@teste.dev');
+    await admin.auth().setCustomUserClaims(saUid, { platformAdmin: true });
+    const saLogin = await (await fetch('http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'sa2@teste.dev', password: 'segredo123', returnSecureToken: true }),
+    })).json();
+    const painelSa = async () => (await fetch(`http://127.0.0.1:5001/${PROJ}/southamerica-east1/platformSecurity`, {
+        method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${saLogin.idToken}` }, body: JSON.stringify({ data: { action: 'painel' } }),
+    })).json();
+    assert.ok((await painelSa()).result?.itens, 'com claim, entra');
+    await db.doc(`platformAdmins/${saUid}`).set({ active: false, email: 'sa2@teste.dev' });
+    assert.equal((await painelSa()).error?.status, 'PERMISSION_DENIED', 'retirado, não entra mais');
+    console.log('ok 21: acesso retirado vale na hora, sem revogar tokens');
 } finally {
     await browser.close();
 }
