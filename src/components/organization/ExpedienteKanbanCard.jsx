@@ -89,7 +89,7 @@ export default function ExpedienteKanbanCard({ expediente, columnId, overlay = f
         e.stopPropagation();
         e.preventDefault();
         navigator.clipboard.writeText(expedienteNumber).then(() => {
-            toast.success('Número do expediente copiado!');
+            toast.success('Nº do expediente copiado!');
         }).catch(() => {
             toast.error('Erro ao copiar número do expediente');
         });

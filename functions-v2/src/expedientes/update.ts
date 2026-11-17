@@ -98,7 +98,7 @@ export const updateExpediente = onCall<UpdateExpedienteRequest>(
         const userName = request.auth.token.name || 'Usuário desconhecido';
 
         const fieldLabels: Record<string, string> = {
-            expediente_number: 'Número do Expediente',
+            expediente_number: 'Nº do Expediente - PGEA',
             system: 'Sistema',
             origin: 'Origem',
             entry_date: 'Data de Entrada',

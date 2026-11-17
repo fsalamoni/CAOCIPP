@@ -76,7 +76,7 @@ exports.updateExpediente = (0, https_1.onCall)({ region: 'southamerica-east1' },
     const logTime = now.toTimeString().split(' ')[0];
     const userName = request.auth.token.name || 'Usuário desconhecido';
     const fieldLabels = {
-        expediente_number: 'Número do Expediente',
+        expediente_number: 'Nº do Expediente - PGEA',
         system: 'Sistema',
         origin: 'Origem',
         entry_date: 'Data de Entrada',

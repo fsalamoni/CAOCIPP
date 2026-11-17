@@ -13,7 +13,7 @@ export default function CreateProcessButton({ organization, members, onSuccess }
         className="bg-indigo-600 hover:bg-indigo-700"
       >
         <Plus className="w-4 h-4 mr-2" />
-        Adicionar Processo
+        Adicionar Consulta
       </Button>
       
       <CreateProcessDialog

@@ -189,7 +189,7 @@ export default function ExpedienteTable({
 
   const COLUMN_DEFINITIONS = useMemo(() => [
     {
-      key: 'expediente_number', label: 'Expediente', defaultVisible: true,
+      key: 'expediente_number', label: 'Nº do Expediente - PGEA', defaultVisible: true,
       width: 'w-[200px]', sticky: 'left', sortable: true,
       render: (exp) => {
         const isUrgent = (() => {

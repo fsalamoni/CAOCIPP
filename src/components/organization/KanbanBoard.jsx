@@ -124,7 +124,7 @@ const DATE_SORT_KEYS = new Set([
 const PROCESS_SORT_OPTIONS = [
     { key: 'urgency_request', label: 'Urgência' },
     { key: 'entry_date', label: 'Entrada no órgão' },
-    { key: 'process_number', label: 'Número do processo' },
+    { key: 'process_number', label: 'Nº da Consulta - PGEA' },
     { key: 'consultant', label: 'Consulente' },
     { key: 'responsible_user_name', label: 'Responsável' },
 ];

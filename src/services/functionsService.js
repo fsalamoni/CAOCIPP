@@ -507,3 +507,11 @@ export const importParceriasFromExcel = async (data) => {
         throw error;
     }
 };
+
+// Nº do PGEA (Consultas e Expedientes): confere se o número já existe no
+// banco do órgão, arquivados inclusive.
+export const verificarNumeroPgea = async ({ organizationId, modulo, numero }) => {
+    const fn = httpsCallable(functions, 'verificarNumeroPgea');
+    const result = await fn({ organizationId, modulo, numero });
+    return result.data;
+};

@@ -128,7 +128,7 @@ const DATE_SORT_KEYS = new Set([
 const EXPEDIENTE_SORT_OPTIONS = [
     { key: 'urgency_request', label: 'Urgência' },
     { key: 'entry_date', label: 'Entrada no órgão' },
-    { key: 'expediente_number', label: 'Número do expediente' },
+    { key: 'expediente_number', label: 'Nº do Expediente - PGEA' },
     { key: 'system', label: 'Sistema' },
     { key: 'origin', label: 'Origem' },
     { key: 'responsible_user_name', label: 'Responsável' },

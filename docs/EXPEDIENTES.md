@@ -41,7 +41,7 @@ observações opcionais), em `ExpedienteKanbanTransitionDialog.jsx`.
 
 | Campo | Rótulo |
 |---|---|
-| `expediente_number` | Número do expediente |
+| `expediente_number` | Nº do Expediente - PGEA |
 | `system` | Sistema (lista do órgão) |
 | `origin` | Origem (lista do órgão) |
 | `entry_date` | Data de entrada |
@@ -50,6 +50,12 @@ observações opcionais), em `ExpedienteKanbanTransitionDialog.jsx`.
 | `responsible_user_id` / `responsible_user_name` | Assessor responsável |
 | `distribution_date`, `analysis_start_date`, `third_party_referral_date`, `third_party_recipient`, `review_submission_date`, `reviewed_date`, `review_return_date`, `archived_date` | Datas e destinatário das etapas |
 | `network_folder`, `observations` | Pasta na rede, observações |
+
+No **Novo Expediente**, o nº do PGEA é conferido no servidor contra todos os
+expedientes do órgão, arquivados inclusive, como nas Consultas (check verde se
+for novo; aviso com fase, responsável e **Entrar no expediente** se já
+existir). Detalhes em [CONSULTAS.md](./CONSULTAS.md#conferência-do-nº-do-pgea-na-criação).
+Consultas e Expedientes são conferidos cada um no seu banco.
 
 Aliases de nomes de coluna em `EXPEDIENTE_FIELD_ALIASES`
 (`src/utils/expedienteUtils.js`).

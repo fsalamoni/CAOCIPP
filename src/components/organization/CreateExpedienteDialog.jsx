@@ -20,9 +20,11 @@ import {
 } from "@/components/ui/select";
 import { Switch } from '@/components/ui/switch';
 import { format } from 'date-fns';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@/utils/logger';
+import { cn } from '@/lib/utils';
+import VerificacaoNumeroPgea from './VerificacaoNumeroPgea';
 
 // Default options (can be overridden by admin settings)
 const DEFAULT_SYSTEMS = ['SIM', 'SGP', 'SPU', 'E-mail'];
@@ -31,6 +33,7 @@ const DEFAULT_ORIGINS = ['SUBINST', 'SUBADM', 'Gabinete PGJ', 'SUBGES', 'Outros'
 export default function CreateExpedienteDialog({ open, setOpen, organization, members, onSuccess }) {
   const { user } = useAuth();
   const [isCreating, setIsCreating] = useState(false);
+  const [numeroEstado, setNumeroEstado] = useState('vazio');
   const [formData, setFormData] = useState({
     expediente_number: '',
     system: '',
@@ -112,15 +115,30 @@ export default function CreateExpedienteDialog({ open, setOpen, organization, me
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
           <div className="grid md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="expediente_number">Nº do Expediente *</Label>
-              <Input
-                id="expediente_number"
-                value={formData.expediente_number}
-                onChange={(e) => setFormData({ ...formData, expediente_number: e.target.value })}
-                placeholder="Número do expediente"
-                required
-                className="mt-1"
-              />
+              <Label htmlFor="expediente_number">Nº do Expediente - PGEA *</Label>
+              <div className="relative mt-1">
+                <Input
+                  id="expediente_number"
+                  value={formData.expediente_number}
+                  onChange={(e) => setFormData({ ...formData, expediente_number: e.target.value })}
+                  placeholder="Número do expediente"
+                  required
+                  aria-describedby="expediente_number_conferencia"
+                  className={cn(numeroEstado === 'novo' && 'pr-9 border-emerald-400 dark:border-emerald-600', numeroEstado === 'existe' && 'border-amber-400 dark:border-amber-600')}
+                />
+                {numeroEstado === 'novo' && (
+                  <Check className="absolute right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 text-emerald-600 dark:text-emerald-400" aria-label="Número novo" />
+                )}
+              </div>
+              <div id="expediente_number_conferencia">
+                <VerificacaoNumeroPgea
+                  organizationId={organization?.id}
+                  modulo="expedientes"
+                  numero={formData.expediente_number}
+                  onEstado={setNumeroEstado}
+                  onFechar={() => setOpen(false)}
+                />
+              </div>
             </div>
             <div>
               <Label htmlFor="system">Sistema *</Label>
@@ -231,9 +249,7 @@ export default function CreateExpedienteDialog({ open, setOpen, organization, me
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Criando...
                 </>
-              ) : (
-                'Criar Expediente'
-              )}
+              ) : numeroEstado === 'existe' ? 'Criar mesmo assim' : 'Criar Expediente'}
             </Button>
           </div>
         </form>

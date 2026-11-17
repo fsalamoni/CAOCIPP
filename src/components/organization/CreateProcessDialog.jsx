@@ -40,11 +40,13 @@ import { toast } from 'sonner';
 import { logger } from '@/utils/logger';
 
 import { RS_CITIES } from '@/utils/cities';
+import VerificacaoNumeroPgea from './VerificacaoNumeroPgea';
 
 export default function CreateProcessDialog({ open, setOpen, organization, members, onSuccess }) {
   const { user } = useAuth();
   const [isCreating, setIsCreating] = useState(false);
   const [locationOpen, setLocationOpen] = useState(false);
+  const [numeroEstado, setNumeroEstado] = useState('vazio');
   const [formData, setFormData] = useState({
     process_number: '',
     consultant: '',
@@ -99,13 +101,13 @@ export default function CreateProcessDialog({ open, setOpen, organization, membe
 
       await createProcess(mappedData);
 
-      toast.success('Processo criado com sucesso!');
+      toast.success('Consulta criada com sucesso!');
       setOpen(false);
       resetForm();
       if (onSuccess) onSuccess();
     } catch (error) {
       logger.error('Error creating process:', error);
-      toast.error('Erro ao criar processo: ' + error.message);
+      toast.error('Erro ao criar consulta: ' + error.message);
     } finally {
       setIsCreating(false);
     }
@@ -124,20 +126,35 @@ export default function CreateProcessDialog({ open, setOpen, organization, membe
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Novo Processo</DialogTitle>
+          <DialogTitle>Nova Consulta</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
           <div className="grid md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="process_number">Nº do Processo *</Label>
-              <Input
-                id="process_number"
-                value={formData.process_number}
-                onChange={(e) => setFormData({ ...formData, process_number: e.target.value })}
-                placeholder="00021.000.125/2024"
-                required
-                className="mt-1"
-              />
+              <Label htmlFor="process_number">Nº da Consulta - PGEA *</Label>
+              <div className="relative mt-1">
+                <Input
+                  id="process_number"
+                  value={formData.process_number}
+                  onChange={(e) => setFormData({ ...formData, process_number: e.target.value })}
+                  placeholder="00021.000.125/2024"
+                  required
+                  aria-describedby="process_number_conferencia"
+                  className={cn(numeroEstado === 'novo' && 'pr-9 border-emerald-400 dark:border-emerald-600', numeroEstado === 'existe' && 'border-amber-400 dark:border-amber-600')}
+                />
+                {numeroEstado === 'novo' && (
+                  <Check className="absolute right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 text-emerald-600 dark:text-emerald-400" aria-label="Número novo" />
+                )}
+              </div>
+              <div id="process_number_conferencia">
+                <VerificacaoNumeroPgea
+                  organizationId={organization?.id}
+                  modulo="consultas"
+                  numero={formData.process_number}
+                  onEstado={setNumeroEstado}
+                  onFechar={() => setOpen(false)}
+                />
+              </div>
             </div>
             <div>
               <Label htmlFor="consultant">Consulente *</Label>
@@ -275,7 +292,7 @@ export default function CreateProcessDialog({ open, setOpen, organization, membe
           <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
             <div>
               <Label htmlFor="urgency_request" className="cursor-pointer">Pedido de Urgência</Label>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Marcar este processo como urgente</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Marcar esta consulta como urgente</p>
             </div>
             <Switch
               id="urgency_request"
@@ -298,9 +315,7 @@ export default function CreateProcessDialog({ open, setOpen, organization, membe
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Criando...
                 </>
-              ) : (
-                'Criar Processo'
-              )}
+              ) : numeroEstado === 'existe' ? 'Criar mesmo assim' : 'Criar Consulta'}
             </Button>
           </div>
         </form>
