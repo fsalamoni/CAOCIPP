@@ -85,7 +85,7 @@ existir e estar ligada a ele.
 
 | Campo | Rótulo | Observação |
 |---|---|---|
-| `process_number` | Número | Identificador da consulta. |
+| `process_number` | Nº da Consulta - PGEA | Identificador da consulta (número do PGEA). |
 | `consultant` | Consulente | Quem fez a consulta. |
 | `location` | Local | Município (lista do RS em `src/utils/cities.js`). |
 | `entry_date` | Data de entrada | |
@@ -98,6 +98,29 @@ existir e estar ligada a ele.
 | `access_restriction` | Restrição de acesso | Rótulo de sigilo; ver limite em [SECURITY_REFERENCE.md](./SECURITY_REFERENCE.md#3-lgpd-e-proteção-de-dados). |
 | `decision`, `observations` | Decisão, Observações | |
 | `activity_log` | Histórico | Espelhado em `processes/{id}/history`. |
+
+### Conferência do nº do PGEA na criação
+
+No **+ Adicionar Consulta**, o número digitado é conferido no servidor
+(`verificarNumeroPgea`, em `functions-v2/src/registros/verificarNumero.ts`)
+contra todas as consultas do órgão, arquivadas inclusive, cerca de meio
+segundo depois de parar de digitar. A comparação ignora pontos, barras,
+espaços e zeros à esquerda (`normalizarNumeroPgea` em
+`functions-v2/src/shared/registrosPgea.ts`): `00021.000.125/2024` e
+`21000125/2024` são o mesmo número.
+
+- **Número novo:** sinal de certo verde no campo e o aviso "Número novo ... É
+  um procedimento novo".
+- **Número que já existe:** aviso com cada consulta que tem o número, sua fase,
+  quem é (ou era, se arquivada) o responsável e a data de entrada, e o botão
+  **Entrar na consulta**, que fecha o cadastro e abre a ficha dela. O cadastro
+  não é bloqueado: o botão passa a dizer **Criar mesmo assim**.
+- Se a conferência falhar (sem rede), o aviso diz que não foi possível
+  conferir e o cadastro segue normal.
+
+Só confere quem é membro ativo do órgão; o servidor devolve apenas número,
+fase, responsável e entrada. Cada conferência lê os registros do órgão (só
+esses campos); a importação por planilha não passa por ela.
 
 Os nomes de campo aceitam variações (planilhas antigas, nomes em português)
 graças aos aliases de `getProcessField` em `src/utils/processUtils.js` e

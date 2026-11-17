@@ -1,0 +1,451 @@
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.salvarUnidade = salvarUnidade;
+exports.excluirUnidade = excluirUnidade;
+exports.obterUnidadeDocumento = obterUnidadeDocumento;
+exports.salvarUnidadeDocumento = salvarUnidadeDocumento;
+exports.convidarEquipe = convidarEquipe;
+exports.revogarConviteEquipe = revogarConviteEquipe;
+exports.convitesPendentes = convitesPendentes;
+exports.pedirLotacao = pedirLotacao;
+exports.decidirPedido = decidirPedido;
+exports.verConviteEquipe = verConviteEquipe;
+exports.aceitarConviteEquipe = aceitarConviteEquipe;
+const admin = __importStar(require("firebase-admin"));
+const crypto_1 = require("crypto");
+const firestore_1 = require("firebase-admin/firestore");
+const https_1 = require("firebase-functions/v2/https");
+const secretaria_1 = require("../shared/secretaria");
+const normalization_1 = require("../shared/normalization");
+const email_1 = require("../shared/email");
+const context_1 = require("./context");
+const autos_1 = require("./autos");
+const documentoConfig_1 = require("./documentoConfig");
+const orgaos_1 = require("../shared/orgaos");
+const orgaos_2 = require("./orgaos");
+const exigencias_1 = require("../shared/exigencias");
+/**
+ * Unidades de lotação do Processo Eletrônico: dados, equipe (lotações com
+ * atribuição e gestão), convites, pedidos de lotação e papel timbrado/tipos
+ * de documento próprios. O admin do órgão faz tudo; o gestor da unidade
+ * cuida da equipe, do timbrado e dos modelos dela.
+ */
+const MAX_UNIDADES = 100;
+const MAX_PEDIDOS = 50;
+const CONVITE_DIAS = 7;
+const escapar = (s) => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
+const hashToken = (t) => (0, crypto_1.createHash)('sha256').update(t).digest('hex');
+/** Confere que todas as pessoas são membros ativos do órgão. */
+async function exigirMembros(c, uids) {
+    if (!uids.length)
+        return;
+    const snaps = await c.db.getAll(...uids.map((uid) => c.db.collection('userOrganizations').doc(`${uid}_${c.orgId}`)));
+    const fora = snaps.filter((s) => { var _a; return !s.exists || ((_a = s.data()) === null || _a === void 0 ? void 0 : _a.active) === false; }).length;
+    if (fora)
+        throw new https_1.HttpsError('invalid-argument', `${fora} pessoa(s) não são membros ativos do órgão`);
+}
+/** Campos a gravar quando as lotações mudam (membros_uids segue em sincronia). */
+const camposLotacao = (lotacoes) => ({ lotacoes, membros_uids: lotacoes.map((l) => l.uid) });
+async function salvarUnidade(c, p, uid, auditar) {
+    var _a;
+    const u = (p.unidade && typeof p.unidade === 'object' ? p.unidade : {});
+    const lotacoes = (0, secretaria_1.sanitizeLotacoes)((_a = u.lotacoes) !== null && _a !== void 0 ? _a : (Array.isArray(u.membros_uids) ? u.membros_uids.map((x) => ({ uid: x })) : []));
+    await exigirMembros(c, lotacoes.map((l) => l.uid));
+    const agora = firestore_1.FieldValue.serverTimestamp();
+    // Órgão interno a que a unidade pertence (vazio = ligada direto à entidade).
+    const orgaoId = String(u.orgao_id || '');
+    if (c.ctx.isAdmin && orgaoId && !(await (0, orgaos_2.lerOrgaos)(c.db, c.orgId)).some((o) => o.id === orgaoId)) {
+        throw new https_1.HttpsError('invalid-argument', 'Órgão interno inválido');
+    }
+    const competencias = (0, orgaos_1.sanitizeCompetencias)(u.competencias);
+    if (p.id) {
+        const atual = (0, context_1.exigirGestor)(c, p.id);
+        // O gestor cuida da equipe e da descrição; nome, tipo, ativação e
+        // órgão são do admin da entidade ou de quem administra o órgão da unidade.
+        const estrutura = (0, context_1.administraOrgao)(c, atual.orgao_id);
+        // Delegado só leva a unidade para outro órgão que administra (nunca direto à entidade).
+        if (estrutura && !c.ctx.isAdmin && 'orgao_id' in u)
+            (0, context_1.exigirAdminDoOrgao)(c, orgaoId || null);
+        const dados = estrutura
+            ? Object.assign(Object.assign({ nome: (0, secretaria_1.texto)(u.nome) || atual.nome, sigla: (0, secretaria_1.texto)(u.sigla, 20), tipo: (0, secretaria_1.tipoUnidade)(u.tipo), ativa: u.ativa !== false }, ('orgao_id' in u ? { orgao_id: orgaoId || null } : {})), ('papeis' in u ? { papeis: (0, secretaria_1.sanitizePapeis)(u.papeis, (0, secretaria_1.tipoUnidade)(u.tipo)) } : {})) : {};
+        if (estrutura && !(0, secretaria_1.texto)(u.nome))
+            throw new https_1.HttpsError('invalid-argument', 'A unidade precisa de um nome');
+        // Unidade inativa não movimenta: desativar com processo em andamento deixaria o processo preso.
+        if (dados.ativa === false && atual.ativa !== false) {
+            const base = c.db.collection(context_1.COL.processos).where('organization_id', '==', c.orgId).where('unidade_atual', '==', atual.id);
+            const [todos, arquivados] = await Promise.all([base.count().get(), base.where('status', '==', 'arquivado').count().get()]);
+            const presos = todos.data().count - arquivados.data().count;
+            if (presos > 0) {
+                throw new https_1.HttpsError('failed-precondition', `A unidade tem ${presos} processo(s) em andamento. Envie-os para outra unidade antes de desativá-la.`);
+            }
+        }
+        // Quem salva parte da equipe que carregou (`lotacoes_base`): só o que essa
+        // pessoa mudou vale sobre a equipe atual, sem desfazer admissões feitas no meio-tempo.
+        const ref = c.db.collection(context_1.COL.unidades).doc(atual.id);
+        let removidos = [];
+        let total = 0;
+        await c.db.runTransaction(async (tx) => {
+            const atuais = (0, secretaria_1.lotacoesDe)((await tx.get(ref)).data() || {});
+            const final = (0, secretaria_1.sanitizeLotacoes)(Array.isArray(p.lotacoes_base) ? (0, secretaria_1.mesclarLotacoes)(atuais, (0, secretaria_1.sanitizeLotacoes)(p.lotacoes_base), lotacoes) : lotacoes);
+            // Gestor não tira a própria gestão (evita unidade sem ninguém que a gerencie por engano).
+            if (!estrutura && !final.some((l) => l.uid === uid && l.gestor)) {
+                throw new https_1.HttpsError('failed-precondition', 'Você não pode tirar a sua própria gestão da unidade; peça ao admin do órgão');
+            }
+            removidos = atuais.filter((l) => !final.some((x) => x.uid === l.uid)).map((l) => l.uid);
+            total = final.length;
+            tx.update(ref, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, dados), { descricao: (0, secretaria_1.texto)(u.descricao, 500) }), ('competencias' in u ? { competencias } : {})), camposLotacao(final)), { updated_at: agora, updated_by: uid }));
+        });
+        const liberados = await liberarResponsaveis(c, atual.id, removidos);
+        await auditar('SECRETARIA_UNIDADE_SALVA', Object.assign({ unidade_id: atual.id, nome: dados.nome || atual.nome, lotacoes: total }, (liberados ? { atribuicoes_removidas: liberados } : {})));
+        return { success: true, id: atual.id, atribuicoes_removidas: liberados };
+    }
+    // Unidade nova: o admin da entidade, ou o delegado dentro de um órgão que administra.
+    (0, context_1.exigirAdminDoOrgao)(c, orgaoId || null);
+    const nome = (0, secretaria_1.texto)(u.nome);
+    if (!nome)
+        throw new https_1.HttpsError('invalid-argument', 'A unidade precisa de um nome');
+    if (c.unidades.filter((x) => !x.excluida).length >= MAX_UNIDADES)
+        throw new https_1.HttpsError('resource-exhausted', 'Limite de unidades atingido');
+    const ref = await c.db.collection(context_1.COL.unidades).add(Object.assign(Object.assign({ organization_id: c.orgId, nome, sigla: (0, secretaria_1.texto)(u.sigla, 20), tipo: (0, secretaria_1.tipoUnidade)(u.tipo), descricao: (0, secretaria_1.texto)(u.descricao, 500), papeis: (0, secretaria_1.sanitizePapeis)(u.papeis, (0, secretaria_1.tipoUnidade)(u.tipo)), orgao_id: orgaoId || null, competencias, ativa: u.ativa !== false }, camposLotacao(lotacoes)), { pedidos: [], created_at: agora, created_by: uid }));
+    await auditar('SECRETARIA_UNIDADE_SALVA', { unidade_id: ref.id, nome, lotacoes: lotacoes.length });
+    return { success: true, id: ref.id };
+}
+/**
+ * Quem saiu da equipe deixa de ser responsável pelos processos da unidade:
+ * a atribuição desfeita fica registrada (registro de controle, fora dos autos).
+ */
+async function liberarResponsaveis(c, unidadeId, uids) {
+    let n = 0;
+    for (let i = 0; i < uids.length; i += 30) {
+        const snap = await c.db.collection(context_1.COL.processos).where('organization_id', '==', c.orgId).where('unidade_atual', '==', unidadeId)
+            .where('responsavel_uid', 'in', uids.slice(i, i + 30)).limit(500).get();
+        for (const d of snap.docs) {
+            n += await c.db.runTransaction(async (tx) => {
+                const data = (await tx.get(d.ref)).data();
+                if (!data || data.unidade_atual !== unidadeId || !uids.includes(data.responsavel_uid))
+                    return 0;
+                const mov = (0, context_1.registrarMovimento)(tx, c, d.ref, data, 'atribuicao', 'Atribuição removida: a pessoa responsável deixou a equipe da unidade.', Object.assign({ responsavel_uid: null, automatico: true }, (0, exigencias_1.marcasNaFase)(data, 'atribuicao')));
+                tx.update(d.ref, Object.assign(Object.assign({}, mov), { responsavel_uid: null }));
+                return 1;
+            });
+        }
+    }
+    return n;
+}
+const MAX_SUCESSAO = 500;
+const MAX_LOTE = 400; // como removerOrgao (orgaos.ts)
+/**
+ * Exclui a unidade. Nada se apaga: ela some das listas e da escolha de destino,
+ * mas o nome continua nos autos. Processos dela vão para a sucessora, com termo
+ * de remessa e as minutas junto. Modelos dela, tipos que entram por ela e fases
+ * de rito que correm nela passam para a sucessora. Sem sucessora, os modelos vão,
+ * inativos, para o órgão interno dela (ou o órgão); os tipos entram pela unidade
+ * de quem autua e as fases correm na unidade que estiver com o processo.
+ * Processos já autuados guardam a cópia das fases e não mudam. A equipe, os
+ * pedidos e os convites em aberto deixam de valer. `simular` só devolve o
+ * impacto. Admin exclui qualquer unidade; quem a criou, só a que não tem
+ * processo nem é usada por tipo ou fase de rito.
+ */
+async function excluirUnidade(c, p, uid, auditar) {
+    const u = c.unidades.find((x) => x.id === String(p.id || '') && !x.excluida);
+    if (!u)
+        throw new https_1.HttpsError('not-found', 'Unidade não encontrada');
+    if (!c.ctx.isAdmin && u.created_by !== uid)
+        throw new https_1.HttpsError('permission-denied', 'Só o admin do órgão ou quem criou a unidade pode excluí-la');
+    const doOrgao = (col) => c.db.collection(col).where('organization_id', '==', c.orgId);
+    const [procs, modelos, tipos, ritosSnap, convites, orgaos] = await Promise.all([
+        doOrgao(context_1.COL.processos).where('unidade_atual', '==', u.id).limit(MAX_SUCESSAO + 1).get(),
+        doOrgao(context_1.COL.modelos).where('unidade_id', '==', u.id).select('excluido').get(),
+        doOrgao(context_1.COL.tipos).where('unidade_inicial', '==', u.id).select('excluido', 'orgao_id').get(),
+        doOrgao(context_1.COL.ritos).select('nome', 'fases', 'excluido').get(),
+        doOrgao(context_1.COL.convitesEquipe).where('unidade_id', '==', u.id).get(),
+        (0, orgaos_2.lerOrgaos)(c.db, c.orgId),
+    ]);
+    const vivo = (d) => d.data().excluido !== true;
+    // Itens na lixeira também mudam (se restaurados, não podem apontar para unidade excluída), mas só os vivos contam e bloqueiam.
+    const ritos = ritosSnap.docs.map((d) => ({ d, n: (0, secretaria_1.trocarUnidadeDasFases)(d.data().fases, u.id, null).trocadas })).filter((r) => r.n > 0);
+    const ritosVivos = ritos.filter((r) => vivo(r.d));
+    const tiposVivos = tipos.docs.filter(vivo).length;
+    const abertos = convites.docs.filter((d) => !d.data().usado_por && !d.data().revogado);
+    const orgao = orgaos.find((o) => o.id === u.orgao_id) || null;
+    const arquivados = procs.docs.filter((d) => d.data().status === 'arquivado').length;
+    if (p.simular === true) {
+        return {
+            processos: procs.size, arquivados, em_andamento: procs.size - arquivados, modelos: modelos.docs.filter(vivo).length, equipe: (0, secretaria_1.lotacoesDe)(u).length,
+            pode_mover: c.ctx.isAdmin, tipos: tiposVivos,
+            ritos: ritosVivos.map((r) => ({ id: r.d.id, nome: String(r.d.data().nome || ''), fases: r.n })),
+            orgao: (orgao === null || orgao === void 0 ? void 0 : orgao.nome) || null,
+        };
+    }
+    // Tipos e ritos são configuração do órgão: só o admin os reatribui.
+    if (!c.ctx.isAdmin && (procs.size || tiposVivos || ritosVivos.length)) {
+        throw new https_1.HttpsError('permission-denied', 'A unidade tem processos ou é usada por tipos de processo e fases de rito. Só o admin do órgão pode excluí-la.');
+    }
+    const sucId = String(p.sucessora || '');
+    const sucessora = sucId ? c.unidades.find((x) => x.id === sucId && x.id !== u.id && x.ativa !== false && !x.excluida) || null : null;
+    if (sucId && !sucessora)
+        throw new https_1.HttpsError('invalid-argument', 'A unidade escolhida para receber não está ativa');
+    if (sucessora && !c.ctx.isAdmin && !c.gestorDe.includes(sucessora.id))
+        throw new https_1.HttpsError('permission-denied', 'Escolha uma unidade que você gere');
+    if (procs.size > MAX_SUCESSAO)
+        throw new https_1.HttpsError('resource-exhausted', `A unidade tem mais de ${MAX_SUCESSAO} processos. Envie parte deles antes de excluí-la.`);
+    if (procs.size && !sucessora)
+        throw new https_1.HttpsError('invalid-argument', `Escolha a unidade ativa que recebe os ${procs.size} processo(s) desta unidade.`);
+    if (1 + modelos.size + tipos.size + ritos.length + abertos.length > MAX_LOTE) {
+        throw new https_1.HttpsError('resource-exhausted', 'A unidade tem itens demais ligados a ela para excluir de uma vez. Mova ou exclua parte dos modelos antes.');
+    }
+    // Validado tudo antes: nenhum processo sai se a exclusão for recusada. Repetir é seguro (os já movidos não voltam na consulta).
+    for (const d of procs.docs) {
+        await c.db.runTransaction(async (tx) => {
+            const data = (await tx.get(d.ref)).data();
+            if (!data || data.unidade_atual !== u.id)
+                return;
+            const minutas = (await tx.get(d.ref.collection('documentos').where('status', '==', 'minuta'))).docs
+                .filter((m) => (0, secretaria_1.minutaAcessivel)(m.data(), [u.id]));
+            const mov = (0, context_1.registrarMovimento)(tx, c, d.ref, data, 'tramitacao', `Remetido de ${u.nome} para ${sucessora.nome}, por exclusão da unidade.`, Object.assign({ de: u.id, para: sucessora.id, exclusao_unidade: true }, (minutas.length ? { minutas: minutas.map((m) => m.id) } : {})));
+            minutas.forEach((m) => tx.update(m.ref, { unidades_acesso: firestore_1.FieldValue.arrayUnion(sucessora.id) }));
+            tx.update(d.ref, Object.assign(Object.assign({}, mov), { unidade_atual: sucessora.id, unidades_historico: firestore_1.FieldValue.arrayUnion(sucessora.id), responsavel_uid: null, recebido_em: new Date().toISOString() }));
+        });
+    }
+    const agora = firestore_1.FieldValue.serverTimestamp();
+    const para = (sucessora === null || sucessora === void 0 ? void 0 : sucessora.id) || null;
+    const orgaoSuc = (sucessora === null || sucessora === void 0 ? void 0 : sucessora.orgao_id) || null;
+    const b = c.db.batch();
+    // Modelos, tipos e ritos foram lidos antes de mover os processos (pode levar segundos): só grava se ninguém os mudou desde então.
+    const igual = (d) => ({ lastUpdateTime: d.updateTime });
+    b.update(c.db.collection(context_1.COL.unidades).doc(u.id), Object.assign(Object.assign({ excluida: true, ativa: false }, camposLotacao([])), { pedidos: [], excluida_em: new Date().toISOString(), excluida_por: uid, updated_at: agora, updated_by: uid }));
+    // Sem sucessora, o modelo vira do órgão, inativo: o admin revê antes de valer para todas as unidades.
+    modelos.docs.forEach((d) => b.update(d.ref, para
+        ? { unidade_id: para, orgao_id: null, updated_at: agora, updated_by: uid }
+        : { unidade_id: null, orgao_id: (orgao === null || orgao === void 0 ? void 0 : orgao.id) || null, ativo: false, updated_at: agora, updated_by: uid }, igual(d)));
+    tipos.docs.forEach((d) => {
+        // Tipo de órgão interno só autua por unidade dele (processos.ts, autuar).
+        const oT = d.data().orgao_id || null;
+        const preso = oT && oT !== orgaoSuc && orgaos.some((o) => o.id === oT);
+        b.update(d.ref, { unidade_inicial: para && !preso ? para : null, updated_at: agora, updated_by: uid }, igual(d));
+    });
+    // ponytail: troca sem versão nova do rito ou do tipo (como removerOrgao); a auditoria registra. Versionar se o histórico precisar mostrar.
+    ritos.forEach(({ d }) => b.update(d.ref, { fases: (0, secretaria_1.trocarUnidadeDasFases)(d.data().fases, u.id, para).fases, updated_at: agora, updated_by: uid }, igual(d)));
+    abertos.forEach((d) => b.update(d.ref, { revogado: true }));
+    try {
+        await b.commit();
+    }
+    catch (e) {
+        // Os processos já movidos ficam na sucessora; repetir termina o resto com a configuração nova.
+        if (e.code === 9)
+            throw new https_1.HttpsError('aborted', 'Um modelo, tipo ou rito ligado à unidade mudou enquanto ela era excluída. Os processos já foram enviados; tente excluir de novo.');
+        throw e;
+    }
+    const fases = ritos.reduce((s, r) => s + r.n, 0);
+    await auditar('SECRETARIA_UNIDADE_EXCLUIDA', { unidade_id: u.id, nome: u.nome, processos: procs.size, sucessora: para, modelos: modelos.size, tipos: tipos.size, ritos: ritos.map((r) => r.d.id), fases });
+    return { success: true, processos: procs.size, sucessora: (sucessora === null || sucessora === void 0 ? void 0 : sucessora.nome) || null, modelos: modelos.size, tipos: tipos.size, fases };
+}
+async function obterUnidadeDocumento(c, p) {
+    const u = (0, context_1.exigirGestor)(c, p.unidadeId);
+    const d = (await c.db.collection(context_1.COL.unidadeConfig).doc(u.id).get()).data() || {};
+    return {
+        timbrado_proprio: d.timbrado_proprio === true,
+        documento: d.documento ? (0, documentoConfig_1.sanitizeDocumentoConfig)(d.documento, { semTiposPadrao: true }) : null,
+        tipos_documento: Array.isArray(d.tipos_documento) ? d.tipos_documento : [],
+    };
+}
+async function salvarUnidadeDocumento(c, p, uid, auditar) {
+    const u = (0, context_1.exigirGestor)(c, p.unidadeId);
+    let documento = null;
+    try {
+        documento = p.documento ? (0, documentoConfig_1.sanitizeDocumentoConfig)(p.documento, { semTiposPadrao: true }) : null;
+    }
+    catch (e) {
+        (0, context_1.erroUsuario)(e);
+    }
+    const tipos = [...new Set((Array.isArray(p.tipos_documento) ? p.tipos_documento : []).map((t) => (0, secretaria_1.texto)(t, 60)).filter(Boolean))].slice(0, 60);
+    const proprio = p.timbrado_proprio === true && !!documento;
+    await c.db.collection(context_1.COL.unidadeConfig).doc(u.id).set({
+        organization_id: c.orgId, unidade_id: u.id, timbrado_proprio: proprio,
+        documento: documento ? Object.assign(Object.assign({}, documento), { tipos_documento: [] }) : null,
+        tipos_documento: tipos, updated_at: firestore_1.FieldValue.serverTimestamp(), updated_by: uid,
+    });
+    await auditar('SECRETARIA_UNIDADE_DOCUMENTO', { unidade_id: u.id, timbrado_proprio: proprio, tipos: tipos.length });
+    return { success: true };
+}
+async function convidarEquipe(c, p, uid, auditar) {
+    const u = (0, context_1.exigirGestor)(c, p.unidadeId);
+    const email = (0, secretaria_1.texto)(p.email, 120).toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+        throw new https_1.HttpsError('invalid-argument', 'Informe um e-mail válido');
+    const token = (0, crypto_1.randomBytes)(24).toString('base64url');
+    const hash = hashToken(token);
+    const expira = new Date(Date.now() + CONVITE_DIAS * 86400000).toISOString();
+    await c.db.collection(context_1.COL.convitesEquipe).doc(hash).set({
+        organization_id: c.orgId, unidade_id: u.id, unidade_nome: u.nome, email,
+        atribuicao: (0, secretaria_1.texto)(p.atribuicao, 80), gestor: p.gestor === true,
+        expira_em: expira, criado_por: uid, criado_por_nome: c.userName, criado_em: firestore_1.FieldValue.serverTimestamp(), usado_por: null, revogado: false,
+    });
+    const link = `${autos_1.APP_URL}/ProcessoEletronico?equipe=${token}`;
+    const orgao = String(c.org.name || '');
+    const enviado = await (0, email_1.sendEmail)({
+        to: email,
+        subject: `Convite para a equipe de ${u.nome} (${orgao})`,
+        html: `<p>Olá.</p><p>${escapar(c.userName)} convidou você para a unidade <b>${escapar(String(u.nome))}</b> do Processo Eletrônico de <b>${escapar(orgao)}</b>${p.atribuicao ? `, com a atribuição <b>${escapar((0, secretaria_1.texto)(p.atribuicao, 80))}</b>` : ''}.</p><p><a href="${link}">Aceitar o convite</a> (vale por ${CONVITE_DIAS} dias). Entre com a conta Google deste e-mail.</p><p>Se você não esperava este e-mail, ignore-o.</p>`,
+    }).catch(() => false);
+    await auditar('SECRETARIA_EQUIPE_CONVITE', { unidade_id: u.id, email });
+    return { success: true, link, emailEnviado: enviado, expira_em: expira };
+}
+async function revogarConviteEquipe(c, p, auditar) {
+    const ref = c.db.collection(context_1.COL.convitesEquipe).doc((0, secretaria_1.texto)(p.id, 80) || '_');
+    const d = (await ref.get()).data();
+    if (!d || d.organization_id !== c.orgId)
+        throw new https_1.HttpsError('not-found', 'Convite não encontrado');
+    (0, context_1.exigirGestor)(c, d.unidade_id);
+    await ref.update({ revogado: true });
+    await auditar('SECRETARIA_EQUIPE_CONVITE_REVOGADO', { unidade_id: d.unidade_id, email: d.email });
+    return { success: true };
+}
+/** Convites pendentes das unidades que a pessoa gere (todas, para o admin). */
+async function convitesPendentes(c) {
+    if (!c.ctx.isAdmin && !c.gestorDe.length)
+        return [];
+    const snap = await c.db.collection(context_1.COL.convitesEquipe).where('organization_id', '==', c.orgId).get();
+    const agora = new Date().toISOString();
+    return snap.docs
+        .map((d) => (Object.assign({ id: d.id }, d.data())))
+        .filter((d) => !d.usado_por && !d.revogado && String(d.expira_em) > agora)
+        .filter((d) => c.ctx.isAdmin || c.gestorDe.includes(String(d.unidade_id)))
+        .map((d) => ({ id: d.id, unidade_id: d.unidade_id, email: d.email, atribuicao: d.atribuicao || '', gestor: d.gestor === true, expira_em: d.expira_em }));
+}
+/** Membro do órgão pede para ser lotado numa unidade; a gestão admite ou recusa. */
+async function pedirLotacao(c, p, uid, email) {
+    const ref = c.db.collection(context_1.COL.unidades).doc(String(p.unidadeId || '_'));
+    await c.db.runTransaction(async (tx) => {
+        const u = (await tx.get(ref)).data();
+        if (!u || u.organization_id !== c.orgId || u.ativa === false)
+            throw new https_1.HttpsError('not-found', 'Unidade não encontrada');
+        if ((0, secretaria_1.lotacoesDe)(u).some((l) => l.uid === uid))
+            throw new https_1.HttpsError('already-exists', 'Você já está lotado nesta unidade');
+        const pedidos = (Array.isArray(u.pedidos) ? u.pedidos : []).filter((x) => x.uid !== uid);
+        if (pedidos.length >= MAX_PEDIDOS)
+            throw new https_1.HttpsError('resource-exhausted', 'A unidade tem pedidos demais em aberto');
+        pedidos.push({ uid, nome: c.userName, email, mensagem: (0, secretaria_1.texto)(p.mensagem, 300), em: new Date().toISOString() });
+        tx.update(ref, { pedidos });
+    });
+    return { success: true };
+}
+async function decidirPedido(c, p, uid, auditar) {
+    const u0 = (0, context_1.exigirGestor)(c, p.unidadeId);
+    const alvo = (0, secretaria_1.texto)(p.uid, 128);
+    const admitir = p.admitir === true;
+    if (admitir)
+        await exigirMembros(c, [alvo]);
+    const ref = c.db.collection(context_1.COL.unidades).doc(u0.id);
+    await c.db.runTransaction(async (tx) => {
+        const u = (await tx.get(ref)).data() || {};
+        const pedidos = (Array.isArray(u.pedidos) ? u.pedidos : []);
+        if (!pedidos.some((x) => x.uid === alvo))
+            throw new https_1.HttpsError('not-found', 'Pedido não encontrado');
+        const lotacoes = (0, secretaria_1.lotacoesDe)(u);
+        if (admitir && !lotacoes.some((l) => l.uid === alvo)) {
+            lotacoes.push({ uid: alvo, atribuicao: (0, secretaria_1.texto)(p.atribuicao, 80), gestor: false });
+        }
+        tx.update(ref, Object.assign(Object.assign({ pedidos: pedidos.filter((x) => x.uid !== alvo) }, camposLotacao(lotacoes)), { updated_at: firestore_1.FieldValue.serverTimestamp(), updated_by: uid }));
+    });
+    await auditar(admitir ? 'SECRETARIA_LOTACAO_ADMITIDA' : 'SECRETARIA_LOTACAO_RECUSADA', { unidade_id: u0.id, uid: alvo });
+    return { success: true };
+}
+/** Prévia do convite (antes do aceite): órgão, unidade e validade. */
+async function verConviteEquipe(token) {
+    const d = (await admin.firestore().collection(context_1.COL.convitesEquipe).doc(hashToken(String(token || ''))).get()).data();
+    if (!d)
+        throw new https_1.HttpsError('not-found', 'Convite não encontrado');
+    const org = (await admin.firestore().collection('organizations').doc(d.organization_id).get()).data() || {};
+    const valido = !d.usado_por && !d.revogado && String(d.expira_em) > new Date().toISOString();
+    return {
+        valido, orgao: String(org.name || ''), organizationId: d.organization_id, unidade: d.unidade_nome, email: d.email,
+        atribuicao: d.atribuicao || '', convidado_por: d.criado_por_nome || '', expira_em: d.expira_em, usado: !!d.usado_por,
+    };
+}
+/**
+ * Aceite do convite de equipe: cria (ou reativa) o vínculo com o órgão e
+ * lota a pessoa na unidade. Exige a conta do e-mail convidado.
+ */
+async function aceitarConviteEquipe(auth, token) {
+    const db = admin.firestore();
+    const ref = db.collection(context_1.COL.convitesEquipe).doc(hashToken(String(token || '')));
+    const email = String(auth.token.email || '').toLowerCase();
+    const nome = (0, normalization_1.formatPersonName)(String(auth.token.name || '')) || email;
+    const r = await db.runTransaction(async (tx) => {
+        var _a, _b;
+        const d = (await tx.get(ref)).data();
+        if (!d)
+            throw new https_1.HttpsError('not-found', 'Convite não encontrado');
+        if (d.usado_por || d.revogado || String(d.expira_em) <= new Date().toISOString()) {
+            throw new https_1.HttpsError('failed-precondition', 'Este convite já foi usado, foi revogado ou expirou. Peça um novo.');
+        }
+        if (!email || email !== d.email) {
+            throw new https_1.HttpsError('permission-denied', `Este convite é para ${d.email}. Entre com a conta desse e-mail.`);
+        }
+        const orgId = d.organization_id;
+        const unRef = db.collection(context_1.COL.unidades).doc(d.unidade_id);
+        const memRef = db.collection('userOrganizations').doc(`${auth.uid}_${orgId}`);
+        const [un, mem, perfil] = await Promise.all([tx.get(unRef), tx.get(memRef), tx.get(db.collection('users').doc(auth.uid))]);
+        const u = un.data();
+        if (!u || u.ativa === false)
+            throw new https_1.HttpsError('failed-precondition', 'A unidade do convite não está mais ativa');
+        const funcao = String(((_a = perfil.data()) === null || _a === void 0 ? void 0 : _a.function) || '').trim() || 'Membro';
+        if (!mem.exists) {
+            tx.set(memRef, {
+                id: `${auth.uid}_${orgId}`, user_id: auth.uid, organization_id: orgId, user_email: email, user_name: nome,
+                role: 'member', function: funcao, active: true, joined_at: firestore_1.FieldValue.serverTimestamp(), via: 'convite_equipe',
+            });
+            tx.update(db.collection('organizations').doc(orgId), { 'stats.members_count': firestore_1.FieldValue.increment(1) });
+        }
+        else if (((_b = mem.data()) === null || _b === void 0 ? void 0 : _b.active) === false) {
+            tx.update(memRef, { active: true, role: 'member', joined_at: firestore_1.FieldValue.serverTimestamp(), left_at: firestore_1.FieldValue.delete() });
+            tx.update(db.collection('organizations').doc(orgId), { 'stats.members_count': firestore_1.FieldValue.increment(1) });
+        }
+        const lotacoes = (0, secretaria_1.lotacoesDe)(u).filter((l) => l.uid !== auth.uid);
+        lotacoes.push({ uid: auth.uid, atribuicao: String(d.atribuicao || ''), gestor: d.gestor === true });
+        const pedidos = (Array.isArray(u.pedidos) ? u.pedidos : []).filter((x) => x.uid !== auth.uid);
+        tx.update(unRef, Object.assign(Object.assign({}, camposLotacao(lotacoes)), { pedidos }));
+        tx.update(ref, { usado_por: auth.uid, usado_em: firestore_1.FieldValue.serverTimestamp() });
+        return { orgId, unidade: String(u.nome) };
+    });
+    await db.collection('auditLogs').add({
+        organization_id: r.orgId, user_id: auth.uid, user_name: nome, action: 'SECRETARIA_EQUIPE_CONVITE_ACEITO',
+        details: { unidade: r.unidade }, timestamp: firestore_1.FieldValue.serverTimestamp(),
+    });
+    return { success: true, organizationId: r.orgId, unidade: r.unidade };
+}
+//# sourceMappingURL=unidades.js.map

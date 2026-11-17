@@ -99,9 +99,9 @@ export default function KanbanCard({ process, columnId, overlay = false, onViewD
         e.stopPropagation();
         e.preventDefault();
         navigator.clipboard.writeText(processNumber).then(() => {
-            toast.success('Número do processo copiado!');
+            toast.success('Nº da consulta copiado!');
         }).catch(() => {
-            toast.error('Erro ao copiar número do processo');
+            toast.error('Erro ao copiar o nº da consulta');
         });
     };
 

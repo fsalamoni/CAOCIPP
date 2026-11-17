@@ -5,6 +5,15 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 17/11/2026 — Nº do PGEA em Consultas e Expedientes
+- O campo passa a se chamar **Nº da Consulta - PGEA** e **Nº do Expediente -
+  PGEA** (cadastro, edição, tabela, quadro e exportação); o botão das
+  Consultas agora é **+ Adicionar Consulta**.
+- Ao digitar o número num cadastro novo, o SIGO confere no servidor se ele já
+  existe no banco do órgão, arquivados inclusive. Número novo ganha o sinal de
+  certo verde; número existente mostra a fase, o responsável e o botão para
+  entrar no procedimento.
+
 ### 17/11/2026 — Códigos numéricos na numeração dos processos
 - A numeração própria aceita **Código do tipo**, **Código da unidade** e
   **Código do órgão interno** no lugar das siglas, cada um com 1 a 6 dígitos e

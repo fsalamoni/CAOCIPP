@@ -37,6 +37,8 @@ preguicoso(() => require('./expedientes/create'), ['createExpediente']);
 preguicoso(() => require('./expedientes/update'), ['updateExpediente']);
 preguicoso(() => require('./expedientes/delete'), ['deleteExpediente']);
 preguicoso(() => require('./import/fromExcelExpedientes'), ['importExpedientesFromExcel']);
+// Nº do PGEA e aditivos de Consultas e Expedientes.
+preguicoso(() => require('./registros/verificarNumero'), ['verificarNumeroPgea']);
 // ========== PARCERIAS (Convênio, Termo de Cooperação, Termo de Fomento) ==========
 // Módulo novo (v1.16.0) com 6 fases próprias (Pendente, Em análise, Revisão,
 // Aguarda Terceiros, Parcerias, Extintos) e suporte a aditivos em subcoleção.

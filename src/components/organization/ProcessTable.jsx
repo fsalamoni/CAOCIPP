@@ -200,7 +200,7 @@ export default function ProcessTable({
   // ═══════════════════════════════════════════════════════════════════
   const COLUMN_DEFINITIONS = useMemo(() => [
     {
-      key: 'process_number', label: 'Processo', defaultVisible: true,
+      key: 'process_number', label: 'Nº da Consulta - PGEA', defaultVisible: true,
       width: 'w-[200px]', sticky: 'left', sortable: true,
       render: (process) => {
         const isUrgent = (() => {

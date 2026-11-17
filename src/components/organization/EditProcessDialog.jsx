@@ -333,7 +333,7 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
         changes: updateData
       });
 
-      toast.success('Processo atualizado com sucesso!');
+      toast.success('Consulta atualizada com sucesso!');
       setOpen(false);
       if (onSuccess) onSuccess();
     } catch (error) {
@@ -411,7 +411,7 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center justify-between">
-              <DialogTitle>Editar Processo - {formData.process_number || process?.process_number || 'Sem Número'}</DialogTitle>
+              <DialogTitle>Editar Consulta - {formData.process_number || process?.process_number || 'Sem Número'}</DialogTitle>
             </div>
           </DialogHeader>
 
@@ -428,7 +428,7 @@ export default function EditProcessDialog({ open, setOpen, process, members, onS
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="process_number">Nº do Processo</Label>
+                      <Label htmlFor="process_number">Nº da Consulta - PGEA</Label>
                       {renderValidationSignal('process_number')}
                     </div>
                     <Input

@@ -232,7 +232,7 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
     e.preventDefault();
 
     if (!formData.expediente_number?.trim()) {
-      toast.error('O Número do Expediente é obrigatório.');
+      toast.error('O Nº do Expediente - PGEA é obrigatório.');
       return;
     }
 
@@ -373,7 +373,7 @@ export default function EditExpedienteDialog({ open, setOpen, expediente, member
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="expediente_number">Nº do Expediente</Label>
+                      <Label htmlFor="expediente_number">Nº do Expediente - PGEA</Label>
                       {renderValidationSignal('expediente_number')}
                     </div>
                     <Input

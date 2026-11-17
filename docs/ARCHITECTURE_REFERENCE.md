@@ -137,6 +137,7 @@ usa.
 | Órgãos e membros (`organizations/`) | `createOrganization`, `getUserOrganizations`, `joinOrganization`, `updateMember`, `removeMember`, `updateOrganization`, `bulkReplaceFieldValues`, `clearOrganizationData`, `deleteOrganization` |
 | Consultas (`processes/`, `import/fromExcel.ts`) | `createProcess`, `updateProcess`, `deleteProcess`, `calculateProcessStatus`, `backfillProcessLogs`, `importProcessesFromExcel` |
 | Expedientes | `createExpediente`, `updateExpediente`, `deleteExpediente`, `importExpedientesFromExcel` |
+| Nº do PGEA (`registros/`) | `verificarNumeroPgea` (Consultas e Expedientes) |
 | Parcerias | `createParceria`, `updateParceria`, `deleteParceria`, `addAditivo`, `updateAditivo`, `concludeAditivo`, `deleteAditivo`, `extinguishParceria`, `importParceriasFromExcel` |
 | Jurimetria | `createJuri`, `updateJuri`, `deleteJuris`, `bulkUpdateJuris`, `importJurisFromExcel`, `manageJurimetriaTemplate` |
 | Panorama | `managePanoramaBase`, `managePanoramaRegistro`, `importPanorama`, `managePanoramaTemplate` |

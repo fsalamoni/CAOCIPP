@@ -89,7 +89,7 @@ exports.updateProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
     const userName = request.auth.token.name || 'Usuário desconhecido';
     // Build human-readable action description
     const fieldLabels = {
-        process_number: 'Número do Processo',
+        process_number: 'Nº da Consulta - PGEA',
         consultant: 'Consulente',
         location: 'Local dos Fatos',
         entry_date: 'Data de Entrada',

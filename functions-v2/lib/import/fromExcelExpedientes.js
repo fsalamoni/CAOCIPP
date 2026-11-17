@@ -171,7 +171,7 @@ exports.importExpedientesFromExcel = (0, https_1.onCall)({
                     expedienteData.status = (0, status_1.calculateStatus)(expedienteData);
                     // Build log entry
                     const fieldLabels = {
-                        expediente_number: 'Número do Expediente',
+                        expediente_number: 'Nº do Expediente - PGEA',
                         system: 'Sistema',
                         origin: 'Origem',
                         entry_date: 'Data de Entrada',
