@@ -31,7 +31,7 @@ Quem não é vê "Acesso restrito"; as Functions recusam do mesmo jeito.
 | Plataforma | Configuração inicial | Na instalação, ou quando a visão geral mostrar pendência de e-mail, faturamento ou recuperação de acesso. |
 | Plataforma | Funcionalidades | Para ligar ou desligar, para todos os órgãos, as funcionalidades opcionais (Jurimetria, Panorama, busca global, metas, dois fatores, tour). |
 | Plataforma | E-mail | Para definir o remetente dos e-mails. |
-| Órgãos e pessoas | Órgãos | Para ver todos os órgãos e excluir um (pede o nome exato). |
+| Órgãos e pessoas | Órgãos | Para achar um órgão, abrir a ficha dele e agir: suspender, reativar, trocar o criador ou excluir. |
 | Órgãos e pessoas | Usuários | Para ver quem usa o SIGO e em que órgãos. |
 | Órgãos e pessoas | Administradores da plataforma | Para dar ou tirar o acesso a esta página. |
 | Módulos | Processo Eletrônico | Para ver os órgãos com Processo Eletrônico e suspender ou reativar o módulo de um órgão. |
@@ -41,6 +41,32 @@ Quem não é vê "Acesso restrito"; as Functions recusam do mesmo jeito.
 | Dados e custos | Armazenamento | Para ver o espaço que cada coleção ocupa. |
 | Dados e custos | Ferramentas de dados | Para conferir e recalcular contadores ou migrar o histórico. |
 | Dados e custos | Custos | Para ver o gasto por serviço (exige a exportação do faturamento). |
+
+## Órgãos: receitas
+
+- **Achar um órgão:** digite parte do nome na busca. Os filtros mostram só os
+  suspensos, os que usam o Processo Eletrônico ou os que ainda não têm
+  registros. Clique no órgão para abrir a ficha; o link da ficha pode ser
+  enviado (`/Admin?secao=orgs&orgao=<id>`).
+- **Ler a ficha:** situação (ativo ou suspenso), Processo Eletrônico, volumes
+  de cada módulo, membros (ativos primeiro, com papel, atribuições e data de
+  entrada; quem saiu aparece apagado, com a data de saída), páginas ligadas,
+  contato e as 15 últimas ações registradas no órgão.
+- **Suspender um órgão** (por exemplo, órgão desativado, incidente de
+  segurança, uso indevido): *Suspender*, escreva o motivo (os membros leem) e
+  confirme. Na hora, ninguém do órgão abre nada, nem o criador; as partes
+  perdem o Portal e o código de convite para de funcionar. Quem tentar entrar
+  vê o aviso com o motivo. **Nada é apagado.**
+- **Reativar:** *Reativar* e confirmar. Tudo volta como estava.
+- **Trocar o criador** (o criador saiu ou mudou de função): *Trocar criador*,
+  escolha um membro ativo. O criador anterior, se ainda estiver no órgão,
+  continua como administrador.
+- **Excluir para sempre:** *Excluir* e digite o nome exato. Apaga o órgão e
+  todo o banco dele, sem volta. Se a intenção é só impedir o acesso, prefira
+  suspender.
+
+Toda ação fica registrada em *Movimentações* (plataforma) e na atividade do
+próprio órgão.
 
 ## O que vem a seguir
 

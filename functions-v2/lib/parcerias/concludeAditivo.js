@@ -4,6 +4,7 @@ exports.concludeAditivo = void 0;
 const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
 const history_1 = require("../shared/history");
+const vinculo_1 = require("../shared/vinculo");
 const UNIDADES = new Set(['dias', 'meses', 'anos']);
 function fmtDate(dt) {
     if (Number.isNaN(dt.getTime()))
@@ -42,7 +43,6 @@ function addDurationToDate(dateStr, valor, unidade) {
     return null;
 }
 exports.concludeAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
-    var _a;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
     }
@@ -73,7 +73,7 @@ exports.concludeAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, 
     // Verificação de membership.
     const membershipRef = db.collection('userOrganizations').doc(`${userId}_${organizationId}`);
     const membershipSnap = await membershipRef.get();
-    if (!membershipSnap.exists || ((_a = membershipSnap.data()) === null || _a === void 0 ? void 0 : _a.active) === false) {
+    if (!membershipSnap.exists || (0, vinculo_1.vinculoBloqueado)(membershipSnap.data())) {
         throw new https_1.HttpsError('permission-denied', 'Você não é membro desta organização');
     }
     const parceriaRef = db.collection('parcerias').doc(parceriaId);

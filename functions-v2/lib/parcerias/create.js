@@ -6,8 +6,9 @@ const https_1 = require("firebase-functions/v2/https");
 const status_1 = require("../shared/status");
 const history_1 = require("../shared/history");
 const webhooks_1 = require("../shared/webhooks");
+const vinculo_1 = require("../shared/vinculo");
 exports.createParceria = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
-    var _a, _b, _c, _d, _e, _f;
+    var _a, _b, _c, _d, _e;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
     }
@@ -66,7 +67,7 @@ exports.createParceria = (0, https_1.onCall)({ region: 'southamerica-east1' }, a
     // 1. Verify membership
     const membershipRef = db.collection('userOrganizations').doc(`${userId}_${organizationId}`);
     const membershipSnap = await membershipRef.get();
-    if (!membershipSnap.exists || ((_f = membershipSnap.data()) === null || _f === void 0 ? void 0 : _f.active) === false) {
+    if (!membershipSnap.exists || (0, vinculo_1.vinculoBloqueado)(membershipSnap.data())) {
         throw new https_1.HttpsError('permission-denied', 'Você não é membro desta organização');
     }
     // 2. Create parceria

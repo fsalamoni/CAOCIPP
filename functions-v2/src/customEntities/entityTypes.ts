@@ -2,6 +2,7 @@ import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { sanitizeEntityTypeDefinition } from './schema';
 import { hasOrgPermission, MembershipLike } from '../shared/permissions';
+import { vinculoBloqueado } from '../shared/vinculo';
 
 const REGION = 'southamerica-east1';
 
@@ -13,7 +14,7 @@ interface UpsertEntityTypeRequest {
 async function assertManager(db: FirebaseFirestore.Firestore, userId: string, organizationId: string) {
     const membershipRef = db.collection('userOrganizations').doc(`${userId}_${organizationId}`);
     const snap = await membershipRef.get();
-    if (!snap.exists || snap.data()?.active === false) {
+    if (!snap.exists || vinculoBloqueado(snap.data())) {
         throw new HttpsError('permission-denied', 'Você não é membro desta organização.');
     }
     const membership = snap.data() as MembershipLike;

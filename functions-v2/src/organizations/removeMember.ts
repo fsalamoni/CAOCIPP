@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { vinculoBloqueado } from '../shared/vinculo';
 
 interface RemoveMemberRequest {
     organizationId: string;
@@ -26,7 +27,7 @@ export const removeMember = onCall<RemoveMemberRequest>(
         const requesterMembershipRef = db.collection('userOrganizations').doc(`${requesterId}_${organizationId}`);
         const requesterMembershipSnap = await requesterMembershipRef.get();
 
-        if (!requesterMembershipSnap.exists || requesterMembershipSnap.data()?.active === false) {
+        if (!requesterMembershipSnap.exists || vinculoBloqueado(requesterMembershipSnap.data())) {
             throw new HttpsError('permission-denied', 'You are not a member of this organization');
         }
 

@@ -3,6 +3,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { formatPersonName } from '../shared/normalization';
 import { historyEntryId } from '../shared/history';
 import { hasOrgPermission, MembershipLike } from '../shared/permissions';
+import { vinculoBloqueado } from '../shared/vinculo';
 
 type TargetCollection = 'processes' | 'expedientes' | 'parcerias';
 type TargetField = 'responsible_user_name' | 'consultant' | 'location' | 'origin' | 'object' | 'subject' | 'parties' | 'network_folder';
@@ -66,7 +67,7 @@ export const bulkReplaceFieldValues = onCall<BulkReplaceFieldValuesRequest>(
         const membershipRef = db.collection('userOrganizations').doc(`${requesterId}_${organizationId}`);
         const membershipSnap = await membershipRef.get();
         // O criador pode padronizar; membros precisam da permissão `bulk_standardize`.
-        if (!membershipSnap.exists || membershipSnap.data()?.active === false || !hasOrgPermission(membershipSnap.data() as MembershipLike, 'bulk_standardize')) {
+        if (!membershipSnap.exists || vinculoBloqueado(membershipSnap.data()) || !hasOrgPermission(membershipSnap.data() as MembershipLike, 'bulk_standardize')) {
             throw new HttpsError('permission-denied', 'Apenas o criador da organização pode executar substituição em bloco');
         }
 

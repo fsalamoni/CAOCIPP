@@ -7,8 +7,9 @@ const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const permissions_1 = require("../shared/permissions");
 const jurimetria_1 = require("../shared/jurimetria");
+const vinculo_1 = require("../shared/vinculo");
 exports.updateOrganization = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
-    var _a, _b, _c;
+    var _a, _b;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'User must be authenticated');
     }
@@ -21,7 +22,7 @@ exports.updateOrganization = (0, https_1.onCall)({ region: 'southamerica-east1' 
     // Memberships are stored in 'userOrganizations' collection as {userId}_{orgId}
     const membershipRef = db.collection('userOrganizations').doc(`${requesterId}_${organizationId}`);
     const membershipSnap = await membershipRef.get();
-    if (!membershipSnap.exists || ((_a = membershipSnap.data()) === null || _a === void 0 ? void 0 : _a.active) === false) {
+    if (!membershipSnap.exists || (0, vinculo_1.vinculoBloqueado)(membershipSnap.data())) {
         throw new https_1.HttpsError('permission-denied', 'User is not a member of this organization');
     }
     const membership = membershipSnap.data();
@@ -68,13 +69,13 @@ exports.updateOrganization = (0, https_1.onCall)({ region: 'southamerica-east1' 
     // Only allow specific fields to be updated
     const updates = {};
     if (data.name !== undefined) {
-        const name = String((_b = data.name) !== null && _b !== void 0 ? _b : '').trim().slice(0, 150);
+        const name = String((_a = data.name) !== null && _a !== void 0 ? _a : '').trim().slice(0, 150);
         if (!name)
             throw new https_1.HttpsError('invalid-argument', 'O nome do órgão não pode ficar vazio.');
         updates.name = name;
     }
     if (data.description !== undefined)
-        updates.description = String((_c = data.description) !== null && _c !== void 0 ? _c : '').trim().slice(0, 2000);
+        updates.description = String((_b = data.description) !== null && _b !== void 0 ? _b : '').trim().slice(0, 2000);
     if (data.contactInfo !== undefined)
         updates.contactInfo = sanitizeContactInfo(data.contactInfo);
     if (data.matterSettings !== undefined)

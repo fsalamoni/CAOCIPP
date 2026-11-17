@@ -4,8 +4,9 @@ exports.deleteExpediente = void 0;
 const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
 const permissions_1 = require("../shared/permissions");
+const vinculo_1 = require("../shared/vinculo");
 exports.deleteExpediente = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
-    var _a, _b;
+    var _a;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
     }
@@ -18,7 +19,7 @@ exports.deleteExpediente = (0, https_1.onCall)({ region: 'southamerica-east1' },
     // 1. Verify permissions (Creator only)
     const membershipRef = db.collection('userOrganizations').doc(`${userId}_${organizationId}`);
     const membershipSnap = await membershipRef.get();
-    if (!membershipSnap.exists || ((_a = membershipSnap.data()) === null || _a === void 0 ? void 0 : _a.active) === false) {
+    if (!membershipSnap.exists || (0, vinculo_1.vinculoBloqueado)(membershipSnap.data())) {
         throw new https_1.HttpsError('permission-denied', 'Not a member');
     }
     // O criador pode excluir; membros precisam da permissão `delete_records`.
@@ -35,7 +36,7 @@ exports.deleteExpediente = (0, https_1.onCall)({ region: 'southamerica-east1' },
     if (!expedienteSnap.exists) {
         throw new https_1.HttpsError('not-found', 'Expediente not found');
     }
-    if (((_b = expedienteSnap.data()) === null || _b === void 0 ? void 0 : _b.organization_id) !== organizationId) {
+    if (((_a = expedienteSnap.data()) === null || _a === void 0 ? void 0 : _a.organization_id) !== organizationId) {
         throw new https_1.HttpsError('permission-denied', 'Expediente belongs to another organization');
     }
     // 3. Delete (recursivo: remove também as subcoleções history/comments,

@@ -3,12 +3,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.clearOrganizationData = void 0;
 const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
+const vinculo_1 = require("../shared/vinculo");
 /**
  * Cloud Function to permanently wipe all process data for an organization.
  * Restricted to the organization creator.
  */
 exports.clearOrganizationData = (0, https_1.onCall)({ region: 'southamerica-east1', cors: true }, async (request) => {
-    var _a, _b;
+    var _a;
     // 1. Authenticate user
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'User must be authenticated');
@@ -22,10 +23,10 @@ exports.clearOrganizationData = (0, https_1.onCall)({ region: 'southamerica-east
     // 2. Authorize - MUST be organization creator
     const membershipRef = db.collection('userOrganizations').doc(`${userId}_${organizationId}`);
     const membershipSnap = await membershipRef.get();
-    if (!membershipSnap.exists || ((_a = membershipSnap.data()) === null || _a === void 0 ? void 0 : _a.active) === false) {
+    if (!membershipSnap.exists || (0, vinculo_1.vinculoBloqueado)(membershipSnap.data())) {
         throw new https_1.HttpsError('permission-denied', 'You are not a member of this organization');
     }
-    const role = (_b = membershipSnap.data()) === null || _b === void 0 ? void 0 : _b.role;
+    const role = (_a = membershipSnap.data()) === null || _a === void 0 ? void 0 : _a.role;
     if (role !== 'creator') {
         throw new https_1.HttpsError('permission-denied', 'Only the organization creator can wipe all data');
     }

@@ -100,6 +100,15 @@ const criadorRemovido = await usuario('ex-admin@x.com');
 await semear(`userOrganizations/${criadorRemovido.uid}_${org}`, { user_id: criadorRemovido.uid, organization_id: org, role: 'admin', active: false });
 assert.equal(await pedir(criadorRemovido, 'GET', 'auditLogs/l1'), 403, 'admin removido não lê auditoria');
 
+// Órgão suspenso pela plataforma: o vínculo leva org_suspended e nada do órgão abre,
+// nem para o criador; o próprio vínculo continua legível (a tela mostra o motivo).
+const suspenso = await usuario('suspenso@x.com');
+await semear(`userOrganizations/${suspenso.uid}_${org}`, { user_id: suspenso.uid, organization_id: org, role: 'creator', active: true, org_suspended: true });
+assert.equal(await pedir(suspenso, 'GET', `organizations/${org}`), 403, 'órgão suspenso: não lê o órgão');
+assert.equal(await pedir(suspenso, 'GET', 'processes/p2'), 403, 'órgão suspenso: não lê registro');
+assert.equal(await listar(suspenso), 403, 'órgão suspenso: não lista registros');
+assert.equal(await pedir(suspenso, 'GET', `userOrganizations/${suspenso.uid}_${org}`), 200, 'órgão suspenso: lê o próprio vínculo');
+
 // Config da plataforma: qualquer conta lê as flags; o resto só pelas Functions
 // (o Auth é compartilhado com os outros apps do projeto Firebase).
 await semear('platformConfig/featureFlags', { x: true });

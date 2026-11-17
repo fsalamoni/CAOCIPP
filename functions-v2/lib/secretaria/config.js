@@ -38,6 +38,7 @@ const registroCriado_1 = require("../shared/registroCriado");
 const unidades_1 = require("./unidades");
 const migrarRito_1 = require("./migrarRito");
 const pacoteRito_1 = require("../shared/pacoteRito");
+const vinculo_1 = require("../shared/vinculo");
 var documentoConfig_2 = require("./documentoConfig");
 Object.defineProperty(exports, "TIPOS_DOCUMENTO_PADRAO", { enumerable: true, get: function () { return documentoConfig_2.TIPOS_DOCUMENTO_PADRAO; } });
 /**
@@ -186,7 +187,7 @@ async function exigirIntegracoes(c, usados, antes) {
     }
 }
 exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, async (request) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t;
     const auth = (0, context_1.exigirAuth)(request);
     const p = request.data || {};
     // Convite de equipe: quem aceita pode ainda não ser membro do órgão.
@@ -305,8 +306,8 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
                 ...modelosSnap.docs.filter((d) => d.data().excluido === true && (c.ctx.isAdmin || (d.data().unidade_id ? c.gestorDe.includes(d.data().unidade_id) : (0, context_1.administraOrgao)(c, d.data().orgao_id))))
                     .map((d) => (Object.assign(Object.assign({}, lixo('modelo', d)), { unidade_id: d.data().unidade_id || null, orgao_id: d.data().orgao_id || null }))),
             ].sort((a, b) => String(b.em || '').localeCompare(String(a.em || ''))),
-            suspensa_plataforma: ((_l = c.org.secretariaConfig) === null || _l === void 0 ? void 0 : _l.suspensa_plataforma) === true,
-            motivo_suspensao: ((_m = c.org.secretariaConfig) === null || _m === void 0 ? void 0 : _m.motivo_suspensao) || '',
+            suspensa_plataforma: (0, vinculo_1.peSuspensoPlataforma)(c.org),
+            motivo_suspensao: ((_l = c.org.secretariaConfig) === null || _l === void 0 ? void 0 : _l.motivo_suspensao) || '',
             orgao: String(c.org.name || ''),
             membros,
         };
@@ -702,7 +703,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             (0, context_1.erroUsuario)(e);
         }
         await db.collection(context_1.COL.config).doc(orgId).set({ organization_id: orgId, listas, updated_at: agora, updated_by: auth.uid }, { merge: true });
-        await audit('SECRETARIA_LISTAS', { comunicacao: ((_o = listas.comunicacao) === null || _o === void 0 ? void 0 : _o.length) || 0, audiencia: ((_p = listas.audiencia) === null || _p === void 0 ? void 0 : _p.length) || 0, origem: ((_q = listas.origem) === null || _q === void 0 ? void 0 : _q.length) || 0 });
+        await audit('SECRETARIA_LISTAS', { comunicacao: ((_m = listas.comunicacao) === null || _m === void 0 ? void 0 : _m.length) || 0, audiencia: ((_o = listas.audiencia) === null || _o === void 0 ? void 0 : _o.length) || 0, origem: ((_p = listas.origem) === null || _p === void 0 ? void 0 : _p.length) || 0 });
         return { success: true };
     }
     if (p.action === 'extrairTextoRito') {
@@ -849,7 +850,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             }
             const ref = db.collection(context_1.COL.tipos).doc();
             tipoId = ref.id;
-            batch.set(ref, Object.assign(Object.assign({}, (formulario ? { formulario } : {})), { nome: (0, secretaria_1.texto)(tp.nome), sigla: (0, secretaria_1.texto)(tp.sigla, 12), descricao: (0, secretaria_1.texto)(tp.descricao, secretaria_1.MAX_TEXTO_LONGO), rito_id: ritoRef.id, sigilo_padrao: tp.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', unidade_inicial: ((_r = rito.fases[0]) === null || _r === void 0 ? void 0 : _r.unidade_id) || null, ativo: true, organization_id: orgId, created_at: agora, created_by: auth.uid, updated_at: agora, updated_by: auth.uid }));
+            batch.set(ref, Object.assign(Object.assign({}, (formulario ? { formulario } : {})), { nome: (0, secretaria_1.texto)(tp.nome), sigla: (0, secretaria_1.texto)(tp.sigla, 12), descricao: (0, secretaria_1.texto)(tp.descricao, secretaria_1.MAX_TEXTO_LONGO), rito_id: ritoRef.id, sigilo_padrao: tp.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', unidade_inicial: ((_q = rito.fases[0]) === null || _q === void 0 ? void 0 : _q.unidade_id) || null, ativo: true, organization_id: orgId, created_at: agora, created_by: auth.uid, updated_at: agora, updated_by: auth.uid }));
         }
         await batch.commit();
         await audit(editarId ? 'SECRETARIA_RITO_SALVO' : 'SECRETARIA_RITO_IMPLANTADO', {
@@ -872,13 +873,13 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         if (p.id) {
             const ref = col.doc(p.id);
             const snap = await ref.get();
-            if (!snap.exists || ((_s = snap.data()) === null || _s === void 0 ? void 0 : _s.organization_id) !== orgId || ((_t = snap.data()) === null || _t === void 0 ? void 0 : _t.excluido) === true)
+            if (!snap.exists || ((_r = snap.data()) === null || _r === void 0 ? void 0 : _r.organization_id) !== orgId || ((_s = snap.data()) === null || _s === void 0 ? void 0 : _s.excluido) === true)
                 throw new https_1.HttpsError('not-found', 'Rito não encontrado');
             await exigirIntegracoes(c, modulosDoRito(rito), modulosDoRito(snap.data()));
             // Processos guardam a cópia das fases com que foram autuados; mudar
             // o rito só vale para os próximos. A versão anterior fica guardada.
             await guardarVersao(ref, snap.data(), CAMPOS_RITO);
-            await ref.update(Object.assign(Object.assign({}, rito), { ativo: p.ativo !== false, versao: (Number((_u = snap.data()) === null || _u === void 0 ? void 0 : _u.versao) || 1) + 1, updated_at: agora, updated_by: auth.uid }));
+            await ref.update(Object.assign(Object.assign({}, rito), { ativo: p.ativo !== false, versao: (Number((_t = snap.data()) === null || _t === void 0 ? void 0 : _t.versao) || 1) + 1, updated_at: agora, updated_by: auth.uid }));
         }
         else {
             const qtd = (await col.where('organization_id', '==', orgId).select('excluido').get()).docs.filter((d) => d.data().excluido !== true).length;

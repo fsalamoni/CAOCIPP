@@ -25,12 +25,14 @@ import { formatPersonName } from '@/utils/nameUtils';
 export function useOrganizations() {
     const { user } = useAuth();
     const [organizations, setOrganizations] = useState([]);
+    const [suspendedOrganizations, setSuspendedOrganizations] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
 
     useEffect(() => {
         if (!user) {
             setOrganizations([]);
+            setSuspendedOrganizations([]);
             setIsLoading(false);
             return;
         }
@@ -57,13 +59,26 @@ export function useOrganizations() {
                 if (snapshot.empty) {
                     if (currentRequest !== requestId) return;
                     setOrganizations([]);
+                    setSuspendedOrganizations([]);
                     setIsLoading(false);
                     return;
                 }
 
                 // Get organization details for each membership
+                const suspensos = [];
                 const orgPromises = snapshot.docs.map(async (membershipDoc) => {
                     const membership = membershipDoc.data();
+                    if (membership.active === false) return null;
+                    // Órgão suspenso pela plataforma: as regras não deixam ler o
+                    // órgão; nome e motivo vêm no próprio vínculo.
+                    if (membership.org_suspended === true) {
+                        suspensos.push({
+                            id: membership.organization_id,
+                            name: membership.org_suspended_nome || 'Órgão',
+                            motivo: membership.org_suspended_motivo || '',
+                        });
+                        return null;
+                    }
                     const orgRef = doc(db, 'organizations', membership.organization_id);
                     const orgSnapshot = await getDoc(orgRef);
 
@@ -87,6 +102,7 @@ export function useOrganizations() {
                 const orgs = (await Promise.all(orgPromises)).filter(Boolean);
                 if (currentRequest !== requestId) return;
                 setOrganizations(orgs);
+                setSuspendedOrganizations(suspensos);
                 setIsLoading(false);
             } catch (err) {
                 if (currentRequest !== requestId) return;
@@ -103,7 +119,7 @@ export function useOrganizations() {
         return () => unsubscribe();
     }, [user?.uid]);
 
-    return { organizations, isLoading, error };
+    return { organizations, suspendedOrganizations, isLoading, error };
 }
 
 /**

@@ -5,8 +5,9 @@ const admin = require("firebase-admin");
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const permissions_1 = require("../shared/permissions");
+const vinculo_1 = require("../shared/vinculo");
 exports.updateMember = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
-    var _a, _b;
+    var _a;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'User must be authenticated');
     }
@@ -27,10 +28,10 @@ exports.updateMember = (0, https_1.onCall)({ region: 'southamerica-east1' }, asy
     // 1. Check requester permissions
     const requesterMembershipRef = db.collection('userOrganizations').doc(`${requesterId}_${organizationId}`);
     const requesterMembershipSnap = await requesterMembershipRef.get();
-    if (!requesterMembershipSnap.exists || ((_a = requesterMembershipSnap.data()) === null || _a === void 0 ? void 0 : _a.active) === false) {
+    if (!requesterMembershipSnap.exists || (0, vinculo_1.vinculoBloqueado)(requesterMembershipSnap.data())) {
         throw new https_1.HttpsError('permission-denied', 'Not a member');
     }
-    const requesterRole = (_b = requesterMembershipSnap.data()) === null || _b === void 0 ? void 0 : _b.role;
+    const requesterRole = (_a = requesterMembershipSnap.data()) === null || _a === void 0 ? void 0 : _a.role;
     if (requesterRole !== 'creator' && requesterRole !== 'admin') { // Admins can update members? Usually yes.
         throw new https_1.HttpsError('permission-denied', 'Insufficient permissions');
     }

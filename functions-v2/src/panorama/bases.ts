@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { sanitizeBaseDef, PanoramaBaseDef } from '../shared/panorama';
+import { vinculoBloqueado } from '../shared/vinculo';
 
 /**
  * Bases analíticas do módulo Panorama.
@@ -35,7 +36,7 @@ async function loadMembership(
         .collection('userOrganizations')
         .doc(`${userId}_${organizationId}`)
         .get();
-    if (!snap.exists || snap.data()?.active === false) {
+    if (!snap.exists || vinculoBloqueado(snap.data())) {
         throw new HttpsError('permission-denied', 'Você não é membro desta organização');
     }
     const data = snap.data() || {};

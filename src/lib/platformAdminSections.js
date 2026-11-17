@@ -40,8 +40,8 @@ export const PLATFORM_SECTIONS = [
     },
     {
         key: 'orgs', group: 'pessoas', label: 'Órgãos', icon: Building2,
-        description: 'Todos os órgãos, com membros, volume de registros e exclusão.',
-        keywords: 'organizações promotorias unidades excluir membros registros',
+        description: 'Todos os órgãos, com busca e filtros. A ficha de cada um mostra membros, volumes e atividade e permite suspender, reativar, trocar o criador e excluir.',
+        keywords: 'organizações promotorias unidades excluir membros registros suspender reativar bloquear criador transferir ficha',
     },
     {
         key: 'users', group: 'pessoas', label: 'Usuários', icon: Users,

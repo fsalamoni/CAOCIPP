@@ -5,6 +5,21 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 17/11/2026 — Ficha completa de cada órgão (etapa 2 de 10)
+- **Órgãos com busca e filtros** (todos, suspensos, com Processo Eletrônico,
+  sem registros), em lista que cabe no celular. Antes, um órgão sem data de
+  criação não aparecia na lista.
+- **Ficha do órgão** (link próprio): situação, volumes de cada módulo,
+  membros com papel e datas, páginas ligadas, contato e atividade recente.
+- **Suspender e reativar o órgão inteiro**, com motivo que os membros leem:
+  ninguém do órgão abre nem grava nada, as partes perdem o Portal e o convite
+  para de funcionar; nenhum dado é apagado. Vale nas regras do banco e em
+  todas as Functions (helper único `vinculoBloqueado`, travado por teste).
+- **Trocar o criador** por um membro ativo; o anterior fica como
+  administrador.
+- Tudo auditado na plataforma e no órgão. Guia com receitas em
+  `docs/ADMIN_PLATAFORMA.md`.
+
 ### 17/11/2026 — Administração da plataforma reorganizada (etapa 1 de 10)
 - **Nova casa do painel do super-admin:** as 14 abas soltas viraram um menu
   lateral em cinco grupos (Plataforma; Órgãos e pessoas; Módulos; Operação e

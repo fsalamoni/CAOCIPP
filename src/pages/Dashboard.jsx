@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import OrgSuspensaAviso from '@/components/organization/OrgSuspensaAviso';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/FirebaseAuthContext';
 import { useOrganizations, useProcesses, useExpedientes, useUserPreferences } from '@/hooks/useFirestore';
@@ -79,7 +80,7 @@ const STATUS_BAR_COLOR_V2 = {
 export default function Dashboard() {
   const navigate = useNavigate();
   const { user, isLoadingAuth, isAuthenticated } = useAuth();
-  const { organizations, isLoading: orgsLoading } = useOrganizations();
+  const { organizations, suspendedOrganizations, isLoading: orgsLoading } = useOrganizations();
   const isCustomDashboardOn = useFlag(FEATURE_FLAGS.CUSTOM_DASHBOARD.key);
   const { preferences, updatePreferences } = useUserPreferences();
   const [widgetSettingsOpen, setWidgetSettingsOpen] = useState(false);
@@ -128,6 +129,14 @@ export default function Dashboard() {
   }
 
   // Empty State (No Organizations)
+  if (organizations.length === 0 && suspendedOrganizations.length > 0) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-6 md:p-8">
+        <div className="max-w-3xl mx-auto"><OrgSuspensaAviso orgs={suspendedOrganizations} /></div>
+      </div>
+    );
+  }
+
   if (organizations.length === 0) {
     return (
       <div className="min-h-screen p-8 flex items-center justify-center bg-slate-50 dark:bg-slate-900 text-center">
@@ -176,6 +185,8 @@ export default function Dashboard() {
             </Button>
           )}
         </div>
+
+        <OrgSuspensaAviso orgs={suspendedOrganizations} />
 
         {/* Organizations List */}
         <div className="space-y-12">

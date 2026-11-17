@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { formatPersonName } from '../shared/normalization';
+import { orgSuspensa } from '../shared/vinculo';
 
 interface JoinOrgRequest {
     inviteCode: string;
@@ -42,6 +43,9 @@ export const joinOrganization = onCall<JoinOrgRequest>(
                 const orgDoc = orgsSnapshot.docs[0];
                 const orgData = orgDoc.data();
                 const orgId = orgDoc.id;
+                if (orgSuspensa(orgData)) {
+                    throw new HttpsError('failed-precondition', 'Este órgão está suspenso pela administração da plataforma e não aceita novos membros agora.');
+                }
 
                 // 2. Puxar a função do "meu perfil" (users/{userId}.function) —
                 //    a mesma fonte que /Profile usa. Se o usuário preencheu a

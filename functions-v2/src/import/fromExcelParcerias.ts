@@ -3,6 +3,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as XLSX from 'xlsx';
 import { calculateParceriaStatus } from '../shared/status';
 import { historyEntryId } from '../shared/history';
+import { vinculoBloqueado } from '../shared/vinculo';
 
 interface ImportParceriasRequest {
     organizationId: string;
@@ -70,7 +71,7 @@ export const importParceriasFromExcel = onCall<ImportParceriasRequest>(
         // 1. Verify membership
         const membershipRef = db.collection('userOrganizations').doc(`${userId}_${organizationId}`);
         const membershipSnap = await membershipRef.get();
-        if (!membershipSnap.exists || membershipSnap.data()?.active === false) {
+        if (!membershipSnap.exists || vinculoBloqueado(membershipSnap.data())) {
             throw new HttpsError('permission-denied', 'Você não é membro desta organização');
         }
 

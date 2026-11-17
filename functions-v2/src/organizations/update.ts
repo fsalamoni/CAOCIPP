@@ -3,6 +3,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { hasOrgPermission, MembershipLike, OrgPermissionKey } from '../shared/permissions';
 import { sanitizeJurimetriaSettings } from '../shared/jurimetria';
+import { vinculoBloqueado } from '../shared/vinculo';
 
 interface UpdateOrganizationRequest {
     organizationId: string;
@@ -94,7 +95,7 @@ export const updateOrganization = onCall<UpdateOrganizationRequest>(
         const membershipRef = db.collection('userOrganizations').doc(`${requesterId}_${organizationId}`);
         const membershipSnap = await membershipRef.get();
 
-        if (!membershipSnap.exists || membershipSnap.data()?.active === false) {
+        if (!membershipSnap.exists || vinculoBloqueado(membershipSnap.data())) {
             throw new HttpsError('permission-denied', 'User is not a member of this organization');
         }
 

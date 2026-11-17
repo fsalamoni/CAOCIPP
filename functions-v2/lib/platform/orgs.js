@@ -41,12 +41,14 @@ exports.getOrgsReport = (0, https_1.onCall)({ region: helpers_1.REGION }, async 
     const db = admin.firestore();
     const cap = Math.min(Math.max(Number((_a = request.data) === null || _a === void 0 ? void 0 : _a.limit) || 200, 1), 500);
     const total = await countWhere(db.collection('organizations'));
+    // Sem orderBy: órgão sem created_at (antigo ou criado à mão) também
+    // aparece. A ordem final é por volume, logo abaixo.
     const snap = await db
         .collection('organizations')
-        .orderBy('created_at', 'desc')
         .limit(cap)
         .get();
     const organizations = await Promise.all(snap.docs.map(async (docSnap) => {
+        var _a, _b, _c;
         const data = docSnap.data() || {};
         const stats = data.stats || {};
         const orgId = docSnap.id;
@@ -77,6 +79,9 @@ exports.getOrgsReport = (0, https_1.onCall)({ region: helpers_1.REGION }, async 
                 ? stats.active_processes
                 : 0,
             storageEstimateBytes,
+            suspended: ((_a = data.platform_suspension) === null || _a === void 0 ? void 0 : _a.ativa) === true,
+            pe_enabled: ((_b = data.secretariaConfig) === null || _b === void 0 ? void 0 : _b.enabled) === true,
+            pe_suspended: ((_c = data.secretariaConfig) === null || _c === void 0 ? void 0 : _c.suspensa_plataforma) === true,
         };
     }));
     // Ordena por volume (processos + expedientes) desc para destacar maiores.

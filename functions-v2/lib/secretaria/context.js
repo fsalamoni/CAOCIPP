@@ -31,6 +31,7 @@ const secretaria_2 = require("../shared/secretaria");
 const sessoes_1 = require("../shared/sessoes");
 const exigencias_1 = require("../shared/exigencias");
 const prazosFase_1 = require("../shared/prazosFase");
+const vinculo_1 = require("../shared/vinculo");
 exports.REGION = 'southamerica-east1';
 exports.COL = {
     processos: 'secProcessos',
@@ -111,7 +112,7 @@ function exigirAuth(request) {
  * órgão e, salvo `permitirInativa`, a Secretaria ligada pelo admin do órgão.
  */
 async function carregarContexto(auth, orgId, opts = {}) {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c;
     if (typeof orgId !== 'string' || !orgId) {
         throw new https_1.HttpsError('invalid-argument', 'organizationId é obrigatório');
     }
@@ -124,22 +125,22 @@ async function carregarContexto(auth, orgId, opts = {}) {
         db.collection(exports.COL.unidades).where('organization_id', '==', orgId).get(),
         db.collection(exports.COL.config).doc(orgId).get(),
     ]);
-    if (!memSnap.exists || !orgSnap.exists || ((_a = memSnap.data()) === null || _a === void 0 ? void 0 : _a.active) === false) {
+    if (!memSnap.exists || !orgSnap.exists || (0, vinculo_1.vinculoBloqueado)(memSnap.data())) {
         throw new https_1.HttpsError('permission-denied', 'Você não é membro desta organização');
     }
     const mem = memSnap.data() || {};
     const org = orgSnap.data() || {};
-    const isAdmin = mem.role === 'creator' || ((_b = mem.permissions) === null || _b === void 0 ? void 0 : _b.configure_secretaria) === true;
-    if (!opts.permitirInativa && ((_c = org.secretariaConfig) === null || _c === void 0 ? void 0 : _c.enabled) !== true) {
+    const isAdmin = mem.role === 'creator' || ((_a = mem.permissions) === null || _a === void 0 ? void 0 : _a.configure_secretaria) === true;
+    if (!opts.permitirInativa && ((_b = org.secretariaConfig) === null || _b === void 0 ? void 0 : _b.enabled) !== true) {
         throw new https_1.HttpsError('failed-precondition', 'O Processo Eletrônico não está ativo neste órgão');
     }
-    if (!opts.permitirInativa && ((_d = org.secretariaConfig) === null || _d === void 0 ? void 0 : _d.suspensa_plataforma) === true) {
+    if (!opts.permitirInativa && (0, vinculo_1.peSuspensoPlataforma)(org)) {
         throw new https_1.HttpsError('failed-precondition', 'O Processo Eletrônico deste órgão está suspenso pela administração da plataforma');
     }
     const unidades = unSnap.docs.map((d) => (Object.assign({ id: d.id }, d.data())));
     const ativas = unidades.filter((u) => u.ativa !== false);
     const unidadeIds = ativas.filter((u) => (0, secretaria_1.lotacoesDe)(u).some((l) => l.uid === auth.uid)).map((u) => u.id);
-    const orgaos = (0, orgaos_1.orgaosDe)((_e = cfgSnap.data()) === null || _e === void 0 ? void 0 : _e.orgaos);
+    const orgaos = (0, orgaos_1.orgaosDe)((_c = cfgSnap.data()) === null || _c === void 0 ? void 0 : _c.orgaos);
     const adminOrgaos = (0, orgaos_1.orgaosAdministrados)(orgaos, auth.uid);
     const hoje = (0, secretaria_2.hojeBrasil)();
     const compoe = orgaos.filter((o) => o.decisao === 'colegiada' && o.ativo && (0, orgaos_1.composicaoEm)(o.composicao, hoje).some((m) => m.uid === auth.uid)).map((o) => o.id);
@@ -164,13 +165,13 @@ async function carregarContexto(auth, orgId, opts = {}) {
  * rito indica; com quem conclui reservado pelo rito, o sistema não conclui.
  */
 async function contextoDoSistema(db, orgId) {
-    var _a, _b;
+    var _a;
     const [orgSnap, unSnap] = await Promise.all([
         db.collection('organizations').doc(orgId).get(),
         db.collection(exports.COL.unidades).where('organization_id', '==', orgId).get(),
     ]);
     const org = orgSnap.data() || {};
-    if (((_a = org.secretariaConfig) === null || _a === void 0 ? void 0 : _a.enabled) !== true || ((_b = org.secretariaConfig) === null || _b === void 0 ? void 0 : _b.suspensa_plataforma) === true)
+    if (((_a = org.secretariaConfig) === null || _a === void 0 ? void 0 : _a.enabled) !== true || (0, vinculo_1.peSuspensoPlataforma)(org))
         return null;
     const unidades = unSnap.docs.map((d) => (Object.assign({ id: d.id }, d.data())));
     return {

@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { calculateStatus } from '../shared/status';
+import { vinculoBloqueado } from '../shared/vinculo';
 
 interface CalculateStatusRequest {
     processId: string;
@@ -71,7 +72,7 @@ export const calculateProcessStatus = onCall<CalculateStatusRequest>(
         // corrigida em deleteProcess/deleteExpediente.
         const membershipRef = db.collection('userOrganizations').doc(`${request.auth.uid}_${currentData?.organization_id}`);
         const membershipSnap = await membershipRef.get();
-        if (!membershipSnap.exists || membershipSnap.data()?.active === false) {
+        if (!membershipSnap.exists || vinculoBloqueado(membershipSnap.data())) {
             throw new HttpsError('permission-denied', 'You are not a member of this organization');
         }
 

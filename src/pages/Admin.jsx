@@ -121,6 +121,7 @@ export default function Admin() {
     const openSection = (key) => {
         const next = new URLSearchParams(searchParams);
         if (key) next.set('secao', key); else next.delete('secao');
+        next.delete('orgao'); // ficha de um órgão aberta não vale para outra seção
         setSearchParams(next);
         setBusca('');
         window.scrollTo?.({ top: 0 });

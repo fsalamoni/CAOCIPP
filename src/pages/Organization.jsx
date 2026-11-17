@@ -1,4 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
+import OrgSuspensaAviso from '@/components/organization/OrgSuspensaAviso';
 import { useQuery } from '@tanstack/react-query';
 import { secProcesso } from '@/services/secretariaService';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -40,7 +41,7 @@ export default function Organization() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, isLoadingAuth, isAuthenticated } = useAuth();
-  const { organizations, isLoading: orgsLoading } = useOrganizations();
+  const { organizations, suspendedOrganizations, isLoading: orgsLoading } = useOrganizations();
 
   // Get organization ID and tab from URL params
   const urlOrgId = searchParams.get('id');
@@ -57,6 +58,10 @@ export default function Organization() {
   // Auto-select organization
   useEffect(() => {
     if (organizations.length === 0) {
+      return;
+    }
+    // Órgão suspenso no endereço: fica nele para mostrar o aviso.
+    if (urlOrgId && suspendedOrganizations.some((o) => o.id === urlOrgId)) {
       return;
     }
 
@@ -78,7 +83,7 @@ export default function Organization() {
         navigate(`/Organization?id=${fallbackOrgId}&tab=${activeTab}`, { replace: true });
       }
     }
-  }, [organizations, selectedOrgId, urlOrgId, activeTab, navigate]);
+  }, [organizations, suspendedOrganizations, selectedOrgId, urlOrgId, activeTab, navigate]);
 
   // Fetch organization data (real-time)
   const { organization, isLoading: orgLoading } = useOrganizationRealtime(selectedOrgId);
@@ -225,6 +230,19 @@ export default function Organization() {
           <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
           <p className="text-slate-600 dark:text-slate-300">Carregando organização...</p>
         </div>
+      </div>
+    );
+  }
+
+  // Órgão do endereço suspenso pela plataforma (ou só há órgãos suspensos).
+  const suspensoDaUrl = suspendedOrganizations.find((o) => o.id === urlOrgId);
+  if (suspensoDaUrl || (organizations.length === 0 && suspendedOrganizations.length > 0)) {
+    return (
+      <div className="max-w-3xl mx-auto p-4 sm:p-8 space-y-4">
+        <OrgSuspensaAviso orgs={suspensoDaUrl ? [suspensoDaUrl] : suspendedOrganizations} />
+        {organizations.length > 0 && (
+          <Button variant="outline" onClick={() => navigate(`/Organization?id=${organizations[0].id}`)}>Abrir {organizations[0].name}</Button>
+        )}
       </div>
     );
   }

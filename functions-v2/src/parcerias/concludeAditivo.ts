@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { historyEntryId } from '../shared/history';
+import { vinculoBloqueado } from '../shared/vinculo';
 
 /**
  * concludeAditivo — Conclui um aditivo (procedimento paralelo de alteração) e
@@ -111,7 +112,7 @@ export const concludeAditivo = onCall<ConcludeAditivoRequest>(
         // Verificação de membership.
         const membershipRef = db.collection('userOrganizations').doc(`${userId}_${organizationId}`);
         const membershipSnap = await membershipRef.get();
-        if (!membershipSnap.exists || membershipSnap.data()?.active === false) {
+        if (!membershipSnap.exists || vinculoBloqueado(membershipSnap.data())) {
             throw new HttpsError('permission-denied', 'Você não é membro desta organização');
         }
 
