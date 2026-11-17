@@ -317,6 +317,16 @@ dependem de autorização expressa; nenhuma foi feita.
   `maxOutputLength`) e precisa bater com o tamanho que declara. Antes, um
   Word de poucos KB enviado pela parte no Portal podia declarar gigabytes de
   XML e derrubar a função por falta de memória.
+- Importar listas do órgão (`lerListas`, só o admin): até 5 MB, tipos
+  fechados (`MIMES_LISTAS`); todo arquivo que começa como ZIP passa por
+  `abrirZip` antes do leitor, mesmo com extensão de .xls ou .doc (o leitor de
+  planilha abriria o ZIP por conta própria). Só devolve a proposta; quem
+  grava é `salvarListas`, que valida tudo de novo.
+- Excluir de vez (`excluirDefinitivo` em `secretariaConfig` e
+  `secretariaProcesso`): só o admin, só o que já está na lixeira, processo com
+  o número digitado conferido no servidor, e recusa o que outros registros
+  ainda usam. A auditoria guarda o que foi apagado (no processo: número,
+  assunto, tipo e motivo da exclusão) para o histórico.
 - Alerta de prazos: e-mail só para quem está lotado na unidade que tem o
   processo, com número e assunto escapados em HTML; não vai para partes.
 - Sessões de julgamento e reuniões (`secSessoes` + `votacoes`, `pedidos`,

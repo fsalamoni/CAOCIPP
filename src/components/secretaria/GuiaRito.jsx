@@ -389,7 +389,9 @@ export default function GuiaRito({ variante = 'outline', className = '', inicial
                         <Parte titulo="18. Listas do órgão: espécies e origens a mais">
                             <p>
                                 Quando o órgão usa um ato que o sistema não traz, cadastre-o em Configuração, aba Listas do órgão. Ele passa a aparecer ao lado
-                                dos do sistema, no editor de rito e nas telas da equipe.
+                                dos do sistema, no editor de rito e nas telas da equipe. Se as listas já estão num arquivo (texto, CSV, JSON, Word, LibreOffice,
+                                Excel ou PDF), use Importar de arquivo: o sistema lê, separa os itens de cada lista, mostra uma prévia para conferir nome, lista e
+                                gênero, e só grava o que você aprovar.
                             </p>
                             <table className={tabela}>
                                 <thead><tr><th>Lista</th><th>Onde aparece</th><th>Exemplos</th></tr></thead>

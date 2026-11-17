@@ -41,7 +41,8 @@ import { avisarPartesDoMovimento } from './portalAvisos';
 import { nomeOrgao } from '../shared/orgaos';
 import { julgamentoPendente } from '../shared/sessoes';
 import { lerOrgaos } from './orgaos';
-import { acaoAnotacao, acaoSessao, leiturasDoProcesso, registrarLeitura } from './sessoes';
+import { COL_ANOTACOES, COL_SESSOES, acaoAnotacao, acaoSessao, leiturasDoProcesso, registrarLeitura } from './sessoes';
+import { COL_CERTAMES } from './certames';
 import { avisarEntradaNaFase, avisarPendencia, avisarUnidadeRecebeu } from './avisosEquipe';
 import { acertarAcoesDoRito, configComunicacoes, expedir, tornarSemEfeito } from './comunicacoes';
 import { CampoDoProcesso, camposParaLigar, camposPelaAcao, chaveDoValor, ligada, passosPeloProcesso } from '../shared/doProcesso';
@@ -62,7 +63,9 @@ interface ProcRequest {
     action: 'listar' | 'obter' | 'autuar' | 'tramitar' | 'atribuir' | 'avancarFase' | 'alterarStatus'
         | 'abrirPendencia' | 'resolverPendencia' | 'abrirPrazo' | 'encerrarPrazo' | 'prorrogarPrazo' | 'devolverPrazo' | 'convidarParte' | 'revogarParte'
         | 'marcarAcao' | 'concluirOrientacao' | 'contadores' | 'alterarDados' | 'urgencia' | 'expedirComunicacao' | 'tornarSemEfeito'
-        | 'excluir' | 'restaurar' | 'excluidos' | 'emitirCertidao' | 'vinculados' | 'indice';
+        | 'excluir' | 'restaurar' | 'excluidos' | 'excluirDefinitivo' | 'emitirCertidao' | 'vinculados' | 'indice';
+    /** excluirDefinitivo: o número do processo, digitado por quem confirma. */
+    confirmacao?: string;
     /** Comunicação a expedir (espécie, texto, destinatários, prazo, meio). */
     comunicacao?: unknown;
     comunicacao_id?: string;
@@ -820,6 +823,45 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, comSin
             .sort((a, b) => b._t - a._t)
             .map(({ _t, ...r }) => r);
         return { processos: urgentesPrimeiro(lista), truncado };
+    }
+
+    if (p.action === 'excluirDefinitivo') {
+        // Só o admin, só processo já na lixeira e com o número digitado. Apaga os autos
+        // (movimentos, documentos, arquivos, códigos de verificação e anotações); o
+        // número não volta a ser usado e o registro fica no histórico da configuração.
+        exigirAdmin(c);
+        const ref = db.collection(COL.processos).doc(String(p.id || '_'));
+        const data = (await ref.get()).data();
+        if (!data || data.organization_id !== orgId) throw new HttpsError('not-found', 'Processo não encontrado');
+        if (data.status !== 'excluido') throw new HttpsError('failed-precondition', 'Só se exclui de vez o processo que já está na lixeira');
+        if (texto(p.confirmacao, 80).toUpperCase() !== String(data.numero || '').trim().toUpperCase()) {
+            throw new HttpsError('invalid-argument', 'Digite o número do processo, exatamente como aparece, para confirmar');
+        }
+        // O que outros registros guardam deste processo: atas de sessão, certames e processos que nasceram dele.
+        const [sessoes, certames, filhos] = await Promise.all([
+            db.collection(COL_SESSOES).where('organization_id', '==', orgId).select('pauta', 'titulo').get(),
+            db.collection(COL_CERTAMES).where('processo_id', '==', ref.id).limit(1).select().get(),
+            db.collection(COL.processos).where('organization_id', '==', orgId).where('vinculos', 'array-contains', `pe:${ref.id}`).limit(1).select().get(),
+        ]);
+        const sessao = sessoes.docs.find((s) => ((s.data().pauta || []) as Array<{ processo_id?: string }>).some((x) => x.processo_id === ref.id));
+        if (sessao) throw new HttpsError('failed-precondition', `O processo esteve na pauta da sessão "${sessao.data().titulo || 'sem título'}", e a ata dela o cita. Ele fica na lixeira, fora das listas.`);
+        if (!certames.empty) throw new HttpsError('failed-precondition', 'O processo tem um certame (pregão ou disputa) com propostas e lances guardados. Ele fica na lixeira, fora das listas.');
+        if (!filhos.empty) throw new HttpsError('failed-precondition', 'Outro processo nasceu deste e aponta para ele. Ele fica na lixeira, fora das listas.');
+        const docs = await ref.collection('documentos').select('codigo_verificacao').get();
+        const codigos = docs.docs.map((d) => d.data().codigo_verificacao).filter((x): x is string => typeof x === 'string' && !!x);
+        const anotacoes = await db.collection(COL_ANOTACOES).where('processo_id', '==', ref.id).select().get();
+        await db.recursiveDelete(ref);
+        const lote = db.bulkWriter();
+        for (const k of codigos) lote.delete(db.collection(COL.verificacao).doc(k));
+        for (const d of anotacoes.docs) lote.delete(d.ref);
+        await lote.close();
+        await admin.storage().bucket().deleteFiles({ prefix: `secretaria/${orgId}/${ref.id}/` })
+            .catch((e) => console.warn('excluirDefinitivo: arquivos do processo', ref.id, e?.message));
+        await auditar(db, orgId, c.ctx.uid, c.userName, 'SECRETARIA_PROCESSO_EXCLUIDO_DEFINITIVO', {
+            processo_id: ref.id, numero: String(data.numero || ''), assunto: String(data.assunto || '').slice(0, 200), tipo: String(data.tipo_nome || ''),
+            motivo_exclusao: String(data.excluido?.motivo || ''), excluido_em: String(data.excluido?.em || ''), excluido_por: String(data.excluido?.por_nome || ''), documentos: docs.size,
+        });
+        return { success: true };
     }
 
     if (p.action === 'excluidos') {

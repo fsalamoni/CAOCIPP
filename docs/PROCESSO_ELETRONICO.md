@@ -2643,6 +2643,26 @@ além das do sistema. Lógica pura em `functions-v2/src/shared/listasOrgao.ts`.
   `listas` ao editor de rito (RegrasDaFase); ExpedirComunicacao, textos
   prontos, FormularioAutuacao (autuação e retificação), capa e portal mostram
   o nome guardado.
+- **Importar de arquivo (17/11/2026):** botão "Importar de arquivo" na aba
+  (`ImportarListas.jsx`). Ação `lerListas` (admin, só lê, nada grava):
+  texto (.txt, .md), CSV/TSV, JSON, Word (.docx, .doc), LibreOffice (.odt,
+  .ods), Excel (.xlsx, .xls) e PDF com texto, até 5 MB, ou texto colado.
+  `secretaria/listasArquivo.ts` tira linhas e tabelas na ordem do arquivo
+  (Office pela mesma conversão dos arquivos juntados, `officeParaDoc` e
+  `xlsxParaDoc`); `propostaDeBlocos` (`shared/listasOrgao.ts`) acha a lista
+  de cada item: título de seção ("Espécies de comunicação", "Audiências:",
+  "Origens do processo", aba da planilha com esse nome), "Título: a; b" na
+  mesma linha, coluna com o nome da lista, colunas "Lista" e "Nome", JSON
+  `{ "comunicacao": [...] }` ou `[{ "lista", "nome" }]`. Gênero: "(m)",
+  "(f)", artigo "o/a" no começo ou coluna "Gênero"/"Masculino"; sem isso,
+  estimado pela primeira palavra (`m_suposto`, a prévia mostra "estimado").
+  Linha com mais de 40 letras fica de fora (texto corrido), com aviso; até
+  300 itens por leitura; repetidos no arquivo saem. A prévia
+  (`src/lib/listasImportar.js`) marca "Já existe" (sistema ou lista),
+  "Repetido" e "Escolha a lista", deixa editar nome, lista e gênero e
+  desmarcar, e trava o botão se alguma lista passaria de 30. "Inserir" junta
+  ao fim das listas da tela e chama `salvarListas` (que valida tudo de novo);
+  a auditoria `SECRETARIA_LISTAS` leva `importado_de` e `itens_importados`.
 
 ## Urgência (nov/2026)
 
@@ -2844,6 +2864,25 @@ servindo o modelo excluído).
   quando, motivo (processo), busca sem acento, filtro por tipo e Restaurar
   (processo: com a unidade para onde volta, pela ação `restaurar` de
   `secretariaProcesso`).
+- **Excluir de vez** (17/11/2026, só o admin, botão em cada linha da Lixeira
+  e das listas "Excluídos"): apaga para sempre o que já está na lixeira.
+  - Rito, tipo e modelo: `excluirDefinitivo {colecao, id}` de
+    `secretariaConfig` apaga o documento e as `versoes`
+    (`recursiveDelete`) e, no modelo, o arquivo original do Storage. Tipo com
+    qualquer processo (`tipo_id`, inclusive arquivado ou na lixeira) não é
+    apagado: os processos leem os campos do tipo. Confirmação: marcar
+    "Entendo que não dá para desfazer".
+  - Processo: `excluirDefinitivo {id, confirmacao}` de `secretariaProcesso`,
+    com o número digitado (conferido no servidor). Recusa se o processo esteve
+    na pauta de uma sessão (a ata o cita), tem certame ou outro processo nasceu
+    dele (`vinculos` `pe:{id}`). Apaga o processo com movimentos, documentos,
+    leituras e o resto das subcoleções, os códigos de `secVerificacao` dos
+    documentos, as anotações (`secAnotacoes`) e os arquivos em
+    `secretaria/{org}/{processo}/`. O contador da numeração não volta: o
+    número não se repete.
+  - Auditoria `SECRETARIA_{RITO,TIPO,MODELO,PROCESSO}_EXCLUIDO_DEFINITIVO`
+    (processo: número, assunto, tipo, motivo e quem excluiu antes), no
+    Histórico da configuração com o assunto "Lixeira (exclusões de vez)".
 - `estado.tipos_excluidos`: `{id, nome, formulario}` dos tipos excluídos, para
   todos. Processo já autuado com um deles segue editando os dados com o
   formulário certo e aparece no filtro "Tipo de processo" da lista.
