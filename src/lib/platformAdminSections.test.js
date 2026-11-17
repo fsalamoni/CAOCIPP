@@ -29,7 +29,7 @@ test('busca acha por palavra-chave, sem acento e sem caixa', () => {
 test('seção desconhecida no endereço cai na visão geral', () => {
     assert.equal(findPlatformSection('nada'), null);
     assert.equal(findPlatformSection(null), null);
-    assert.equal(findPlatformSection('costs').label, 'Custos');
+    assert.equal(findPlatformSection('costs').label, 'Custos e uso');
 });
 
 test('pendências apontam para seções que existem', () => {
