@@ -61,12 +61,13 @@ export const getActivityFeed = (params = {}) =>
 export const getStorageFootprint = () =>
     call('getStorageFootprint', undefined, { timeout: 120000 });
 
-// --- Onda 3: Cotas, Saúde do sistema, Ferramentas de dados ---
+// --- Onda 3: Cotas, Diagnóstico, Ferramentas de dados ---
 export const getPlatformQuotas = () => call('getPlatformQuotas');
 export const setPlatformQuota = (quotaKey, value) =>
     call('setPlatformQuota', { quotaKey, value });
-export const getSystemHealth = () =>
-    call('getSystemHealth', undefined, { timeout: 120000 });
+// Diagnóstico e saúde: rotinas agendadas, erros das Functions (24 h), serviços, arquivos e versão.
+export const platformDiagnostico = () =>
+    call('platformDiagnostico', { action: 'painel' }, { timeout: 120000 });
 export const runIntegrityAudit = (limit = 200) =>
     call('runIntegrityAudit', { limit }, { timeout: 120000 });
 export const recalcOrgStats = (organizationId) =>

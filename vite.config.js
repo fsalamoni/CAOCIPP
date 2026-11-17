@@ -5,6 +5,11 @@ import { defineConfig } from 'vite'
 // https://vite.dev/config/
 export default defineConfig({
   logLevel: 'error', // Suppress warnings, only show errors
+  // Versão no ar (painel de diagnóstico): commit do GitHub Actions e hora do build.
+  define: {
+    'import.meta.env.VITE_SIGO_COMMIT': JSON.stringify(process.env.GITHUB_SHA || ''),
+    'import.meta.env.VITE_SIGO_BUILD_EM': JSON.stringify(new Date().toISOString()),
+  },
   plugins: [
     base44Plugin({
       // Support for legacy code that imports the SIGO SDK with @/integrations, @/entities, etc.

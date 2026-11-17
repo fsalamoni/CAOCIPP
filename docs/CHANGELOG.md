@@ -5,6 +5,18 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 17/11/2026 — Diagnóstico e saúde (etapa 8 de 10)
+- **Rotinas agendadas com resultado:** cada uma das 5 rotinas automáticas
+  grava início, duração e falha; o painel mostra se está em dia, atrasada ou
+  falhou, com as 10 últimas execuções. A rotina de prazos das parcerias
+  passou a registrar a falha em vez de engolir o erro.
+- **Erros reais do servidor nas últimas 24 h**, lidos do Cloud Logging e
+  agrupados por função, só das funções do SIGO. Antes, o painel adivinhava
+  erros pelo nome das ações da auditoria.
+- **Versão no ar** (commit do site e revisão das funções), tempo de resposta
+  do banco e espaço dos arquivos enviados.
+- Saiu a função antiga `getSystemHealth`.
+
 ### 17/11/2026 — Central de segurança (etapa 7 de 10)
 - **Checklist com nota de 0 a 100:** quem administra (quantas pessoas, sem
   entrar há 90 dias, e-mail confirmado, código por e-mail), acesso por e-mail

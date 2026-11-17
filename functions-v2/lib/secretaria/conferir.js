@@ -25,6 +25,7 @@ const votacao_1 = require("./votacao");
 const painelAta_1 = require("./painelAta");
 const portalAvisos_2 = require("./portalAvisos");
 const vinculo_1 = require("../shared/vinculo");
+const rotinas_1 = require("../shared/rotinas");
 exports.CONFERENCIAS_POR_HORA = 60;
 /**
  * Chamada pública: no máximo `limite` por hora por endereço de rede (guardado
@@ -125,7 +126,7 @@ async function respostasPorDecurso(db, hoje = (0, secretaria_1.hojeBrasil)()) {
  * lotados na unidade que tem o processo sobre prazos vencidos ou que vencem
  * em até 2 dias. Um e-mail por pessoa, com a lista.
  */
-exports.secretariaAlertaPrazos = (0, scheduler_1.onSchedule)({ schedule: 'every day 07:00', timeZone: 'America/Sao_Paulo', region: context_1.REGION }, async () => {
+exports.secretariaAlertaPrazos = (0, scheduler_1.onSchedule)({ schedule: 'every day 07:00', timeZone: 'America/Sao_Paulo', region: context_1.REGION }, (0, rotinas_1.comRegistro)('secretariaAlertaPrazos', async () => {
     var _a, _b, _c, _d, _e;
     const db = admin.firestore();
     // Envios e entregas temporárias de arquivo que ficaram para trás.
@@ -219,5 +220,5 @@ exports.secretariaAlertaPrazos = (0, scheduler_1.onSchedule)({ schedule: 'every 
         }
     }
     await (0, avisosEquipe_1.enviarResumosDiarios)(db);
-});
+}));
 //# sourceMappingURL=conferir.js.map

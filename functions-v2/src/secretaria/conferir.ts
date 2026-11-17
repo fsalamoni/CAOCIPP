@@ -20,6 +20,7 @@ import { encerrarSessoesVirtuais } from './votacao';
 import { lembrarSessoes } from './painelAta';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { peSuspensoPlataforma } from '../shared/vinculo';
+import { comRegistro } from '../shared/rotinas';
 
 export const CONFERENCIAS_POR_HORA = 60;
 
@@ -122,7 +123,7 @@ export async function respostasPorDecurso(db: admin.firestore.Firestore, hoje = 
  */
 export const secretariaAlertaPrazos = onSchedule(
     { schedule: 'every day 07:00', timeZone: 'America/Sao_Paulo', region: REGION },
-    async () => {
+    comRegistro('secretariaAlertaPrazos', async () => {
         const db = admin.firestore();
         // Envios e entregas temporárias de arquivo que ficaram para trás.
         await limparTemporarios().catch((e) => console.warn('[arquivos] limpeza dos temporários falhou', e));
@@ -208,5 +209,5 @@ export const secretariaAlertaPrazos = onSchedule(
             }
         }
         await enviarResumosDiarios(db);
-    },
+    })
 );

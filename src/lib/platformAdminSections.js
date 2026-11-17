@@ -79,9 +79,9 @@ export const PLATFORM_SECTIONS = [
         keywords: 'auditoria log histórico feed ações eventos',
     },
     {
-        key: 'health', group: 'operacao', label: 'Saúde do sistema', icon: HeartPulse,
-        description: 'Banco respondendo, volume de atividade e erros recentes.',
-        keywords: 'diagnóstico erros falhas status monitoramento',
+        key: 'health', group: 'operacao', label: 'Diagnóstico e saúde', icon: HeartPulse,
+        description: 'Serviços e versão no ar, rotinas agendadas com o resultado de cada execução, erros reais do servidor nas últimas 24 horas e espaço dos arquivos.',
+        keywords: 'diagnóstico saúde erros falhas status monitoramento rotinas agendadas cron versão deploy commit logs arquivos storage espaço',
     },
     {
         key: 'quotas', group: 'operacao', label: 'Cotas e limites', icon: SlidersHorizontal,

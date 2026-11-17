@@ -37,7 +37,7 @@ Quem não é vê "Acesso restrito"; as Functions recusam do mesmo jeito.
 | Módulos | Processo Eletrônico | Para ver os órgãos com Processo Eletrônico e suspender ou reativar o módulo de um órgão. |
 | Operação e diagnóstico | Central de segurança | Para ver a nota de segurança, o que falta resolver, quem administra e tudo o que super-admins fizeram (com exportação). |
 | Operação e diagnóstico | Movimentações | Para saber quem fez o quê, filtrando por órgão ou ação. |
-| Operação e diagnóstico | Saúde do sistema | Quando algo parecer errado: banco, atividade das últimas 24 h e erros. |
+| Operação e diagnóstico | Diagnóstico e saúde | Quando algo parecer errado: serviços, versão no ar, rotinas automáticas, erros do servidor nas últimas 24 h e espaço dos arquivos. |
 | Operação e diagnóstico | Cotas e limites | Limites que valem de fato: órgãos por pessoa, membros por órgão e linhas por importação, com o uso atual. |
 | Dados e custos | Armazenamento | Para ver o espaço que cada coleção ocupa. |
 | Dados e custos | Ferramentas de dados | Para conferir e recalcular contadores ou migrar o histórico. |
@@ -101,6 +101,24 @@ Quem não é vê "Acesso restrito"; as Functions recusam do mesmo jeito.
   administração*, filtre por ação e período e clique em *Exportar em CSV*
   (abre no Excel). A exportação leva o que está carregado; use *Carregar
   mais* antes, se precisar de mais linhas.
+
+## Diagnóstico: receitas
+
+- **Saber se está tudo funcionando:** abra *Diagnóstico e saúde*. O topo diz
+  "Tudo funcionando" ou quantos pontos pedem atenção.
+- **Uma rotina automática falhou:** o cartão da rotina fica vermelho, com a
+  hora e a mensagem da falha; *Últimas execuções* mostra o histórico. Se for
+  um envio de e-mail, confira a chave em *Configuração inicial*.
+- **Rotina "Atrasada":** passou do dobro do intervalo sem rodar. Abra o
+  Cloud Scheduler no console do Google Cloud e veja se o agendamento está
+  pausado ou com erro.
+- **Rotina "Sem registro ainda":** é normal logo depois da publicação; o
+  registro começa na primeira execução.
+- **Erros do servidor:** cada linha é uma função do SIGO, com quantos erros
+  teve nas últimas 24 horas e a última mensagem. Passe o nome da função e a
+  mensagem para quem dá manutenção.
+- **Qual versão está no ar:** o cartão *Versão no ar* mostra o commit do site
+  (com link para o GitHub) e a revisão das funções.
 
 ## Cotas: receitas
 

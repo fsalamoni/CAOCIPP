@@ -209,7 +209,7 @@ async function auditoria(db, p) {
         const d = new Date(String(v));
         if (Number.isNaN(d.getTime()))
             throw new https_1.HttpsError('invalid-argument', `${campo}: data inválida.`);
-        return admin.firestore.Timestamp.fromDate(d);
+        return firestore_1.Timestamp.fromDate(d);
     };
     if (p.de)
         q = q.where('timestamp', '>=', data(p.de, 'De'));

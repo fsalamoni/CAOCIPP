@@ -1,6 +1,6 @@
 import * as admin from 'firebase-admin';
 import { applicationDefault } from 'firebase-admin/app';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { REGION, assertPlatformAdmin, writePlatformAudit } from './helpers';
 
@@ -261,7 +261,7 @@ async function auditoria(db: admin.firestore.Firestore, p: Pedido) {
     const data = (v: unknown, campo: string) => {
         const d = new Date(String(v));
         if (Number.isNaN(d.getTime())) throw new HttpsError('invalid-argument', `${campo}: data inválida.`);
-        return admin.firestore.Timestamp.fromDate(d);
+        return Timestamp.fromDate(d);
     };
     if (p.de) q = q.where('timestamp', '>=', data(p.de, 'De'));
     if (p.ate) q = q.where('timestamp', '<=', data(p.ate, 'Até'));

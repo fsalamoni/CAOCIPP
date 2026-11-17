@@ -65,11 +65,11 @@ try {
     await p.screenshot({ path: `${SHOTS}/admin-visao-geral.png`, fullPage: true });
     console.log('ok 2: visão geral com pendências');
 
-    await p.getByRole('navigation', { name: 'Seções da administração da plataforma' }).getByRole('button', { name: 'Saúde do sistema' }).click();
-    await p.getByRole('heading', { name: 'Saúde do sistema', level: 2 }).waitFor();
+    await p.getByRole('navigation', { name: 'Seções da administração da plataforma' }).getByRole('button', { name: 'Diagnóstico e saúde' }).click();
+    await p.getByRole('heading', { name: 'Diagnóstico e saúde', level: 2 }).waitFor();
     assert.match(p.url(), /secao=health/);
     await p.reload();
-    await p.getByRole('heading', { name: 'Saúde do sistema', level: 2 }).waitFor({ timeout: 30000 });
+    await p.getByRole('heading', { name: 'Diagnóstico e saúde', level: 2 }).waitFor({ timeout: 30000 });
     console.log('ok 3: seção abre pelo menu e volta pelo link');
 
     await p.getByLabel('Buscar seção da administração da plataforma').fill('bigquery');
@@ -300,6 +300,18 @@ try {
     await db.doc(`platformAdmins/${saUid}`).set({ active: false, email: 'sa2@teste.dev' });
     assert.equal((await painelSa()).error?.status, 'PERMISSION_DENIED', 'retirado, não entra mais');
     console.log('ok 21: acesso retirado vale na hora, sem revogar tokens');
+
+    // Diagnóstico: rotina com falha registrada aparece, sem registro também; erros do Google Cloud ficam "não disponível" no emulador.
+    const falha = { em: new Date().toISOString(), duracao_ms: 1200, status: 'erro', erro: 'Falha de teste ao enviar e-mail' };
+    await db.doc('platformRoutines/secretariaAlertaPrazos').set({ ultima: falha, ultimo_erro: falha, historico: [falha, { ...falha, status: 'ok', erro: undefined, em: new Date(Date.now() - 864e5).toISOString() }].map((h) => JSON.parse(JSON.stringify(h))) });
+    await dp.goto(`${SITE}/Admin?secao=health`);
+    await dp.getByText(/pontos? para olhar|Tudo funcionando/).waitFor({ timeout: 60000 });
+    await dp.getByText('Falhou', { exact: true }).first().waitFor();
+    await dp.getByText('Falha de teste ao enviar e-mail').waitFor();
+    assert.ok(await dp.getByText('Sem registro ainda').count() >= 1, 'rotina sem registro');
+    await dp.getByText(/Não disponível agora: o registro do Google Cloud/).waitFor();
+    await dp.screenshot({ path: `${SHOTS}/admin-diagnostico.png`, fullPage: true });
+    console.log('ok 22: diagnóstico mostra rotinas com falha e sem registro');
 } finally {
     await browser.close();
 }

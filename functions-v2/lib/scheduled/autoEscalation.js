@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.autoEscalateStalledUrgent = void 0;
 const admin = require("firebase-admin");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
+const rotinas_1 = require("../shared/rotinas");
 // Reimplementação mínima (server-side) do cálculo de dias úteis já usado no
 // frontend (`src/lib/dateUtils.js` / `src/lib/stageTime.js`). Mantida local
 // e sem dependências para não acoplar o pacote de Functions ao app React.
@@ -60,7 +61,7 @@ const ENTITY_DEFS = [
 // Consultas/Expedientes urgentes e ainda não finalizados cuja permanência na
 // etapa atual (dias úteis) já ultrapassou o limite configurado, e notifica
 // o criador, os administradores delegados e o responsável pelo registro.
-exports.autoEscalateStalledUrgent = (0, scheduler_1.onSchedule)({ schedule: 'every day 07:00', timeZone: 'America/Sao_Paulo', region: 'southamerica-east1' }, async () => {
+exports.autoEscalateStalledUrgent = (0, scheduler_1.onSchedule)({ schedule: 'every day 07:00', timeZone: 'America/Sao_Paulo', region: 'southamerica-east1' }, (0, rotinas_1.comRegistro)('autoEscalateStalledUrgent', async () => {
     var _a;
     const db = admin.firestore();
     // Funcionalidade integrada: roda por padrão, controlada pela config por
@@ -143,5 +144,5 @@ exports.autoEscalateStalledUrgent = (0, scheduler_1.onSchedule)({ schedule: 'eve
             console.error('[autoEscalateStalledUrgent] falha no órgão', orgId, error);
         }
     }
-});
+}));
 //# sourceMappingURL=autoEscalation.js.map

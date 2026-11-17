@@ -110,7 +110,7 @@ preguicoso(() => require('./platform/activity'), ['getActivityFeed']);
 preguicoso(() => require('./platform/footprint'), ['getStorageFootprint']);
 // Onda 3: Cotas, Saúde do sistema, Ferramentas de dados
 preguicoso(() => require('./platform/quotas'), ['getPlatformQuotas', 'setPlatformQuota']);
-preguicoso(() => require('./platform/health'), ['getSystemHealth']);
+preguicoso(() => require('./platform/diagnostico'), ['platformDiagnostico']);
 preguicoso(() => require('./platform/dataTools'), ['runIntegrityAudit', 'recalcOrgStats']);
 preguicoso(() => require('./platform/historyBackfill'), ['backfillHistory']);
 preguicoso(() => require('./platform/setupStatus'), ['getSetupStatus']);
