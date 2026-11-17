@@ -1,3 +1,4 @@
+import { limiteImportacao } from '../shared/cotas';
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { EntityTypeDef, FieldDef, initialPhase, phasesReachedUpTo, validateRecordValues } from './schema';
@@ -278,8 +279,9 @@ export const importRecords = onCall<ImportRecordsRequest>(
         if (!Array.isArray(rows) || rows.length === 0) {
             throw new HttpsError('invalid-argument', 'Nenhuma linha para importar.');
         }
-        if (rows.length > IMPORT_MAX_ROWS) {
-            throw new HttpsError('invalid-argument', `Máximo de ${IMPORT_MAX_ROWS} linhas por importação.`);
+        const maxLinhas = await limiteImportacao(IMPORT_MAX_ROWS);
+        if (rows.length > maxLinhas) {
+            throw new HttpsError('invalid-argument', `Máximo de ${maxLinhas} linhas por importação.`);
         }
 
         const db = admin.firestore();

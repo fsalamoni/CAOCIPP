@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.importJurisFromExcel = void 0;
+const cotas_1 = require("../shared/cotas");
 const vinculo_1 = require("../shared/vinculo");
 const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
@@ -202,8 +203,9 @@ exports.importJurisFromExcel = (0, https_1.onCall)({
             unmappedHeaders: [],
         };
     }
-    if (rawRows.length > MAX_ROWS) {
-        throw new https_1.HttpsError('invalid-argument', `Arquivo muito grande (${rawRows.length} linhas). Máximo: ${MAX_ROWS}.`);
+    const maxLinhas = await (0, cotas_1.limiteImportacao)(MAX_ROWS);
+    if (rawRows.length > maxLinhas) {
+        throw new https_1.HttpsError('invalid-argument', `Arquivo muito grande (${rawRows.length} linhas). Máximo: ${maxLinhas}.`);
     }
     // 2. Mapeamento de colunas --------------------------------------------
     const headers = [...new Set(rawRows.flatMap((r) => Object.keys(r)))];

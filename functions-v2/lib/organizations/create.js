@@ -3,9 +3,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.createOrganization = void 0;
 const admin = require("firebase-admin");
 const vinculo_1 = require("../shared/vinculo");
+const cotas_1 = require("../shared/cotas");
 const https_1 = require("firebase-functions/v2/https");
 const normalization_1 = require("../shared/normalization");
 exports.createOrganization = (0, https_1.onCall)({ region: 'southamerica-east1', cors: true }, async (request) => {
+    var _a;
     // Verify authentication
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'User must be authenticated');
@@ -17,6 +19,12 @@ exports.createOrganization = (0, https_1.onCall)({ region: 'southamerica-east1',
     const db = admin.firestore();
     const userId = request.auth.uid;
     await (0, vinculo_1.exigirContaLiberada)(db, userId);
+    // Cota da plataforma: órgãos criados por pessoa (super-admin não tem limite).
+    const adm = await db.collection('platformAdmins').doc(userId).get();
+    if (!(adm.exists && ((_a = adm.data()) === null || _a === void 0 ? void 0 : _a.active) === true)) {
+        const criados = await db.collection('userOrganizations').where('user_id', '==', userId).where('role', '==', 'creator').get();
+        await (0, cotas_1.exigirDentroDaCota)('max_orgs_per_user', criados.docs.filter((d) => d.data().active !== false).length);
+    }
     // Generate unique invite code
     let inviteCode = generateInviteCode();
     let isUnique = false;

@@ -2,6 +2,7 @@ import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { formatPersonName } from '../shared/normalization';
 import { exigirContaLiberada, orgSuspensa } from '../shared/vinculo';
+import { exigirDentroDaCota } from '../shared/cotas';
 
 interface JoinOrgRequest {
     inviteCode: string;
@@ -27,6 +28,22 @@ export const joinOrganization = onCall<JoinOrgRequest>(
         await exigirContaLiberada(db, userId);
         const userEmail = request.auth.token.email || '';
         const userName = formatPersonName(request.auth.token.name || '');
+
+        // Cota da plataforma: membros ativos por órgão (fora da transação;
+        // ponytail: duas entradas simultâneas no último lugar podem passar juntas).
+        const alvo = await db.collection('organizations').where('invite_code', '==', inviteCode).limit(1).get();
+        if (!alvo.empty) {
+            const alvoId = alvo.docs[0].id;
+            const meu = await db.collection('userOrganizations').doc(`${userId}_${alvoId}`).get();
+            if (!(meu.exists && meu.data()?.active !== false)) {
+                const doOrgao = db.collection('userOrganizations').where('organization_id', '==', alvoId);
+                const [total, inativos] = await Promise.all([
+                    doOrgao.count().get(),
+                    doOrgao.where('active', '==', false).count().get(),
+                ]);
+                await exigirDentroDaCota('max_members_per_org', total.data().count - inativos.data().count);
+            }
+        }
 
         try {
             const result = await db.runTransaction(async (transaction) => {

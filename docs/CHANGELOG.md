@@ -5,6 +5,15 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 17/11/2026 — Cotas que valem de fato (etapa 6 de 10)
+- **Cotas conferidas no servidor:** órgãos criados por pessoa, membros
+  ativos por órgão (o convite para de aceitar entradas no limite) e linhas por
+  importação de planilha. Antes, as cotas eram só gravadas e nada as aplicava.
+- **Uso atual ao lado de cada limite**, com aviso a partir de 80%.
+- Saíram do painel quatro valores que nunca eram aplicados (tamanho de página,
+  retenção de auditoria, histórico embutido e ouvintes por sessão).
+- Um teste trava o catálogo: toda cota precisa ser conferida em alguma Function.
+
 ### 17/11/2026 — Aviso para todos e modo manutenção (etapa 5 de 10)
 - **Aviso para todos:** faixa no topo das telas e na tela de entrada, com
   tom, link, período agendado, prévia e opção de não poder ser fechada.

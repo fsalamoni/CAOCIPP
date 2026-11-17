@@ -1,3 +1,4 @@
+import { limiteImportacao } from '../shared/cotas';
 import { vinculoBloqueado } from '../shared/vinculo';
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
@@ -273,10 +274,11 @@ export const importPanorama = onCall<ImportRequest>(
         if (linhas.length === 0) {
             throw new HttpsError('invalid-argument', 'Arquivo vazio — nenhuma linha encontrada.');
         }
-        if (linhas.length > MAX_ROWS) {
+        const maxLinhas = await limiteImportacao(MAX_ROWS);
+        if (linhas.length > maxLinhas) {
             throw new HttpsError(
                 'invalid-argument',
-                `Arquivo com ${linhas.length} linhas. O limite por importação é ${MAX_ROWS}. `
+                `Arquivo com ${linhas.length} linhas. O limite por importação é ${maxLinhas}. `
                 + 'Divida a planilha em partes — cada parte importada acrescenta à mesma base.'
             );
         }

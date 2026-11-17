@@ -80,8 +80,8 @@ export const PLATFORM_SECTIONS = [
     },
     {
         key: 'quotas', group: 'operacao', label: 'Cotas e limites', icon: SlidersHorizontal,
-        description: 'Limites de importação, paginação, histórico e retenção gravados para a plataforma.',
-        keywords: 'limites importação linhas página retenção ouvintes',
+        description: 'Limites que o servidor confere: órgãos criados por pessoa, membros por órgão e linhas por importação, com o uso atual de cada um.',
+        keywords: 'cotas limites importação linhas planilha membros órgãos criar convite uso capacidade',
     },
     {
         key: 'footprint', group: 'dados', label: 'Armazenamento', icon: HardDrive,

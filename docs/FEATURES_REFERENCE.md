@@ -309,7 +309,7 @@ pendências da configuração inicial (`platformAlerts`, a partir de
 | Operação e diagnóstico | Avisos e manutenção (`avisos`) | Aviso para todos (tom, título, texto, link, período, dispensável, prévia; aparece no topo das telas e na tela de entrada) e modo manutenção (mensagem e previsão; só super-admin usa o sistema) | `platformAvisos` (`publicarAviso`, `encerrarAviso`, `ligarManutencao`, `desligarManutencao`) |
 | Operação e diagnóstico | Movimentações (`activity`) | Feed do `auditLogs` | `getActivityFeed` |
 | Operação e diagnóstico | Saúde do sistema (`health`) | Banco, atividade e erros recentes | `getSystemHealth` |
-| Operação e diagnóstico | Cotas e limites (`quotas`) | Valores gravados; **nenhum é aplicado ainda** | `getPlatformQuotas`, `setPlatformQuota` |
+| Operação e diagnóstico | Cotas e limites (`quotas`) | Cotas que o servidor confere (`shared/cotas.ts`): órgãos criados por pessoa (`createOrganization`; super-admin sem limite), membros ativos por órgão (`joinOrganization`) e linhas por importação (registros personalizados, Panorama e Jurimetria, sem passar do teto técnico de cada um), com o maior uso atual de cada uma | `getPlatformQuotas`, `setPlatformQuota` |
 | Dados e custos | Armazenamento (`footprint`) | Documentos e espaço por coleção | `getStorageFootprint` |
 | Dados e custos | Ferramentas de dados (`datatools`) | Integridade e recálculo de contadores, backfill de histórico | `runIntegrityAudit`, `recalcOrgStats`, `backfillHistory` |
 | Dados e custos | Custos (`costs`) | Custos reais via export do Cloud Billing no BigQuery | `getCostReport` |
