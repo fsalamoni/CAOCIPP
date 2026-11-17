@@ -54,6 +54,8 @@ export const platformAvisos = (action, extra = {}) => call('platformAvisos', { a
 // Central de segurança: action = painel | confirmar ({ item, confirmado }) | auditoria ({ acao, de, ate, cursor, limite }).
 export const platformSecurity = (action, extra = {}) => call('platformSecurity', { action, ...extra });
 // Cópias e exportação: copias | ligarCopiaDiaria ({ retencaoDias }) | ligarProtecao | exportarOrgao ({ organizationId, colecao, cursor }) | exportarPlataforma.
+// Uso e custos: painel | salvarAlerta ({ leiturasDia, escritasDia, ativo }).
+export const platformUso = (action, extra = {}) => call('platformUso', { action, ...extra }, { timeout: 120000 });
 export const platformDados = (action, extra = {}) => call('platformDados', { action, ...extra }, { timeout: 300000 });
 // Pessoas do SIGO: action = listar | ficha | bloquear | desbloquear.
 export const platformUser = (action, uid, extra = {}) =>

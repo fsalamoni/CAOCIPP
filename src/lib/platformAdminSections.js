@@ -104,9 +104,9 @@ export const PLATFORM_SECTIONS = [
         keywords: 'integridade contadores recalcular backfill histórico migração correção',
     },
     {
-        key: 'costs', group: 'dados', label: 'Custos', icon: DollarSign,
-        description: 'Quanto a plataforma custou por serviço, lido do faturamento do Google Cloud.',
-        keywords: 'dinheiro gastos faturamento billing bigquery reais',
+        key: 'costs', group: 'dados', label: 'Custos e uso', icon: DollarSign,
+        description: 'Uso do banco e das funções por dia contra a cota gratuita, uso por órgão, alerta diário por e-mail e o custo em reais do faturamento.',
+        keywords: 'dinheiro gastos faturamento billing bigquery reais uso consumo leituras gravações cota gratuita orçamento alerta tendência órgão',
     },
 ];
 

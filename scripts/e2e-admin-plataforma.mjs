@@ -335,6 +335,27 @@ try {
     assert.ok(cfg.platformConfig.branding, 'configuração com a identidade');
     await dp.screenshot({ path: `${SHOTS}/admin-copias.png`, fullPage: true });
     console.log('ok 23: exportação do órgão e da configuração em JSON');
+
+    // Custos e uso: no emulador não há monitoramento; uso por órgão vem da auditoria; alerta salvo.
+    await dp.goto(`${SITE}/Admin?secao=costs`);
+    await dp.getByText(/Não disponível agora: o monitoramento/).waitFor({ timeout: 60000 });
+    await dp.getByRole('link', { name: 'Promotoria de Teste' }).first().waitFor();
+    await dp.getByLabel('Leituras por dia').fill('1000');
+    await dp.getByRole('button', { name: 'Salvar' }).click();
+    await dp.getByText('Alerta salvo. A conferência é todo dia às 6h.').waitFor({ timeout: 60000 });
+    await dp.getByText(/Última alteração em/).waitFor({ timeout: 60000 });
+    // Gráfico com dados de exemplo (a resposta da função é trocada só nesta tela), para conferir o desenho.
+    const dias = Array.from({ length: 30 }, (_, i) => ({ dia: new Date(Date.now() - (29 - i) * 864e5).toISOString().slice(0, 10), leituras: 20000 + ((i * 7919) % 45000), escritas: 3000 + ((i * 3571) % 9000), exclusoes: 10 }));
+    await dp.route('**/platformUso', async (route) => {
+        const real = await (await route.fetch()).json();
+        if (real.result) Object.assign(real.result, { banco: dias, funcoes: dias.map((d) => ({ dia: d.dia, chamadas: Math.round(d.leituras / 40) })) });
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(real) });
+    });
+    await dp.reload();
+    await dp.getByRole('img', { name: /Leituras: média de/ }).waitFor({ timeout: 60000 });
+    await dp.screenshot({ path: `${SHOTS}/admin-custos.png`, fullPage: true });
+    await dp.unroute('**/platformUso');
+    console.log('ok 24: custos e uso com uso por órgão, alerta salvo e gráfico');
 } finally {
     await browser.close();
 }

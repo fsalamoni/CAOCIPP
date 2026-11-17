@@ -5,6 +5,16 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 17/11/2026 — Custos e uso (etapa 10 de 10)
+- **Uso do banco por dia** (leituras, gravações) nos últimos 30 dias contra a
+  cota gratuita, com média, pico e dias acima; **chamadas às funções** do SIGO
+  por dia.
+- **Uso por órgão** em 30 dias, pelas ações registradas.
+- **Alerta diário por e-mail** aos administradores da plataforma quando o dia
+  anterior passa dos limites (nova rotina das 6h, acompanhada no diagnóstico).
+- Custo em reais do faturamento na mesma tela, com passo a passo para criar
+  um orçamento com aviso no Google Cloud.
+
 ### 17/11/2026 — Cópias e exportação (etapa 9 de 10)
 - **Cópia de segurança diária do banco** ligada por um botão no painel, com
   retenção de 7, 14 ou 30 dias, e a lista das cópias guardadas. Passo a passo
