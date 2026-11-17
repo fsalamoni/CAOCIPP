@@ -42,6 +42,24 @@ Quem não é vê "Acesso restrito"; as Functions recusam do mesmo jeito.
 | Dados e custos | Ferramentas de dados | Para conferir e recalcular contadores ou migrar o histórico. |
 | Dados e custos | Custos | Para ver o gasto por serviço (exige a exportação do faturamento). |
 
+## Identidade e termos: receitas
+
+- **Trocar nome, cor ou logo:** em *Identidade e termos*, mude os campos e
+  confira a prévia ao lado. A cor precisa de contraste mínimo de 4,5 para 1
+  com o branco (o painel avisa e não deixa salvar um tom claro demais). O
+  logo é uma imagem PNG, JPEG ou WebP quadrada de até 220 KB; *Voltar ao logo
+  oficial* desfaz. *Salvar identidade* vale na hora para todos: topo das
+  telas, tela de entrada e nome da aba do navegador.
+- **Textos da tela de entrada e rodapé:** campo vazio usa o texto padrão.
+- **Contato de suporte:** e-mail, telefone e página de chamados aparecem no
+  rodapé da tela de entrada. Preencha só o que existir.
+- **Publicar os termos de uso:** cole o texto oficial (parágrafos separados
+  por uma linha em branco), escolha se o aceite é obrigatório e clique em
+  *Publicar versão N*. Com aceite obrigatório, cada pessoa (inclusive você) vê
+  os termos ao abrir o SIGO e só continua depois de aceitar; a versão e a data
+  do aceite aparecem na ficha da pessoa. Cada versão publicada fica guardada
+  com data e autor, e a página *Termos de Uso* passa a mostrar o texto novo.
+
 ## Órgãos: receitas
 
 - **Achar um órgão:** digite parte do nome na busca. Os filtros mostram só os

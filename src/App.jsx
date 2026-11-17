@@ -8,6 +8,8 @@ import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider as FirebaseAuthProvider, useAuth } from '@/lib/FirebaseAuthContext';
 import { FeatureFlagsProvider } from '@/lib/FeatureFlagsContext';
+import { BrandingProvider } from '@/lib/BrandingContext';
+import TermosGate from '@/components/TermosGate';
 import ThemeV2Effect from '@/lib/ThemeV2';
 import { ThemeSwitcherProvider } from '@/lib/ThemeSwitcher';
 import TwoFactorGate from '@/lib/TwoFactorGate';
@@ -73,13 +75,16 @@ function App() {
     <ErrorBoundary>
       <FirebaseAuthProvider>
         <FeatureFlagsProvider>
+        <BrandingProvider>
           <ThemeV2Effect />
           <ThemeSwitcherProvider>
             <QueryClientProvider client={queryClientInstance}>
               <Router>
                 <NavigationTracker />
                 <TwoFactorGate>
-                  <AuthenticatedApp />
+                  <TermosGate>
+                    <AuthenticatedApp />
+                  </TermosGate>
                 </TwoFactorGate>
               </Router>
               <Toaster />
@@ -87,6 +92,7 @@ function App() {
               <Avisos position="top-right" offset={{ top: 72, right: 16 }} mobileOffset={{ top: 64 }} closeButton style={{ pointerEvents: 'auto' }} />
             </QueryClientProvider>
           </ThemeSwitcherProvider>
+        </BrandingProvider>
         </FeatureFlagsProvider>
       </FirebaseAuthProvider>
     </ErrorBoundary>

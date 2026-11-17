@@ -148,7 +148,8 @@ export const platformUser = onCall<Pedido>({ region: REGION, timeoutSeconds: 120
             nome: String(u.full_name || u.platform_name || a?.displayName || ''),
             email: String(u.email || a?.email || ''),
             funcao: String(u.function && u.function !== 'member' ? u.function : ''),
-            termos_aceitos_em: iso(u.terms_accepted_at),
+            termos_aceitos_em: iso(u.termos_aceitos_em || u.terms_accepted_at),
+            termos_versao: Number(u.termos_versao_aceita) || null,
             conta: a ? {
                 provedores: provedor(a),
                 email_confirmado: a.emailVerified,

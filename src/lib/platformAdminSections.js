@@ -9,13 +9,13 @@
 
 import {
     Settings, Flag, Mail, Building2, Users, ShieldCheck, Gavel, Activity,
-    HeartPulse, SlidersHorizontal, HardDrive, Wrench, DollarSign,
+    HeartPulse, SlidersHorizontal, HardDrive, Wrench, DollarSign, Palette,
 } from 'lucide-react';
 
 export { searchAdminSections as searchPlatformSections } from './adminSections.js';
 
 export const PLATFORM_GROUPS = [
-    { key: 'plataforma', label: 'Plataforma', description: 'Configuração inicial, funcionalidades ligadas e envio de e-mail.' },
+    { key: 'plataforma', label: 'Plataforma', description: 'Configuração inicial, identidade visual, funcionalidades ligadas e envio de e-mail.' },
     { key: 'pessoas', label: 'Órgãos e pessoas', description: 'Quem usa o SIGO, em que órgão, e quem administra a plataforma.' },
     { key: 'modulos', label: 'Módulos', description: 'Controles da plataforma sobre cada módulo de trabalho.' },
     { key: 'operacao', label: 'Operação e diagnóstico', description: 'O que está acontecendo, a saúde do sistema e os limites de uso.' },
@@ -27,6 +27,11 @@ export const PLATFORM_SECTIONS = [
         key: 'setup', group: 'plataforma', label: 'Configuração inicial', icon: Settings,
         description: 'Passo a passo dos segredos e integrações que ficam fora do banco: chave de e-mail, faturamento, primeiro acesso.',
         keywords: 'segredos variáveis ambiente github actions chave api bigquery faturamento bootstrap instalação',
+    },
+    {
+        key: 'branding', group: 'plataforma', label: 'Identidade e termos', icon: Palette,
+        description: 'Nome, cor e logo da plataforma, textos da tela de entrada, rodapé, contato de suporte e termos de uso com aceite.',
+        keywords: 'marca logotipo logo cor nome personalizar identidade visual tela inicial entrada rodapé suporte contato termos de uso aceite versão',
     },
     {
         key: 'flags', group: 'plataforma', label: 'Funcionalidades', icon: Flag,

@@ -47,6 +47,8 @@ export const getCostReport = (days = 30) =>
 // --- Onda 2: Órgãos, Usuários, Movimentações, Footprint ---
 export const getOrgsReport = (limit = 200) =>
     call('getOrgsReport', { limit }, { timeout: 120000 });
+// Identidade da plataforma: action = salvar ({ identidade }) | publicarTermos ({ texto, exigir_aceite }).
+export const platformBranding = (action, extra = {}) => call('platformBranding', { action, ...extra });
 // Pessoas do SIGO: action = listar | ficha | bloquear | desbloquear.
 export const platformUser = (action, uid, extra = {}) =>
     call('platformUser', { action, uid, ...extra }, { timeout: 120000 });

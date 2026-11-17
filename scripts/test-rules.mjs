@@ -23,7 +23,7 @@ const semear = (caminho, o) => fetch(`${FS}/${caminho}`, {
 }).then((x) => assert.ok(x.ok, `semear ${caminho}`));
 
 const pedir = (u, metodo, caminho, corpo) => fetch(`${FS}/${caminho}`, {
-    method: metodo, headers: { authorization: `Bearer ${u.token}`, 'content-type': 'application/json' },
+    method: metodo, headers: { ...(u ? { authorization: `Bearer ${u.token}` } : {}), 'content-type': 'application/json' },
     ...(corpo ? { body: JSON.stringify(corpo) } : {}),
 }).then((x) => x.status);
 
@@ -127,5 +127,8 @@ await semear('platformConfig/featureFlags', { x: true });
 await semear('platformConfig/emailProvider', { fromEmail: 'a@b.c' });
 assert.equal(await pedir(estranho, 'GET', 'platformConfig/featureFlags'), 200, 'flags legíveis');
 assert.equal(await pedir(estranho, 'GET', 'platformConfig/emailProvider'), 403, 'config de e-mail fechada');
+await semear('platformConfig/branding', { nome_curto: 'SIGO' });
+assert.equal(await pedir(null, 'GET', 'platformConfig/branding'), 200, 'identidade legível antes do login');
+assert.equal(await pedir(estranho, 'PATCH', 'platformConfig/branding', { fields: { nome_curto: { stringValue: 'X' } } }), 403, 'identidade só pelas Functions');
 
 console.log('REGRAS OK');

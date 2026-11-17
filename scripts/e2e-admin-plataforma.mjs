@@ -180,6 +180,37 @@ try {
     await mbp.getByText('Promotoria de Teste', { exact: true }).first().waitFor({ timeout: 60000 });
     assert.equal(await mbp.getByText('está bloqueado').count(), 0);
     console.log('ok 14: desbloquear devolve o acesso');
+
+    // Identidade: cor clara demais não salva; nome e cor novos valem na tela de entrada.
+    await dp.goto(`${SITE}/Admin?secao=branding`);
+    await dp.getByLabel('Nome curto').fill('CAO Teste');
+    await dp.getByLabel('Cor principal', { exact: true }).fill('#FFD966');
+    await dp.getByText('Escolha um tom mais escuro').waitFor();
+    assert.equal(await dp.getByRole('button', { name: 'Salvar identidade' }).isDisabled(), true);
+    await dp.getByLabel('Cor principal', { exact: true }).fill('#1F4E79');
+    await dp.getByLabel('E-mail', { exact: true }).fill('suporte@teste.dev');
+    await dp.getByRole('button', { name: 'Salvar identidade' }).click();
+    await dp.getByText('Tudo salvo.').waitFor({ timeout: 60000 });
+    await dp.screenshot({ path: `${SHOTS}/admin-identidade.png`, fullPage: true });
+    assert.equal((await db.doc('platformConfig/branding').get()).data().nome_curto, 'CAO Teste');
+    const anon = await browser.newPage();
+    await anon.goto(`${SITE}/`);
+    await anon.getByText('Suporte: suporte@teste.dev').waitFor({ timeout: 60000 });
+    assert.match(await anon.title(), /^CAO Teste - /);
+    await anon.close();
+    console.log('ok 15: identidade salva vale na tela de entrada e na aba');
+
+    // Termos com aceite: publicar pede aceite de todos, inclusive de quem publicou.
+    await dp.getByLabel('Texto dos termos').fill('Termos de uso do teste. '.repeat(5));
+    await dp.getByRole('button', { name: 'Publicar versão 1' }).click();
+    await dp.getByRole('dialog').getByRole('button', { name: 'Publicar' }).click();
+    await mbp.goto(`${SITE}/Dashboard`);
+    await mbp.getByRole('heading', { name: 'Termos de uso' }).waitFor({ timeout: 60000 });
+    await mbp.screenshot({ path: `${SHOTS}/termos-aceite.png` });
+    await mbp.getByRole('button', { name: 'Li e aceito os termos' }).click();
+    await mbp.getByRole('heading', { name: 'Termos de uso' }).waitFor({ state: 'detached', timeout: 60000 });
+    assert.equal((await db.doc(`users/${comumUid}`).get()).data().termos_versao_aceita, 1);
+    console.log('ok 16: termos publicados pedem aceite e o aceite fica no perfil');
 } finally {
     await browser.close();
 }

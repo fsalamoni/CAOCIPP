@@ -12,6 +12,7 @@ import PlatformOverview from '@/components/admin/PlatformOverview';
 import CostsPanel from '@/components/admin/CostsPanel';
 import FeatureFlagsPanel from '@/components/admin/FeatureFlagsPanel';
 import PlatformAdminsPanel from '@/components/admin/PlatformAdminsPanel';
+import BrandingPanel from '@/components/admin/BrandingPanel';
 import OrgsPanel from '@/components/admin/OrgsPanel';
 import UsersPanel from '@/components/admin/UsersPanel';
 import ActivityPanel from '@/components/admin/ActivityPanel';
@@ -27,6 +28,7 @@ import SecretariaPanel from '@/components/admin/SecretariaPanel';
 // src/lib/platformAdminSections.js.
 const SECTION_COMPONENTS = {
     setup: SetupGuidePanel,
+    branding: BrandingPanel,
     flags: FeatureFlagsPanel,
     email: EmailProviderPanel,
     orgs: OrgsPanel,

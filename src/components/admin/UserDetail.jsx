@@ -177,7 +177,7 @@ export default function UserDetail({ uid, onBack }) {
                                 <Dado rotulo="Verificação em duas etapas">{f.conta.dois_fatores ? 'Ligada' : 'Desligada'}</Dado>
                                 <Dado rotulo="Conta criada em">{fmtData(f.conta.criada_em)}</Dado>
                                 <Dado rotulo="Último acesso">{fmtData(f.conta.ultimo_acesso, true)}</Dado>
-                                <Dado rotulo="Termos aceitos em">{fmtData(f.termos_aceitos_em)}</Dado>
+                                <Dado rotulo="Termos aceitos em">{fmtData(f.termos_aceitos_em)}{f.termos_versao ? ` (versão ${f.termos_versao})` : ''}</Dado>
                             </dl>
                         ) : (
                             <p className="text-sm text-slate-600 dark:text-slate-300">A conta de login não existe mais. Ficaram só os registros no SIGO.</p>
