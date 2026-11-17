@@ -13,6 +13,7 @@ import CostsPanel from '@/components/admin/CostsPanel';
 import FeatureFlagsPanel from '@/components/admin/FeatureFlagsPanel';
 import PlatformAdminsPanel from '@/components/admin/PlatformAdminsPanel';
 import BrandingPanel from '@/components/admin/BrandingPanel';
+import AvisosPanel from '@/components/admin/AvisosPanel';
 import OrgsPanel from '@/components/admin/OrgsPanel';
 import UsersPanel from '@/components/admin/UsersPanel';
 import ActivityPanel from '@/components/admin/ActivityPanel';
@@ -35,6 +36,7 @@ const SECTION_COMPONENTS = {
     users: UsersPanel,
     admins: PlatformAdminsPanel,
     secretaria: SecretariaPanel,
+    avisos: AvisosPanel,
     activity: ActivityPanel,
     health: HealthPanel,
     quotas: QuotasPanel,
