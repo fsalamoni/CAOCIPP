@@ -1,3 +1,4 @@
+import { limiteImportacao } from '../shared/cotas';
 import { vinculoBloqueado } from '../shared/vinculo';
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
@@ -284,10 +285,11 @@ export const importJurisFromExcel = onCall<ImportJurisRequest>(
                 unmappedHeaders: [],
             };
         }
-        if (rawRows.length > MAX_ROWS) {
+        const maxLinhas = await limiteImportacao(MAX_ROWS);
+        if (rawRows.length > maxLinhas) {
             throw new HttpsError(
                 'invalid-argument',
-                `Arquivo muito grande (${rawRows.length} linhas). Máximo: ${MAX_ROWS}.`
+                `Arquivo muito grande (${rawRows.length} linhas). Máximo: ${maxLinhas}.`
             );
         }
 

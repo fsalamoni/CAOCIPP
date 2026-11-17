@@ -242,6 +242,24 @@ try {
     await dp.getByRole('dialog').getByRole('button', { name: 'Confirmar' }).click();
     await mbp.getByRole('heading', { name: /em manutenção/ }).waitFor({ state: 'detached', timeout: 60000 });
     console.log('ok 18: manutenção barra o membro, não o super-admin, e desligar devolve');
+
+    // Cota de membros: o painel mostra o uso; com limite 2 (já há 2 ativos), o convite recusa.
+    await dp.goto(`${SITE}/Admin?secao=quotas`);
+    await dp.getByText('Maior uso hoje: 2 membros (Promotoria de Teste)').waitFor({ timeout: 60000 });
+    await dp.getByLabel('Limite (membros)').fill('2');
+    await dp.getByRole('button', { name: 'Salvar' }).nth(1).click();
+    await dp.getByText('100% do limite').waitFor({ timeout: 60000 });
+    await dp.screenshot({ path: `${SHOTS}/admin-cotas.png`, fullPage: true });
+    await db.doc('organizations/org1').set({ invite_code: 'COTA22' }, { merge: true });
+    await criar('novo@teste.dev');
+    const login = await (await fetch('http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'novo@teste.dev', password: 'segredo123', returnSecureToken: true }),
+    })).json();
+    const r = await (await fetch(`http://127.0.0.1:5001/${PROJ}/southamerica-east1/joinOrganization`, {
+        method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${login.idToken}` }, body: JSON.stringify({ data: { inviteCode: 'COTA22' } }),
+    })).json();
+    assert.equal(r.error?.status, 'RESOURCE_EXHAUSTED', JSON.stringify(r));
+    console.log('ok 19: cota de membros vale no convite e o painel mostra o uso');
 } finally {
     await browser.close();
 }

@@ -37,7 +37,7 @@ Quem não é vê "Acesso restrito"; as Functions recusam do mesmo jeito.
 | Módulos | Processo Eletrônico | Para ver os órgãos com Processo Eletrônico e suspender ou reativar o módulo de um órgão. |
 | Operação e diagnóstico | Movimentações | Para saber quem fez o quê, filtrando por órgão ou ação. |
 | Operação e diagnóstico | Saúde do sistema | Quando algo parecer errado: banco, atividade das últimas 24 h e erros. |
-| Operação e diagnóstico | Cotas e limites | Para gravar limites. Atenção: hoje são só registrados, nenhum é aplicado. |
+| Operação e diagnóstico | Cotas e limites | Limites que valem de fato: órgãos por pessoa, membros por órgão e linhas por importação, com o uso atual. |
 | Dados e custos | Armazenamento | Para ver o espaço que cada coleção ocupa. |
 | Dados e custos | Ferramentas de dados | Para conferir e recalcular contadores ou migrar o histórico. |
 | Dados e custos | Custos | Para ver o gasto por serviço (exige a exportação do faturamento). |
@@ -79,6 +79,17 @@ Quem não é vê "Acesso restrito"; as Functions recusam do mesmo jeito.
   manutenção* devolve o acesso a todos, sem precisar recarregar a página.
   Atenção: é um bloqueio de tela. Para impedir o acesso de alguém de fato,
   suspenda o órgão ou bloqueie a pessoa.
+
+## Cotas: receitas
+
+- **Ver se algum órgão está perto do limite:** em *Cotas e limites*, cada cota
+  mostra o maior uso de hoje (por exemplo, o órgão com mais membros) e a
+  porcentagem do limite; a barra fica amarela a partir de 80%.
+- **Mudar um limite:** digite o novo valor e *Salvar*. Vale em até 1 minuto.
+  Baixar um limite abaixo do uso atual não tira ninguém: só impede novas
+  entradas (ou novos órgãos) até o uso ficar abaixo dele.
+- **O que a pessoa vê ao bater no limite:** uma mensagem dizendo qual limite
+  foi atingido e pedindo para falar com a administração do SIGO.
 
 ## Órgãos: receitas
 

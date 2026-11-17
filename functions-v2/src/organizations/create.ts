@@ -1,5 +1,6 @@
 import * as admin from 'firebase-admin';
 import { exigirContaLiberada } from '../shared/vinculo';
+import { exigirDentroDaCota } from '../shared/cotas';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { formatPersonName } from '../shared/normalization';
 
@@ -29,6 +30,13 @@ export const createOrganization = onCall<CreateOrgRequest>(
         const db = admin.firestore();
         const userId = request.auth.uid;
         await exigirContaLiberada(db, userId);
+
+        // Cota da plataforma: órgãos criados por pessoa (super-admin não tem limite).
+        const adm = await db.collection('platformAdmins').doc(userId).get();
+        if (!(adm.exists && adm.data()?.active === true)) {
+            const criados = await db.collection('userOrganizations').where('user_id', '==', userId).where('role', '==', 'creator').get();
+            await exigirDentroDaCota('max_orgs_per_user', criados.docs.filter((d) => d.data().active !== false).length);
+        }
 
         // Generate unique invite code
         let inviteCode = generateInviteCode();

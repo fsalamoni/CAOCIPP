@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.deleteRecord = exports.importRecords = exports.updateRecord = exports.createRecord = void 0;
+const cotas_1 = require("../shared/cotas");
 const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
 const schema_1 = require("./schema");
@@ -208,8 +209,9 @@ exports.importRecords = (0, https_1.onCall)({ region: REGION, timeoutSeconds: 54
     if (!Array.isArray(rows) || rows.length === 0) {
         throw new https_1.HttpsError('invalid-argument', 'Nenhuma linha para importar.');
     }
-    if (rows.length > IMPORT_MAX_ROWS) {
-        throw new https_1.HttpsError('invalid-argument', `Máximo de ${IMPORT_MAX_ROWS} linhas por importação.`);
+    const maxLinhas = await (0, cotas_1.limiteImportacao)(IMPORT_MAX_ROWS);
+    if (rows.length > maxLinhas) {
+        throw new https_1.HttpsError('invalid-argument', `Máximo de ${maxLinhas} linhas por importação.`);
     }
     const db = admin.firestore();
     await getMembership(db, userId, organizationId);

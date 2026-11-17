@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.importPanorama = void 0;
+const cotas_1 = require("../shared/cotas");
 const vinculo_1 = require("../shared/vinculo");
 const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
@@ -198,8 +199,9 @@ exports.importPanorama = (0, https_1.onCall)({ region: 'southamerica-east1', mem
     if (linhas.length === 0) {
         throw new https_1.HttpsError('invalid-argument', 'Arquivo vazio — nenhuma linha encontrada.');
     }
-    if (linhas.length > MAX_ROWS) {
-        throw new https_1.HttpsError('invalid-argument', `Arquivo com ${linhas.length} linhas. O limite por importação é ${MAX_ROWS}. `
+    const maxLinhas = await (0, cotas_1.limiteImportacao)(MAX_ROWS);
+    if (linhas.length > maxLinhas) {
+        throw new https_1.HttpsError('invalid-argument', `Arquivo com ${linhas.length} linhas. O limite por importação é ${maxLinhas}. `
             + 'Divida a planilha em partes — cada parte importada acrescenta à mesma base.');
     }
     // ---- Colunas -------------------------------------------------------
