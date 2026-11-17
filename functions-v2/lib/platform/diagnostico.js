@@ -3,36 +3,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.platformDiagnostico = void 0;
 exports.agruparErros = agruparErros;
 const admin = require("firebase-admin");
-const app_1 = require("firebase-admin/app");
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const helpers_1 = require("./helpers");
 const rotinas_1 = require("../shared/rotinas");
-/**
- * platformDiagnostico — diagnóstico e saúde da plataforma (só super-admin,
- * só leitura). Substitui o antigo getSystemHealth, que adivinhava erros pelo
- * nome das ações da auditoria.
- *
- *  - rotinas agendadas: última execução, duração, falha e atraso
- *    (platformRoutines, gravado por comRegistro em cada onSchedule);
- *  - erros reais das Functions do SIGO nas últimas 24 h, lidos do Cloud
- *    Logging e agrupados por função (o projeto é compartilhado: só entram as
- *    funções exportadas por este código);
- *  - serviços: banco (com tempo de resposta), chave de e-mail, faturamento;
- *  - arquivos: espaço e quantidade no bucket (Cloud Monitoring; o bucket é
- *    do projeto, então inclui os outros apps);
- *  - revisão das Functions no ar.
- * Fontes externas que falham viram `null` ("não disponível"), sem derrubar o resto.
- */
-const projeto = () => process.env.GCLOUD_PROJECT || admin.app().options.projectId || '';
-const noEmulador = () => process.env.FUNCTIONS_EMULATOR === 'true';
-async function googleApi(url, corpo) {
-    const { access_token } = await (0, app_1.applicationDefault)().getAccessToken();
-    const r = await fetch(url, Object.assign(Object.assign({ method: corpo ? 'POST' : 'GET', headers: { authorization: `Bearer ${access_token}`, 'content-type': 'application/json' } }, (corpo ? { body: JSON.stringify(corpo) } : {})), { signal: AbortSignal.timeout(8000) }));
-    if (!r.ok)
-        throw new Error(`${r.status} ${(await r.text()).slice(0, 200)}`);
-    return r.json();
-}
+const googleApi_1 = require("../shared/googleApi");
 /** Agrupa entradas do Cloud Logging pelas funções do SIGO. Pura, exportada para teste. */
 function agruparErros(entradas, funcoes) {
     var _a, _b, _c, _d, _e, _f, _g;
@@ -56,19 +31,18 @@ function agruparErros(entradas, funcoes) {
     return [...grupos.values()].sort((a, b) => b.quantidade - a.quantidade || b.ultima_em.localeCompare(a.ultima_em));
 }
 async function lerErros() {
-    if (noEmulador() || !projeto())
+    if ((0, googleApi_1.noEmulador)() || !(0, googleApi_1.projeto)())
         return null;
     try {
         // Nomes dos serviços no Cloud Run = nome exportado em minúsculas.
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
         const funcoes = new Set(Object.keys(require('../index')).map((n) => n.toLowerCase()));
         const desde = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-        const r = await googleApi('https://logging.googleapis.com/v2/entries:list', {
-            resourceNames: [`projects/${projeto()}`],
-            filter: `severity>=ERROR AND timestamp>="${desde}" AND (resource.type="cloud_run_revision" OR resource.type="cloud_function")`,
-            orderBy: 'timestamp desc',
-            pageSize: 500,
-        });
+        const r = await (0, googleApi_1.googleApi)('https://logging.googleapis.com/v2/entries:list', { corpo: {
+                resourceNames: [`projects/${(0, googleApi_1.projeto)()}`],
+                filter: `severity>=ERROR AND timestamp>="${desde}" AND (resource.type="cloud_run_revision" OR resource.type="cloud_function")`,
+                orderBy: 'timestamp desc',
+                pageSize: 500,
+            } });
         const grupos = agruparErros(r.entries || [], funcoes);
         return { grupos, total: grupos.reduce((s, g) => s + g.quantidade, 0), truncado: !!r.nextPageToken };
     }
@@ -78,7 +52,7 @@ async function lerErros() {
     }
 }
 async function lerArquivos() {
-    if (noEmulador() || !projeto())
+    if ((0, googleApi_1.noEmulador)() || !(0, googleApi_1.projeto)())
         return null;
     try {
         const bucket = admin.storage().bucket().name;
@@ -90,7 +64,7 @@ async function lerArquivos() {
                 'interval.startTime': ini.toISOString(),
                 'interval.endTime': fim.toISOString(),
             });
-            const r = await googleApi(`https://monitoring.googleapis.com/v3/projects/${projeto()}/timeSeries?${q}`);
+            const r = await (0, googleApi_1.googleApi)(`https://monitoring.googleapis.com/v3/projects/${(0, googleApi_1.projeto)()}/timeSeries?${q}`);
             // Uma série por classe de armazenamento; o ponto mais novo vem primeiro.
             return (r.timeSeries || []).reduce((s, t) => { var _a, _b, _c, _d, _e, _f, _g, _h; return s + Number((_h = (_d = (_c = (_b = (_a = t.points) === null || _a === void 0 ? void 0 : _a[0]) === null || _b === void 0 ? void 0 : _b.value) === null || _c === void 0 ? void 0 : _c.doubleValue) !== null && _d !== void 0 ? _d : (_g = (_f = (_e = t.points) === null || _e === void 0 ? void 0 : _e[0]) === null || _f === void 0 ? void 0 : _f.value) === null || _g === void 0 ? void 0 : _g.int64Value) !== null && _h !== void 0 ? _h : 0); }, 0);
         };

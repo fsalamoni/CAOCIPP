@@ -235,6 +235,9 @@ dependem de autorização expressa; nenhuma foi feita.
   `revokeRefreshTokens` nas Functions. A *Central de segurança* do painel
   (`platformSecurity`) mostra o checklist de proteção e a auditoria das
   ações de super-admin (`auditLogs` com `scope == 'platform'`).
+  `platformDados` (só super-admin) liga a cópia diária e a proteção contra
+  exclusão do banco pela API de administração do Firestore e exporta dados
+  de um órgão em páginas; não há ação que apague dado.
   Concessão por `grantPlatformAdmin` ou pelo script
   `functions-v2/scripts/bootstrap-platform-admin.js`. O bootstrap por e-mail
   só vale com `email_verified` no token (desde 16/11/2026): o Portal das

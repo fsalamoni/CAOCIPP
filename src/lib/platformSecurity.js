@@ -44,6 +44,10 @@ export const ACOES_AUDITORIA = {
     PLATFORM_MAINTENANCE_ON: 'Ligou o modo manutenção',
     PLATFORM_MAINTENANCE_OFF: 'Desligou o modo manutenção',
     PLATFORM_SECURITY_CONFIRMED: 'Confirmou item de segurança',
+    PLATFORM_BACKUP_SCHEDULED: 'Ligou a cópia diária do banco',
+    PLATFORM_DELETE_PROTECTION_ON: 'Ligou a proteção contra exclusão do banco',
+    PLATFORM_ORG_EXPORTED: 'Exportou os dados de um órgão',
+    PLATFORM_CONFIG_EXPORTED: 'Exportou a configuração da plataforma',
     RECALC_ORG_STATS: 'Recalculou contadores',
     BACKFILL_HISTORY: 'Migrou histórico',
 };

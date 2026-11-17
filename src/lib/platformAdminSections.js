@@ -9,7 +9,7 @@
 
 import {
     Settings, Flag, Mail, Building2, Users, ShieldCheck, Gavel, Activity,
-    HeartPulse, SlidersHorizontal, HardDrive, Wrench, DollarSign, Palette, Megaphone, Lock,
+    HeartPulse, SlidersHorizontal, HardDrive, Wrench, DollarSign, Palette, Megaphone, Lock, DatabaseBackup,
 } from 'lucide-react';
 
 export { searchAdminSections as searchPlatformSections } from './adminSections.js';
@@ -87,6 +87,11 @@ export const PLATFORM_SECTIONS = [
         key: 'quotas', group: 'operacao', label: 'Cotas e limites', icon: SlidersHorizontal,
         description: 'Limites que o servidor confere: órgãos criados por pessoa, membros por órgão e linhas por importação, com o uso atual de cada um.',
         keywords: 'cotas limites importação linhas planilha membros órgãos criar convite uso capacidade',
+    },
+    {
+        key: 'copias', group: 'dados', label: 'Cópias e exportação', icon: DatabaseBackup,
+        description: 'Cópia de segurança diária do banco, proteção contra exclusão, cópias guardadas e exportação dos dados de um órgão ou da configuração da plataforma.',
+        keywords: 'backup cópia segurança restaurar recuperar pitr proteção exclusão exportar baixar json dados órgão lgpd portabilidade',
     },
     {
         key: 'footprint', group: 'dados', label: 'Armazenamento', icon: HardDrive,

@@ -6,6 +6,7 @@
 // Capturas em E2E_SHOTS (padrão: /tmp).
 import { createRequire } from 'module';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 const req = createRequire(new URL('../functions-v2/package.json', import.meta.url));
 const admin = req('firebase-admin');
 const { chromium } = createRequire(import.meta.url)('playwright');
@@ -312,6 +313,28 @@ try {
     await dp.getByText(/Não disponível agora: o registro do Google Cloud/).waitFor();
     await dp.screenshot({ path: `${SHOTS}/admin-diagnostico.png`, fullPage: true });
     console.log('ok 22: diagnóstico mostra rotinas com falha e sem registro');
+
+    // Cópias e exportação: o órgão vem escolhido pelo link da ficha; o .json leva os registros e a configuração.
+    await db.doc('processes/pp1/history/h1').set({ action: 'criado', organization_id: 'org1' });
+    await dp.goto(`${SITE}/Admin?secao=copias&orgao=org1`);
+    await dp.getByText(/Não foi possível consultar a configuração do banco agora/).waitFor({ timeout: 60000 });
+    await dp.getByLabel('Órgão', { exact: true }).locator('option[value="org1"]').waitFor({ state: 'attached', timeout: 60000 });
+    assert.equal(await dp.getByLabel('Órgão', { exact: true }).inputValue(), 'org1');
+    const baixarOrg = dp.waitForEvent('download', { timeout: 120000 });
+    await dp.getByRole('button', { name: 'Exportar em JSON' }).click();
+    const arqOrg = await baixarOrg;
+    const json = JSON.parse(fs.readFileSync(await arqOrg.path(), 'utf8'));
+    assert.equal(json.orgao.id, 'org1');
+    assert.equal(json.colecoes.processes[0]._id, 'pp1');
+    assert.equal(json.colecoes.processes[0]._subcolecoes.history[0].action, 'criado');
+    assert.equal(json.colecoes.configuracao[0].name, 'Promotoria de Teste');
+    assert.ok(json.colecoes.userOrganizations.length >= 2);
+    const baixarCfg = dp.waitForEvent('download', { timeout: 60000 });
+    await dp.getByRole('button', { name: 'Exportar configuração' }).click();
+    const cfg = JSON.parse(fs.readFileSync(await (await baixarCfg).path(), 'utf8'));
+    assert.ok(cfg.platformConfig.branding, 'configuração com a identidade');
+    await dp.screenshot({ path: `${SHOTS}/admin-copias.png`, fullPage: true });
+    console.log('ok 23: exportação do órgão e da configuração em JSON');
 } finally {
     await browser.close();
 }

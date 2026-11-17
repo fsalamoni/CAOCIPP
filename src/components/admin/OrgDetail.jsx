@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
     ArrowLeft, Loader2, AlertCircle, PauseCircle, PlayCircle, Crown, Trash2, AlertTriangle,
-    Users, FileText, ScrollText, Handshake, Scale, Gavel, Database, Mail, Phone, Globe, Activity,
+    Users, FileText, ScrollText, Handshake, Scale, Gavel, Database, Mail, Phone, Globe, Activity, Download,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -138,6 +138,9 @@ export default function OrgDetail({ orgId, onBack, onChanged }) {
                         : <Button variant="outline" onClick={() => setDialogo('suspender')} className="gap-1.5"><PauseCircle className="w-4 h-4" aria-hidden />Suspender</Button>}
                     <Button variant="outline" onClick={() => setDialogo('criador')} disabled={elegiveis.length === 0} className="gap-1.5" title={elegiveis.length === 0 ? 'Não há outro membro ativo' : undefined}>
                         <Crown className="w-4 h-4" aria-hidden />Trocar criador
+                    </Button>
+                    <Button variant="outline" asChild className="gap-1.5">
+                        <Link to={`/Admin?secao=copias&orgao=${encodeURIComponent(orgId)}`}><Download className="w-4 h-4" aria-hidden />Exportar dados</Link>
                     </Button>
                     <Button variant="ghost" onClick={() => setDialogo('excluir')} className="gap-1.5 text-red-700 hover:text-red-800 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950">
                         <Trash2 className="w-4 h-4" aria-hidden />Excluir

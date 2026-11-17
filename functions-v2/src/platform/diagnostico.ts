@@ -1,9 +1,9 @@
 import * as admin from 'firebase-admin';
-import { applicationDefault } from 'firebase-admin/app';
 import { Timestamp } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { REGION, assertPlatformAdmin } from './helpers';
 import { ROTINAS, situacaoRotina } from '../shared/rotinas';
+import { googleApi, projeto, noEmulador } from '../shared/googleApi';
 
 /**
  * platformDiagnostico — diagnóstico e saúde da plataforma (só super-admin,
@@ -21,21 +21,6 @@ import { ROTINAS, situacaoRotina } from '../shared/rotinas';
  *  - revisão das Functions no ar.
  * Fontes externas que falham viram `null` ("não disponível"), sem derrubar o resto.
  */
-
-const projeto = () => process.env.GCLOUD_PROJECT || admin.app().options.projectId || '';
-const noEmulador = () => process.env.FUNCTIONS_EMULATOR === 'true';
-
-async function googleApi(url: string, corpo?: unknown) {
-    const { access_token } = await applicationDefault().getAccessToken();
-    const r = await fetch(url, {
-        method: corpo ? 'POST' : 'GET',
-        headers: { authorization: `Bearer ${access_token}`, 'content-type': 'application/json' },
-        ...(corpo ? { body: JSON.stringify(corpo) } : {}),
-        signal: AbortSignal.timeout(8000),
-    });
-    if (!r.ok) throw new Error(`${r.status} ${(await r.text()).slice(0, 200)}`);
-    return r.json() as Promise<any>;
-}
 
 export interface GrupoErro { funcao: string; quantidade: number; ultima_em: string; ultima_mensagem: string }
 
@@ -60,15 +45,14 @@ async function lerErros(): Promise<{ grupos: GrupoErro[]; total: number; truncad
     if (noEmulador() || !projeto()) return null;
     try {
         // Nomes dos serviços no Cloud Run = nome exportado em minúsculas.
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
         const funcoes = new Set(Object.keys(require('../index')).map((n) => n.toLowerCase()));
         const desde = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-        const r = await googleApi('https://logging.googleapis.com/v2/entries:list', {
+        const r = await googleApi('https://logging.googleapis.com/v2/entries:list', { corpo: {
             resourceNames: [`projects/${projeto()}`],
             filter: `severity>=ERROR AND timestamp>="${desde}" AND (resource.type="cloud_run_revision" OR resource.type="cloud_function")`,
             orderBy: 'timestamp desc',
             pageSize: 500,
-        });
+        } });
         const grupos = agruparErros(r.entries || [], funcoes);
         return { grupos, total: grupos.reduce((s, g) => s + g.quantidade, 0), truncado: !!r.nextPageToken };
     } catch (e) {
