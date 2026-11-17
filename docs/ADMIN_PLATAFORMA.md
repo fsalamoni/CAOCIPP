@@ -42,7 +42,7 @@ Quem não é vê "Acesso restrito"; as Functions recusam do mesmo jeito.
 | Dados e custos | Cópias e exportação | Para ligar a cópia diária do banco, ver as cópias guardadas e exportar os dados de um órgão ou a configuração da plataforma. |
 | Dados e custos | Armazenamento | Para ver o espaço que cada coleção ocupa. |
 | Dados e custos | Ferramentas de dados | Para conferir e recalcular contadores ou migrar o histórico. |
-| Dados e custos | Custos | Para ver o gasto por serviço (exige a exportação do faturamento). |
+| Dados e custos | Custos e uso | Para ver se o uso está dentro da cota gratuita, quais órgãos mais usam, ligar o alerta diário e ver o custo em reais. |
 
 ## Identidade e termos: receitas
 
@@ -139,6 +139,22 @@ Quem não é vê "Acesso restrito"; as Functions recusam do mesmo jeito.
 - **Guardar a configuração da plataforma:** *Exportar configuração* baixa
   identidade, termos (todas as versões), avisos, funcionalidades, cotas,
   e-mail, administradores e rotinas.
+
+## Custos e uso: receitas
+
+- **Saber se o SIGO está saindo de graça:** em *Custos e uso*, as barras de
+  leituras e gravações por dia ficam azuis abaixo da linha tracejada (cota
+  gratuita do Google) e amarelas acima dela. O banco é compartilhado com os
+  outros apps do mesmo projeto, então os números incluem o uso deles.
+- **Ser avisado quando passar:** em *Alerta de uso por e-mail*, deixe os
+  limites (a sugestão é a própria cota gratuita) e *Salvar*. Todo dia às 6h o
+  SIGO confere o dia anterior e manda e-mail para os administradores da
+  plataforma. A conferência aparece em *Diagnóstico e saúde* como rotina.
+- **Ver quem mais usa:** *Uso por órgão* ordena os órgãos pelas ações dos
+  últimos 30 dias.
+- **Custo em reais e teto com aviso do Google:** o custo aparece quando a
+  exportação do faturamento estiver ligada (*Configuração inicial*). Para um
+  teto, siga *Criar um orçamento com aviso no Google Cloud* na mesma tela.
 
 ## Cotas: receitas
 

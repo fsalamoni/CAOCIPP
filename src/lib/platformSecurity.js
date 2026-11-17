@@ -48,6 +48,7 @@ export const ACOES_AUDITORIA = {
     PLATFORM_DELETE_PROTECTION_ON: 'Ligou a proteção contra exclusão do banco',
     PLATFORM_ORG_EXPORTED: 'Exportou os dados de um órgão',
     PLATFORM_CONFIG_EXPORTED: 'Exportou a configuração da plataforma',
+    PLATFORM_USAGE_ALERT_SET: 'Mudou o alerta de uso',
     RECALC_ORG_STATS: 'Recalculou contadores',
     BACKFILL_HISTORY: 'Migrou histórico',
 };

@@ -13,6 +13,7 @@ export const ROTINAS: Record<string, { nome: string; agenda: string; horas: numb
     checkPartnershipNoticeDeadlines: { nome: 'Prazos de aviso das parcerias', agenda: 'Todo dia, 3h', horas: 24 },
     autoEscalateStalledUrgent: { nome: 'Escalonamento de urgentes parados', agenda: 'Todo dia, 7h', horas: 24 },
     secretariaAlertaPrazos: { nome: 'Processo Eletrônico: prazos, decursos e limpeza', agenda: 'Todo dia, 7h', horas: 24 },
+    verificarUsoDiario: { nome: 'Alerta de uso do banco', agenda: 'Todo dia, 6h', horas: 24 },
 };
 
 const HISTORICO = 10;

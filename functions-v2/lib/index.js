@@ -102,6 +102,7 @@ preguicoso(() => require('./platform/footprint'), ['getStorageFootprint']);
 preguicoso(() => require('./platform/quotas'), ['getPlatformQuotas', 'setPlatformQuota']);
 preguicoso(() => require('./platform/diagnostico'), ['platformDiagnostico']);
 preguicoso(() => require('./platform/dados'), ['platformDados']);
+preguicoso(() => require('./platform/uso'), ['platformUso', 'verificarUsoDiario']);
 preguicoso(() => require('./platform/dataTools'), ['runIntegrityAudit', 'recalcOrgStats']);
 preguicoso(() => require('./platform/historyBackfill'), ['backfillHistory']);
 preguicoso(() => require('./platform/setupStatus'), ['getSetupStatus']);
