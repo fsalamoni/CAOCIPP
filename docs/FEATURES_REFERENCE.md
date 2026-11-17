@@ -299,6 +299,7 @@ pendências da configuração inicial (`platformAlerts`, a partir de
 |---|---|---|---|
 | — | Visão geral | Pendências, totais e atalhos | `getSetupStatus`, `getPlatformOverview` |
 | Plataforma | Configuração inicial (`setup`) | Passo a passo dos segredos e integrações | `getSetupStatus` |
+| Plataforma | Identidade e termos (`branding`) | Nome curto e completo, cor (com conferência de contraste), logo próprio, título e texto da tela de entrada, rodapé, contato de suporte, com prévia ao vivo; termos de uso versionados, com aceite obrigatório opcional (tela de aceite antes de qualquer página) | `platformBranding` (`salvar`, `publicarTermos`) |
 | Plataforma | Funcionalidades (`flags`) | Liga/desliga as flags opcionais | `getFeatureFlags`, `setFeatureFlag` |
 | Plataforma | E-mail (`email`) | Remetente dos e-mails | `getEmailProviderConfig`, `setEmailProviderConfig` |
 | Órgãos e pessoas | Órgãos (`orgs`) | Lista com busca e filtros (todos, suspensos, com Processo Eletrônico, sem registros); ficha do órgão em `&orgao=<id>` com membros, volumes por módulo, páginas ligadas, contato e atividade recente; suspender, reativar, trocar o criador e excluir | `getOrgsReport`, `platformOrg` (`ficha`, `suspender`, `reativar`, `trocarCriador`), `deleteOrganization` |

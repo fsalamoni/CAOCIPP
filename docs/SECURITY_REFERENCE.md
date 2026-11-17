@@ -77,7 +77,7 @@ a pessoa saiu. Coberto por `scripts/test-rules.mjs` (leitura e lista).
 | `notifications` | Só o destinatário | Só marcar como lida (`read`, `read_at`); criadas só pelas Functions (menções e avisos do Processo Eletrônico) |
 | `presence` | Membros do órgão | Só o próprio heartbeat |
 | `otpCodes` | **Nenhuma** | **Nenhuma** |
-| `platformConfig` | `featureFlags`: qualquer autenticado. Demais documentos (`emailProvider`, `quotas`): só super-admin | **Nenhuma** |
+| `platformConfig` | `featureFlags`: qualquer autenticado. `branding`: público, mesmo sem login (a tela de entrada mostra; só texto de vitrine, sem dado pessoal). Demais documentos (`emailProvider`, `quotas`): só super-admin | **Nenhuma** |
 | `platformAdmins` | O próprio registro ou super-admin | **Nenhuma** |
 | `platformStats` | Só super-admin | **Nenhuma** |
 | `sec*` (Processo Eletrônico) | **Nenhuma** (tudo pelas Functions `secretaria*`), salvo `secPaineis` (quem está em `leitores`) e `secSinais` | **Nenhuma** |
@@ -104,7 +104,15 @@ isso significa, de fato:
   ficam sob as regras desse app.
 - **Contas.** Quem tem conta em outro app do projeto é "autenticado" para o
   SIGO. Por isso nenhuma regra do SIGO libera dado só por autenticação (a
-  única exceção é `platformConfig/featureFlags`, booleanos sem dado pessoal).
+  única exceção é `platformConfig/featureFlags`, booleanos sem dado pessoal,
+  e `platformConfig/branding`, a identidade pública da tela de entrada).
+- **Identidade da plataforma (desde 17/11/2026).** Só a Function
+  `platformBranding` grava (super-admin, auditado), validando no servidor:
+  tamanhos de texto, cor `#RRGGBB` com contraste mínimo de 4,5 com o branco,
+  logo só como imagem PNG, JPEG ou WebP em data URL de até 220 KB (SVG
+  recusado: pode carregar script), e-mail e site de suporte (só `https://`).
+  O aceite dos termos (`termos_versao_aceita`, `termos_aceitos_em`) fica no
+  perfil da pessoa; é registro de ciência, não controle de acesso.
 - **Servidor e IAM.** Functions de qualquer app do projeto rodam com contas de
   serviço que leem e escrevem qualquer banco e bucket do projeto, e quem é
   Proprietário ou Editor do projeto também. Regras não limitam o Admin SDK.

@@ -5,6 +5,16 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 17/11/2026 — Identidade da plataforma e termos de uso com aceite (etapa 4 de 10)
+- **Nome, cor e logo** da plataforma editáveis em *Identidade e termos*, com
+  prévia ao vivo e conferência de contraste; valem no topo das telas, na tela
+  de entrada e no nome da aba.
+- **Tela de entrada:** título, texto de apresentação, rodapé e contato de
+  suporte configuráveis.
+- **Termos de uso versionados:** cada publicação ganha número e fica guardada;
+  com aceite obrigatório, a pessoa vê os termos antes de qualquer tela e o
+  aceite (versão e data) aparece na ficha dela.
+
 ### 17/11/2026 — Ficha de cada pessoa e bloqueio no SIGO (etapa 3 de 10)
 - **Usuários só do SIGO:** a lista antes trazia todas as contas do login
   compartilhado (inclusive de outros sistemas). Agora mostra só quem tem

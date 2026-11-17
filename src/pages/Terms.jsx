@@ -1,8 +1,29 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FileText } from 'lucide-react';
+import { useBranding } from '@/lib/BrandingContext';
 
+// Termos publicados pela administração da plataforma substituem o texto padrão.
 export default function Terms() {
+  const { termos, nome_curto } = useBranding();
+  if (!termos?.texto) return <TermosPadrao />;
+  const data = termos.publicado_em?.toDate?.();
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">Termos de Uso</h1>
+        <p className="text-slate-600 dark:text-slate-300">
+          {nome_curto} · versão {termos.versao}{data ? ` · publicada em ${data.toLocaleDateString('pt-BR')}` : ''}
+        </p>
+      </div>
+      <article className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 sm:p-6 text-slate-800 dark:text-slate-100 whitespace-pre-wrap leading-relaxed">
+        {termos.texto}
+      </article>
+    </div>
+  );
+}
+
+function TermosPadrao() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div>

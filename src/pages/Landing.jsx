@@ -6,11 +6,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { FileText, TrendingUp, Users, Shield, Chrome, AlertCircle, Loader2 } from 'lucide-react';
 import Logo from '@/components/Logo';
+import { useBranding } from '@/lib/BrandingContext';
 import { logger } from '@/utils/logger';
 
 export default function Landing() {
   const navigate = useNavigate();
   const { isAuthenticated, isLoadingAuth, signInWithGoogle, authError, clearAuthError } = useAuth();
+  const marca = useBranding();
+  const suporte = [marca.suporte.email, marca.suporte.telefone].filter(Boolean);
   const [isSigningIn, setIsSigningIn] = useState(false);
 
   // Redirect if already authenticated
@@ -77,11 +80,10 @@ export default function Landing() {
         {/* Hero Section */}
         <div className="text-center mb-16 max-w-3xl mx-auto">
           <h2 className="text-5xl font-bold text-slate-900 dark:text-white mb-6">
-            SIGO<br />Sistema Interno de Gestão Operacional
+            {marca.inicio.titulo || <>{marca.nome_curto}<br />{marca.nome_completo}</>}
           </h2>
           <p className="text-xl text-slate-600 dark:text-slate-300 mb-8">
-            Plataforma completa para controle, análise e acompanhamento de processos.
-            Organize seu fluxo de trabalho com eficiência e transparência.
+            {marca.inicio.subtitulo}
           </p>
 
           {/* Error Alert */}
@@ -181,8 +183,14 @@ export default function Landing() {
       <footer className="border-t bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm mt-16">
         <div className="container mx-auto px-4 py-8 text-center text-slate-600 dark:text-slate-400">
           <p className="text-sm">
-            © 2026 SIGO - Sistema Interno de Gestão Operacional
+            {marca.rodape || `© ${new Date().getFullYear()} ${marca.nome_curto} - ${marca.nome_completo}`}
           </p>
+          {(suporte.length > 0 || marca.suporte.site) && (
+            <p className="text-sm mt-2 break-words">
+              Suporte: {suporte.join(' · ')}
+              {marca.suporte.site && <>{suporte.length > 0 ? ' · ' : ''}<a href={marca.suporte.site} target="_blank" rel="noopener noreferrer" className="underline hover:text-slate-900 dark:hover:text-white">{marca.suporte.site.replace(/^https:\/\//, '')}</a></>}
+            </p>
+          )}
         </div>
       </footer>
     </div>

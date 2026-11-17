@@ -12,7 +12,10 @@
 // Para regenerar os ícones PWA em diferentes tamanhos a partir do PNG
 // original, ver `scripts/build-pwa-icons-from-png.py`.
 // ============================================================================
+// Desde 17/11/2026 a administração da plataforma pode trocar nome, cor e logo
+// (platformConfig/branding); sem personalização, vale este PNG oficial.
 import React from 'react';
+import { useBranding } from '@/lib/BrandingContext';
 
 const SIZES = {
   xs: 24,
@@ -34,16 +37,17 @@ export default function Logo({
   textClassName = '',
 }) {
   const px = numericSize || SIZES[size] || SIZES.md;
+  const b = useBranding();
 
   // Dimensões e atributos de renderização da imagem
   const imgProps = {
-    src: LOGO_SRC,
+    src: b.logo || LOGO_SRC,
     width: px,
     height: px,
-    alt: 'SIGO - Sistema Interno de Gestão Operacional',
+    alt: `${b.nome_curto} - ${b.nome_completo}`,
     draggable: 'false',
     decoding: 'async',
-    style: { display: 'block' },
+    style: { display: 'block', objectFit: 'contain' },
   };
 
   if (!showText) {
@@ -58,11 +62,11 @@ export default function Logo({
     <span className={`flex items-center gap-2.5 ${className}`}>
       <img {...imgProps} />
       <span className={`flex flex-col leading-none ${textClassName}`}>
-        <span className="text-xl font-bold tracking-tight" style={{ color: '#33495C' }}>
-          SIGO
+        <span className="text-xl font-bold tracking-tight dark:!text-white" style={{ color: b.cor }}>
+          {b.nome_curto}
         </span>
         <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium tracking-wider uppercase mt-0.5">
-          Sistema Interno de Gestão Operacional
+          {b.nome_completo}
         </span>
       </span>
     </span>

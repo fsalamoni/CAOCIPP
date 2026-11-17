@@ -200,7 +200,7 @@ o banco guarda só os ritos e modelos de cada órgão.
 | `notifications/{id}` | Notificações por usuário |
 | `presence/{id}` | Presença em tempo real |
 | `otpCodes/{uid}` | Códigos de 2FA (hash), inacessíveis ao cliente |
-| `platformConfig/{doc}` | Feature flags e configuração global |
+| `platformConfig/{doc}` | Feature flags e configuração global; `branding` guarda a identidade da plataforma (nomes, cor, logo, textos da tela de entrada, rodapé, suporte e a versão atual dos termos), com o histórico dos termos em `branding/termosVersoes/{versão}` |
 | `platformAdmins/{uid}`, `platformStats/{doc}` | Super-admins e estatísticas da plataforma |
 | `sec*` | Processo Eletrônico (processos, ritos, tipos, unidades, modelos, sessões, certames e o que segue acima), fechadas ao cliente |
 | `secSinais/{orgId}` | Sinal de mudança do órgão (hora e id do último processo mudado), gravado pelas functions; o membro ativo do órgão o lê em tempo real para as telas se atualizarem |
