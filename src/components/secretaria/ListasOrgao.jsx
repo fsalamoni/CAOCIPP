@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Loader2, Plus, Trash2 } from 'lucide-react';
+import { FileUp, Loader2, Plus, Trash2 } from 'lucide-react';
+import ImportarListas from './ImportarListas';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -39,6 +40,7 @@ export default function ListasOrgao({ orgId, estado }) {
     const qc = useQueryClient();
     const [listas, setListas] = useState(() => Object.fromEntries(LISTAS.map(({ k }) => [k, estado.listas?.[k] || []])));
     const [salvando, setSalvando] = useState(false);
+    const [importar, setImportar] = useState(false);
     const muda = (k, i, campo, v) => setListas((x) => ({ ...x, [k]: x[k].map((it, j) => (j === i ? { ...it, [campo]: v } : it)) }));
     const tira = (k, i) => setListas((x) => ({ ...x, [k]: x[k].filter((_, j) => j !== i) }));
     const poe = (k) => setListas((x) => ({ ...x, [k]: [...x[k], { nome: '' }] }));
@@ -65,7 +67,15 @@ export default function ListasOrgao({ orgId, estado }) {
                     (sessão de mediação, reunião de conciliação) e de origem do processo (ouvidoria, corregedoria). Cada processo guarda o nome do item:
                     renomear ou tirar um item da lista não muda o que já foi feito.
                 </CardDescription>
+                <div>
+                    <Button type="button" variant="outline" size="sm" className="gap-1 mt-1" onClick={() => setImportar(true)}>
+                        <FileUp className="w-4 h-4" aria-hidden /> Importar de arquivo
+                    </Button>
+                </div>
             </CardHeader>
+            <ImportarListas aberto={importar} onFechar={() => setImportar(false)} orgId={orgId} listas={listas}
+                sistema={Object.fromEntries(LISTAS.map(({ k, sistema }) => [k, sistema]))}
+                onInserido={async (novas) => { setListas(novas); await qc.invalidateQueries({ queryKey: ['sec-estado', orgId] }); }} />
             <CardContent className="space-y-6">
                 {LISTAS.map(({ k, titulo, genero, sistema, exemplo, dica }) => (
                     <fieldset key={k} className="space-y-2">

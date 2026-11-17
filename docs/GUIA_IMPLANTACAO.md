@@ -65,7 +65,7 @@ Cada passo corresponde a uma aba da configuração. No guia dentro do SIGO, o bo
 
    Um rito pode servir a vários tipos.
 5. **Documentos e modelos.** Configure o papel timbrado e crie um modelo de texto para cada peça que o rito manda redigir (portaria, despacho, decisão, ata, relatório). Use o mesmo tipo de documento que a ação pede: assim a equipe já começa do texto do órgão.
-6. **Listas do órgão (se precisar).** Cadastre as espécies de comunicação e de audiência e as origens do processo que o órgão usa e o sistema não traz (edital, sessão de mediação, ouvidoria). Marque "Nome masculino" quando for o caso, para os textos saírem "ao edital". Elas entram na autuação, nas ações do rito e nas condições.
+6. **Listas do órgão (se precisar).** Cadastre as espécies de comunicação e de audiência e as origens do processo que o órgão usa e o sistema não traz (edital, sessão de mediação, ouvidoria). Marque "Nome masculino" quando for o caso, para os textos saírem "ao edital". Elas entram na autuação, nas ações do rito e nas condições. Se já estão num arquivo (texto, CSV, JSON, Word, LibreOffice, Excel ou PDF), use **Importar de arquivo**: o sistema lê, separa os itens de cada lista e mostra uma prévia; nada é gravado antes de você aprovar.
 7. **Calendário.** Cadastre os feriados e pontos facultativos do órgão. Os prazos em dias úteis pulam esses dias.
 8. **Preferências.** Defina se a petição da parte interrompe a fase e em quantos dias a comunicação não aberta é dada por ciente.
 

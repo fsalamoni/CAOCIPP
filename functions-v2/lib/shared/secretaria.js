@@ -724,6 +724,9 @@ exports.HISTORICO_CONFIG = {
     SECRETARIA_MODELO_RESTAURADO: 'documentos', SECRETARIA_TEXTOS_COMUNICACAO: 'documentos',
     SECRETARIA_CALENDARIO: 'calendario',
     SECRETARIA_LISTAS: 'listas',
+    // Exclusão definitiva pela lixeira: o item some, o registro fica.
+    SECRETARIA_RITO_EXCLUIDO_DEFINITIVO: 'lixeira', SECRETARIA_TIPO_EXCLUIDO_DEFINITIVO: 'lixeira', SECRETARIA_MODELO_EXCLUIDO_DEFINITIVO: 'lixeira',
+    SECRETARIA_PROCESSO_EXCLUIDO_DEFINITIVO: 'lixeira',
     SECRETARIA_VERSAO_RESTAURADA: 'versao', // rito ou modelo, por details.colecao
 };
 function assuntoHistorico(action, d = {}) {

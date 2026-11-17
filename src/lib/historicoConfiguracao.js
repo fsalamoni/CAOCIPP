@@ -14,6 +14,8 @@ export const ROTULOS = {
     SECRETARIA_DOCUMENTO_CONFIG: 'Papel timbrado do órgão', SECRETARIA_MODELO_SALVO: 'Modelo salvo', SECRETARIA_MODELO_EXCLUIDO: 'Modelo excluído',
     SECRETARIA_MODELO_RESTAURADO: 'Modelo restaurado', SECRETARIA_TEXTOS_COMUNICACAO: 'Textos prontos de comunicação',
     SECRETARIA_CALENDARIO: 'Calendário salvo', SECRETARIA_LISTAS: 'Listas do órgão salvas', SECRETARIA_VERSAO_RESTAURADA: 'Versão anterior restaurada',
+    SECRETARIA_RITO_EXCLUIDO_DEFINITIVO: 'Rito excluído de vez', SECRETARIA_TIPO_EXCLUIDO_DEFINITIVO: 'Tipo de processo excluído de vez',
+    SECRETARIA_MODELO_EXCLUIDO_DEFINITIVO: 'Modelo excluído de vez', SECRETARIA_PROCESSO_EXCLUIDO_DEFINITIVO: 'Processo excluído de vez',
 };
 
 export const rotuloAcao = (a) => ROTULOS[a] || String(a || '').replace('SECRETARIA_', '').replace(/_/g, ' ').toLowerCase();
@@ -21,10 +23,10 @@ export const rotuloAcao = (a) => ROTULOS[a] || String(a || '').replace('SECRETAR
 /** Assuntos do filtro: as abas da configuração e o módulo (ativar, preferências, integrações). */
 export const ASSUNTOS = [
     ['unidades', 'Unidades e equipes'], ['estrutura', 'Estrutura'], ['tipos', 'Tipos e numeração'], ['ritos', 'Ritos'],
-    ['documentos', 'Documentos e modelos'], ['listas', 'Listas do órgão'], ['calendario', 'Calendário'], ['modulo', 'Módulo, preferências e integrações'],
+    ['documentos', 'Documentos e modelos'], ['listas', 'Listas do órgão'], ['calendario', 'Calendário'], ['lixeira', 'Lixeira (exclusões de vez)'], ['modulo', 'Módulo, preferências e integrações'],
 ];
 
-const OCULTOS = new Set(['modelo_id', 'rito_id', 'tipo_id', 'unidade_id', 'id', 'convite_id', 'orgao_id', 'uid', 'superior', 'destino', 'sucessora', 'colecao']);
+const OCULTOS = new Set(['processo_id', 'modelo_id', 'rito_id', 'tipo_id', 'unidade_id', 'id', 'convite_id', 'orgao_id', 'uid', 'superior', 'destino', 'sucessora', 'colecao']);
 
 /** Detalhes legíveis do evento (sem ids). */
 export function resumoDetalhes(d) {

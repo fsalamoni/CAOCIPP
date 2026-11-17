@@ -9,7 +9,7 @@ import { codigoDe, codigosRepetidos, numeracaoDe, numeracaoTipoDe, sanitizeNumer
 import { COL, REGION, administraOrgao, carregarContexto, erroUsuario, exigirAdmin, exigirAdminDoOrgao, exigirAuth, exigirGestor } from './context';
 import { ESPECIES, cienciaDias, sanitizeTextosProntos, textosProntosDe } from '../shared/comunicacoes';
 import { ESPECIES_AUDIENCIA } from '../shared/audiencias';
-import { listasDe, sanitizeListas } from '../shared/listasOrgao';
+import { MAX_ITENS_PROPOSTA, listasDe, sanitizeListas } from '../shared/listasOrgao';
 
 /** Nomes que o sistema já tem em cada lista do órgão (não se repetem). */
 const SISTEMA_LISTAS = { comunicacao: Object.values(ESPECIES), audiencia: Object.values(ESPECIES_AUDIENCIA), origem: Object.values(ROTULO_ORIGEM) };
@@ -18,6 +18,7 @@ import { criarEstrutura, lerOrgaos, removerOrgao, salvarOrgao } from './orgaos';
 import { sanitizeDocumentoConfig } from './documentoConfig';
 import { MAX_MODELO_BYTES, MIME_BIZAGI, MIMES_ORIGINAL, interpretarModelo, preencherDocx, textoParaRito } from './importarModelo';
 import { MIME_DOCX } from './conversao';
+import { MIMES_LISTAS, propostaDoArquivo } from './listasArquivo';
 import { MODULOS, ROTULO_MODULO, ehModuloOrigem, integracoesDe, integracoesGravadas, lerFlags, modulosAtivos } from '../shared/modulos';
 import { SituacaoRegistro, fasesDePaginaInvalidas } from '../shared/situacaoRegistro';
 import { PaginaDef, errosCriaRegistro, sanitizeCriaRegistro } from '../shared/registroCriado';
@@ -141,7 +142,7 @@ type Acao = 'estado' | 'ativar' | 'salvarUnidade' | 'salvarRito' | 'salvarPrefer
     | 'pedirLotacao' | 'decidirPedido' | 'verConviteEquipe' | 'aceitarConviteEquipe'
     | 'importarModelo' | 'baixarModelo' | 'extrairTextoRito' | 'aplicarPropostaRito'
     | 'versoes' | 'restaurarVersao' | 'excluirRito' | 'salvarOrgao' | 'removerOrgao' | 'criarEstrutura' | 'salvarTextosComunicacao' | 'salvarListas' | 'excluirUnidade' | 'migrarRito'
-    | 'excluirTipo' | 'excluirModelo' | 'restaurar' | 'salvarIntegracoes' | 'historico' | 'exportarRito';
+    | 'excluirTipo' | 'excluirModelo' | 'restaurar' | 'salvarIntegracoes' | 'historico' | 'exportarRito' | 'lerListas' | 'excluirDefinitivo';
 
 interface ConfigRequest extends Record<string, unknown> {
     organizationId: string;
@@ -714,8 +715,24 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         let listas;
         try { listas = sanitizeListas(p.listas, SISTEMA_LISTAS); } catch (e) { erroUsuario(e); }
         await db.collection(COL.config).doc(orgId).set({ organization_id: orgId, listas, updated_at: agora, updated_by: auth.uid }, { merge: true });
-        await audit('SECRETARIA_LISTAS', { comunicacao: listas!.comunicacao?.length || 0, audiencia: listas!.audiencia?.length || 0, origem: listas!.origem?.length || 0 });
+        const importado = texto(p.arquivo_nome, 160);
+        await audit('SECRETARIA_LISTAS', {
+            comunicacao: listas!.comunicacao?.length || 0, audiencia: listas!.audiencia?.length || 0, origem: listas!.origem?.length || 0,
+            ...(importado ? { importado_de: importado, itens_importados: Math.max(0, Math.min(MAX_ITENS_PROPOSTA, Number(p.itens_importados) || 0)) } : {}),
+        });
         return { success: true };
+    }
+
+    if (p.action === 'lerListas') {
+        // Só lê e devolve a proposta; a tela mostra, o admin confere e salvarListas grava.
+        const a = arquivoRecebido(p.arquivo, MIMES_LISTAS);
+        try {
+            return await propostaDoArquivo(a.buf, a.mime, a.nome);
+        } catch (e) {
+            const msg = e instanceof Error && /^(O PDF|O arquivo|Arquivo)/.test(e.message) && e.message.length < 300 ? e.message : 'Não foi possível ler o arquivo';
+            console.warn('lerListas', a.mime, e instanceof Error ? e.message : e);
+            throw new HttpsError('invalid-argument', msg);
+        }
     }
 
     if (p.action === 'extrairTextoRito') {
@@ -993,6 +1010,28 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         }
         await ref.update(volta);
         await audit(col === COL.ritos ? 'SECRETARIA_RITO_RESTAURADO' : 'SECRETARIA_TIPO_RESTAURADO', { id: ref.id, nome: atual.nome });
+        return { success: true };
+    }
+
+    if (p.action === 'excluirDefinitivo') {
+        // Só o admin e só o que já está na lixeira: apaga o item, as versões guardadas
+        // e o arquivo original (modelo). Fica o registro no histórico da configuração.
+        const col = p.colecao === 'rito' ? COL.ritos : p.colecao === 'tipo' ? COL.tipos : p.colecao === 'modelo' ? COL.modelos : null;
+        if (!col) throw new HttpsError('invalid-argument', 'Coleção inválida');
+        const ref = db.collection(col).doc(String(p.id || '_'));
+        const atual = (await ref.get()).data();
+        if (!atual || atual.organization_id !== orgId) throw new HttpsError('not-found', 'Não encontrado');
+        if (atual.excluido !== true) throw new HttpsError('failed-precondition', 'Só se exclui de vez o que já está na lixeira');
+        // Tipo: os processos autuados com ele leem os campos do tipo (exigidos por fase, correção dos dados).
+        if (col === COL.tipos && !(await db.collection(COL.processos).where('tipo_id', '==', ref.id).limit(1).select().get()).empty) {
+            throw new HttpsError('failed-precondition', 'Há processos deste tipo (mesmo arquivados ou na lixeira): eles usam os campos do tipo. Ele fica na lixeira, sem aparecer para ninguém.');
+        }
+        await db.recursiveDelete(ref);
+        if (col === COL.modelos && typeof atual.storage_path === 'string' && atual.storage_path.startsWith(`${caminhoModelo(orgId, ref.id)}`)) {
+            await admin.storage().bucket().file(atual.storage_path).delete({ ignoreNotFound: true }).catch((e) => console.warn('excluirDefinitivo: arquivo do modelo', ref.id, e?.message));
+        }
+        const acao = { rito: 'SECRETARIA_RITO_EXCLUIDO_DEFINITIVO', tipo: 'SECRETARIA_TIPO_EXCLUIDO_DEFINITIVO', modelo: 'SECRETARIA_MODELO_EXCLUIDO_DEFINITIVO' }[p.colecao as 'rito'];
+        await audit(acao, { id: ref.id, nome: String(atual.nome || ''), excluido_em: quando(atual.excluido_em) });
         return { success: true };
     }
 
