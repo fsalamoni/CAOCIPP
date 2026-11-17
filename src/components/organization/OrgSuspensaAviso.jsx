@@ -16,10 +16,11 @@ export default function OrgSuspensaAviso({ orgs = [] }) {
                 >
                     <PauseCircle className="w-5 h-5 mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
                     <div className="space-y-1 min-w-0">
-                        <h2 className="font-semibold text-slate-900 dark:text-white">{o.name} está suspenso</h2>
+                        <h2 className="font-semibold text-slate-900 dark:text-white">{o.bloqueio ? 'Seu acesso ao SIGO está bloqueado' : `${o.name} está suspenso`}</h2>
                         <p className="text-sm text-slate-700 dark:text-slate-200">
-                            A administração da plataforma suspendeu o acesso a este órgão. Os dados continuam guardados
-                            e voltam a abrir quando o órgão for reativado.
+                            {o.bloqueio
+                                ? 'A administração da plataforma bloqueou o seu acesso. Nenhum dado foi apagado e tudo volta a abrir quando o bloqueio for retirado.'
+                                : 'A administração da plataforma suspendeu o acesso a este órgão. Os dados continuam guardados e voltam a abrir quando o órgão for reativado.'}
                         </p>
                         {o.motivo && <p className="text-sm text-slate-700 dark:text-slate-200"><span className="font-medium">Motivo:</span> {o.motivo}</p>}
                     </div>

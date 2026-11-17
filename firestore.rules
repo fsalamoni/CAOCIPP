@@ -19,7 +19,8 @@ service cloud.firestore {
     function isMemberOf(orgId) {
       let path = /databases/$(database)/documents/userOrganizations/$(request.auth.uid + '_' + orgId);
       return exists(path) && get(path).data.get('active', true) != false
-        && get(path).data.get('org_suspended', false) != true;
+        && get(path).data.get('org_suspended', false) != true
+        && get(path).data.get('user_blocked', false) != true;
     }
     
     function getMembership(orgId) {
@@ -421,6 +422,13 @@ service cloud.firestore {
     }
 
     // ========== PLATAFORMA: ESTATÍSTICAS AGREGADAS ==========
+
+    match /platformBlocks/{uid} {
+      // Bloqueio de pessoa pela plataforma: a própria pessoa lê (a tela mostra
+      // o motivo) e o super-admin lê. Só Functions gravam (platformUser).
+      allow read: if isAuthenticated() && (isOwner(uid) || isPlatformAdmin());
+      allow write: if false;
+    }
 
     match /platformStats/{docId} {
       // Apenas super-admin lê estatísticas globais.

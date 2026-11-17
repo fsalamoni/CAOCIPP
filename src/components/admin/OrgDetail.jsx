@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -145,7 +146,7 @@ export default function OrgDetail({ orgId, onBack, onChanged }) {
             </header>
 
             {f.suspensao && (
-                <div role="status" className="rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/40 p-4 text-sm text-slate-800 dark:text-slate-100">
+                <div role="status" className="rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/40 p-4 text-sm text-amber-950 dark:text-amber-50">
                     <p className="font-semibold">Suspenso em {fmtData(f.suspensao.em, true)}{f.suspensao.por ? ` por ${f.suspensao.por}` : ''}.</p>
                     <p>Motivo mostrado aos membros: {f.suspensao.motivo}</p>
                     <p className="text-amber-900 dark:text-amber-100 mt-1">Ninguém do órgão abre nada, as partes não acessam o Portal e ninguém entra pelo código de convite. Os dados continuam guardados.</p>
@@ -171,7 +172,7 @@ export default function OrgDetail({ orgId, onBack, onChanged }) {
                             {f.membros.map((m) => (
                                 <li key={m.uid} className={`py-2.5 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 ${m.ativo ? '' : 'opacity-60'}`}>
                                     <div className="min-w-0 flex-1">
-                                        <p className="font-medium text-slate-900 dark:text-white truncate">{m.nome || 'Sem nome'}</p>
+                                        <Link to={`/Admin?secao=users&pessoa=${encodeURIComponent(m.uid)}`} className="block font-medium text-indigo-700 dark:text-indigo-300 hover:underline truncate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded">{m.nome || 'Sem nome'}</Link>
                                         <p className="text-sm text-slate-600 dark:text-slate-300 truncate">{m.email}{m.funcao ? ` · ${m.funcao}` : ''}</p>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-1.5 text-xs">

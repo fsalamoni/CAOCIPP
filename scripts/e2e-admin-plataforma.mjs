@@ -141,6 +141,45 @@ try {
     assert.equal((await db.doc(`userOrganizations/${donoUid}_org1`).get()).data().role, 'admin');
     assert.equal((await db.doc('organizations/org1').get()).data().created_by, comumUid);
     console.log('ok 10: trocar criador');
+
+    // Pessoas: só quem é do SIGO aparece (conta de outro sistema, não).
+    await criar('outroapp@teste.dev');
+    await dp.goto(`${SITE}/Admin?secao=users`);
+    await dp.getByRole('button', { name: /Maria Membro/ }).waitFor({ timeout: 60000 });
+    assert.equal(await dp.getByText('outroapp@teste.dev').count(), 0, 'conta de outro sistema não aparece');
+    await dp.screenshot({ path: `${SHOTS}/admin-pessoas.png`, fullPage: true });
+    console.log('ok 11: lista só pessoas do SIGO');
+
+    // Super-admin não bloqueia a si mesmo.
+    await dp.goto(`${SITE}/Admin?secao=users&pessoa=${adminUid}`);
+    await dp.getByText('Esta é a sua conta: você não pode bloquear a si mesmo.').waitFor({ timeout: 60000 });
+    assert.equal(await dp.getByRole('button', { name: 'Bloquear no SIGO' }).isDisabled(), true);
+
+    // Bloquear a Maria: vínculos marcados, ela vê o aviso; desbloquear devolve.
+    await dp.goto(`${SITE}/Admin?secao=users&pessoa=${comumUid}`);
+    await dp.getByRole('button', { name: 'Bloquear no SIGO' }).click();
+    await dp.getByLabel('Motivo (a pessoa vai ler este texto)').fill('Desligada da instituição.');
+    await dp.getByRole('dialog').getByRole('button', { name: 'Bloquear' }).click();
+    await dp.getByText('Motivo mostrado à pessoa: Desligada da instituição.').waitFor({ timeout: 60000 });
+    await dp.screenshot({ path: `${SHOTS}/admin-pessoa-bloqueada.png`, fullPage: true });
+    assert.equal((await db.doc(`userOrganizations/${comumUid}_org1`).get()).data().user_blocked, true);
+    assert.equal((await db.doc(`platformBlocks/${comumUid}`).get()).data().ativa, true);
+    console.log('ok 12: bloqueio marca os vínculos e aparece na ficha');
+
+    await mbp.goto(`${SITE}/Organization?id=org1`);
+    await mbp.getByText('Seu acesso ao SIGO está bloqueado').waitFor({ timeout: 60000 });
+    await mbp.getByText('Desligada da instituição.').waitFor();
+    await mbp.screenshot({ path: `${SHOTS}/pessoa-bloqueada.png` });
+    console.log('ok 13: a pessoa bloqueada vê o aviso com o motivo');
+
+    await dp.getByRole('button', { name: 'Desbloquear' }).click();
+    await dp.getByRole('dialog').getByRole('button', { name: 'Desbloquear' }).click();
+    await dp.getByText('Ativa', { exact: true }).waitFor({ timeout: 60000 });
+    assert.equal((await db.doc(`userOrganizations/${comumUid}_org1`).get()).data().user_blocked, undefined);
+    await mbp.goto(`${SITE}/Organization?id=org1`);
+    await mbp.getByText('Promotoria de Teste', { exact: true }).first().waitFor({ timeout: 60000 });
+    assert.equal(await mbp.getByText('está bloqueado').count(), 0);
+    console.log('ok 14: desbloquear devolve o acesso');
 } finally {
     await browser.close();
 }

@@ -1,7 +1,7 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { formatPersonName } from '../shared/normalization';
-import { orgSuspensa } from '../shared/vinculo';
+import { exigirContaLiberada, orgSuspensa } from '../shared/vinculo';
 
 interface JoinOrgRequest {
     inviteCode: string;
@@ -24,6 +24,7 @@ export const joinOrganization = onCall<JoinOrgRequest>(
 
         const db = admin.firestore();
         const userId = request.auth.uid;
+        await exigirContaLiberada(db, userId);
         const userEmail = request.auth.token.email || '';
         const userName = formatPersonName(request.auth.token.name || '');
 

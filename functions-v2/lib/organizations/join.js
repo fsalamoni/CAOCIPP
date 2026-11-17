@@ -17,6 +17,7 @@ exports.joinOrganization = (0, https_1.onCall)({ region: 'southamerica-east1', c
     console.log(`[joinOrganization] Attempting join for user ${request.auth.uid} with code [${inviteCode}]`);
     const db = admin.firestore();
     const userId = request.auth.uid;
+    await (0, vinculo_1.exigirContaLiberada)(db, userId);
     const userEmail = request.auth.token.email || '';
     const userName = (0, normalization_1.formatPersonName)(request.auth.token.name || '');
     try {

@@ -302,7 +302,7 @@ pendências da configuração inicial (`platformAlerts`, a partir de
 | Plataforma | Funcionalidades (`flags`) | Liga/desliga as flags opcionais | `getFeatureFlags`, `setFeatureFlag` |
 | Plataforma | E-mail (`email`) | Remetente dos e-mails | `getEmailProviderConfig`, `setEmailProviderConfig` |
 | Órgãos e pessoas | Órgãos (`orgs`) | Lista com busca e filtros (todos, suspensos, com Processo Eletrônico, sem registros); ficha do órgão em `&orgao=<id>` com membros, volumes por módulo, páginas ligadas, contato e atividade recente; suspender, reativar, trocar o criador e excluir | `getOrgsReport`, `platformOrg` (`ficha`, `suspender`, `reativar`, `trocarCriador`), `deleteOrganization` |
-| Órgãos e pessoas | Usuários (`users`) | Pessoas e vínculos | `listPlatformUsers` |
+| Órgãos e pessoas | Usuários (`users`) | Só pessoas do SIGO (vínculo, perfil com `platform_name` ou super-admin), com busca e filtros (bloqueadas, sem órgão, sem acesso há 90 dias, super-admins); ficha em `&pessoa=<uid>` com órgãos e papéis, conta (provedor, e-mail confirmado, duas etapas, último acesso), termos e atividade; bloquear e desbloquear no SIGO | `platformUser` (`listar`, `ficha`, `bloquear`, `desbloquear`) |
 | Órgãos e pessoas | Administradores da plataforma (`admins`) | Concede/revoga super-admin | `grantPlatformAdmin`, `revokePlatformAdmin`, `listPlatformAdmins` |
 | Módulos | Processo Eletrônico (`secretaria`) | Órgãos com PE e suspensão | `secretariaPlataforma` |
 | Operação e diagnóstico | Movimentações (`activity`) | Feed do `auditLogs` | `getActivityFeed` |
