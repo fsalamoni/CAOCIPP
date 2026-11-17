@@ -5,6 +5,20 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 17/11/2026 — Aditivos em Consultas e Expedientes
+- **Criar aditivo** na ficha de qualquer consulta ou expediente, em qualquer
+  fase, ou direto do aviso de número já existente no cadastro. Pode haver
+  vários por procedimento.
+- O aditivo é um card novo, com o mesmo nº do PGEA e a identificação copiada,
+  que entra em **Pendente** e percorre todas as fases com linha do tempo
+  própria. O original não muda: se arquivado, continua arquivado; se em
+  andamento, os dois tramitam em paralelo.
+- Selos **Original · N aditivos** e **Aditivo N** nos cards, na tabela e na
+  exportação; na ficha, a seção *Original e aditivos* mostra a fase e o
+  responsável de cada um e abre qualquer deles.
+- O número do aditivo acompanha o do original; original com aditivos não é
+  excluído antes deles.
+
 ### 17/11/2026 — Nº do PGEA em Consultas e Expedientes
 - O campo passa a se chamar **Nº da Consulta - PGEA** e **Nº do Expediente -
   PGEA** (cadastro, edição, tabela, quadro e exportação); o botão das

@@ -106,7 +106,9 @@ export function refDe(modulo: Modulo, id: string, d: Record<string, unknown>): R
         parcerias: [d.pgea || d.PGEA || d.partnership_number, d.subject || d.assunto],
         juri: [d.numero_processo, d.comarca],
     };
-    const [numero, titulo] = pares[modulo];
+    const [numeroBase, titulo] = pares[modulo];
+    // Aditivo de Consulta/Expediente tem o mesmo nº do original: o rótulo diferencia.
+    const numero = d.aditivo_de && curto(numeroBase, 60) ? `${curto(numeroBase, 60)} (Aditivo ${d.aditivo_numero})` : numeroBase;
     const t = curto(titulo, 160);
     return {
         modulo, id, numero: curto(numero, 80) || 'sem número', ...(t ? { titulo: t } : {}),

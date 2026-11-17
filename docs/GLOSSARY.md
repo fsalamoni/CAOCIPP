@@ -245,6 +245,9 @@ Data sugerida para início do processo de renovação. Usado para alertas de pra
 ### Aditivo
 Documento complementar à Parceria original. Pode ser **Renovação/Prorrogação** (estende a vigência) ou **Qualitativo (Objeto)** (altera o objeto sem mudar prazo). Vive em subcoleção `parcerias/{id}/aditivos/{addId}`. Cada Parceria pode ter N aditivos.
 
+### Aditivo de Consulta ou Expediente
+Nova tramitação de uma Consulta ou Expediente já cadastrado, com o mesmo nº do PGEA. É um registro próprio na mesma coleção (`aditivo_de` aponta o original, `aditivo_numero` numera 1, 2, ...), com card, fase e linha do tempo próprios; nasce em Pendente. O original não muda (se arquivado, segue arquivado). Diferente do aditivo de Parceria, que vive em subcoleção. Ver [CONSULTAS.md](./CONSULTAS.md#9-aditivos).
+
 ### Aditivo de Renovação/Prorrogação
 Tipo de aditivo que renova ou estende a vigência da Parceria. Mantém os mesmos campos de formalização (tipo, número, vigência, termo final).
 

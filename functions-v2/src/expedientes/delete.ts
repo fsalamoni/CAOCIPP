@@ -1,7 +1,9 @@
 import * as admin from 'firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { hasOrgPermission, MembershipLike } from '../shared/permissions';
 import { vinculoBloqueado } from '../shared/vinculo';
+import { conferirExclusao } from '../registros/aditivos';
 
 interface DeleteExpedienteRequest {
     id: string;
@@ -51,12 +53,14 @@ export const deleteExpediente = onCall<DeleteExpedienteRequest>(
 
         // 3. Delete (recursivo: remove também as subcoleções history/comments,
         // mesma razão da correção equivalente em processes/delete.ts).
+        const depois = await conferirExclusao('expedientes', organizationId, id, expedienteSnap.data() || {});
         await db.recursiveDelete(expedienteRef);
+        if (depois) await depois(userId, request.auth.token.name || 'Usuário desconhecido');
 
         // 4. Update stats
         await db.collection('organizations').doc(organizationId).update({
-            'stats.expedientes_count': admin.firestore.FieldValue.increment(-1),
-            'stats.active_expedientes': admin.firestore.FieldValue.increment(-1)
+            'stats.expedientes_count': FieldValue.increment(-1),
+            'stats.active_expedientes': FieldValue.increment(-1)
         });
 
         // 5. Audit
@@ -66,7 +70,7 @@ export const deleteExpediente = onCall<DeleteExpedienteRequest>(
             user_name: request.auth.token.name || '',
             action: 'DELETE_EXPEDIENTE',
             details: { expediente_id: id },
-            timestamp: admin.firestore.FieldValue.serverTimestamp()
+            timestamp: FieldValue.serverTimestamp()
         });
 
         return { success: true };

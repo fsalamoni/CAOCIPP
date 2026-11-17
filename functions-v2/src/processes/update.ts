@@ -1,10 +1,12 @@
 import * as admin from 'firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { calculateStatus } from '../shared/status';
 import { formatPersonName } from '../shared/normalization';
 import { historyEntryId } from '../shared/history';
 import { fireOrgWebhook } from '../shared/webhooks';
 import { vinculoBloqueado } from '../shared/vinculo';
+import { protegerVinculo, propagarNumero } from '../registros/aditivos';
 
 interface UpdateProcessRequest {
     id: string;
@@ -73,12 +75,16 @@ export const updateProcess = onCall<UpdateProcessRequest>(
         delete changes.anonymized;
         delete changes.anonymized_at;
         delete changes.anonymized_by;
+        // Vínculo original/aditivo só pelo servidor; aditivo segue o nº do original.
+        protegerVinculo(changes, processData, 'process_number');
+        const numeroMudou = !processData.aditivo_de && typeof changes.process_number === 'string'
+            && changes.process_number.trim() !== '' && changes.process_number !== processData.process_number;
 
         if (typeof changes.responsible_user_name === 'string') {
             changes.responsible_user_name = formatPersonName(changes.responsible_user_name);
         }
 
-        changes.updated_at = admin.firestore.FieldValue.serverTimestamp();
+        changes.updated_at = FieldValue.serverTimestamp();
         changes.updated_by = userId;
 
         // Auto-fill distribution_date when responsible changes
@@ -161,9 +167,10 @@ export const updateProcess = onCall<UpdateProcessRequest>(
         };
 
         // Append to activity_log array
-        changes.activity_log = admin.firestore.FieldValue.arrayUnion(logEntry);
+        changes.activity_log = FieldValue.arrayUnion(logEntry);
 
         await processRef.update(changes);
+        if (numeroMudou) await propagarNumero('processes', organizationId, id, 'process_number', changes.process_number, userId, userName);
 
         // Fase 3 (escrita dupla, ADITIVA): espelha a entrada de log na subcoleção
         // processes/{id}/history. Best-effort: NUNCA falha a atualização principal.
@@ -172,7 +179,7 @@ export const updateProcess = onCall<UpdateProcessRequest>(
         try {
             await processRef.collection('history').doc(historyEntryId(logEntry)).set({
                 ...logEntry,
-                created_at: admin.firestore.FieldValue.serverTimestamp(),
+                created_at: FieldValue.serverTimestamp(),
             });
         } catch (histErr) {
             console.error('[history dual-write] process update', id, histErr);
@@ -185,7 +192,7 @@ export const updateProcess = onCall<UpdateProcessRequest>(
             user_name: userName,
             action: 'UPDATE_PROCESS',
             details: { process_id: id, changes: Object.keys(changes) },
-            timestamp: admin.firestore.FieldValue.serverTimestamp()
+            timestamp: FieldValue.serverTimestamp()
         });
 
         // Webhooks de integração externa (flag `outbound_webhooks`).

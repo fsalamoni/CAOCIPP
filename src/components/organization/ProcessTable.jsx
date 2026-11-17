@@ -1,3 +1,5 @@
+import SeloVinculo from './SeloVinculo';
+import { rotuloVinculo } from '@/lib/registrosPgea';
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -218,6 +220,7 @@ export default function ProcessTable({
               </Tooltip>
             )}
             <span className="font-semibold text-slate-800 dark:text-slate-100">{getProcessField(process, 'process_number')}</span>
+            <SeloVinculo registro={process} />
             {pe?.ids.has(process.id) && <SeloPE />}
           </div>
         );
@@ -756,6 +759,10 @@ export default function ProcessTable({
   const DATE_EXPORT_KEYS = new Set(['entry_date', 'distribution_date', 'analysis_start_date', 'third_party_referral_date', 'review_submission_date', 'reviewed_date', 'review_return_date', 'archived_date']);
 
   const getExportValue = (col, process) => {
+    if (col.key === 'process_number') {
+      const v = rotuloVinculo(process);
+      return [getProcessField(process, 'process_number'), v && `(${v})`].filter(Boolean).join(' ');
+    }
     if (col.key === 'status') return calculateDerivedStatus(process);
     if (col.key === 'stage_time') {
       const status = calculateDerivedStatus(process);
@@ -1221,6 +1228,8 @@ export default function ProcessTable({
         onEdit={onEdit}
         getProcessField={getProcessField}
         organization={organization}
+        members={members}
+        onAbrirRegistro={setSelectedProcess}
       />
 
       {filteredAndSortedProcesses.length > 0 && (

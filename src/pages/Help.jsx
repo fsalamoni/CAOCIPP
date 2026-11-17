@@ -49,7 +49,7 @@ export default function Help() {
           <HelpItem
             number="3"
             title="Cadastrar Processos"
-            description="Na aba 'Consultas', clique em '+ Adicionar Consulta' e preencha os dados. Ao digitar o Nº da Consulta - PGEA, o SIGO confere se ele já existe no órgão, arquivadas inclusive: número novo ganha o sinal de certo verde; número existente mostra a fase e o responsável, com o botão para entrar na consulta. O mesmo vale para Expedientes."
+            description="Na aba 'Consultas', clique em '+ Adicionar Consulta' e preencha os dados. Ao digitar o Nº da Consulta - PGEA, o SIGO confere se ele já existe no órgão, arquivadas inclusive: número novo ganha o sinal de certo verde; número existente mostra a fase e o responsável, com o botão para entrar na consulta ou criar um aditivo dela. Para nova tramitação de uma consulta já cadastrada (mesmo arquivada), abra a ficha e use 'Criar aditivo': nasce um card próprio em Pendente, vinculado ao original, que não muda. O mesmo vale para Expedientes."
           />
           <HelpItem
             number="4"

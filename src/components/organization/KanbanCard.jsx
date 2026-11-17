@@ -1,3 +1,4 @@
+import SeloVinculo from './SeloVinculo';
 import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -155,6 +156,7 @@ export default function KanbanCard({ process, columnId, overlay = false, onViewD
                     )}
                 </div>
             </div>
+            <SeloVinculo registro={process} contagem className="flex w-fit" />
 
             {/* Consultant */}
             {consultant && (
