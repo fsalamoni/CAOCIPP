@@ -32,6 +32,7 @@ const orgaos_2 = require("./orgaos");
 const documentoConfig_1 = require("./documentoConfig");
 const importarModelo_1 = require("./importarModelo");
 const conversao_1 = require("./conversao");
+const listasArquivo_1 = require("./listasArquivo");
 const modulos_1 = require("../shared/modulos");
 const situacaoRegistro_1 = require("../shared/situacaoRegistro");
 const registroCriado_1 = require("../shared/registroCriado");
@@ -752,8 +753,21 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             (0, context_1.erroUsuario)(e);
         }
         await db.collection(context_1.COL.config).doc(orgId).set({ organization_id: orgId, listas, updated_at: agora, updated_by: auth.uid }, { merge: true });
-        await audit('SECRETARIA_LISTAS', { comunicacao: ((_m = listas.comunicacao) === null || _m === void 0 ? void 0 : _m.length) || 0, audiencia: ((_o = listas.audiencia) === null || _o === void 0 ? void 0 : _o.length) || 0, origem: ((_p = listas.origem) === null || _p === void 0 ? void 0 : _p.length) || 0 });
+        const importado = (0, secretaria_1.texto)(p.arquivo_nome, 160);
+        await audit('SECRETARIA_LISTAS', Object.assign({ comunicacao: ((_m = listas.comunicacao) === null || _m === void 0 ? void 0 : _m.length) || 0, audiencia: ((_o = listas.audiencia) === null || _o === void 0 ? void 0 : _o.length) || 0, origem: ((_p = listas.origem) === null || _p === void 0 ? void 0 : _p.length) || 0 }, (importado ? { importado_de: importado, itens_importados: Math.max(0, Math.min(listasOrgao_1.MAX_ITENS_PROPOSTA, Number(p.itens_importados) || 0)) } : {})));
         return { success: true };
+    }
+    if (p.action === 'lerListas') {
+        // Só lê e devolve a proposta; a tela mostra, o admin confere e salvarListas grava.
+        const a = arquivoRecebido(p.arquivo, listasArquivo_1.MIMES_LISTAS);
+        try {
+            return await (0, listasArquivo_1.propostaDoArquivo)(a.buf, a.mime, a.nome);
+        }
+        catch (e) {
+            const msg = e instanceof Error && /^(O PDF|O arquivo|Arquivo)/.test(e.message) && e.message.length < 300 ? e.message : 'Não foi possível ler o arquivo';
+            console.warn('lerListas', a.mime, e instanceof Error ? e.message : e);
+            throw new https_1.HttpsError('invalid-argument', msg);
+        }
     }
     if (p.action === 'extrairTextoRito') {
         const a = arquivoRecebido(p.arquivo, [conversao_1.MIME_DOCX, 'application/pdf', 'text/plain', importarModelo_1.MIME_BIZAGI]);
@@ -1062,6 +1076,30 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         }
         await ref.update(volta);
         await audit(col === context_1.COL.ritos ? 'SECRETARIA_RITO_RESTAURADO' : 'SECRETARIA_TIPO_RESTAURADO', { id: ref.id, nome: atual.nome });
+        return { success: true };
+    }
+    if (p.action === 'excluirDefinitivo') {
+        // Só o admin e só o que já está na lixeira: apaga o item, as versões guardadas
+        // e o arquivo original (modelo). Fica o registro no histórico da configuração.
+        const col = p.colecao === 'rito' ? context_1.COL.ritos : p.colecao === 'tipo' ? context_1.COL.tipos : p.colecao === 'modelo' ? context_1.COL.modelos : null;
+        if (!col)
+            throw new https_1.HttpsError('invalid-argument', 'Coleção inválida');
+        const ref = db.collection(col).doc(String(p.id || '_'));
+        const atual = (await ref.get()).data();
+        if (!atual || atual.organization_id !== orgId)
+            throw new https_1.HttpsError('not-found', 'Não encontrado');
+        if (atual.excluido !== true)
+            throw new https_1.HttpsError('failed-precondition', 'Só se exclui de vez o que já está na lixeira');
+        // Tipo: os processos autuados com ele leem os campos do tipo (exigidos por fase, correção dos dados).
+        if (col === context_1.COL.tipos && !(await db.collection(context_1.COL.processos).where('tipo_id', '==', ref.id).limit(1).select().get()).empty) {
+            throw new https_1.HttpsError('failed-precondition', 'Há processos deste tipo (mesmo arquivados ou na lixeira): eles usam os campos do tipo. Ele fica na lixeira, sem aparecer para ninguém.');
+        }
+        await db.recursiveDelete(ref);
+        if (col === context_1.COL.modelos && typeof atual.storage_path === 'string' && atual.storage_path.startsWith(`${caminhoModelo(orgId, ref.id)}`)) {
+            await admin.storage().bucket().file(atual.storage_path).delete({ ignoreNotFound: true }).catch((e) => console.warn('excluirDefinitivo: arquivo do modelo', ref.id, e === null || e === void 0 ? void 0 : e.message));
+        }
+        const acao = { rito: 'SECRETARIA_RITO_EXCLUIDO_DEFINITIVO', tipo: 'SECRETARIA_TIPO_EXCLUIDO_DEFINITIVO', modelo: 'SECRETARIA_MODELO_EXCLUIDO_DEFINITIVO' }[p.colecao];
+        await audit(acao, { id: ref.id, nome: String(atual.nome || ''), excluido_em: quando(atual.excluido_em) });
         return { success: true };
     }
     throw new https_1.HttpsError('invalid-argument', 'Ação desconhecida');

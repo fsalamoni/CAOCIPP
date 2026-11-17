@@ -5,6 +5,19 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 17/11/2026 — Listas do órgão por arquivo e exclusão de vez na lixeira
+- **Listas do órgão › Importar de arquivo**: texto, CSV, JSON, Word,
+  LibreOffice, Excel ou PDF (até 5 MB), ou texto colado. O servidor lê o
+  arquivo, separa os itens de cada lista (por título, coluna, aba ou chave do
+  JSON) e mostra uma prévia: dá para corrigir o nome, trocar a lista, marcar
+  o gênero e desmarcar. Itens que já existem ou se repetem não entram; nada
+  é gravado antes de "Inserir".
+- **Lixeira › Excluir de vez** (só o admin): apaga para sempre ritos, tipos,
+  modelos e processos que já estão na lixeira. Processo pede o número
+  digitado. O sistema recusa o que ainda é usado (tipo com processos,
+  processo citado em ata de sessão, com certame ou que deu origem a outro).
+  Cada exclusão fica no Histórico, assunto "Lixeira".
+
 ### 17/11/2026 — Códigos numéricos na numeração dos processos
 - A numeração própria aceita **Código do tipo**, **Código da unidade** e
   **Código do órgão interno** no lugar das siglas, cada um com 1 a 6 dígitos e

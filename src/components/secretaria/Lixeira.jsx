@@ -5,6 +5,8 @@ import { Copy, Loader2, MoreHorizontal, Pencil, RotateCcw, Trash2 } from 'lucide
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import {
     AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -125,6 +127,7 @@ function ListaExcluidos({ orgId, estado, lista, comTipo = false }) {
     const qc = useQueryClient();
     const [indo, setIndo] = useState(null);
     const [escolha, setEscolha] = useState({}); // id -> rito (tipo) ou unidade de destino (processo)
+    const [apagar, setApagar] = useState(null); // item a excluir de vez
     const ritosAtivos = estado.ritos || [];
     const ativas = (estado.unidades || []).filter((u) => u.ativa);
     const voltaPara = (x) => (ativas.some((u) => u.id === x.unidade_anterior) ? x.unidade_anterior : '');
@@ -144,6 +147,7 @@ function ListaExcluidos({ orgId, estado, lista, comTipo = false }) {
         } catch (e) { toast.error(e?.message || 'Não foi possível restaurar'); } finally { setIndo(null); }
     };
     return (
+        <>
         <ul className="mt-2 divide-y divide-slate-200 dark:divide-slate-800">
             {lista.map((x) => {
                 // Tipo cujo rito também foi excluído só volta apontando para outro rito.
@@ -173,10 +177,82 @@ function ListaExcluidos({ orgId, estado, lista, comTipo = false }) {
                         <Button size="sm" variant="outline" className="gap-1 h-10" disabled={!!indo || (semRito && !escolha[x.id]) || (processo && !destino)} onClick={() => restaurar(x)}>
                             {indo === x.id ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <RotateCcw className="w-4 h-4" aria-hidden />} Restaurar
                         </Button>
+                        {estado.isAdmin === true && (
+                            <Button size="sm" variant="ghost" className="gap-1 h-10 text-red-700 hover:text-red-800 dark:text-red-300" disabled={!!indo} onClick={() => setApagar(x)}
+                                aria-label={`Excluir de vez ${processo ? `o processo ${x.numero}` : x.nome}`}>
+                                <Trash2 className="w-4 h-4" aria-hidden /> Excluir de vez
+                            </Button>
+                        )}
                     </li>
                 );
             })}
         </ul>
+        <ExcluirDeVez orgId={orgId} alvo={apagar} onFechar={() => setApagar(null)} />
+        </>
+    );
+}
+
+const O_QUE = { rito: 'o rito', tipo: 'o tipo de processo', modelo: 'o modelo', processo: 'o processo' };
+
+/**
+ * Exclusão definitiva (admin): apaga para sempre o que está na lixeira. Processo
+ * pede o número digitado; o resto, a marcação de que não dá para desfazer. O
+ * servidor recusa, com o motivo, o que outros registros ainda usam.
+ */
+function ExcluirDeVez({ orgId, alvo, onFechar }) {
+    const qc = useQueryClient();
+    const [indo, setIndo] = useState(false);
+    const [ciente, setCiente] = useState(false);
+    const [numero, setNumero] = useState('');
+    const processo = alvo?.colecao === 'processo';
+    const pode = processo ? numero.trim().toUpperCase() === String(alvo?.numero || '').trim().toUpperCase() : ciente;
+    const fechar = () => { setCiente(false); setNumero(''); onFechar(); };
+    const apagar = async () => {
+        setIndo(true);
+        try {
+            if (processo) {
+                await secProcesso(orgId, 'excluirDefinitivo', { id: alvo.id, confirmacao: numero.trim() });
+                qc.invalidateQueries({ queryKey: ['sec-processos', orgId] });
+            } else {
+                await secConfig(orgId, 'excluirDefinitivo', { colecao: alvo.colecao, id: alvo.id });
+                qc.invalidateQueries({ queryKey: ['sec-estado', orgId] });
+            }
+            toast.success('Excluído de vez. O registro ficou no histórico da configuração.');
+            fechar();
+        } catch (e) { toast.error(e?.message || 'Não foi possível excluir'); } finally { setIndo(false); }
+    };
+    return (
+        <AlertDialog open={!!alvo} onOpenChange={(o) => !o && !indo && fechar()}>
+            <AlertDialogContent className="w-[calc(100vw-1rem)] sm:w-full">
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Excluir de vez {O_QUE[alvo?.colecao] || ''} “{processo ? alvo?.numero : alvo?.nome}”?</AlertDialogTitle>
+                    <AlertDialogDescription asChild>
+                        <div className="space-y-2">
+                            <p className="font-medium text-red-700 dark:text-red-300">Isto não pode ser desfeito: não haverá como restaurar.</p>
+                            {processo
+                                ? <p>Somem os autos inteiros: movimentos, documentos, arquivos, comunicações e os códigos de verificação dos documentos. O número não volta a ser usado. Fica só o registro de quem excluiu, quando e o quê, no histórico da configuração.</p>
+                                : <p>Somem o item e as versões guardadas dele{alvo?.colecao === 'modelo' ? ', inclusive o arquivo original' : ''}. Processos e documentos já feitos guardam a própria cópia e não mudam. Fica o registro no histórico da configuração.</p>}
+                        </div>
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                {processo ? (
+                    <div className="space-y-1">
+                        <Label htmlFor="apagar-numero">Para confirmar, digite o número do processo: <span className="font-mono">{alvo?.numero}</span></Label>
+                        <Input id="apagar-numero" value={numero} onChange={(e) => setNumero(e.target.value)} autoComplete="off" className="font-mono" />
+                    </div>
+                ) : (
+                    <label htmlFor="apagar-ciente" className="flex items-center gap-2 text-sm">
+                        <Checkbox id="apagar-ciente" checked={ciente} onCheckedChange={(v) => setCiente(v === true)} /> Entendo que não dá para desfazer
+                    </label>
+                )}
+                <AlertDialogFooter>
+                    <AlertDialogCancel disabled={indo}>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction className="bg-red-600 hover:bg-red-700 text-white" disabled={indo || !pode} onClick={(e) => { e.preventDefault(); apagar(); }}>
+                        {indo && <Loader2 className="w-4 h-4 animate-spin mr-2" aria-hidden />} Excluir de vez
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     );
 }
 
@@ -209,6 +285,10 @@ export function LixeiraConfiguracao({ orgId, estado }) {
                 <h3 id="lixeira-titulo" className="text-base font-semibold text-slate-900 dark:text-white flex items-center gap-2"><Trash2 className="w-4 h-4" aria-hidden /> Lixeira</h3>
                 <p className="text-sm text-slate-600 dark:text-slate-400">
                     Ritos, tipos de processo, modelos e processos excluídos. Nada foi apagado: ritos, tipos e modelos voltam inativos; o processo volta à unidade escolhida, com o registro nos autos.
+                </p>
+                <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                    “Excluir de vez” apaga para sempre, sem volta, e só o admin pode. Fica o registro de quem excluiu e o quê no Histórico (assunto “Lixeira”).
+                    O sistema não deixa apagar o que ainda é usado: tipo com processos, processo citado em ata de sessão, com certame ou que deu origem a outro.
                 </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2">

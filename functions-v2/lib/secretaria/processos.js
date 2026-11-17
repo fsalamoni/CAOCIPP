@@ -17,6 +17,7 @@ exports.avancarSozinho = avancarSozinho;
 exports.cumprirPeloProcesso = cumprirPeloProcesso;
 exports.registrarJulgamentoDaSessao = registrarJulgamentoDaSessao;
 exports.registrarResultadoDaDisputa = registrarResultadoDaDisputa;
+const admin = require("firebase-admin");
 const crypto_1 = require("crypto");
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
@@ -50,6 +51,7 @@ const orgaos_1 = require("../shared/orgaos");
 const sessoes_1 = require("../shared/sessoes");
 const orgaos_2 = require("./orgaos");
 const sessoes_2 = require("./sessoes");
+const certames_3 = require("./certames");
 const avisosEquipe_1 = require("./avisosEquipe");
 const comunicacoes_1 = require("./comunicacoes");
 const doProcesso_1 = require("../shared/doProcesso");
@@ -615,7 +617,7 @@ function resumo(id, d) {
     };
 }
 exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, (0, context_1.comSinal)(async (request) => {
-    var _a, _b, _d, _e, _f, _g, _h, _j, _k;
+    var _a, _b, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o;
     const auth = (0, context_1.exigirAuth)(request);
     const p = request.data || {};
     const c = await (0, context_1.carregarContexto)(auth, p.organizationId);
@@ -770,6 +772,51 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, (
         });
         return { processos: (0, autos_1.urgentesPrimeiro)(lista), truncado };
     }
+    if (p.action === 'excluirDefinitivo') {
+        // Só o admin, só processo já na lixeira e com o número digitado. Apaga os autos
+        // (movimentos, documentos, arquivos, códigos de verificação e anotações); o
+        // número não volta a ser usado e o registro fica no histórico da configuração.
+        (0, context_1.exigirAdmin)(c);
+        const ref = db.collection(context_1.COL.processos).doc(String(p.id || '_'));
+        const data = (await ref.get()).data();
+        if (!data || data.organization_id !== orgId)
+            throw new https_1.HttpsError('not-found', 'Processo não encontrado');
+        if (data.status !== 'excluido')
+            throw new https_1.HttpsError('failed-precondition', 'Só se exclui de vez o processo que já está na lixeira');
+        if ((0, secretaria_1.texto)(p.confirmacao, 80).toUpperCase() !== String(data.numero || '').trim().toUpperCase()) {
+            throw new https_1.HttpsError('invalid-argument', 'Digite o número do processo, exatamente como aparece, para confirmar');
+        }
+        // O que outros registros guardam deste processo: atas de sessão, certames e processos que nasceram dele.
+        const [sessoes, certames, filhos] = await Promise.all([
+            db.collection(sessoes_2.COL_SESSOES).where('organization_id', '==', orgId).select('pauta', 'titulo').get(),
+            db.collection(certames_3.COL_CERTAMES).where('processo_id', '==', ref.id).limit(1).select().get(),
+            db.collection(context_1.COL.processos).where('organization_id', '==', orgId).where('vinculos', 'array-contains', `pe:${ref.id}`).limit(1).select().get(),
+        ]);
+        const sessao = sessoes.docs.find((s) => (s.data().pauta || []).some((x) => x.processo_id === ref.id));
+        if (sessao)
+            throw new https_1.HttpsError('failed-precondition', `O processo esteve na pauta da sessão "${sessao.data().titulo || 'sem título'}", e a ata dela o cita. Ele fica na lixeira, fora das listas.`);
+        if (!certames.empty)
+            throw new https_1.HttpsError('failed-precondition', 'O processo tem um certame (pregão ou disputa) com propostas e lances guardados. Ele fica na lixeira, fora das listas.');
+        if (!filhos.empty)
+            throw new https_1.HttpsError('failed-precondition', 'Outro processo nasceu deste e aponta para ele. Ele fica na lixeira, fora das listas.');
+        const docs = await ref.collection('documentos').select('codigo_verificacao').get();
+        const codigos = docs.docs.map((d) => d.data().codigo_verificacao).filter((x) => typeof x === 'string' && !!x);
+        const anotacoes = await db.collection(sessoes_2.COL_ANOTACOES).where('processo_id', '==', ref.id).select().get();
+        await db.recursiveDelete(ref);
+        const lote = db.bulkWriter();
+        for (const k of codigos)
+            lote.delete(db.collection(context_1.COL.verificacao).doc(k));
+        for (const d of anotacoes.docs)
+            lote.delete(d.ref);
+        await lote.close();
+        await admin.storage().bucket().deleteFiles({ prefix: `secretaria/${orgId}/${ref.id}/` })
+            .catch((e) => console.warn('excluirDefinitivo: arquivos do processo', ref.id, e === null || e === void 0 ? void 0 : e.message));
+        await (0, config_1.auditar)(db, orgId, c.ctx.uid, c.userName, 'SECRETARIA_PROCESSO_EXCLUIDO_DEFINITIVO', {
+            processo_id: ref.id, numero: String(data.numero || ''), assunto: String(data.assunto || '').slice(0, 200), tipo: String(data.tipo_nome || ''),
+            motivo_exclusao: String(((_f = data.excluido) === null || _f === void 0 ? void 0 : _f.motivo) || ''), excluido_em: String(((_g = data.excluido) === null || _g === void 0 ? void 0 : _g.em) || ''), excluido_por: String(((_h = data.excluido) === null || _h === void 0 ? void 0 : _h.por_nome) || ''), documentos: docs.size,
+        });
+        return { success: true };
+    }
     if (p.action === 'excluidos') {
         (0, context_1.exigirAdmin)(c);
         const snap = await db.collection(context_1.COL.processos).where('organization_id', '==', orgId).where('status', '==', 'excluido').limit(500).get();
@@ -864,7 +911,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, (
         // para a capa avisar e os modelos não puxarem dado dele.
         const informacoes = (0, informacoes_1.informacoesDoAndamento)(movsBrutos, data.fases || []).map((i) => (0, informacoes_1.informacaoVisivel)(i, quemLe));
         const camposLidos = (data.campos || []);
-        const origemLida = ((_f = data.origem) === null || _f === void 0 ? void 0 : _f.ref) ? data.origem : null;
+        const origemLida = ((_j = data.origem) === null || _j === void 0 ? void 0 : _j.ref) ? data.origem : null;
         const fechadas = await (0, modulos_1.refsFechadas)(db, c.orgId, [origemLida === null || origemLida === void 0 ? void 0 : origemLida.ref, ...camposLidos.map((x) => x.ref), ...informacoes.flatMap((i) => [i.ref, ...(i.refs || [])])]);
         // Página própria é sempre fechada para as partes, mas a equipe a vê normalmente.
         const fechada = (r) => !!r && !(0, modulos_1.ehInterno)(r) && fechadas.has(`${r.modulo}:${r.id}`);
@@ -957,7 +1004,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, (
         const descricao = form.descricao === 'oculto' ? '' : (0, secretaria_1.texto)(p.descricao, secretaria_1.MAX_TEXTO_LONGO);
         const partes = form.partes === 'oculto' ? [] : sanitizePartes(p.partes, form.polos);
         // Nascido de outro registro: a origem vale mesmo que o formulário não a peça.
-        const refOrigem = await refDaOrigem(c, (_g = p.origem) === null || _g === void 0 ? void 0 : _g.ref);
+        const refOrigem = await refDaOrigem(c, (_k = p.origem) === null || _k === void 0 ? void 0 : _k.ref);
         const origemInformada = form.origem === 'oculto' ? null : (0, secretaria_1.sanitizeOrigem)(p.origem);
         const origem = refOrigem
             ? Object.assign(Object.assign({ tipo: (origemInformada === null || origemInformada === void 0 ? void 0 : origemInformada.tipo) || (refOrigem.modulo === 'pe' ? 'outro_processo' : 'outro') }, ((origemInformada === null || origemInformada === void 0 ? void 0 : origemInformada.nome) ? { nome: origemInformada.nome } : {})), { descricao: (origemInformada === null || origemInformada === void 0 ? void 0 : origemInformada.descricao) || '', ref: refOrigem }) : origemInformada;
@@ -975,7 +1022,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, (
         const numTipo = (0, numeracao_1.numeracaoTipoDe)(tipo === null || tipo === void 0 ? void 0 : tipo.numeracao);
         const numeracao = numTipo.modo === 'nenhuma' ? null
             : numTipo.modo === 'propria' ? { partes: numTipo.partes }
-                : (0, numeracao_1.numeracaoDe)((_h = (await db.collection(context_1.COL.config).doc(orgId).get()).data()) === null || _h === void 0 ? void 0 : _h.numeracao);
+                : (0, numeracao_1.numeracaoDe)((_l = (await db.collection(context_1.COL.config).doc(orgId).get()).data()) === null || _l === void 0 ? void 0 : _l.numeracao);
         const usaOrgao = numeracao === null || numeracao === void 0 ? void 0 : numeracao.partes.some((x) => x.t === 'sigla_orgao' || x.t === 'cod_orgao' || (x.t === 'seq' && x.escopo === 'orgao'));
         const orgao = usaOrgao && unidade.orgao_id ? (await (0, orgaos_2.lerOrgaos)(db, orgId)).find((o) => o.id === unidade.orgao_id) || null : null;
         const ctxNumero = { hoje: (0, secretaria_1.hojeBrasil)(), tipo: tipo ? { id: String(p.tipo_id), sigla: tipo.sigla, nome: tipo.nome, codigo: tipo.codigo } : null, unidade, orgao };
@@ -987,7 +1034,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, (
         // Primeira fase com prazo automático: a contagem usa o calendário do órgão.
         const fase1 = rito.fases[0];
         const calendarioAutuacao = (fase1 === null || fase1 === void 0 ? void 0 : fase1.prazo_auto) || ((fase1 === null || fase1 === void 0 ? void 0 : fase1.acoes_regras) || []).some((r) => r === null || r === void 0 ? void 0 : r.prazo_dias)
-            ? (0, secretaria_1.sanitizeCalendario)((_j = (await db.collection(context_1.COL.config).doc(orgId).get()).data()) === null || _j === void 0 ? void 0 : _j.calendario) : undefined;
+            ? (0, secretaria_1.sanitizeCalendario)((_m = (await db.collection(context_1.COL.config).doc(orgId).get()).data()) === null || _m === void 0 ? void 0 : _m.calendario) : undefined;
         const contadorRef = numeracao ? db.collection(context_1.COL.contadores).doc((0, numeracao_1.chaveContador)(orgId, numeracao, ctxNumero)) : null;
         // A primeira fase pode designar o responsável e avisar a equipe já na autuação.
         const designacaoInicial = await designadoPelaFase(c, fase1, unidade);
@@ -1047,7 +1094,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, (
             return numero;
         });
         const au = autuado;
-        if (au && ((_k = fase1 === null || fase1 === void 0 ? void 0 : fase1.aviso) === null || _k === void 0 ? void 0 : _k.para))
+        if (au && ((_o = fase1 === null || fase1 === void 0 ? void 0 : fase1.aviso) === null || _o === void 0 ? void 0 : _o.para))
             void (0, avisosEquipe_1.avisarEntradaNaFase)(c, fase1, unidadeId, au.proc, procRef.id, false, '');
         if (au === null || au === void 0 ? void 0 : au.pendencia)
             void (0, avisosEquipe_1.avisarPendencia)(c, au.proc, procRef.id, au.pendencia);
