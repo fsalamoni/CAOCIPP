@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx';
 import { calculateStatus } from '../shared/status';
 import { formatPersonName } from '../shared/normalization';
 import { historyEntryId } from '../shared/history';
+import { vinculoBloqueado } from '../shared/vinculo';
 
 interface ImportExcelRequest {
     organizationId: string;
@@ -45,7 +46,7 @@ export const importProcessesFromExcel = onCall<ImportExcelRequest>(
         // 1. Verify permissions
         const membershipRef = db.collection('userOrganizations').doc(`${userId}_${organizationId}`);
         const membershipSnap = await membershipRef.get();
-        if (!membershipSnap.exists || membershipSnap.data()?.active === false) {
+        if (!membershipSnap.exists || vinculoBloqueado(membershipSnap.data())) {
             throw new HttpsError('permission-denied', 'Você não é membro desta organização');
         }
 

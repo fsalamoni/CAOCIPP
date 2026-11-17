@@ -33,6 +33,9 @@ interface OrgRow {
     expedientes_count: number;
     active_processes: number;
     storageEstimateBytes: number;
+    suspended: boolean;
+    pe_enabled: boolean;
+    pe_suspended: boolean;
 }
 
 interface OrgsResponse {
@@ -67,9 +70,10 @@ export const getOrgsReport = onCall<{ limit?: number }>(
 
         const total = await countWhere(db.collection('organizations'));
 
+        // Sem orderBy: órgão sem created_at (antigo ou criado à mão) também
+        // aparece. A ordem final é por volume, logo abaixo.
         const snap = await db
             .collection('organizations')
-            .orderBy('created_at', 'desc')
             .limit(cap)
             .get();
 
@@ -120,6 +124,9 @@ export const getOrgsReport = onCall<{ limit?: number }>(
                             ? stats.active_processes
                             : 0,
                     storageEstimateBytes,
+                    suspended: data.platform_suspension?.ativa === true,
+                    pe_enabled: data.secretariaConfig?.enabled === true,
+                    pe_suspended: data.secretariaConfig?.suspensa_plataforma === true,
                 };
             })
         );

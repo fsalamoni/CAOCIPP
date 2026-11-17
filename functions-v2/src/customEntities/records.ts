@@ -3,12 +3,13 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { EntityTypeDef, FieldDef, initialPhase, phasesReachedUpTo, validateRecordValues } from './schema';
 import { evaluatePhaseTransition } from './transitions';
 import { historyEntryId } from '../shared/history';
+import { vinculoBloqueado } from '../shared/vinculo';
 
 const REGION = 'southamerica-east1';
 
 async function getMembership(db: FirebaseFirestore.Firestore, userId: string, organizationId: string) {
     const snap = await db.collection('userOrganizations').doc(`${userId}_${organizationId}`).get();
-    if (!snap.exists || snap.data()?.active === false) {
+    if (!snap.exists || vinculoBloqueado(snap.data())) {
         throw new HttpsError('permission-denied', 'Você não é membro desta organização.');
     }
     return snap.data() || {};

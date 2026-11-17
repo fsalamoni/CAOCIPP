@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.importPanorama = void 0;
+const vinculo_1 = require("../shared/vinculo");
 const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
 const XLSX = require("xlsx");
@@ -158,7 +159,6 @@ function detectarColunas(linhas, baseExistente) {
     return out;
 }
 exports.importPanorama = (0, https_1.onCall)({ region: 'southamerica-east1', memory: '1GiB', timeoutSeconds: 540 }, async (request) => {
-    var _a;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Usuário deve estar autenticado');
     }
@@ -172,7 +172,7 @@ exports.importPanorama = (0, https_1.onCall)({ region: 'southamerica-east1', mem
         .collection('userOrganizations')
         .doc(`${userId}_${organizationId}`)
         .get();
-    if (!membershipSnap.exists || ((_a = membershipSnap.data()) === null || _a === void 0 ? void 0 : _a.active) === false) {
+    if (!membershipSnap.exists || (0, vinculo_1.vinculoBloqueado)(membershipSnap.data())) {
         throw new https_1.HttpsError('permission-denied', 'Você não é membro desta organização');
     }
     const membership = membershipSnap.data() || {};

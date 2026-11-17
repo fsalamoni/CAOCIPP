@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.runAnonymization = exports.previewAnonymization = void 0;
 const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
+const vinculo_1 = require("../shared/vinculo");
 // Política de retenção e anonimização (flag `data_retention_policy`, alto
 // risco). Duas etapas OBRIGATÓRIAS e distintas — nunca automáticas:
 //   1. previewAnonymization: lista o que SERIA anonimizado, sem alterar nada.
@@ -10,9 +11,9 @@ const https_1 = require("firebase-functions/v2/https");
 //      pelo Criador (não "todos os elegíveis" — a lista vem da preview).
 // Nenhuma rotina agendada dispara isto sozinha.
 async function assertIsCreator(db, userId, organizationId) {
-    var _a, _b;
+    var _a;
     const membershipSnap = await db.collection('userOrganizations').doc(`${userId}_${organizationId}`).get();
-    if (!membershipSnap.exists || ((_a = membershipSnap.data()) === null || _a === void 0 ? void 0 : _a.active) === false || ((_b = membershipSnap.data()) === null || _b === void 0 ? void 0 : _b.role) !== 'creator') {
+    if (!membershipSnap.exists || (0, vinculo_1.vinculoBloqueado)(membershipSnap.data()) || ((_a = membershipSnap.data()) === null || _a === void 0 ? void 0 : _a.role) !== 'creator') {
         throw new https_1.HttpsError('permission-denied', 'Apenas o Criador do órgão pode gerenciar a política de retenção.');
     }
 }

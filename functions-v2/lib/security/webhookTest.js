@@ -4,6 +4,7 @@ exports.testOrgWebhook = void 0;
 const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
 const webhooks_1 = require("../shared/webhooks");
+const vinculo_1 = require("../shared/vinculo");
 function isOrgAdmin(membership) {
     if (!membership)
         return false;
@@ -14,7 +15,7 @@ function isOrgAdmin(membership) {
 // Dispara um evento de teste para a URL configurada (flag `outbound_webhooks`),
 // para o Criador/administrador confirmar a integração sem esperar um evento real.
 exports.testOrgWebhook = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
-    var _a, _b, _c;
+    var _a, _b;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
     }
@@ -24,11 +25,11 @@ exports.testOrgWebhook = (0, https_1.onCall)({ region: 'southamerica-east1' }, a
     }
     const db = admin.firestore();
     const membershipSnap = await db.collection('userOrganizations').doc(`${request.auth.uid}_${organizationId}`).get();
-    if (!membershipSnap.exists || ((_a = membershipSnap.data()) === null || _a === void 0 ? void 0 : _a.active) === false || !isOrgAdmin(membershipSnap.data())) {
+    if (!membershipSnap.exists || (0, vinculo_1.vinculoBloqueado)(membershipSnap.data()) || !isOrgAdmin(membershipSnap.data())) {
         throw new https_1.HttpsError('permission-denied', 'Apenas o Criador ou administradores delegados podem testar o webhook.');
     }
     const orgSnap = await db.collection('organizations').doc(organizationId).get();
-    const url = (_c = (_b = orgSnap.data()) === null || _b === void 0 ? void 0 : _b.webhookConfig) === null || _c === void 0 ? void 0 : _c.url;
+    const url = (_b = (_a = orgSnap.data()) === null || _a === void 0 ? void 0 : _a.webhookConfig) === null || _b === void 0 ? void 0 : _b.url;
     if (!url) {
         throw new https_1.HttpsError('failed-precondition', 'Configure e salve uma URL de webhook antes de testar.');
     }

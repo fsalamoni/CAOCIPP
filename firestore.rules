@@ -18,7 +18,8 @@ service cloud.firestore {
     // processos, expedientes, parcerias, bases e o registro de auditoria.
     function isMemberOf(orgId) {
       let path = /databases/$(database)/documents/userOrganizations/$(request.auth.uid + '_' + orgId);
-      return exists(path) && get(path).data.get('active', true) != false;
+      return exists(path) && get(path).data.get('active', true) != false
+        && get(path).data.get('org_suspended', false) != true;
     }
     
     function getMembership(orgId) {

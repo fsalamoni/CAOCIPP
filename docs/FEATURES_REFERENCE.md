@@ -301,7 +301,7 @@ pendências da configuração inicial (`platformAlerts`, a partir de
 | Plataforma | Configuração inicial (`setup`) | Passo a passo dos segredos e integrações | `getSetupStatus` |
 | Plataforma | Funcionalidades (`flags`) | Liga/desliga as flags opcionais | `getFeatureFlags`, `setFeatureFlag` |
 | Plataforma | E-mail (`email`) | Remetente dos e-mails | `getEmailProviderConfig`, `setEmailProviderConfig` |
-| Órgãos e pessoas | Órgãos (`orgs`) | Lista e exclusão de órgão | `getOrgsReport`, `deleteOrganization` |
+| Órgãos e pessoas | Órgãos (`orgs`) | Lista com busca e filtros (todos, suspensos, com Processo Eletrônico, sem registros); ficha do órgão em `&orgao=<id>` com membros, volumes por módulo, páginas ligadas, contato e atividade recente; suspender, reativar, trocar o criador e excluir | `getOrgsReport`, `platformOrg` (`ficha`, `suspender`, `reativar`, `trocarCriador`), `deleteOrganization` |
 | Órgãos e pessoas | Usuários (`users`) | Pessoas e vínculos | `listPlatformUsers` |
 | Órgãos e pessoas | Administradores da plataforma (`admins`) | Concede/revoga super-admin | `grantPlatformAdmin`, `revokePlatformAdmin`, `listPlatformAdmins` |
 | Módulos | Processo Eletrônico (`secretaria`) | Órgãos com PE e suspensão | `secretariaPlataforma` |

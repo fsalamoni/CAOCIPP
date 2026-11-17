@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { hasOrgPermission, MembershipLike } from '../shared/permissions';
+import { vinculoBloqueado } from '../shared/vinculo';
 
 interface DeleteProcessRequest {
     id: string;
@@ -26,7 +27,7 @@ export const deleteProcess = onCall<DeleteProcessRequest>(
         const membershipRef = db.collection('userOrganizations').doc(`${userId}_${organizationId}`);
         const membershipSnap = await membershipRef.get();
 
-        if (!membershipSnap.exists || membershipSnap.data()?.active === false) {
+        if (!membershipSnap.exists || vinculoBloqueado(membershipSnap.data())) {
             throw new HttpsError('permission-denied', 'Not a member');
         }
         // O criador pode excluir; membros precisam da permissão `delete_records`.

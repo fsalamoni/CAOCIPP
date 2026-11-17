@@ -70,6 +70,10 @@ export const recalcOrgStats = (organizationId) =>
 export const deleteOrganization = (organizationId, confirmName) =>
     call('deleteOrganization', { organizationId, confirmName }, { timeout: 540000 });
 
+// Ficha e controles de um órgão: action = ficha | suspender | reativar | trocarCriador.
+export const platformOrg = (action, organizationId, extra = {}) =>
+    call('platformOrg', { action, organizationId, ...extra }, { timeout: 120000 });
+
 // --- Fase 3: backfill do histórico (array activity_log -> subcoleção history) ---
 // verifyOnly=true não escreve nada (apenas audita paridade). Sem verifyOnly,
 // copia as entradas (idempotente). Paginação por lote via startAfter/lastDocId.

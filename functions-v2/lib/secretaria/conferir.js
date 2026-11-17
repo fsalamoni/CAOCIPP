@@ -24,6 +24,7 @@ const context_2 = require("./context");
 const votacao_1 = require("./votacao");
 const painelAta_1 = require("./painelAta");
 const portalAvisos_2 = require("./portalAvisos");
+const vinculo_1 = require("../shared/vinculo");
 exports.CONFERENCIAS_POR_HORA = 60;
 /**
  * Chamada pública: no máximo `limite` por hora por endereço de rede (guardado
@@ -153,7 +154,7 @@ exports.secretariaAlertaPrazos = (0, scheduler_1.onSchedule)({ schedule: 'every 
     for (const [orgId, procs] of porOrg) {
         const [cfg, org] = await Promise.all([db.collection(context_1.COL.config).doc(orgId).get(), db.collection('organizations').doc(orgId).get()]);
         const sc = ((_a = org.data()) === null || _a === void 0 ? void 0 : _a.secretariaConfig) || {};
-        if (sc.enabled !== true || sc.suspensa_plataforma === true)
+        if (sc.enabled !== true || (0, vinculo_1.peSuspensoPlataforma)(org.data()))
             continue;
         const unidades = new Map((await db.collection(context_1.COL.unidades).where('organization_id', '==', orgId).get()).docs.map((u) => [u.id, u.data()]));
         // Regra do vencimento (do rito): vale mesmo com o alerta por e-mail do órgão desligado.

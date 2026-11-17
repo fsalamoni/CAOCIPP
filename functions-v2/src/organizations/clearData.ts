@@ -1,5 +1,6 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { vinculoBloqueado } from '../shared/vinculo';
 
 interface ClearDataRequest {
     organizationId: string;
@@ -29,7 +30,7 @@ export const clearOrganizationData = onCall<ClearDataRequest>(
         const membershipRef = db.collection('userOrganizations').doc(`${userId}_${organizationId}`);
         const membershipSnap = await membershipRef.get();
 
-        if (!membershipSnap.exists || membershipSnap.data()?.active === false) {
+        if (!membershipSnap.exists || vinculoBloqueado(membershipSnap.data())) {
             throw new HttpsError('permission-denied', 'You are not a member of this organization');
         }
 

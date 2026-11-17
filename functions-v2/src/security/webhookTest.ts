@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { isSafeWebhookUrl } from '../shared/webhooks';
+import { vinculoBloqueado } from '../shared/vinculo';
 
 type MembershipLike = { role?: string; permissions?: Record<string, unknown> };
 
@@ -25,7 +26,7 @@ export const testOrgWebhook = onCall<{ organizationId: string }>(
 
         const db = admin.firestore();
         const membershipSnap = await db.collection('userOrganizations').doc(`${request.auth.uid}_${organizationId}`).get();
-        if (!membershipSnap.exists || membershipSnap.data()?.active === false || !isOrgAdmin(membershipSnap.data() as MembershipLike)) {
+        if (!membershipSnap.exists || vinculoBloqueado(membershipSnap.data()) || !isOrgAdmin(membershipSnap.data() as MembershipLike)) {
             throw new HttpsError('permission-denied', 'Apenas o Criador ou administradores delegados podem testar o webhook.');
         }
 

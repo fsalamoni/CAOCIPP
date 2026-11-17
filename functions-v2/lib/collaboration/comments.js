@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.addComment = void 0;
 const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
+const vinculo_1 = require("../shared/vinculo");
 const ENTITY_COLLECTION = {
     process: 'processes',
     expediente: 'expedientes',
@@ -23,7 +24,6 @@ const ENTITY_LABEL = {
 // registro pertence ao órgão informado, e só notifica quem for de fato
 // membro do órgão (mesmo que o cliente tenha enviado IDs incorretos/antigos).
 exports.addComment = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
-    var _a;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
     }
@@ -45,7 +45,7 @@ exports.addComment = (0, https_1.onCall)({ region: 'southamerica-east1' }, async
     // 1. Verifica associação ao órgão.
     const membershipRef = db.collection('userOrganizations').doc(`${userId}_${organizationId}`);
     const membershipSnap = await membershipRef.get();
-    if (!membershipSnap.exists || ((_a = membershipSnap.data()) === null || _a === void 0 ? void 0 : _a.active) === false) {
+    if (!membershipSnap.exists || (0, vinculo_1.vinculoBloqueado)(membershipSnap.data())) {
         throw new https_1.HttpsError('permission-denied', 'You are not a member of this organization');
     }
     // 2. Verifica que o registro pertence a este órgão.

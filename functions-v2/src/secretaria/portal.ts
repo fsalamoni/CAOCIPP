@@ -30,6 +30,7 @@ import { NOME_PEDIDO, PedidoSessao, TIPOS_PEDIDO, problemaDoPedido, sanitizePedi
 import { COL_SESSOES } from './sessoes';
 import { atualizarPainel } from './painelAta';
 import { ACOES_FORNECEDOR, acaoFornecedor } from './certames';
+import { peSuspensoPlataforma } from '../shared/vinculo';
 
 /**
  * Portal das partes. A parte é um usuário autenticado (Google ou e-mail e
@@ -94,7 +95,7 @@ function ultimoPublico(proc: admin.firestore.DocumentData): { tipo: string; desc
     return u && u.publico !== false && visivelParaPartes({ seq: 0, tipo: String(u.tipo) }) ? { tipo: u.tipo, descricao: u.descricao, em: u.em } : null;
 }
 
-const orgaoAtivo = (o: admin.firestore.DocumentData | undefined) => o?.secretariaConfig?.enabled === true && o?.secretariaConfig?.suspensa_plataforma !== true;
+const orgaoAtivo = (o: admin.firestore.DocumentData | undefined) => o?.secretariaConfig?.enabled === true && !peSuspensoPlataforma(o);
 /** Petições por conta e processo em 24 horas: freio contra abuso, longe do uso normal. */
 const MAX_PETICOES_DIA = 20;
 
@@ -142,7 +143,7 @@ async function lerComoParte(db: admin.firestore.Firestore, uid: string, id: unkn
     const data = snap.data();
     if (!data || !(data.partes_uids || []).includes(uid)) throw new HttpsError('not-found', 'Processo não encontrado');
     const org = (await db.collection('organizations').doc(data.organization_id).get()).data() || {};
-    if (org.secretariaConfig?.enabled !== true || org.secretariaConfig?.suspensa_plataforma === true) {
+    if (org.secretariaConfig?.enabled !== true || peSuspensoPlataforma(org)) {
         throw new HttpsError('failed-precondition', 'A Secretaria deste órgão está desativada');
     }
     return { ref, data, org };

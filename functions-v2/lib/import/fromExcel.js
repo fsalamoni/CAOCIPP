@@ -7,6 +7,7 @@ const XLSX = require("xlsx");
 const status_1 = require("../shared/status");
 const normalization_1 = require("../shared/normalization");
 const history_1 = require("../shared/history");
+const vinculo_1 = require("../shared/vinculo");
 exports.importProcessesFromExcel = (0, https_1.onCall)({
     region: 'southamerica-east1',
     memory: '1GiB',
@@ -14,7 +15,7 @@ exports.importProcessesFromExcel = (0, https_1.onCall)({
     invoker: 'public', // Allow public invocation (Cloud Run level)
     cors: true // Enable CORS (should be automatic but being explicit)
 }, async (request) => {
-    var _a, _b, _c;
+    var _a, _b;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Usuário deve estar autenticado');
     }
@@ -27,7 +28,7 @@ exports.importProcessesFromExcel = (0, https_1.onCall)({
     // 1. Verify permissions
     const membershipRef = db.collection('userOrganizations').doc(`${userId}_${organizationId}`);
     const membershipSnap = await membershipRef.get();
-    if (!membershipSnap.exists || ((_a = membershipSnap.data()) === null || _a === void 0 ? void 0 : _a.active) === false) {
+    if (!membershipSnap.exists || (0, vinculo_1.vinculoBloqueado)(membershipSnap.data())) {
         throw new https_1.HttpsError('permission-denied', 'Você não é membro desta organização');
     }
     try {
@@ -231,8 +232,8 @@ exports.importProcessesFromExcel = (0, https_1.onCall)({
                         const oldData = existingDoc.data() || {};
                         const changedLabels = [];
                         for (const [key, label] of Object.entries(fieldLabels)) {
-                            const oldVal = ((_b = oldData[key]) !== null && _b !== void 0 ? _b : '').toString().trim();
-                            const newVal = ((_c = processData[key]) !== null && _c !== void 0 ? _c : '').toString().trim();
+                            const oldVal = ((_a = oldData[key]) !== null && _a !== void 0 ? _a : '').toString().trim();
+                            const newVal = ((_b = processData[key]) !== null && _b !== void 0 ? _b : '').toString().trim();
                             if (oldVal !== newVal && processData[key] !== undefined) {
                                 changedLabels.push(label);
                             }

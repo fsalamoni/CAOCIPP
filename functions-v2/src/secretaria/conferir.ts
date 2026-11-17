@@ -19,6 +19,7 @@ import { contextoDoSistema } from './context';
 import { encerrarSessoesVirtuais } from './votacao';
 import { lembrarSessoes } from './painelAta';
 import { avisarPartesDoMovimento } from './portalAvisos';
+import { peSuspensoPlataforma } from '../shared/vinculo';
 
 export const CONFERENCIAS_POR_HORA = 60;
 
@@ -148,7 +149,7 @@ export const secretariaAlertaPrazos = onSchedule(
         for (const [orgId, procs] of porOrg) {
             const [cfg, org] = await Promise.all([db.collection(COL.config).doc(orgId).get(), db.collection('organizations').doc(orgId).get()]);
             const sc = org.data()?.secretariaConfig || {};
-            if (sc.enabled !== true || sc.suspensa_plataforma === true) continue;
+            if (sc.enabled !== true || peSuspensoPlataforma(org.data())) continue;
             const unidades = new Map((await db.collection(COL.unidades).where('organization_id', '==', orgId).get()).docs.map((u) => [u.id, u.data()]));
             // Regra do vencimento (do rito): vale mesmo com o alerta por e-mail do órgão desligado.
             for (const p of procs) {

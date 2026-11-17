@@ -4,6 +4,7 @@ import { calculateStatus } from '../shared/status';
 import { formatPersonName } from '../shared/normalization';
 import { historyEntryId } from '../shared/history';
 import { fireOrgWebhook } from '../shared/webhooks';
+import { vinculoBloqueado } from '../shared/vinculo';
 
 interface UpdateProcessRequest {
     id: string;
@@ -30,7 +31,7 @@ export const updateProcess = onCall<UpdateProcessRequest>(
         const membershipRef = db.collection('userOrganizations').doc(`${userId}_${organizationId}`);
         const membershipSnap = await membershipRef.get();
 
-        if (!membershipSnap.exists || membershipSnap.data()?.active === false) {
+        if (!membershipSnap.exists || vinculoBloqueado(membershipSnap.data())) {
             throw new HttpsError('permission-denied', 'You are not a member of this organization');
         }
 

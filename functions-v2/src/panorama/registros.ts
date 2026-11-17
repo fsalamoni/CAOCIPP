@@ -1,3 +1,4 @@
+import { vinculoBloqueado } from '../shared/vinculo';
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import {
@@ -39,7 +40,7 @@ async function loadMembership(
         .collection('userOrganizations')
         .doc(`${userId}_${organizationId}`)
         .get();
-    if (!snap.exists || snap.data()?.active === false) {
+    if (!snap.exists || vinculoBloqueado(snap.data())) {
         throw new HttpsError('permission-denied', 'Você não é membro desta organização');
     }
     const data = snap.data() || {};

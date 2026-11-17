@@ -5,8 +5,9 @@ const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
 const permissions_1 = require("../shared/permissions");
 const history_1 = require("../shared/history");
+const vinculo_1 = require("../shared/vinculo");
 exports.deleteAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
-    var _a, _b;
+    var _a;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
     }
@@ -20,7 +21,7 @@ exports.deleteAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
     // 1. Verify membership + permissão
     const membershipRef = db.collection('userOrganizations').doc(`${userId}_${organizationId}`);
     const membershipSnap = await membershipRef.get();
-    if (!membershipSnap.exists || ((_a = membershipSnap.data()) === null || _a === void 0 ? void 0 : _a.active) === false) {
+    if (!membershipSnap.exists || (0, vinculo_1.vinculoBloqueado)(membershipSnap.data())) {
         throw new https_1.HttpsError('permission-denied', 'Você não é membro desta organização');
     }
     if (!(0, permissions_1.hasOrgPermission)(membershipSnap.data(), 'delete_records')) {
@@ -42,7 +43,7 @@ exports.deleteAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
     if (!aditivoSnap.exists) {
         throw new https_1.HttpsError('not-found', 'Aditivo não encontrado');
     }
-    const aditivoNumber = (_b = aditivoSnap.data()) === null || _b === void 0 ? void 0 : _b.aditivo_number;
+    const aditivoNumber = (_a = aditivoSnap.data()) === null || _a === void 0 ? void 0 : _a.aditivo_number;
     // 4. Recursive delete do aditivo (history/ etc.)
     await db.recursiveDelete(aditivoRef);
     // 5. Decrementar aditivo_count e ajustar current_additive_id

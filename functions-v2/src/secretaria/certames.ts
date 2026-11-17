@@ -39,6 +39,7 @@ import { ACOES_JULGAMENTO_FORNECEDOR, ACOES_JULGAMENTO_ORGAO, acaoJulgamentoForn
 import { sendEmail } from '../shared/email';
 import { auditar } from './config';
 import { COL, Contexto, atorDe, erroUsuario, exigirPosse, lerProcesso, registrarMovimento } from './context';
+import { peSuspensoPlataforma } from '../shared/vinculo';
 
 export const COL_CERTAMES = 'secCertames';
 const COL_ACESSOS = 'secPortalAcessos';
@@ -417,7 +418,7 @@ export async function avisarPorEmail(db: admin.firestore.Firestore, certameId: s
 
 // ─── Fornecedor ────────────────────────────────────────────────────────────
 
-const orgaoAtivo = (o: admin.firestore.DocumentData | undefined) => o?.secretariaConfig?.enabled === true && o?.secretariaConfig?.suspensa_plataforma !== true;
+const orgaoAtivo = (o: admin.firestore.DocumentData | undefined) => o?.secretariaConfig?.enabled === true && !peSuspensoPlataforma(o);
 
 async function lerCertame(db: admin.firestore.Firestore, id: unknown, tx?: admin.firestore.Transaction) {
     if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(id)) throw new HttpsError('invalid-argument', 'Disputa inválida');

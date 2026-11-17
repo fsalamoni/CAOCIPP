@@ -2,6 +2,7 @@ import * as admin from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { sanitizePermissions } from '../shared/permissions';
+import { vinculoBloqueado } from '../shared/vinculo';
 
 interface UpdateMemberRequest {
     organizationId: string;
@@ -40,7 +41,7 @@ export const updateMember = onCall<UpdateMemberRequest>(
         const requesterMembershipRef = db.collection('userOrganizations').doc(`${requesterId}_${organizationId}`);
         const requesterMembershipSnap = await requesterMembershipRef.get();
 
-        if (!requesterMembershipSnap.exists || requesterMembershipSnap.data()?.active === false) {
+        if (!requesterMembershipSnap.exists || vinculoBloqueado(requesterMembershipSnap.data())) {
             throw new HttpsError('permission-denied', 'Not a member');
         }
 

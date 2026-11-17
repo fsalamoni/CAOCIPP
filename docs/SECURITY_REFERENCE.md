@@ -23,8 +23,22 @@ Regra geral do projeto: *a interface avisa, o servidor exige.*
 
 Auxiliares: `isAuthenticated()`, `isOwner(uid)`, `isMemberOf(orgId)` (existe
 `userOrganizations/{uid}_{orgId}` **e o vínculo está ativo**, ou seja, sem
-`active == false`), `hasRole(orgId, roles)` e `isPlatformAdmin()` (claim
-`platformAdmin`).
+`active == false` e sem `org_suspended == true`), `hasRole(orgId, roles)` e
+`isPlatformAdmin()` (claim `platformAdmin`).
+
+**Órgão suspenso pela plataforma (desde 17/11/2026).** A ação `suspender` da
+Function `platformOrg` (só super-admin, motivo obrigatório) grava
+`platform_suspension` no órgão e `org_suspended`, `org_suspended_nome` e
+`org_suspended_motivo` em todos os vínculos dele. As regras e as Functions
+leem só o vínculo (helper `vinculoBloqueado` em `shared/vinculo.ts`), então a
+suspensão não custa leitura a mais: ninguém do órgão lê nem grava nada, nem o
+criador; o próprio vínculo continua legível, para a tela mostrar nome e
+motivo. O Processo Eletrônico trata o órgão suspenso como módulo suspenso
+(`peSuspensoPlataforma`), o que tira também o Portal das partes; o convite
+(`joinOrganization`) recusa entrada. `reativar` apaga as marcas. Nenhum dado é
+apagado. Auditado no `auditLogs` da plataforma e do órgão. Coberto por
+`scripts/test-rules.mjs` e `functions-v2/test/vinculo.test.js` (que também
+trava toda Function a usar o helper).
 
 **Membro removido perde o acesso na hora.** A remoção de membro é lógica
 (`removeMember` grava `active: false` e `left_at`, para guardar a data de

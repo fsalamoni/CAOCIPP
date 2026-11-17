@@ -1,5 +1,6 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { vinculoBloqueado } from '../shared/vinculo';
 
 // Política de retenção e anonimização (flag `data_retention_policy`, alto
 // risco). Duas etapas OBRIGATÓRIAS e distintas — nunca automáticas:
@@ -10,7 +11,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 
 async function assertIsCreator(db: admin.firestore.Firestore, userId: string, organizationId: string): Promise<void> {
     const membershipSnap = await db.collection('userOrganizations').doc(`${userId}_${organizationId}`).get();
-    if (!membershipSnap.exists || membershipSnap.data()?.active === false || membershipSnap.data()?.role !== 'creator') {
+    if (!membershipSnap.exists || vinculoBloqueado(membershipSnap.data()) || membershipSnap.data()?.role !== 'creator') {
         throw new HttpsError('permission-denied', 'Apenas o Criador do órgão pode gerenciar a política de retenção.');
     }
 }

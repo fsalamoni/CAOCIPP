@@ -28,6 +28,7 @@ const julgamentoDisputa_1 = require("./julgamentoDisputa");
 const email_1 = require("../shared/email");
 const config_1 = require("./config");
 const context_1 = require("./context");
+const vinculo_1 = require("../shared/vinculo");
 exports.COL_CERTAMES = 'secCertames';
 const COL_ACESSOS = 'secPortalAcessos';
 exports.ACOES_CERTAME = ['certameLer', 'certameEquipe', 'certameMinhas', 'certameSalvar', 'certamePublicar', 'certameAdiar', 'certameCancelar', 'certameConvidar', 'certameRevogarConvite', 'certamePropostas', ...salaLances_1.ACOES_SALA_ORGAO, ...julgamentoDisputa_1.ACOES_JULGAMENTO_ORGAO];
@@ -411,7 +412,7 @@ async function avisarPorEmail(db, certameId, uids, assunto, corpo) {
     await Promise.all(emails.map((to) => (0, email_1.sendEmail)({ to, subject: assunto, html: `<p>${escapar(corpo)}</p><p><a href="${APP_URL}/Disputas?d=${certameId}">Abrir a disputa</a></p>` }).catch(() => false)));
 }
 // ─── Fornecedor ────────────────────────────────────────────────────────────
-const orgaoAtivo = (o) => { var _a, _b; return ((_a = o === null || o === void 0 ? void 0 : o.secretariaConfig) === null || _a === void 0 ? void 0 : _a.enabled) === true && ((_b = o === null || o === void 0 ? void 0 : o.secretariaConfig) === null || _b === void 0 ? void 0 : _b.suspensa_plataforma) !== true; };
+const orgaoAtivo = (o) => { var _a; return ((_a = o === null || o === void 0 ? void 0 : o.secretariaConfig) === null || _a === void 0 ? void 0 : _a.enabled) === true && !(0, vinculo_1.peSuspensoPlataforma)(o); };
 async function lerCertame(db, id, tx) {
     if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(id))
         throw new https_1.HttpsError('invalid-argument', 'Disputa inválida');

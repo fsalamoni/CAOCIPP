@@ -28,6 +28,7 @@ import {
 } from './unidades';
 import { migrarRito } from './migrarRito';
 import { pacoteDoRito, paginasCitadas } from '../shared/pacoteRito';
+import { peSuspensoPlataforma } from '../shared/vinculo';
 
 export { TIPOS_DOCUMENTO_PADRAO } from './documentoConfig';
 
@@ -335,7 +336,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
                 ...modelosSnap.docs.filter((d) => d.data().excluido === true && (c.ctx.isAdmin || (d.data().unidade_id ? c.gestorDe.includes(d.data().unidade_id) : administraOrgao(c, d.data().orgao_id))))
                     .map((d) => ({ ...lixo('modelo', d), unidade_id: d.data().unidade_id || null, orgao_id: d.data().orgao_id || null })),
             ].sort((a, b) => String(b.em || '').localeCompare(String(a.em || ''))),
-            suspensa_plataforma: c.org.secretariaConfig?.suspensa_plataforma === true,
+            suspensa_plataforma: peSuspensoPlataforma(c.org),
             motivo_suspensao: c.org.secretariaConfig?.motivo_suspensao || '',
             orgao: String(c.org.name || ''),
             membros,

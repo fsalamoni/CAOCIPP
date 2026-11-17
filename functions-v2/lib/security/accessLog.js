@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getOrgAccessLog = exports.logAccess = void 0;
 const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
+const vinculo_1 = require("../shared/vinculo");
 function isOrgAdmin(membership) {
     if (!membership)
         return false;
@@ -14,7 +15,6 @@ function isOrgAdmin(membership) {
 // registros com restrição de acesso e exportações de tabela — reaproveita a
 // coleção global `auditLogs` já usada pelas demais Cloud Functions.
 exports.logAccess = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
-    var _a;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
     }
@@ -25,7 +25,7 @@ exports.logAccess = (0, https_1.onCall)({ region: 'southamerica-east1' }, async 
     const db = admin.firestore();
     const userId = request.auth.uid;
     const membershipSnap = await db.collection('userOrganizations').doc(`${userId}_${organizationId}`).get();
-    if (!membershipSnap.exists || ((_a = membershipSnap.data()) === null || _a === void 0 ? void 0 : _a.active) === false) {
+    if (!membershipSnap.exists || (0, vinculo_1.vinculoBloqueado)(membershipSnap.data())) {
         throw new https_1.HttpsError('permission-denied', 'You are not a member of this organization');
     }
     // Cap defensivo no payload livre: sem isto, um cliente podia anexar um
@@ -51,7 +51,7 @@ exports.logAccess = (0, https_1.onCall)({ region: 'southamerica-east1' }, async 
 // administrador delegado). Diferente de getActivityFeed (plataforma/super-admin),
 // esta função é escopada ao próprio órgão do solicitante.
 exports.getOrgAccessLog = (0, https_1.onCall)({ region: 'southamerica-east1' }, async (request) => {
-    var _a, _b;
+    var _a;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
     }
@@ -62,13 +62,13 @@ exports.getOrgAccessLog = (0, https_1.onCall)({ region: 'southamerica-east1' }, 
     const db = admin.firestore();
     const userId = request.auth.uid;
     const membershipSnap = await db.collection('userOrganizations').doc(`${userId}_${organizationId}`).get();
-    if (!membershipSnap.exists || ((_a = membershipSnap.data()) === null || _a === void 0 ? void 0 : _a.active) === false) {
+    if (!membershipSnap.exists || (0, vinculo_1.vinculoBloqueado)(membershipSnap.data())) {
         throw new https_1.HttpsError('permission-denied', 'You are not a member of this organization');
     }
     if (!isOrgAdmin(membershipSnap.data())) {
         throw new https_1.HttpsError('permission-denied', 'Apenas o criador ou administradores delegados podem consultar o log de acesso.');
     }
-    const limit = Math.min(Math.max(Number((_b = request.data) === null || _b === void 0 ? void 0 : _b.limit) || 100, 1), 300);
+    const limit = Math.min(Math.max(Number((_a = request.data) === null || _a === void 0 ? void 0 : _a.limit) || 100, 1), 300);
     // Filtra a ação já na query (existe índice organization_id+action+timestamp)
     // em vez de buscar os 1000 eventos mais recentes de QUALQUER tipo e
     // filtrar depois — antes, em um órgão com muita atividade (imports em

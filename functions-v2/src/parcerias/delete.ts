@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { hasOrgPermission, MembershipLike } from '../shared/permissions';
+import { vinculoBloqueado } from '../shared/vinculo';
 
 interface DeleteParceriaRequest {
     id: string;
@@ -25,7 +26,7 @@ export const deleteParceria = onCall<DeleteParceriaRequest>(
         // 1. Verify membership + permissão
         const membershipRef = db.collection('userOrganizations').doc(`${userId}_${organizationId}`);
         const membershipSnap = await membershipRef.get();
-        if (!membershipSnap.exists || membershipSnap.data()?.active === false) {
+        if (!membershipSnap.exists || vinculoBloqueado(membershipSnap.data())) {
             throw new HttpsError('permission-denied', 'Você não é membro desta organização');
         }
         if (!hasOrgPermission(membershipSnap.data() as MembershipLike, 'delete_records')) {

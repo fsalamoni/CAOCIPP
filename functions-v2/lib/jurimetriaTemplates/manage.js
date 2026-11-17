@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.manageJurimetriaTemplate = void 0;
 const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
+const vinculo_1 = require("../shared/vinculo");
 /**
  * Modelos de relatório dinâmico, compartilhados dentro do órgão.
  *
@@ -42,12 +43,11 @@ function sanitizeConfig(input) {
 }
 /** Vínculo do usuário com o órgão + se ele administra (criador ou delegado). */
 async function loadMembership(db, userId, organizationId) {
-    var _a;
     const snap = await db
         .collection('userOrganizations')
         .doc(`${userId}_${organizationId}`)
         .get();
-    if (!snap.exists || ((_a = snap.data()) === null || _a === void 0 ? void 0 : _a.active) === false) {
+    if (!snap.exists || (0, vinculo_1.vinculoBloqueado)(snap.data())) {
         throw new https_1.HttpsError('permission-denied', 'Você não é membro desta organização');
     }
     const data = snap.data() || {};

@@ -4,6 +4,7 @@ exports.REGION = void 0;
 exports.assertPlatformAdmin = assertPlatformAdmin;
 exports.writePlatformAudit = writePlatformAudit;
 const admin = require("firebase-admin");
+const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
 /**
  * Região padrão das funções (São Paulo).
@@ -73,7 +74,7 @@ async function writePlatformAudit(actorUid, actorName, action, details) {
         user_name: actorName,
         action,
         details,
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        timestamp: firestore_1.FieldValue.serverTimestamp(),
     });
 }
 //# sourceMappingURL=helpers.js.map

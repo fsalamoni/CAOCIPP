@@ -4,6 +4,7 @@ exports.joinOrganization = void 0;
 const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
 const normalization_1 = require("../shared/normalization");
+const vinculo_1 = require("../shared/vinculo");
 exports.joinOrganization = (0, https_1.onCall)({ region: 'southamerica-east1', cors: true }, async (request) => {
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'User must be authenticated');
@@ -31,6 +32,9 @@ exports.joinOrganization = (0, https_1.onCall)({ region: 'southamerica-east1', c
             const orgDoc = orgsSnapshot.docs[0];
             const orgData = orgDoc.data();
             const orgId = orgDoc.id;
+            if ((0, vinculo_1.orgSuspensa)(orgData)) {
+                throw new https_1.HttpsError('failed-precondition', 'Este órgão está suspenso pela administração da plataforma e não aceita novos membros agora.');
+            }
             // 2. Puxar a função do "meu perfil" (users/{userId}.function) —
             //    a mesma fonte que /Profile usa. Se o usuário preencheu a
             //    função no meu perfil, ela vira a função deste member; se

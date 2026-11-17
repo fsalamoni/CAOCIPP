@@ -5,6 +5,7 @@ import { historyEntryId } from '../shared/history';
 import { formatPersonName } from '../shared/normalization';
 import { validateAditivoPhaseTransition } from '../shared/validators';
 import { applyAutoDateForPhase } from '../shared/phaseDates';
+import { vinculoBloqueado } from '../shared/vinculo';
 
 interface UpdateAditivoRequest {
     parceriaId: string;
@@ -51,7 +52,7 @@ export const updateAditivo = onCall<UpdateAditivoRequest>(
         // 1. Verify membership
         const membershipRef = db.collection('userOrganizations').doc(`${userId}_${organizationId}`);
         const membershipSnap = await membershipRef.get();
-        if (!membershipSnap.exists || membershipSnap.data()?.active === false) {
+        if (!membershipSnap.exists || vinculoBloqueado(membershipSnap.data())) {
             throw new HttpsError('permission-denied', 'Você não é membro desta organização');
         }
 

@@ -6,11 +6,11 @@ const https_1 = require("firebase-functions/v2/https");
 const schema_1 = require("./schema");
 const transitions_1 = require("./transitions");
 const history_1 = require("../shared/history");
+const vinculo_1 = require("../shared/vinculo");
 const REGION = 'southamerica-east1';
 async function getMembership(db, userId, organizationId) {
-    var _a;
     const snap = await db.collection('userOrganizations').doc(`${userId}_${organizationId}`).get();
-    if (!snap.exists || ((_a = snap.data()) === null || _a === void 0 ? void 0 : _a.active) === false) {
+    if (!snap.exists || (0, vinculo_1.vinculoBloqueado)(snap.data())) {
         throw new https_1.HttpsError('permission-denied', 'Você não é membro desta organização.');
     }
     return snap.data() || {};

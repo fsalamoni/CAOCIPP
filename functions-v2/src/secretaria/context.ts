@@ -17,6 +17,7 @@ import { leituraDeJulgador } from '../shared/sessoes';
 import { marcasDoDestino } from '../shared/exigencias';
 import { faseComPrazoDeAcao } from '../shared/prazosFase';
 import type { Ator } from '../shared/permissoesFase';
+import { peSuspensoPlataforma, vinculoBloqueado } from '../shared/vinculo';
 
 export const REGION = 'southamerica-east1';
 
@@ -137,7 +138,7 @@ export async function carregarContexto(
         db.collection(COL.unidades).where('organization_id', '==', orgId).get(),
         db.collection(COL.config).doc(orgId).get(),
     ]);
-    if (!memSnap.exists || !orgSnap.exists || memSnap.data()?.active === false) {
+    if (!memSnap.exists || !orgSnap.exists || vinculoBloqueado(memSnap.data())) {
         throw new HttpsError('permission-denied', 'Você não é membro desta organização');
     }
     const mem = memSnap.data() || {};
@@ -146,7 +147,7 @@ export async function carregarContexto(
     if (!opts.permitirInativa && org.secretariaConfig?.enabled !== true) {
         throw new HttpsError('failed-precondition', 'O Processo Eletrônico não está ativo neste órgão');
     }
-    if (!opts.permitirInativa && org.secretariaConfig?.suspensa_plataforma === true) {
+    if (!opts.permitirInativa && peSuspensoPlataforma(org)) {
         throw new HttpsError('failed-precondition', 'O Processo Eletrônico deste órgão está suspenso pela administração da plataforma');
     }
     const unidades = unSnap.docs.map((d) => ({ id: d.id, ...d.data() } as { id: string } & admin.firestore.DocumentData));
@@ -185,7 +186,7 @@ export async function contextoDoSistema(db: admin.firestore.Firestore, orgId: st
         db.collection(COL.unidades).where('organization_id', '==', orgId).get(),
     ]);
     const org = orgSnap.data() || {};
-    if (org.secretariaConfig?.enabled !== true || org.secretariaConfig?.suspensa_plataforma === true) return null;
+    if (org.secretariaConfig?.enabled !== true || peSuspensoPlataforma(org)) return null;
     const unidades = unSnap.docs.map((d) => ({ id: d.id, ...d.data() } as { id: string } & admin.firestore.DocumentData));
     return {
         db, orgId, org, ctx: { uid: 'sistema', isAdmin: true, unidadeIds: unidades.filter((u) => u.ativa !== false).map((u) => u.id) },

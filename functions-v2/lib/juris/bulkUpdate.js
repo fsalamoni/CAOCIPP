@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.bulkUpdateJuris = void 0;
+const vinculo_1 = require("../shared/vinculo");
 const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
 const history_1 = require("../shared/history");
@@ -31,7 +32,7 @@ const FIELD_LABELS = {
  * entrada de histórico.
  */
 exports.bulkUpdateJuris = (0, https_1.onCall)({ region: 'southamerica-east1', timeoutSeconds: 300 }, async (request) => {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Authenticated user required');
     }
@@ -53,7 +54,7 @@ exports.bulkUpdateJuris = (0, https_1.onCall)({ region: 'southamerica-east1', ti
         .collection('userOrganizations')
         .doc(`${userId}_${organizationId}`)
         .get();
-    if (!membershipSnap.exists || ((_a = membershipSnap.data()) === null || _a === void 0 ? void 0 : _a.active) === false) {
+    if (!membershipSnap.exists || (0, vinculo_1.vinculoBloqueado)(membershipSnap.data())) {
         throw new https_1.HttpsError('permission-denied', 'Você não é membro desta organização');
     }
     const orgSnap = await db.collection('organizations').doc(organizationId).get();
@@ -80,8 +81,8 @@ exports.bulkUpdateJuris = (0, https_1.onCall)({ region: 'southamerica-east1', ti
     let responsibleUserName = null;
     if (Object.prototype.hasOwnProperty.call(incoming, 'responsible_user_id')) {
         responsibleTouched = true;
-        responsibleUserId = String((_b = incoming.responsible_user_id) !== null && _b !== void 0 ? _b : '').trim() || null;
-        responsibleUserName = String((_c = incoming.responsible_user_name) !== null && _c !== void 0 ? _c : '').trim().slice(0, 160) || null;
+        responsibleUserId = String((_a = incoming.responsible_user_id) !== null && _a !== void 0 ? _a : '').trim() || null;
+        responsibleUserName = String((_b = incoming.responsible_user_name) !== null && _b !== void 0 ? _b : '').trim().slice(0, 160) || null;
         if (responsibleUserId) {
             const respSnap = await db
                 .collection('userOrganizations')
@@ -91,7 +92,7 @@ exports.bulkUpdateJuris = (0, https_1.onCall)({ region: 'southamerica-east1', ti
                 throw new https_1.HttpsError('invalid-argument', 'O responsável indicado não é membro deste órgão');
             }
             if (!responsibleUserName) {
-                responsibleUserName = String(((_d = respSnap.data()) === null || _d === void 0 ? void 0 : _d.user_name) || '') || null;
+                responsibleUserName = String(((_c = respSnap.data()) === null || _c === void 0 ? void 0 : _c.user_name) || '') || null;
             }
         }
         else if (settings.requireResponsible) {
@@ -119,7 +120,7 @@ exports.bulkUpdateJuris = (0, https_1.onCall)({ region: 'southamerica-east1', ti
     // Correção de data em massa continua sendo uma mudança de data: cada
     // júri afetado recebe sua própria entrada no histórico de datas, com a
     // justificativa informada (se houver).
-    const bulkJustificativa = String((_e = incoming.justificativa) !== null && _e !== void 0 ? _e : '').trim().slice(0, 1000);
+    const bulkJustificativa = String((_d = incoming.justificativa) !== null && _d !== void 0 ? _d : '').trim().slice(0, 1000);
     const logEntry = {
         date: now.toISOString().split('T')[0],
         time: now.toTimeString().split(' ')[0],

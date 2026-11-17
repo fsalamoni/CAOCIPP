@@ -187,8 +187,8 @@ o banco guarda só os ritos e modelos de cada órgão.
 |---|---|
 | `users/{uid}` | Perfil do usuário |
 | `userPreferences/{uid}` | Preferências de interface |
-| `organizations/{orgId}` | Órgão: nome, código de convite, `moduleConfig`, configurações de cada módulo, `dashboardConfig`, configurações de automação e segurança, `stats` |
-| `userOrganizations/{uid}_{orgId}` | Vínculo usuário ↔ órgão: `role`, `function`, `permissions` |
+| `organizations/{orgId}` | Órgão: nome, código de convite, `moduleConfig`, configurações de cada módulo, `dashboardConfig`, configurações de automação e segurança, `stats`, `platform_suspension` (órgão suspenso pela plataforma) |
+| `userOrganizations/{uid}_{orgId}` | Vínculo usuário ↔ órgão: `role`, `function`, `permissions`, `active`, `org_suspended` (+ nome e motivo, quando o órgão está suspenso) |
 | `processes/{id}` (+ `history`, `comments`) | Consultas |
 | `expedientes/{id}` (+ `history`, `comments`) | Expedientes |
 | `parcerias/{id}` (+ `aditivos/{id}/history`, `history`, `comments`) | Parcerias e aditivos |

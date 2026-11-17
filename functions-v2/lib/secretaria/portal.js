@@ -43,6 +43,7 @@ const sessoes_1 = require("../shared/sessoes");
 const sessoes_2 = require("./sessoes");
 const painelAta_1 = require("./painelAta");
 const certames_1 = require("./certames");
+const vinculo_1 = require("../shared/vinculo");
 /**
  * Portal das partes. A parte é um usuário autenticado (Google ou e-mail e
  * senha) que NUNCA vira membro do órgão: não ganha vínculo em
@@ -81,7 +82,7 @@ function ultimoPublico(proc) {
     const u = proc.ultimo_movimento;
     return u && u.publico !== false && (0, autos_2.visivelParaPartes)({ seq: 0, tipo: String(u.tipo) }) ? { tipo: u.tipo, descricao: u.descricao, em: u.em } : null;
 }
-const orgaoAtivo = (o) => { var _a, _b; return ((_a = o === null || o === void 0 ? void 0 : o.secretariaConfig) === null || _a === void 0 ? void 0 : _a.enabled) === true && ((_b = o === null || o === void 0 ? void 0 : o.secretariaConfig) === null || _b === void 0 ? void 0 : _b.suspensa_plataforma) !== true; };
+const orgaoAtivo = (o) => { var _a; return ((_a = o === null || o === void 0 ? void 0 : o.secretariaConfig) === null || _a === void 0 ? void 0 : _a.enabled) === true && !(0, vinculo_1.peSuspensoPlataforma)(o); };
 /** Petições por conta e processo em 24 horas: freio contra abuso, longe do uso normal. */
 const MAX_PETICOES_DIA = 20;
 /** Comunicações dirigidas a esta conta (à parte dela), como o portal mostra. */
@@ -112,7 +113,7 @@ function peticoesDaParte(proc, docs, uid) {
 }
 /** Processo em que o usuário é parte habilitada, com o órgão ainda com a Secretaria ativa. */
 async function lerComoParte(db, uid, id, tx) {
-    var _a, _b;
+    var _a;
     if (typeof id !== 'string' || !id)
         throw new https_1.HttpsError('invalid-argument', 'processoId é obrigatório');
     const ref = db.collection(context_1.COL.processos).doc(id);
@@ -121,7 +122,7 @@ async function lerComoParte(db, uid, id, tx) {
     if (!data || !(data.partes_uids || []).includes(uid))
         throw new https_1.HttpsError('not-found', 'Processo não encontrado');
     const org = (await db.collection('organizations').doc(data.organization_id).get()).data() || {};
-    if (((_a = org.secretariaConfig) === null || _a === void 0 ? void 0 : _a.enabled) !== true || ((_b = org.secretariaConfig) === null || _b === void 0 ? void 0 : _b.suspensa_plataforma) === true) {
+    if (((_a = org.secretariaConfig) === null || _a === void 0 ? void 0 : _a.enabled) !== true || (0, vinculo_1.peSuspensoPlataforma)(org)) {
         throw new https_1.HttpsError('failed-precondition', 'A Secretaria deste órgão está desativada');
     }
     return { ref, data, org };
