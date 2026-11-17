@@ -64,6 +64,17 @@ export function useOrganizations() {
                     return;
                 }
 
+                // Pessoa bloqueada pela plataforma: todos os vínculos trazem
+                // user_blocked e as regras recusam tudo; mostra só o aviso.
+                const bloqueio = snapshot.docs.map((d) => d.data()).find((m) => m.user_blocked === true);
+                if (bloqueio) {
+                    if (currentRequest !== requestId) return;
+                    setOrganizations([]);
+                    setSuspendedOrganizations([{ id: '__bloqueio', bloqueio: true, name: 'Seu acesso ao SIGO', motivo: bloqueio.user_blocked_motivo || '' }]);
+                    setIsLoading(false);
+                    return;
+                }
+
                 // Get organization details for each membership
                 const suspensos = [];
                 const orgPromises = snapshot.docs.map(async (membershipDoc) => {

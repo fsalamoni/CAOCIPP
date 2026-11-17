@@ -45,8 +45,8 @@ export const PLATFORM_SECTIONS = [
     },
     {
         key: 'users', group: 'pessoas', label: 'Usuários', icon: Users,
-        description: 'Todas as pessoas com acesso, em quais órgãos e com qual papel.',
-        keywords: 'pessoas contas vínculos papéis membros e-mail',
+        description: 'Todas as pessoas do SIGO: ficha, órgãos e papéis, conta, atividade e bloqueio de acesso.',
+        keywords: 'pessoas contas vínculos papéis membros e-mail bloquear desbloquear bloqueio último acesso inativos',
     },
     {
         key: 'admins', group: 'pessoas', label: 'Administradores da plataforma', icon: ShieldCheck,

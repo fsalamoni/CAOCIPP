@@ -68,6 +68,32 @@ Quem não é vê "Acesso restrito"; as Functions recusam do mesmo jeito.
 Toda ação fica registrada em *Movimentações* (plataforma) e na atividade do
 próprio órgão.
 
+## Usuários: receitas
+
+O login do SIGO é o mesmo de outros sistemas. Por isso a lista mostra **só
+as pessoas do SIGO**: quem participa de algum órgão, quem já entrou no SIGO
+ou quem administra a plataforma.
+
+- **Achar uma pessoa:** digite parte do nome ou do e-mail. Os filtros mostram
+  as bloqueadas, quem não está em nenhum órgão, quem não entra há mais de 90
+  dias e os super-admins. Clique na pessoa para abrir a ficha
+  (`/Admin?secao=users&pessoa=<uid>`). Na ficha de um órgão, o nome de cada
+  membro também leva à ficha dele.
+- **Ler a ficha:** órgãos de que participa (com papel e datas; cada um abre a
+  ficha do órgão), como entra (Google ou e-mail e senha), se o e-mail foi
+  confirmado, se usa verificação em duas etapas, último acesso, quando aceitou
+  os termos e as 20 últimas ações registradas.
+- **Bloquear no SIGO** (desligamento, uso indevido, conta comprometida):
+  *Bloquear no SIGO*, escreva o motivo (a pessoa lê) e confirme. Na hora, ela
+  não abre nenhum órgão, não usa o Portal das partes, não cria órgão nem entra
+  por convite; ao abrir o SIGO, vê o aviso com o motivo. O login dela **não**
+  é desativado (seguiria valendo nos outros sistemas) e **nada é apagado**.
+  Não dá para bloquear a si mesmo nem outro super-admin (retire antes o
+  acesso em *Administradores da plataforma*).
+- **Desbloquear:** *Desbloquear* e confirmar. Volta com os mesmos papéis.
+- **Tirar alguém de um só órgão** continua sendo feito pela administração do
+  próprio órgão (Membros).
+
 ## O que vem a seguir
 
 O plano de evolução do painel tem 10 etapas (fichas de órgão e de usuário,

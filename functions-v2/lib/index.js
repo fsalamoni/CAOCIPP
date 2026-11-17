@@ -92,7 +92,7 @@ preguicoso(() => require('./platform/costs'), ['getCostReport']);
 // Onda 2: Órgãos, Usuários, Movimentações, Footprint
 preguicoso(() => require('./platform/orgs'), ['getOrgsReport']);
 preguicoso(() => require('./platform/orgAdmin'), ['platformOrg']);
-preguicoso(() => require('./platform/users'), ['listPlatformUsers']);
+preguicoso(() => require('./platform/userAdmin'), ['platformUser']);
 preguicoso(() => require('./platform/activity'), ['getActivityFeed']);
 preguicoso(() => require('./platform/footprint'), ['getStorageFootprint']);
 // Onda 3: Cotas, Saúde do sistema, Ferramentas de dados

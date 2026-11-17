@@ -5,6 +5,20 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 17/11/2026 — Ficha de cada pessoa e bloqueio no SIGO (etapa 3 de 10)
+- **Usuários só do SIGO:** a lista antes trazia todas as contas do login
+  compartilhado (inclusive de outros sistemas). Agora mostra só quem tem
+  vínculo com órgão, perfil no SIGO ou é super-admin, com busca e filtros
+  (bloqueadas, sem órgão, sem acesso há 90 dias, super-admins).
+- **Ficha da pessoa** (link próprio): órgãos e papéis (cada um leva à ficha
+  do órgão), forma de entrada, e-mail confirmado, verificação em duas etapas,
+  último acesso, termos aceitos e atividade recente. Na ficha do órgão, o
+  nome do membro leva à ficha dele.
+- **Bloquear e desbloquear no SIGO**, com motivo que a pessoa lê: não abre
+  nenhum órgão, não usa o Portal das partes, não cria órgão nem entra por
+  convite. O login não é desativado, porque é o mesmo de outros sistemas.
+  Não bloqueia a si mesmo nem outro super-admin. Auditado.
+
 ### 17/11/2026 — Ficha completa de cada órgão (etapa 2 de 10)
 - **Órgãos com busca e filtros** (todos, suspensos, com Processo Eletrônico,
   sem registros), em lista que cabe no celular. Antes, um órgão sem data de

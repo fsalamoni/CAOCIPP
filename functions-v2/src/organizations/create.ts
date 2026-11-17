@@ -1,4 +1,5 @@
 import * as admin from 'firebase-admin';
+import { exigirContaLiberada } from '../shared/vinculo';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { formatPersonName } from '../shared/normalization';
 
@@ -27,6 +28,7 @@ export const createOrganization = onCall<CreateOrgRequest>(
 
         const db = admin.firestore();
         const userId = request.auth.uid;
+        await exigirContaLiberada(db, userId);
 
         // Generate unique invite code
         let inviteCode = generateInviteCode();

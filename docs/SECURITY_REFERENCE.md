@@ -23,7 +23,7 @@ Regra geral do projeto: *a interface avisa, o servidor exige.*
 
 Auxiliares: `isAuthenticated()`, `isOwner(uid)`, `isMemberOf(orgId)` (existe
 `userOrganizations/{uid}_{orgId}` **e o vínculo está ativo**, ou seja, sem
-`active == false` e sem `org_suspended == true`), `hasRole(orgId, roles)` e
+`active == false`, `org_suspended == true` ou `user_blocked == true`), `hasRole(orgId, roles)` e
 `isPlatformAdmin()` (claim `platformAdmin`).
 
 **Órgão suspenso pela plataforma (desde 17/11/2026).** A ação `suspender` da
@@ -39,6 +39,19 @@ motivo. O Processo Eletrônico trata o órgão suspenso como módulo suspenso
 apagado. Auditado no `auditLogs` da plataforma e do órgão. Coberto por
 `scripts/test-rules.mjs` e `functions-v2/test/vinculo.test.js` (que também
 trava toda Function a usar o helper).
+
+**Pessoa bloqueada pela plataforma (desde 17/11/2026).** O login (Firebase
+Auth) é compartilhado com outros sistemas, então o bloqueio **nunca** desativa
+a conta nem revoga tokens: vale só no SIGO. A ação `bloquear` da Function
+`platformUser` (só super-admin, motivo obrigatório; recusa a si mesmo e outro
+super-admin) grava `platformBlocks/{uid}` (lido só pela própria pessoa e por
+super-admin; escrita só pelas Functions, porque `users/{uid}` é editável pelo
+dono) e `user_blocked` + `user_blocked_motivo` em todos os vínculos. As regras
+(`isMemberOf`) e as Functions (`vinculoBloqueado`) recusam o vínculo marcado;
+o Portal das partes, `createOrganization` e `joinOrganization` leem
+`platformBlocks` (`exigirContaLiberada`). `desbloquear` apaga as marcas.
+Auditado. A lista de pessoas não lê o Auth inteiro: parte dos vínculos, dos
+perfis com `platform_name` e dos super-admins, e só complementa pelo Auth.
 
 **Membro removido perde o acesso na hora.** A remoção de membro é lógica
 (`removeMember` grava `active: false` e `left_at`, para guardar a data de

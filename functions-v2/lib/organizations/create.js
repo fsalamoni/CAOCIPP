@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createOrganization = void 0;
 const admin = require("firebase-admin");
+const vinculo_1 = require("../shared/vinculo");
 const https_1 = require("firebase-functions/v2/https");
 const normalization_1 = require("../shared/normalization");
 exports.createOrganization = (0, https_1.onCall)({ region: 'southamerica-east1', cors: true }, async (request) => {
@@ -15,6 +16,7 @@ exports.createOrganization = (0, https_1.onCall)({ region: 'southamerica-east1',
     }
     const db = admin.firestore();
     const userId = request.auth.uid;
+    await (0, vinculo_1.exigirContaLiberada)(db, userId);
     // Generate unique invite code
     let inviteCode = generateInviteCode();
     let isUnique = false;

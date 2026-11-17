@@ -11,6 +11,8 @@ test('vínculo bloqueia quando não existe, foi removido ou o órgão está susp
     assert.equal(vinculoBloqueado({ active: true, org_suspended: true }), true);
     assert.equal(vinculoBloqueado({ role: 'member' }), false);
     assert.equal(vinculoBloqueado({ active: true, org_suspended: false }), false);
+    assert.equal(vinculoBloqueado({ active: true, user_blocked: true }), true);
+    assert.equal(vinculoBloqueado({ active: true, user_blocked: false }), false);
 });
 
 test('Processo Eletrônico sai do ar com o módulo ou o órgão suspenso', () => {

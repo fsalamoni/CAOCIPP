@@ -109,6 +109,18 @@ assert.equal(await pedir(suspenso, 'GET', 'processes/p2'), 403, 'órgão suspens
 assert.equal(await listar(suspenso), 403, 'órgão suspenso: não lista registros');
 assert.equal(await pedir(suspenso, 'GET', `userOrganizations/${suspenso.uid}_${org}`), 200, 'órgão suspenso: lê o próprio vínculo');
 
+// Pessoa bloqueada pela plataforma: user_blocked no vínculo fecha o órgão; o
+// bloqueio (platformBlocks) só a própria pessoa lê, e ninguém escreve pelo cliente.
+const bloqueada = await usuario('bloqueada@x.com');
+await semear(`userOrganizations/${bloqueada.uid}_${org}`, { user_id: bloqueada.uid, organization_id: org, role: 'admin', active: true, user_blocked: true });
+await semear(`platformBlocks/${bloqueada.uid}`, { ativa: true, motivo: 'teste' });
+assert.equal(await pedir(bloqueada, 'GET', `organizations/${org}`), 403, 'pessoa bloqueada: não lê o órgão');
+assert.equal(await pedir(bloqueada, 'GET', 'processes/p2'), 403, 'pessoa bloqueada: não lê registro');
+assert.equal(await pedir(bloqueada, 'GET', `userOrganizations/${bloqueada.uid}_${org}`), 200, 'pessoa bloqueada: lê o próprio vínculo');
+assert.equal(await pedir(bloqueada, 'GET', `platformBlocks/${bloqueada.uid}`), 200, 'lê o próprio bloqueio');
+assert.equal(await pedir(estranho, 'GET', `platformBlocks/${bloqueada.uid}`), 403, 'não lê bloqueio alheio');
+assert.equal(await pedir(bloqueada, 'DELETE', `platformBlocks/${bloqueada.uid}`), 403, 'não apaga o próprio bloqueio');
+
 // Config da plataforma: qualquer conta lê as flags; o resto só pelas Functions
 // (o Auth é compartilhado com os outros apps do projeto Firebase).
 await semear('platformConfig/featureFlags', { x: true });
