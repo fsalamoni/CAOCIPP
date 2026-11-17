@@ -1,5 +1,6 @@
 import * as admin from 'firebase-admin';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
+import { comRegistro } from '../shared/rotinas';
 
 // Reimplementação mínima (server-side) do cálculo de dias úteis já usado no
 // frontend (`src/lib/dateUtils.js` / `src/lib/stageTime.js`). Mantida local
@@ -61,7 +62,7 @@ const ENTITY_DEFS = [
 // o criador, os administradores delegados e o responsável pelo registro.
 export const autoEscalateStalledUrgent = onSchedule(
     { schedule: 'every day 07:00', timeZone: 'America/Sao_Paulo', region: 'southamerica-east1' },
-    async () => {
+    comRegistro('autoEscalateStalledUrgent', async () => {
         const db = admin.firestore();
 
         // Funcionalidade integrada: roda por padrão, controlada pela config por
@@ -148,5 +149,5 @@ export const autoEscalateStalledUrgent = onSchedule(
                 console.error('[autoEscalateStalledUrgent] falha no órgão', orgId, error);
             }
         }
-    }
+    })
 );

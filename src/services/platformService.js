@@ -53,6 +53,8 @@ export const platformBranding = (action, extra = {}) => call('platformBranding',
 export const platformAvisos = (action, extra = {}) => call('platformAvisos', { action, ...extra });
 // Central de segurança: action = painel | confirmar ({ item, confirmado }) | auditoria ({ acao, de, ate, cursor, limite }).
 export const platformSecurity = (action, extra = {}) => call('platformSecurity', { action, ...extra });
+// Cópias e exportação: copias | ligarCopiaDiaria ({ retencaoDias }) | ligarProtecao | exportarOrgao ({ organizationId, colecao, cursor }) | exportarPlataforma.
+export const platformDados = (action, extra = {}) => call('platformDados', { action, ...extra }, { timeout: 300000 });
 // Pessoas do SIGO: action = listar | ficha | bloquear | desbloquear.
 export const platformUser = (action, uid, extra = {}) =>
     call('platformUser', { action, uid, ...extra }, { timeout: 120000 });
@@ -61,12 +63,13 @@ export const getActivityFeed = (params = {}) =>
 export const getStorageFootprint = () =>
     call('getStorageFootprint', undefined, { timeout: 120000 });
 
-// --- Onda 3: Cotas, Saúde do sistema, Ferramentas de dados ---
+// --- Onda 3: Cotas, Diagnóstico, Ferramentas de dados ---
 export const getPlatformQuotas = () => call('getPlatformQuotas');
 export const setPlatformQuota = (quotaKey, value) =>
     call('setPlatformQuota', { quotaKey, value });
-export const getSystemHealth = () =>
-    call('getSystemHealth', undefined, { timeout: 120000 });
+// Diagnóstico e saúde: rotinas agendadas, erros das Functions (24 h), serviços, arquivos e versão.
+export const platformDiagnostico = () =>
+    call('platformDiagnostico', { action: 'painel' }, { timeout: 120000 });
 export const runIntegrityAudit = (limit = 200) =>
     call('runIntegrityAudit', { limit }, { timeout: 120000 });
 export const recalcOrgStats = (organizationId) =>

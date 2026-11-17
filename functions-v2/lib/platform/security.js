@@ -3,10 +3,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.platformSecurity = exports.ITENS_MANUAIS = void 0;
 exports.montarChecklist = montarChecklist;
 const admin = require("firebase-admin");
-const app_1 = require("firebase-admin/app");
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const helpers_1 = require("./helpers");
+const googleApi_1 = require("../shared/googleApi");
 /** Itens que só o console do Google mostra: a administração confirma que fez. */
 exports.ITENS_MANUAIS = ['app_check', 'chave_api'];
 const DIA = 24 * 60 * 60 * 1000;
@@ -69,7 +69,8 @@ function montarChecklist(f) {
         detalhe: !b ? 'Não foi possível consultar o banco agora.'
             : b.copiaDiaria ? `Ligada${b.retencaoDias ? `, guardada por ${b.retencaoDias} dias` : ''}.`
                 : 'Nenhuma cópia automática agendada. Se dados forem apagados por engano, não há de onde recuperar.',
-        acao: b && !b.copiaDiaria ? 'Ligue a cópia diária no console do Firebase (passo a passo em Ferramentas de dados).' : '',
+        acao: b && !b.copiaDiaria ? 'Ligue com um botão em Cópias e exportação.' : '',
+        secao: 'copias',
     });
     itens.push({
         key: 'pitr', titulo: 'Recuperação de qualquer momento dos últimos 7 dias',
@@ -85,7 +86,8 @@ function montarChecklist(f) {
         detalhe: !b ? 'Não foi possível consultar o banco agora.'
             : b.protecaoExclusao ? 'Ligada: o banco inteiro não pode ser apagado por engano.'
                 : 'Desligada: alguém com acesso ao console pode apagar o banco inteiro. Ligar não custa nada.',
-        acao: b && !b.protecaoExclusao ? 'Console do Google Cloud, Firestore, banco (default), Editar, Proteção contra exclusão.' : '',
+        acao: b && !b.protecaoExclusao ? 'Ligue com um botão em Cópias e exportação (sem custo).' : '',
+        secao: 'copias',
     });
     itens.push({
         key: 'termos', titulo: 'Termos de uso publicados',
@@ -117,15 +119,10 @@ function montarChecklist(f) {
 }
 /** Lê a configuração do banco e as cópias agendadas pela API do Firestore. */
 async function lerBanco() {
-    const projeto = process.env.GCLOUD_PROJECT || admin.app().options.projectId;
-    if (!projeto || process.env.FUNCTIONS_EMULATOR === 'true')
+    if (!(0, googleApi_1.projeto)() || (0, googleApi_1.noEmulador)())
         return null;
     try {
-        const { access_token } = await (0, app_1.applicationDefault)().getAccessToken();
-        const base = `https://firestore.googleapis.com/v1/projects/${projeto}/databases/(default)`;
-        const pedir = (url) => fetch(url, { headers: { authorization: `Bearer ${access_token}` }, signal: AbortSignal.timeout(6000) })
-            .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))));
-        const [db, agenda] = await Promise.all([pedir(base), pedir(`${base}/backupSchedules`)]);
+        const [db, agenda] = await Promise.all([(0, googleApi_1.googleApi)((0, googleApi_1.bancoApi)()), (0, googleApi_1.googleApi)(`${(0, googleApi_1.bancoApi)()}/backupSchedules`)]);
         const diaria = (agenda.backupSchedules || []).find((s) => s.dailyRecurrence);
         const qualquer = diaria || (agenda.backupSchedules || [])[0];
         return {
@@ -209,7 +206,7 @@ async function auditoria(db, p) {
         const d = new Date(String(v));
         if (Number.isNaN(d.getTime()))
             throw new https_1.HttpsError('invalid-argument', `${campo}: data inválida.`);
-        return admin.firestore.Timestamp.fromDate(d);
+        return firestore_1.Timestamp.fromDate(d);
     };
     if (p.de)
         q = q.where('timestamp', '>=', data(p.de, 'De'));

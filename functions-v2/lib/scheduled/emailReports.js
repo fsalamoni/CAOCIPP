@@ -4,6 +4,7 @@ exports.sendWeeklyOrgReport = exports.sendDailyUrgentSummary = void 0;
 const admin = require("firebase-admin");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
 const email_1 = require("../shared/email");
+const rotinas_1 = require("../shared/rotinas");
 // Destinatários de relatórios de um órgão: criador + administradores
 // (mesmo critério usado no escalonamento automático).
 async function getOrgAdminIds(orgId) {
@@ -28,7 +29,7 @@ async function countUrgentPending(orgId, collection) {
 }
 // Resumo diário de urgentes pendentes (flag `scheduled_email_reports`,
 // organization.reportsConfig.dailySummaryEnabled).
-exports.sendDailyUrgentSummary = (0, scheduler_1.onSchedule)({ schedule: 'every day 08:00', timeZone: 'America/Sao_Paulo', region: 'southamerica-east1' }, async () => {
+exports.sendDailyUrgentSummary = (0, scheduler_1.onSchedule)({ schedule: 'every day 08:00', timeZone: 'America/Sao_Paulo', region: 'southamerica-east1' }, (0, rotinas_1.comRegistro)('sendDailyUrgentSummary', async () => {
     var _a, _b;
     const db = admin.firestore();
     // Funcionalidade integrada: roda por padrão, controlada pela config por
@@ -70,10 +71,10 @@ exports.sendDailyUrgentSummary = (0, scheduler_1.onSchedule)({ schedule: 'every 
             console.error('[sendDailyUrgentSummary] falha no órgão', orgDoc.id, error);
         }
     }
-});
+}));
 // Relatório semanal do órgão (flag `scheduled_email_reports`,
 // organization.reportsConfig.weeklyReportEnabled). Toda segunda-feira.
-exports.sendWeeklyOrgReport = (0, scheduler_1.onSchedule)({ schedule: 'every monday 08:00', timeZone: 'America/Sao_Paulo', region: 'southamerica-east1' }, async () => {
+exports.sendWeeklyOrgReport = (0, scheduler_1.onSchedule)({ schedule: 'every monday 08:00', timeZone: 'America/Sao_Paulo', region: 'southamerica-east1' }, (0, rotinas_1.comRegistro)('sendWeeklyOrgReport', async () => {
     var _a, _b;
     const db = admin.firestore();
     // Funcionalidade integrada: roda por padrão, controlada pela config por
@@ -128,5 +129,5 @@ exports.sendWeeklyOrgReport = (0, scheduler_1.onSchedule)({ schedule: 'every mon
             console.error('[sendWeeklyOrgReport] falha no órgão', orgDoc.id, error);
         }
     }
-});
+}));
 //# sourceMappingURL=emailReports.js.map

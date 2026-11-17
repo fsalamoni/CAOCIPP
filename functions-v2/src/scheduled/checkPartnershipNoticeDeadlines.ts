@@ -23,6 +23,7 @@
 import * as admin from 'firebase-admin';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { logger } from 'firebase-functions';
+import { comRegistro } from '../shared/rotinas';
 
 const UNIDADES = new Set(['dias', 'meses', 'anos']);
 
@@ -237,7 +238,7 @@ export const checkPartnershipNoticeDeadlines = onSchedule(
         timeZone: 'America/Sao_Paulo',
         region: 'southamerica-east1',
     },
-    async () => {
+    comRegistro('checkPartnershipNoticeDeadlines', async () => {
         const db = admin.firestore();
         const now = new Date();
         const today = fmtDate(now);
@@ -308,6 +309,7 @@ export const checkPartnershipNoticeDeadlines = onSchedule(
             }
         } catch (e: any) {
             logger.error('[checkPartnershipNoticeDeadlines] fatal', e?.message || e);
+            throw e; // o painel de diagnóstico registra a falha
         }
-    },
+    })
 );

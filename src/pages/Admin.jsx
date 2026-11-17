@@ -15,6 +15,7 @@ import PlatformAdminsPanel from '@/components/admin/PlatformAdminsPanel';
 import BrandingPanel from '@/components/admin/BrandingPanel';
 import AvisosPanel from '@/components/admin/AvisosPanel';
 import SecurityPanel from '@/components/admin/SecurityPanel';
+import DadosPanel from '@/components/admin/DadosPanel';
 import OrgsPanel from '@/components/admin/OrgsPanel';
 import UsersPanel from '@/components/admin/UsersPanel';
 import ActivityPanel from '@/components/admin/ActivityPanel';
@@ -42,6 +43,7 @@ const SECTION_COMPONENTS = {
     activity: ActivityPanel,
     health: HealthPanel,
     quotas: QuotasPanel,
+    copias: DadosPanel,
     footprint: FootprintPanel,
     datatools: DataToolsPanel,
     costs: CostsPanel,

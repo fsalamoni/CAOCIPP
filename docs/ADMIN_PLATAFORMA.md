@@ -37,8 +37,9 @@ Quem não é vê "Acesso restrito"; as Functions recusam do mesmo jeito.
 | Módulos | Processo Eletrônico | Para ver os órgãos com Processo Eletrônico e suspender ou reativar o módulo de um órgão. |
 | Operação e diagnóstico | Central de segurança | Para ver a nota de segurança, o que falta resolver, quem administra e tudo o que super-admins fizeram (com exportação). |
 | Operação e diagnóstico | Movimentações | Para saber quem fez o quê, filtrando por órgão ou ação. |
-| Operação e diagnóstico | Saúde do sistema | Quando algo parecer errado: banco, atividade das últimas 24 h e erros. |
+| Operação e diagnóstico | Diagnóstico e saúde | Quando algo parecer errado: serviços, versão no ar, rotinas automáticas, erros do servidor nas últimas 24 h e espaço dos arquivos. |
 | Operação e diagnóstico | Cotas e limites | Limites que valem de fato: órgãos por pessoa, membros por órgão e linhas por importação, com o uso atual. |
+| Dados e custos | Cópias e exportação | Para ligar a cópia diária do banco, ver as cópias guardadas e exportar os dados de um órgão ou a configuração da plataforma. |
 | Dados e custos | Armazenamento | Para ver o espaço que cada coleção ocupa. |
 | Dados e custos | Ferramentas de dados | Para conferir e recalcular contadores ou migrar o histórico. |
 | Dados e custos | Custos | Para ver o gasto por serviço (exige a exportação do faturamento). |
@@ -101,6 +102,43 @@ Quem não é vê "Acesso restrito"; as Functions recusam do mesmo jeito.
   administração*, filtre por ação e período e clique em *Exportar em CSV*
   (abre no Excel). A exportação leva o que está carregado; use *Carregar
   mais* antes, se precisar de mais linhas.
+
+## Diagnóstico: receitas
+
+- **Saber se está tudo funcionando:** abra *Diagnóstico e saúde*. O topo diz
+  "Tudo funcionando" ou quantos pontos pedem atenção.
+- **Uma rotina automática falhou:** o cartão da rotina fica vermelho, com a
+  hora e a mensagem da falha; *Últimas execuções* mostra o histórico. Se for
+  um envio de e-mail, confira a chave em *Configuração inicial*.
+- **Rotina "Atrasada":** passou do dobro do intervalo sem rodar. Abra o
+  Cloud Scheduler no console do Google Cloud e veja se o agendamento está
+  pausado ou com erro.
+- **Rotina "Sem registro ainda":** é normal logo depois da publicação; o
+  registro começa na primeira execução.
+- **Erros do servidor:** cada linha é uma função do SIGO, com quantos erros
+  teve nas últimas 24 horas e a última mensagem. Passe o nome da função e a
+  mensagem para quem dá manutenção.
+- **Qual versão está no ar:** o cartão *Versão no ar* mostra o commit do site
+  (com link para o GitHub) e a revisão das funções.
+
+## Cópias e exportação: receitas
+
+- **Ligar a cópia diária do banco:** em *Cópias e exportação*, escolha por
+  quantos dias guardar cada cópia (14 é um bom padrão) e clique em *Ligar
+  cópia diária*. A primeira sai nas próximas 24 horas e aparece em *Cópias
+  guardadas*. Se o botão recusar por permissão, siga o *Passo a passo pelo
+  console* logo abaixo.
+- **Ligar a proteção contra exclusão:** botão *Ligar proteção*. Não custa nada
+  e impede apagar o banco inteiro pelo console.
+- **Recuperar dados de uma data:** pelo console (passo a passo na tela). A
+  restauração cria sempre um banco novo; o banco em uso não é tocado.
+- **Entregar os dados a um órgão:** na ficha do órgão, *Exportar dados* (ou
+  escolha o órgão em *Cópias e exportação*) e *Exportar em JSON*. O arquivo
+  traz todos os registros, com o histórico; os anexos não entram (os autos de
+  cada processo saem em PDF pelo Processo Eletrônico).
+- **Guardar a configuração da plataforma:** *Exportar configuração* baixa
+  identidade, termos (todas as versões), avisos, funcionalidades, cotas,
+  e-mail, administradores e rotinas.
 
 ## Cotas: receitas
 

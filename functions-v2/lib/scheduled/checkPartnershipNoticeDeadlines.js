@@ -28,6 +28,7 @@ exports.computeReviewNoticeDate = computeReviewNoticeDate;
 const admin = require("firebase-admin");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
 const firebase_functions_1 = require("firebase-functions");
+const rotinas_1 = require("../shared/rotinas");
 const UNIDADES = new Set(['dias', 'meses', 'anos']);
 function fmtDate(dt) {
     if (Number.isNaN(dt.getTime()))
@@ -225,7 +226,7 @@ exports.checkPartnershipNoticeDeadlines = (0, scheduler_1.onSchedule)({
     schedule: '0 3 * * *',
     timeZone: 'America/Sao_Paulo',
     region: 'southamerica-east1',
-}, async () => {
+}, (0, rotinas_1.comRegistro)('checkPartnershipNoticeDeadlines', async () => {
     const db = admin.firestore();
     const now = new Date();
     const today = fmtDate(now);
@@ -294,6 +295,7 @@ exports.checkPartnershipNoticeDeadlines = (0, scheduler_1.onSchedule)({
     }
     catch (e) {
         firebase_functions_1.logger.error('[checkPartnershipNoticeDeadlines] fatal', (e === null || e === void 0 ? void 0 : e.message) || e);
+        throw e; // o painel de diagnóstico registra a falha
     }
-});
+}));
 //# sourceMappingURL=checkPartnershipNoticeDeadlines.js.map

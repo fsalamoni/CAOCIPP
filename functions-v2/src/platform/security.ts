@@ -1,8 +1,8 @@
 import * as admin from 'firebase-admin';
-import { applicationDefault } from 'firebase-admin/app';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { REGION, assertPlatformAdmin, writePlatformAudit } from './helpers';
+import { googleApi, projeto, noEmulador, bancoApi } from '../shared/googleApi';
 
 /**
  * platformSecurity — central de segurança da plataforma (só super-admin).
@@ -119,7 +119,8 @@ export function montarChecklist(f: Fatos): { itens: Item[]; pontuacao: number } 
         detalhe: !b ? 'Não foi possível consultar o banco agora.'
             : b.copiaDiaria ? `Ligada${b.retencaoDias ? `, guardada por ${b.retencaoDias} dias` : ''}.`
                 : 'Nenhuma cópia automática agendada. Se dados forem apagados por engano, não há de onde recuperar.',
-        acao: b && !b.copiaDiaria ? 'Ligue a cópia diária no console do Firebase (passo a passo em Ferramentas de dados).' : '',
+        acao: b && !b.copiaDiaria ? 'Ligue com um botão em Cópias e exportação.' : '',
+        secao: 'copias',
     });
     itens.push({
         key: 'pitr', titulo: 'Recuperação de qualquer momento dos últimos 7 dias',
@@ -135,7 +136,8 @@ export function montarChecklist(f: Fatos): { itens: Item[]; pontuacao: number } 
         detalhe: !b ? 'Não foi possível consultar o banco agora.'
             : b.protecaoExclusao ? 'Ligada: o banco inteiro não pode ser apagado por engano.'
                 : 'Desligada: alguém com acesso ao console pode apagar o banco inteiro. Ligar não custa nada.',
-        acao: b && !b.protecaoExclusao ? 'Console do Google Cloud, Firestore, banco (default), Editar, Proteção contra exclusão.' : '',
+        acao: b && !b.protecaoExclusao ? 'Ligue com um botão em Cópias e exportação (sem custo).' : '',
+        secao: 'copias',
     });
 
     itens.push({
@@ -171,14 +173,9 @@ export function montarChecklist(f: Fatos): { itens: Item[]; pontuacao: number } 
 
 /** Lê a configuração do banco e as cópias agendadas pela API do Firestore. */
 async function lerBanco(): Promise<Fatos['banco']> {
-    const projeto = process.env.GCLOUD_PROJECT || admin.app().options.projectId;
-    if (!projeto || process.env.FUNCTIONS_EMULATOR === 'true') return null;
+    if (!projeto() || noEmulador()) return null;
     try {
-        const { access_token } = await applicationDefault().getAccessToken();
-        const base = `https://firestore.googleapis.com/v1/projects/${projeto}/databases/(default)`;
-        const pedir = (url: string) => fetch(url, { headers: { authorization: `Bearer ${access_token}` }, signal: AbortSignal.timeout(6000) })
-            .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))));
-        const [db, agenda] = await Promise.all([pedir(base), pedir(`${base}/backupSchedules`)]);
+        const [db, agenda] = await Promise.all([googleApi(bancoApi()), googleApi(`${bancoApi()}/backupSchedules`)]);
         const diaria = (agenda.backupSchedules || []).find((s: any) => s.dailyRecurrence);
         const qualquer = diaria || (agenda.backupSchedules || [])[0];
         return {
@@ -261,7 +258,7 @@ async function auditoria(db: admin.firestore.Firestore, p: Pedido) {
     const data = (v: unknown, campo: string) => {
         const d = new Date(String(v));
         if (Number.isNaN(d.getTime())) throw new HttpsError('invalid-argument', `${campo}: data inválida.`);
-        return admin.firestore.Timestamp.fromDate(d);
+        return Timestamp.fromDate(d);
     };
     if (p.de) q = q.where('timestamp', '>=', data(p.de, 'De'));
     if (p.ate) q = q.where('timestamp', '<=', data(p.ate, 'Até'));
