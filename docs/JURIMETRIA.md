@@ -34,7 +34,7 @@ por um módulo da plataforma: os dados passam a viver no **banco do SIGO**, por
 O módulo só aparece quando **as duas** condições são verdadeiras:
 
 1. **Plataforma** — o super-admin liga `jurimetria_enabled` em
-   *Administração & Custos → Funcionalidades*.
+   *Administração da plataforma → Funcionalidades*.
 2. **Órgão** — o administrador liga **Jurimetria** em
    *Painel Administrativo → Páginas e módulos* (exige a flag `custom_entities`,
    que é o que habilita essa tela).

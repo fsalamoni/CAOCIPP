@@ -5,6 +5,20 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 17/11/2026 — Administração da plataforma reorganizada (etapa 1 de 10)
+- **Nova casa do painel do super-admin:** as 14 abas soltas viraram um menu
+  lateral em cinco grupos (Plataforma; Órgãos e pessoas; Módulos; Operação e
+  diagnóstico; Dados e custos), com seletor no celular, busca por palavra e
+  link próprio para cada seção (`/Admin?secao=`).
+- **Visão geral com pendências:** avisa o que falta na configuração inicial
+  (chave e remetente de e-mail, faturamento, e-mail de recuperação do
+  super-admin) e leva direto à seção que resolve; seguem os totais e um
+  cartão por seção.
+- Sete seções que dependiam das flags `admin_wave_2` e `admin_wave_3`
+  aparecem sempre. A página passa a se chamar *Administração da plataforma*.
+- Mapa único das seções em `src/lib/platformAdminSections.js`, com teste;
+  guia novo em `docs/ADMIN_PLATAFORMA.md`.
+
 ### 16/11/2026 — Revisão de segurança após as entregas do dia
 - **Membro removido perde o acesso na hora:** as regras e as Functions
   conferiam só se o vínculo existia, e quem era removido do órgão seguia

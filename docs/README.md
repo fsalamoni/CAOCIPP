@@ -11,6 +11,7 @@
 |---|---|
 | [VISAO_GERAL.md](./VISAO_GERAL.md) | O que é o SIGO, que problema resolve, perfis de uso, módulos e limites atuais |
 | [FEATURES_REFERENCE.md](./FEATURES_REFERENCE.md) | Funcionalidades comuns: órgãos, membros, Painel Administrativo, métricas, páginas personalizadas, automação, administração da plataforma, feature flags |
+| [ADMIN_PLATAFORMA.md](./ADMIN_PLATAFORMA.md) | Guia prático da Administração da plataforma (super-admin): como se achar e para que serve cada seção |
 | [GLOSSARY.md](./GLOSSARY.md) | Termos de negócio, técnicos e siglas |
 | [CHANGELOG.md](./CHANGELOG.md) | Histórico das entregas |
 

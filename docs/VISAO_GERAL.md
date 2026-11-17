@@ -41,7 +41,7 @@ do sistema chama um serviço de IA.
 | **Função** (`function`) | Texto livre que descreve o que a pessoa faz (ex.: Assessoria, Secretaria, Decisória, Promotor). Personaliza o painel inicial; não concede permissão. |
 | **Atribuições** | Permissões especiais que o criador delega a membros (ex.: configurar Parcerias, excluir registros). Ver [SECURITY_REFERENCE.md](./SECURITY_REFERENCE.md). |
 | **Módulo** | Conjunto de páginas do órgão (Consultas, Expedientes, Parcerias, Jurimetria, Panorama, Processo Eletrônico, Resumos, Calendário). Cada órgão liga os que usa em *Painel Administrativo → Páginas e Módulos*. |
-| **Super-admin** | Administrador da plataforma inteira (custom claim `platformAdmin`). Acessa a página *Administração & Custos*. |
+| **Super-admin** | Administrador da plataforma inteira (custom claim `platformAdmin`). Acessa a página *Administração da plataforma*. |
 | **Modelo da plataforma × modelo do órgão** | Modelos e padrões (a biblioteca de ritos, o Rito Consultas CAOCIPP, os textos prontos) são da plataforma e ficam no código; nenhum órgão os altera. Usar um modelo grava uma cópia só do órgão, que ele muda à vontade e que não muda quando a plataforma muda. O órgão leva o que montou a outro órgão por um pacote `.json` (exportar e importar). |
 
 ---
@@ -95,7 +95,7 @@ Os demais módulos estão integrados ao produto.
 | `/Portal` | Portal das partes e advogados (login Google ou e-mail e senha). |
 | `/Disputas` | Disputas de preços do fornecedor: convite, aviso, proposta, sala de lances e resultado. |
 | `/Conferir` | Conferência pública de documento pelo código de verificação. |
-| `/Admin` | Administração & Custos (somente super-admin). |
+| `/Admin` | Administração da plataforma (somente super-admin). |
 | `/Help`, `/Terms` | Central de ajuda e Termos de Uso. |
 
 ---

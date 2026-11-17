@@ -42,7 +42,7 @@ Permissões especiais delegadas pelo criador (`edit_details`,
 
 ### Super-admin
 Administrador da plataforma inteira (claim `platformAdmin`). Acessa
-*Administração & Custos*.
+*Administração da plataforma*.
 
 ### Módulo
 Conjunto de abas do órgão (Consultas, Expedientes, Parcerias, Jurimetria,

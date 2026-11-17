@@ -63,7 +63,7 @@ const PAGE_TITLES = {
   Organization: 'Órgão',
   ProcessoEletronico: 'Processo Eletrônico',
   MeusProcessosEletronicos: 'Meus Processos Eletrônicos',
-  Admin: 'Administração & Custos',
+  Admin: 'Administração da plataforma',
   Help: 'Ajuda',
   Terms: 'Termos de Uso',
 };
@@ -132,7 +132,7 @@ export default function Layout({ children, currentPageName }) {
     ))
   ), [membershipOrgs, activeOrgLive]);
 
-  /* Super-admin de plataforma (controla a página Administração & Custos) */
+  /* Super-admin de plataforma (controla a página Administração da plataforma) */
   const { isPlatformAdmin } = usePlatformAdmin();
 
   /* Abas do órgão ativo (as mesmas da barra horizontal). O sub-menu só é
@@ -296,7 +296,7 @@ export default function Layout({ children, currentPageName }) {
                   <NavItem
                     to="Admin"
                     icon={ShieldCheck}
-                    label="Administração & Custos"
+                    label="Administração da plataforma"
                     active={currentPageName === 'Admin'}
                     onClick={() => setSidebarOpen(false)}
                     collapsed={isCollapsed}
