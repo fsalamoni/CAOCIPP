@@ -35,6 +35,7 @@ Quem não é vê "Acesso restrito"; as Functions recusam do mesmo jeito.
 | Órgãos e pessoas | Usuários | Para ver quem usa o SIGO e em que órgãos. |
 | Órgãos e pessoas | Administradores da plataforma | Para dar ou tirar o acesso a esta página. |
 | Módulos | Processo Eletrônico | Para ver os órgãos com Processo Eletrônico e suspender ou reativar o módulo de um órgão. |
+| Operação e diagnóstico | Central de segurança | Para ver a nota de segurança, o que falta resolver, quem administra e tudo o que super-admins fizeram (com exportação). |
 | Operação e diagnóstico | Movimentações | Para saber quem fez o quê, filtrando por órgão ou ação. |
 | Operação e diagnóstico | Saúde do sistema | Quando algo parecer errado: banco, atividade das últimas 24 h e erros. |
 | Operação e diagnóstico | Cotas e limites | Limites que valem de fato: órgãos por pessoa, membros por órgão e linhas por importação, com o uso atual. |
@@ -79,6 +80,27 @@ Quem não é vê "Acesso restrito"; as Functions recusam do mesmo jeito.
   manutenção* devolve o acesso a todos, sem precisar recarregar a página.
   Atenção: é um bloqueio de tela. Para impedir o acesso de alguém de fato,
   suspenda o órgão ou bloqueie a pessoa.
+
+## Segurança: receitas
+
+- **Ver como está a proteção:** abra *Central de segurança*. A nota vai de 0
+  a 100; itens em vermelho (risco) vêm primeiro, depois os amarelos
+  (atenção). Cada um diz o que fazer e, quando dá, tem o botão *Resolver*
+  que leva à seção certa.
+- **Itens "não verificado":** o servidor não conseguiu ler a configuração do
+  banco naquele momento (por exemplo, no ambiente de teste). Eles ficam fora
+  da nota. Use *Conferir de novo*.
+- **Itens de console (App Check e chave de API):** só o console do Google
+  mostra. Depois de fazer lá, clique em *Já está feito no console*; o nome
+  de quem confirmou e a data ficam registrados, e dá para desfazer.
+- **Revisar quem administra:** a parte *Quem administra a plataforma* mostra o
+  último login, se a pessoa usa o código por e-mail e se o e-mail é
+  confirmado. Para tirar o acesso, use *Administradores da plataforma*: a
+  retirada vale na hora, sem desconectar a pessoa dos outros apps.
+- **Prestar contas do que a administração fez:** em *Auditoria da
+  administração*, filtre por ação e período e clique em *Exportar em CSV*
+  (abre no Excel). A exportação leva o que está carregado; use *Carregar
+  mais* antes, se precisar de mais linhas.
 
 ## Cotas: receitas
 

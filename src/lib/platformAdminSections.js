@@ -9,7 +9,7 @@
 
 import {
     Settings, Flag, Mail, Building2, Users, ShieldCheck, Gavel, Activity,
-    HeartPulse, SlidersHorizontal, HardDrive, Wrench, DollarSign, Palette, Megaphone,
+    HeartPulse, SlidersHorizontal, HardDrive, Wrench, DollarSign, Palette, Megaphone, Lock,
 } from 'lucide-react';
 
 export { searchAdminSections as searchPlatformSections } from './adminSections.js';
@@ -62,6 +62,11 @@ export const PLATFORM_SECTIONS = [
         key: 'secretaria', group: 'modulos', label: 'Processo Eletrônico', icon: Gavel,
         description: 'Órgãos com o Processo Eletrônico ligado, volume de processos e suspensão pela plataforma.',
         keywords: 'secretaria processo eletrônico suspender reativar ritos unidades',
+    },
+    {
+        key: 'seguranca', group: 'operacao', label: 'Central de segurança', icon: Lock,
+        description: 'Checklist com pontuação (cópia do banco, código por e-mail, quem administra), revisão de acessos e auditoria da administração com exportação.',
+        keywords: 'segurança proteção checklist pontuação score backup cópia pitr app check chave api 2fa dois fatores auditoria exportar csv acessos revisão',
     },
     {
         key: 'avisos', group: 'operacao', label: 'Avisos e manutenção', icon: Megaphone,

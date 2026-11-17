@@ -1,5 +1,6 @@
 import * as admin from 'firebase-admin';
 import { onCall, HttpsError, CallableRequest } from 'firebase-functions/v2/https';
+import { assertPlatformAdmin } from '../platform/helpers';
 
 interface DeleteOrganizationRequest {
     organizationId: string;
@@ -47,25 +48,13 @@ const ORG_SCOPED_COLLECTIONS = [
 export async function isPlatformAdmin(
     request: CallableRequest<unknown>
 ): Promise<boolean> {
-    if (!request.auth) return false;
-    const token = request.auth.token || {};
-    if (token.platformAdmin === true) return true;
-
-    const db = admin.firestore();
+    // Uma regra só (assertPlatformAdmin): acesso retirado vale aqui também.
     try {
-        const adminDoc = await db.collection('platformAdmins').doc(request.auth.uid).get();
-        if (adminDoc.exists && adminDoc.data()?.active === true) return true;
+        await assertPlatformAdmin(request);
+        return true;
     } catch {
-        // ignora — cai no bootstrap por e-mail
+        return false;
     }
-
-    const email = String(token.email || '').toLowerCase();
-    const bootstrap = (process.env.PLATFORM_ADMIN_EMAILS || '')
-        .split(',')
-        .map((e) => e.trim().toLowerCase())
-        .filter(Boolean);
-    // Só e-mail confirmado: conta de e-mail e senha criada com o endereço de outra pessoa não vira super-admin.
-    return !!email && token.email_verified === true && bootstrap.includes(email);
 }
 
 /**
@@ -188,6 +177,7 @@ export const deleteOrganization = onCall<DeleteOrganizationRequest>(
             user_id: userId,
             user_name: request.auth.token.name || '',
             action: 'DELETE_ORGANIZATION',
+            ...(platformAdmin ? { scope: 'platform' } : {}),
             details: {
                 organization_name: orgName,
                 deleted_by: platformAdmin ? 'platform_admin' : 'creator',

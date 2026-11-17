@@ -134,4 +134,20 @@ assert.equal(await pedir(null, 'GET', 'platformConfig/avisos'), 200, 'avisos leg
 assert.equal(await pedir(estranho, 'PATCH', 'platformConfig/avisos', { fields: { x: { stringValue: 'y' } } }), 403, 'avisos só pelas Functions');
 assert.equal(await pedir(estranho, 'PATCH', 'platformConfig/branding', { fields: { nome_curto: { stringValue: 'X' } } }), 403, 'identidade só pelas Functions');
 
+// Super-admin: o claim abre a config; acesso retirado na lista fecha na hora,
+// mesmo com o claim ainda no token (não revogamos tokens do Auth compartilhado).
+const sa = await usuario('sa@x.com');
+await fetch(`${AUTH}/identitytoolkit.googleapis.com/v1/projects/${PROJ}/accounts:update`, {
+    method: 'POST', headers: { authorization: 'Bearer owner', 'content-type': 'application/json' },
+    body: JSON.stringify({ localId: sa.uid, customAttributes: JSON.stringify({ platformAdmin: true }) }),
+}).then((x) => assert.ok(x.ok, 'claim'));
+const saLogin = await fetch(`${AUTH}/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=x`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email: 'sa@x.com', password: 'segredo123', returnSecureToken: true }),
+}).then((x) => x.json());
+const saTok = { uid: sa.uid, token: saLogin.idToken };
+assert.equal(await pedir(saTok, 'GET', 'platformConfig/emailProvider'), 200, 'super-admin lê a config');
+await semear(`platformAdmins/${sa.uid}`, { active: false });
+assert.equal(await pedir(saTok, 'GET', 'platformConfig/emailProvider'), 403, 'acesso retirado vale na hora');
+
 console.log('REGRAS OK');

@@ -51,6 +51,8 @@ export const getOrgsReport = (limit = 200) =>
 export const platformBranding = (action, extra = {}) => call('platformBranding', { action, ...extra });
 // Aviso para todos e modo manutenção: publicarAviso | encerrarAviso | ligarManutencao | desligarManutencao.
 export const platformAvisos = (action, extra = {}) => call('platformAvisos', { action, ...extra });
+// Central de segurança: action = painel | confirmar ({ item, confirmado }) | auditoria ({ acao, de, ate, cursor, limite }).
+export const platformSecurity = (action, extra = {}) => call('platformSecurity', { action, ...extra });
 // Pessoas do SIGO: action = listar | ficha | bloquear | desbloquear.
 export const platformUser = (action, uid, extra = {}) =>
     call('platformUser', { action, uid, ...extra }, { timeout: 120000 });

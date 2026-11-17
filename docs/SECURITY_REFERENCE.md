@@ -24,7 +24,9 @@ Regra geral do projeto: *a interface avisa, o servidor exige.*
 Auxiliares: `isAuthenticated()`, `isOwner(uid)`, `isMemberOf(orgId)` (existe
 `userOrganizations/{uid}_{orgId}` **e o vínculo está ativo**, ou seja, sem
 `active == false`, `org_suspended == true` ou `user_blocked == true`), `hasRole(orgId, roles)` e
-`isPlatformAdmin()` (claim `platformAdmin`).
+`isPlatformAdmin()` (claim `platformAdmin`, e o registro
+`platformAdmins/{uid}` não pode estar com `active == false`: o acesso
+retirado vale na hora, mesmo com o claim ainda no token já emitido).
 
 **Órgão suspenso pela plataforma (desde 17/11/2026).** A ação `suspender` da
 Function `platformOrg` (só super-admin, motivo obrigatório) grava
@@ -226,6 +228,13 @@ dependem de autorização expressa; nenhuma foi feita.
   `TwoFactorGate` libera o acesso, para não trancar o usuário fora da conta.
 - **Super-admin:** custom claim `platformAdmin`, documento ativo em
   `platformAdmins/{uid}` ou e-mail em `PLATFORM_ADMIN_EMAILS` (bootstrap).
+  Desde 17/11/2026, `platformAdmins/{uid}.active == false` recusa na hora
+  nos três caminhos (Functions e regras), e `revokePlatformAdmin` não revoga
+  mais os tokens da pessoa: o Auth é compartilhado com outros apps e a
+  revogação a desconectava de todos. Um teste trava o uso de
+  `revokeRefreshTokens` nas Functions. A *Central de segurança* do painel
+  (`platformSecurity`) mostra o checklist de proteção e a auditoria das
+  ações de super-admin (`auditLogs` com `scope == 'platform'`).
   Concessão por `grantPlatformAdmin` ou pelo script
   `functions-v2/scripts/bootstrap-platform-admin.js`. O bootstrap por e-mail
   só vale com `email_verified` no token (desde 16/11/2026): o Portal das

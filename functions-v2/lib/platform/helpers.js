@@ -36,7 +36,7 @@ function getBootstrapEmails() {
  * Lança HttpsError quando não autorizado.
  */
 async function assertPlatformAdmin(request) {
-    var _a;
+    var _a, _b;
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Usuário não autenticado.');
     }
@@ -44,14 +44,20 @@ async function assertPlatformAdmin(request) {
     const token = request.auth.token || {};
     const email = String(token.email || '').toLowerCase();
     const name = String(token.name || 'Desconhecido');
+    // A allowlist manda: acesso retirado (active === false) vale na hora, mesmo
+    // com o claim ainda no token já emitido ou com o e-mail no bootstrap. Assim
+    // não é preciso revogar tokens (o Auth é compartilhado com outros apps).
+    const db = admin.firestore();
+    const adminDoc = await db.collection('platformAdmins').doc(uid).get();
+    if (adminDoc.exists && ((_a = adminDoc.data()) === null || _a === void 0 ? void 0 : _a.active) === false) {
+        throw new https_1.HttpsError('permission-denied', 'Acesso restrito ao super-administrador da plataforma.');
+    }
     // 1. Custom claim
     if (token.platformAdmin === true) {
         return { uid, email, name };
     }
     // 2. Allowlist em Firestore
-    const db = admin.firestore();
-    const adminDoc = await db.collection('platformAdmins').doc(uid).get();
-    if (adminDoc.exists && ((_a = adminDoc.data()) === null || _a === void 0 ? void 0 : _a.active) === true) {
+    if (adminDoc.exists && ((_b = adminDoc.data()) === null || _b === void 0 ? void 0 : _b.active) === true) {
         return { uid, email, name };
     }
     // 3. Bootstrap por e-mail
