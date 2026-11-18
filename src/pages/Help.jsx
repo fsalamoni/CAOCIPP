@@ -174,6 +174,7 @@ export default function Help() {
                 "Imagens: arraste os cantos para mudar o tamanho ou digite a largura em cm; à esquerda, ao centro ou à direita",
                 "No editor de modelo, Prévia em PDF mostra cada folha como sai nos autos, e Word baixa o .docx, sem precisar salvar",
                 "Tudo vai junto com o modelo para a minuta e sai igual no PDF dos autos e no Word (.docx)",
+                "Papel timbrado do órgão ou da unidade: os mesmos botões de papel e margens, cabeçalho e rodapé completos, número de página e estilos valem para todos os documentos; cada modelo muda por cima só o que quiser",
               ]}
             />
             <FeatureCard

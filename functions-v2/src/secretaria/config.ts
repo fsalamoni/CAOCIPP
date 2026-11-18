@@ -437,7 +437,10 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         let conteudo = null;
         try { conteudo = sanitizeDoc(m.conteudo); } catch (e) { erroUsuario(e); }
         const { lerConfigDocumento } = await import('./autos');
-        const cfg = await lerConfigDocumento(db, orgId, unidadeId || undefined);
+        let cfg = await lerConfigDocumento(db, orgId, unidadeId || undefined);
+        // Prévia do papel timbrado ainda não salvo (tela do timbrado do órgão ou da unidade).
+        const timbrado = (p as { timbrado?: unknown }).timbrado;
+        if (timbrado) { try { cfg = { ...cfg, ...sanitizeDocumentoConfig(timbrado) }; } catch (e) { erroUsuario(e); } }
         const nome = texto(m.nome, 60).replace(/[^\p{L}\p{N} _-]+/gu, '') || 'modelo';
         if (p.formato === 'docx') {
             const { docParaDocx } = await import('./docxExportar');

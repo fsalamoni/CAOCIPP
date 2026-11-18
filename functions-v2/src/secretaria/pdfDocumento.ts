@@ -3,7 +3,7 @@ import type { Content, ContentText, TDocumentDefinitions, TableCell } from 'pdfm
 const pdfLib = () => require('pdf-lib') as typeof import('pdf-lib');
 import { FONTES, FONTES_LEGADO, No } from '../shared/documento';
 import {
-    DISTANCIA_FAIXA, Layout, TAMANHO_NUMERO, estiloDoBloco, faixaNaPagina, folha, layoutDe, margens, numerosAutomaticos, textoNumero, trocarPagina,
+    DISTANCIA_FAIXA, Layout, TAMANHO_NUMERO, docComTimbrado, estiloDoBloco, faixaNaPagina, folha, layoutDe, margens, numerosAutomaticos, textoNumero, trocarPagina,
 } from '../shared/layoutDocumento';
 
 /**
@@ -37,6 +37,8 @@ export interface ConfigDocumento {
     rodape?: string;
     fonte_padrao?: string;
     tamanho_padrao?: number;
+    /** Papel, margens, cabeçalho/rodapé, número de página e estilos do timbrado (por baixo do documento). */
+    layout?: Layout | null;
 }
 export interface MetaDocumento {
     assinaturas?: Array<{ nome: string; em: string }>;
@@ -225,6 +227,7 @@ export function largurasColunas(px: Array<number | null>, colunas: number, largu
 
 /** Documento do editor → PDF. Devolve os bytes e o número de páginas. */
 export async function renderizarDocumento(doc: No, cfg: ConfigDocumento = {}, meta: MetaDocumento = {}): Promise<{ buffer: Buffer; paginas: number }> {
+    if (!meta.semCabecalho) doc = docComTimbrado(doc, cfg.layout);
     const mapa = meta.legado ? FONTES_LEGADO : FONTES;
     // Papel, margens e estilos do documento (doc.attrs.layout); sem eles, A4 com 3/2/2,5/2,2 cm.
     const layout = layoutDe(doc);
@@ -249,7 +252,7 @@ export async function renderizarDocumento(doc: No, cfg: ConfigDocumento = {}, me
     const numCab = posNum.startsWith('cabecalho');
     const numRod = posNum.startsWith('rodape');
     // O de sempre: rodapé da unidade e "Página X de Y" à direita na mesma linha.
-    const rodapeClassico = rodUnidade && posNum === 'rodape-direita' && !np.formato && !np.tamanho;
+    const rodapeClassico = rodUnidade && posNum === 'rodape-direita' && (np.formato || 'pagina-de') === 'pagina-de' && (np.tamanho || TAMANHO_NUMERO) === TAMANHO_NUMERO;
     const DIST = DISTANCIA_FAIXA * CM;
     const tamNum = np.tamanho || TAMANHO_NUMERO;
     const altNum = tamNum * 1.3;

@@ -403,6 +403,7 @@ function numeracao(e) {
 const TW = 1440 / 2.54; // twips por cm
 /** Documento do editor → bytes de um .docx. */
 async function docParaDocx(doc, cfg = {}, meta = {}) {
+    doc = (0, layoutDocumento_1.docComTimbrado)(doc, cfg.layout);
     const layout = (0, layoutDocumento_1.layoutDe)(doc);
     const normal = (0, layoutDocumento_1.estiloDoBloco)(layout, { type: 'paragraph' });
     const fonte = NOME_FONTE[String(normal.fonte || cfg.fonte_padrao || 'serif')] || 'Times New Roman';
@@ -421,7 +422,7 @@ async function docParaDocx(doc, cfg = {}, meta = {}) {
     const linhas = (cfg.cabecalho_linhas || []).filter(Boolean);
     const timbrado = (fCab.modo || 'unidade') === 'unidade' && (linhas.length > 0 || !!cfg.brasao);
     const rodUnidade = (fRod.modo || 'unidade') === 'unidade';
-    const rodapeClassico = rodUnidade && posNum === 'rodape-direita' && !np.formato && !np.tamanho;
+    const rodapeClassico = rodUnidade && posNum === 'rodape-direita' && (np.formato || 'pagina-de') === 'pagina-de' && (np.tamanho || layoutDocumento_1.TAMANHO_NUMERO) === layoutDocumento_1.TAMANHO_NUMERO;
     const sz = Math.round((np.tamanho || layoutDocumento_1.TAMANHO_NUMERO) * 2);
     const r = `<w:r><w:rPr><w:sz w:val="${rodapeClassico ? 15 : sz}"/></w:rPr>`;
     const campo = (instr) => `${r}<w:fldChar w:fldCharType="begin"/></w:r>${r}<w:instrText xml:space="preserve"> ${instr} </w:instrText></w:r>${r}<w:fldChar w:fldCharType="separate"/></w:r>${r}<w:t>1</w:t></w:r>${r}<w:fldChar w:fldCharType="end"/></w:r>`;

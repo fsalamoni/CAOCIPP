@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import {
     ESTILOS_PADRAO, FORMATOS_LISTA, FORMATOS_NUMERO, FORMATOS_PARAGRAFO, FORMATOS_TITULO, MARCADORES, MARGENS_PADRAO, MODOS_FAIXA, PAGINAS_FAIXA, PAPEIS, POSICOES_NUMERO, TAMANHO_NUMERO,
-    cssDoLayout, faixaDoTimbrado, folhaCm, idDeEstilo, limparLayout, resumoPagina, textoNumero, trocarPagina,
+    comTimbrado, cssDoLayout, faixaDoTimbrado, folhaCm, idDeEstilo, limparLayout, resumoPagina, textoNumero, trocarPagina,
 } from './layoutDocumento.js';
 
 const require = createRequire(import.meta.url);
@@ -35,6 +35,29 @@ test('espelho do servidor: papéis, margens, estilos e formatos', { skip: !servi
 test('limparLayout guarda só o que mudou', () => {
     assert.equal(limparLayout({ papel: 'A4', orientacao: 'retrato', margens: { ...MARGENS_PADRAO }, estilos: { h1: {} }, proprios: [], numeracao_paragrafos: '1.' }), null);
     assert.deepEqual(limparLayout({ papel: 'A5', estilos: { h1: { tamanho: 14, cor: undefined } } }), { papel: 'A5', estilos: { h1: { tamanho: 14 } } });
+});
+
+test('papel timbrado por baixo: o documento guarda só o que difere do timbrado', () => {
+    const t = { papel: 'oficio', numeracao_titulos: 'decimal', numero_pagina: { posicao: 'cabecalho-direita', primeira: false }, cabecalho: { modo: 'proprio', conteudo: [{ type: 'paragraph' }], paginas: 'primeira' } };
+    // Igual ao timbrado: nada; voltar ao padrão do SIGO por cima do timbrado: fica explícito.
+    assert.equal(limparLayout({ papel: 'oficio', numeracao_titulos: 'decimal', numero_pagina: { posicao: 'cabecalho-direita', primeira: false } }, t), null);
+    assert.deepEqual(limparLayout({ papel: 'A4', numeracao_titulos: '', numero_pagina: { posicao: 'cabecalho-direita', primeira: true }, cabecalho: { paginas: 'todas' } }, t),
+        { papel: 'A4', numeracao_titulos: '', numero_pagina: { primeira: true }, cabecalho: { paginas: 'todas' } });
+    const v = comTimbrado({ cabecalho: { paginas: 'todas' } }, t);
+    assert.equal(v.cabecalho.modo, 'proprio');
+    assert.equal(v.cabecalho.paginas, 'todas');
+    assert.equal(v.papel, 'oficio');
+    assert.equal(comTimbrado({}, null).papel, undefined);
+});
+
+test('espelho do servidor: comTimbrado igual', { skip: !servidor }, () => {
+    const t = servidor.sanitizeLayout({ papel: 'oficio', estilos: { normal: { tamanho: 13 } }, proprios: [{ id: 'a', nome: 'A' }], cabecalho: { modo: 'proprio', conteudo: [{ type: 'paragraph' }] }, numero_pagina: { formato: 'n' } });
+    for (const l of [{}, { estilos: { normal: { alinhamento: 'center' } } }, { cabecalho: { modo: 'nenhum' } }, { rodape: { paginas: 'demais' } }, { proprios: [{ id: 'a', nome: 'B' }] }]) {
+        assert.deepEqual(comTimbrado(l, t), servidor.comTimbrado(l, t));
+    }
+    // O que o cliente guarda o servidor aceita igual.
+    const doc = limparLayout({ papel: 'A4', numeracao_paragrafos: '1)' }, t);
+    assert.deepEqual(servidor.sanitizeLayout(doc), doc);
 });
 
 test('folha, resumo e id de estilo', () => {

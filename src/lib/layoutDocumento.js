@@ -85,12 +85,45 @@ export function folhaCm(l = {}) {
 export const margensDe = (l = {}) => l.margens || MARGENS_PADRAO;
 export const estiloEfetivo = (l = {}, chave) => ({ ...ESTILOS_PADRAO[chave], ...(l.estilos?.[chave] || {}) });
 
-/** Tira os vazios e o que é igual ao padrão, para o documento guardar só o que mudou. */
-export function limparLayout(l = {}) {
+/**
+ * Layout do papel timbrado (órgão ou unidade) por baixo do layout do
+ * documento: o que o documento define vale mais; estilos se somam por chave.
+ * Cabeçalho e rodapé "da unidade" seguem os do timbrado. Igual ao do servidor.
+ */
+export function comTimbrado(l = {}, t = null) {
+    if (!t) return l;
+    const out = { ...t, ...l };
+    if (t.estilos || l.estilos) {
+        const e = { ...t.estilos };
+        for (const k of Object.keys(l.estilos || {})) e[k] = { ...(t.estilos?.[k] || {}), ...l.estilos[k] };
+        out.estilos = e;
+    }
+    if (t.proprios || l.proprios) {
+        const ids = new Set((l.proprios || []).map((p) => p.id));
+        out.proprios = [...(t.proprios || []).filter((p) => !ids.has(p.id)), ...(l.proprios || [])];
+    }
+    if (t.numero_pagina || l.numero_pagina) out.numero_pagina = { ...t.numero_pagina, ...l.numero_pagina };
+    for (const k of ['cabecalho', 'rodape']) {
+        const fd = l[k];
+        const ft = t[k];
+        if (fd?.modo) out[k] = fd;
+        else if (ft || fd?.paginas) out[k] = { ...ft, ...(fd?.paginas ? { paginas: fd.paginas } : {}) };
+        else delete out[k];
+    }
+    return out;
+}
+
+/**
+ * Tira os vazios e o que é igual ao herdado (o padrão do SIGO ou, com
+ * `base`, o layout do papel timbrado), para o documento guardar só o que mudou.
+ */
+export function limparLayout(l = {}, base = null) {
+    const b = base || {};
     const out = { ...l };
-    if (!out.papel || out.papel === 'A4') delete out.papel;
-    if (out.orientacao !== 'paisagem') delete out.orientacao;
-    if (out.margens && Object.keys(MARGENS_PADRAO).every((k) => Number(out.margens[k]) === MARGENS_PADRAO[k])) delete out.margens;
+    if (!out.papel || out.papel === (b.papel || 'A4')) delete out.papel;
+    if (!out.orientacao || out.orientacao === (b.orientacao || 'retrato')) delete out.orientacao;
+    const mb = margensDe(b);
+    if (out.margens && Object.keys(MARGENS_PADRAO).every((k) => Number(out.margens[k]) === mb[k])) delete out.margens;
     if (out.estilos) {
         const e = {};
         for (const [k, v] of Object.entries(out.estilos)) {
@@ -100,20 +133,21 @@ export function limparLayout(l = {}) {
         if (Object.keys(e).length) out.estilos = e; else delete out.estilos;
     }
     if (!out.proprios?.length) delete out.proprios;
-    if (!out.numeracao_titulos) delete out.numeracao_titulos;
-    if (!out.numeracao_paragrafos || out.numeracao_paragrafos === '1.') delete out.numeracao_paragrafos;
+    if ((out.numeracao_titulos ?? null) === null || out.numeracao_titulos === (b.numeracao_titulos || '')) delete out.numeracao_titulos;
+    if (!out.numeracao_paragrafos || out.numeracao_paragrafos === (b.numeracao_paragrafos || '1.')) delete out.numeracao_paragrafos;
     for (const k of ['cabecalho', 'rodape']) {
         const f = { ...(out[k] || {}) };
         if (!f.modo || f.modo === 'unidade') delete f.modo;
-        if (!f.paginas || f.paginas === 'todas') delete f.paginas;
+        if (!f.paginas || f.paginas === (b[k]?.paginas || 'todas')) delete f.paginas;
         if (!f.conteudo?.length) delete f.conteudo;
         if (Object.keys(f).length) out[k] = f; else delete out[k];
     }
     const np = { ...(out.numero_pagina || {}) };
-    if (!np.posicao || np.posicao === 'rodape-direita') delete np.posicao;
-    if (!np.formato || np.formato === 'pagina-de') delete np.formato;
-    if (!np.tamanho || np.tamanho === TAMANHO_NUMERO) delete np.tamanho;
-    if (np.primeira !== false) delete np.primeira;
+    const nb = b.numero_pagina || {};
+    if (!np.posicao || np.posicao === (nb.posicao || 'rodape-direita')) delete np.posicao;
+    if (!np.formato || np.formato === (nb.formato || 'pagina-de')) delete np.formato;
+    if (!np.tamanho || np.tamanho === (nb.tamanho || TAMANHO_NUMERO)) delete np.tamanho;
+    if (typeof np.primeira !== 'boolean' || np.primeira === (nb.primeira !== false)) delete np.primeira;
     if (Object.keys(np).length) out.numero_pagina = np; else delete out.numero_pagina;
     return Object.keys(out).length ? out : null;
 }

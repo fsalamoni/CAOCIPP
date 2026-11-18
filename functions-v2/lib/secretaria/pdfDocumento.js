@@ -222,6 +222,8 @@ function largurasColunas(px, colunas, largura, livres = false) {
 /** Documento do editor → PDF. Devolve os bytes e o número de páginas. */
 async function renderizarDocumento(doc, cfg = {}, meta = {}) {
     var _a, _b;
+    if (!meta.semCabecalho)
+        doc = (0, layoutDocumento_1.docComTimbrado)(doc, cfg.layout);
     const mapa = meta.legado ? documento_1.FONTES_LEGADO : documento_1.FONTES;
     // Papel, margens e estilos do documento (doc.attrs.layout); sem eles, A4 com 3/2/2,5/2,2 cm.
     const layout = (0, layoutDocumento_1.layoutDe)(doc);
@@ -245,7 +247,7 @@ async function renderizarDocumento(doc, cfg = {}, meta = {}) {
     const numCab = posNum.startsWith('cabecalho');
     const numRod = posNum.startsWith('rodape');
     // O de sempre: rodapé da unidade e "Página X de Y" à direita na mesma linha.
-    const rodapeClassico = rodUnidade && posNum === 'rodape-direita' && !np.formato && !np.tamanho;
+    const rodapeClassico = rodUnidade && posNum === 'rodape-direita' && (np.formato || 'pagina-de') === 'pagina-de' && (np.tamanho || layoutDocumento_1.TAMANHO_NUMERO) === layoutDocumento_1.TAMANHO_NUMERO;
     const DIST = layoutDocumento_1.DISTANCIA_FAIXA * CM;
     const tamNum = np.tamanho || layoutDocumento_1.TAMANHO_NUMERO;
     const altNum = tamNum * 1.3;

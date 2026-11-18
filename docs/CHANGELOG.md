@@ -5,6 +5,20 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 18/11/2026 — Papel timbrado com as ferramentas dos modelos
+- **Timbrado do órgão e da unidade** ganha o mesmo editor dos modelos:
+  papel e margens, cabeçalho e rodapé completos (texto, imagens, tabelas,
+  "fl. X de Y", em todas as páginas, só na primeira ou menos na primeira),
+  número de página, estilos e numeração. As linhas simples continuam.
+- **Vale por baixo de todo documento** (`documento.layout`, aplicado por
+  `comTimbrado` no PDF dos autos, no Word e no editor): o modelo ou o
+  documento muda só o que quiser; cabeçalho e rodapé "da unidade" seguem o
+  do timbrado. A unidade com timbrado próprio não herda o layout do órgão.
+- Prévia da folha com texto de exemplo e **Ver em PDF** antes de salvar
+  (`previaModelo` aceita `timbrado`).
+- O layout guarda valores explícitos iguais ao padrão (A4, todas as
+  páginas…), para o documento poder voltar ao padrão por cima do timbrado.
+
 ### 18/11/2026 — Parte externa: representante qualificado, documento por polo e tipos de petição
 - **Representante com qualidade e inscrição.** Ao convidar o representante
   de uma parte, a equipe informa se ele é advogado, defensor público,

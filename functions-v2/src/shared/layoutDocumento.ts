@@ -105,7 +105,7 @@ function sanitizeFaixa(v: unknown): Faixa | undefined {
     // O texto próprio fica guardado mesmo com outro modo: voltar a ele não perde nada.
     const c = limparConteudo(o.conteudo);
     if (c) f.conteudo = c;
-    if (PAGINAS_FAIXA.includes(String(o.paginas)) && o.paginas !== 'todas') f.paginas = o.paginas as Faixa['paginas'];
+    if (PAGINAS_FAIXA.includes(String(o.paginas))) f.paginas = o.paginas as Faixa['paginas'];
     return Object.keys(f).length ? f : undefined;
 }
 
@@ -113,11 +113,12 @@ function sanitizeNumero(v: unknown): NumeroPagina | undefined {
     if (!v || typeof v !== 'object') return undefined;
     const o = v as Record<string, unknown>;
     const n: NumeroPagina = {};
-    if (POSICOES_NUMERO.includes(String(o.posicao)) && o.posicao !== 'rodape-direita') n.posicao = String(o.posicao);
-    if (FORMATOS_NUMERO.includes(String(o.formato)) && o.formato !== 'pagina-de') n.formato = String(o.formato);
+    // Valores iguais ao padrão também ficam: o documento pode voltar ao padrão por cima do timbrado.
+    if (POSICOES_NUMERO.includes(String(o.posicao))) n.posicao = String(o.posicao);
+    if (FORMATOS_NUMERO.includes(String(o.formato))) n.formato = String(o.formato);
     const t = num(o.tamanho, 6, 16, 1);
-    if (t !== undefined && t !== TAMANHO_NUMERO) n.tamanho = t;
-    if (o.primeira === false) n.primeira = false;
+    if (t !== undefined) n.tamanho = t;
+    if (typeof o.primeira === 'boolean') n.primeira = o.primeira;
     return Object.keys(n).length ? n : undefined;
 }
 
@@ -172,15 +173,13 @@ export function sanitizeLayout(v: unknown): Layout | undefined {
     if (!v || typeof v !== 'object') return undefined;
     const o = v as Record<string, unknown>;
     const l: Layout = {};
-    if (PAPEIS[String(o.papel)] && o.papel !== 'A4') l.papel = String(o.papel);
-    if (o.orientacao === 'paisagem') l.orientacao = 'paisagem';
+    // O que veio explícito fica, mesmo igual ao padrão (vale por cima do timbrado); quem edita já tira o que é herdado.
+    if (PAPEIS[String(o.papel)]) l.papel = String(o.papel);
+    if (o.orientacao === 'paisagem' || o.orientacao === 'retrato') l.orientacao = o.orientacao;
     const m = o.margens as Record<string, unknown> | undefined;
     if (m && typeof m === 'object') {
         const mm = { sup: num(m.sup, 0.5, 8), inf: num(m.inf, 0.5, 8), esq: num(m.esq, 0.5, 8), dir: num(m.dir, 0.5, 8) };
-        if (Object.values(mm).every((x) => x !== undefined)) {
-            const ok = mm as Layout['margens'] & object;
-            if ((Object.keys(MARGENS_PADRAO) as Array<keyof typeof MARGENS_PADRAO>).some((k) => ok[k] !== MARGENS_PADRAO[k])) l.margens = ok;
-        }
+        if (Object.values(mm).every((x) => x !== undefined)) l.margens = mm as Layout['margens'] & object;
     }
     const est = o.estilos as Record<string, unknown> | undefined;
     if (est && typeof est === 'object') {
@@ -200,8 +199,8 @@ export function sanitizeLayout(v: unknown): Layout | undefined {
         }).filter(Boolean) as EstiloProprio[];
         if (lista.length) l.proprios = lista;
     }
-    if (FORMATOS_TITULO.includes(String(o.numeracao_titulos)) && o.numeracao_titulos) l.numeracao_titulos = String(o.numeracao_titulos);
-    if (FORMATOS_PARAGRAFO.includes(String(o.numeracao_paragrafos)) && o.numeracao_paragrafos !== '1.') l.numeracao_paragrafos = String(o.numeracao_paragrafos);
+    if (typeof o.numeracao_titulos === 'string' && FORMATOS_TITULO.includes(o.numeracao_titulos)) l.numeracao_titulos = o.numeracao_titulos;
+    if (FORMATOS_PARAGRAFO.includes(String(o.numeracao_paragrafos))) l.numeracao_paragrafos = String(o.numeracao_paragrafos);
     const cab = sanitizeFaixa(o.cabecalho);
     if (cab) l.cabecalho = cab;
     const rod = sanitizeFaixa(o.rodape);
@@ -212,6 +211,37 @@ export function sanitizeLayout(v: unknown): Layout | undefined {
 }
 
 export const layoutDe = (doc: No | null | undefined): Layout => ((doc?.attrs?.layout || {}) as Layout);
+
+/**
+ * Layout do papel timbrado (órgão ou unidade) por baixo do layout do
+ * documento: o que o documento define vale mais; estilos se somam por chave.
+ * Cabeçalho e rodapé "da unidade" seguem os do timbrado (simples ou próprio).
+ */
+export function comTimbrado(l: Layout, t?: Layout | null): Layout {
+    if (!t) return l;
+    const out: Layout = { ...t, ...l };
+    if (t.estilos || l.estilos) {
+        const e: NonNullable<Layout['estilos']> = { ...t.estilos };
+        for (const k of Object.keys(l.estilos || {}) as ChaveEstilo[]) e[k] = { ...(t.estilos?.[k] || {}), ...l.estilos![k] };
+        out.estilos = e;
+    }
+    if (t.proprios || l.proprios) {
+        const ids = new Set((l.proprios || []).map((p) => p.id));
+        out.proprios = [...(t.proprios || []).filter((p) => !ids.has(p.id)), ...(l.proprios || [])];
+    }
+    if (t.numero_pagina || l.numero_pagina) out.numero_pagina = { ...t.numero_pagina, ...l.numero_pagina };
+    for (const k of ['cabecalho', 'rodape'] as const) {
+        const fd = l[k];
+        const ft = t[k];
+        if (fd?.modo) out[k] = fd;
+        else if (ft || fd?.paginas) out[k] = { ...ft, ...(fd?.paginas ? { paginas: fd.paginas } : {}) };
+        else delete out[k];
+    }
+    return out;
+}
+
+/** O documento com o layout do timbrado por baixo (PDF e Word). */
+export const docComTimbrado = (doc: No, t?: Layout | null): No => (t ? { ...doc, attrs: { ...(doc.attrs || {}), layout: comTimbrado(layoutDe(doc), t) } } : doc);
 
 /** Tamanho da folha em cm, já virada se for paisagem. */
 export function folha(l: Layout): { w: number; h: number } {

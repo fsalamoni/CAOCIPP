@@ -11,10 +11,11 @@ var __rest = (this && this.__rest) || function (s, e) {
     return t;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.numeroParagrafo = exports.margens = exports.layoutDe = exports.FORMATOS_LISTA = exports.MARCADORES = exports.FORMATOS_TITULO = exports.FORMATOS_PARAGRAFO = exports.ESTILOS_PADRAO = exports.CHAVES_ESTILO = exports.TOKEN_PAGINA = exports.faixaNaPagina = exports.DISTANCIA_FAIXA = exports.TAMANHO_NUMERO = exports.FORMATOS_NUMERO = exports.POSICOES_NUMERO = exports.PAGINAS_FAIXA = exports.MODOS_FAIXA = exports.MARGENS_PADRAO = exports.PAPEIS = void 0;
+exports.numeroParagrafo = exports.margens = exports.docComTimbrado = exports.layoutDe = exports.FORMATOS_LISTA = exports.MARCADORES = exports.FORMATOS_TITULO = exports.FORMATOS_PARAGRAFO = exports.ESTILOS_PADRAO = exports.CHAVES_ESTILO = exports.TOKEN_PAGINA = exports.faixaNaPagina = exports.DISTANCIA_FAIXA = exports.TAMANHO_NUMERO = exports.FORMATOS_NUMERO = exports.POSICOES_NUMERO = exports.PAGINAS_FAIXA = exports.MODOS_FAIXA = exports.MARGENS_PADRAO = exports.PAPEIS = void 0;
 exports.textoNumero = textoNumero;
 exports.trocarPagina = trocarPagina;
 exports.sanitizeLayout = sanitizeLayout;
+exports.comTimbrado = comTimbrado;
 exports.folha = folha;
 exports.estiloDoBloco = estiloDoBloco;
 exports.marcadorLista = marcadorLista;
@@ -84,7 +85,7 @@ function sanitizeFaixa(v) {
     const c = limparConteudo(o.conteudo);
     if (c)
         f.conteudo = c;
-    if (exports.PAGINAS_FAIXA.includes(String(o.paginas)) && o.paginas !== 'todas')
+    if (exports.PAGINAS_FAIXA.includes(String(o.paginas)))
         f.paginas = o.paginas;
     return Object.keys(f).length ? f : undefined;
 }
@@ -93,15 +94,16 @@ function sanitizeNumero(v) {
         return undefined;
     const o = v;
     const n = {};
-    if (exports.POSICOES_NUMERO.includes(String(o.posicao)) && o.posicao !== 'rodape-direita')
+    // Valores iguais ao padrão também ficam: o documento pode voltar ao padrão por cima do timbrado.
+    if (exports.POSICOES_NUMERO.includes(String(o.posicao)))
         n.posicao = String(o.posicao);
-    if (exports.FORMATOS_NUMERO.includes(String(o.formato)) && o.formato !== 'pagina-de')
+    if (exports.FORMATOS_NUMERO.includes(String(o.formato)))
         n.formato = String(o.formato);
     const t = num(o.tamanho, 6, 16, 1);
-    if (t !== undefined && t !== exports.TAMANHO_NUMERO)
+    if (t !== undefined)
         n.tamanho = t;
-    if (o.primeira === false)
-        n.primeira = false;
+    if (typeof o.primeira === 'boolean')
+        n.primeira = o.primeira;
     return Object.keys(n).length ? n : undefined;
 }
 exports.CHAVES_ESTILO = ['normal', 'h1', 'h2', 'h3', 'h4', 'citacao'];
@@ -156,18 +158,16 @@ function sanitizeLayout(v) {
         return undefined;
     const o = v;
     const l = {};
-    if (exports.PAPEIS[String(o.papel)] && o.papel !== 'A4')
+    // O que veio explícito fica, mesmo igual ao padrão (vale por cima do timbrado); quem edita já tira o que é herdado.
+    if (exports.PAPEIS[String(o.papel)])
         l.papel = String(o.papel);
-    if (o.orientacao === 'paisagem')
-        l.orientacao = 'paisagem';
+    if (o.orientacao === 'paisagem' || o.orientacao === 'retrato')
+        l.orientacao = o.orientacao;
     const m = o.margens;
     if (m && typeof m === 'object') {
         const mm = { sup: num(m.sup, 0.5, 8), inf: num(m.inf, 0.5, 8), esq: num(m.esq, 0.5, 8), dir: num(m.dir, 0.5, 8) };
-        if (Object.values(mm).every((x) => x !== undefined)) {
-            const ok = mm;
-            if (Object.keys(exports.MARGENS_PADRAO).some((k) => ok[k] !== exports.MARGENS_PADRAO[k]))
-                l.margens = ok;
-        }
+        if (Object.values(mm).every((x) => x !== undefined))
+            l.margens = mm;
     }
     const est = o.estilos;
     if (est && typeof est === 'object') {
@@ -194,9 +194,9 @@ function sanitizeLayout(v) {
         if (lista.length)
             l.proprios = lista;
     }
-    if (exports.FORMATOS_TITULO.includes(String(o.numeracao_titulos)) && o.numeracao_titulos)
-        l.numeracao_titulos = String(o.numeracao_titulos);
-    if (exports.FORMATOS_PARAGRAFO.includes(String(o.numeracao_paragrafos)) && o.numeracao_paragrafos !== '1.')
+    if (typeof o.numeracao_titulos === 'string' && exports.FORMATOS_TITULO.includes(o.numeracao_titulos))
+        l.numeracao_titulos = o.numeracao_titulos;
+    if (exports.FORMATOS_PARAGRAFO.includes(String(o.numeracao_paragrafos)))
         l.numeracao_paragrafos = String(o.numeracao_paragrafos);
     const cab = sanitizeFaixa(o.cabecalho);
     if (cab)
@@ -211,6 +211,43 @@ function sanitizeLayout(v) {
 }
 const layoutDe = (doc) => { var _a; return (((_a = doc === null || doc === void 0 ? void 0 : doc.attrs) === null || _a === void 0 ? void 0 : _a.layout) || {}); };
 exports.layoutDe = layoutDe;
+/**
+ * Layout do papel timbrado (órgão ou unidade) por baixo do layout do
+ * documento: o que o documento define vale mais; estilos se somam por chave.
+ * Cabeçalho e rodapé "da unidade" seguem os do timbrado (simples ou próprio).
+ */
+function comTimbrado(l, t) {
+    var _a;
+    if (!t)
+        return l;
+    const out = Object.assign(Object.assign({}, t), l);
+    if (t.estilos || l.estilos) {
+        const e = Object.assign({}, t.estilos);
+        for (const k of Object.keys(l.estilos || {}))
+            e[k] = Object.assign(Object.assign({}, (((_a = t.estilos) === null || _a === void 0 ? void 0 : _a[k]) || {})), l.estilos[k]);
+        out.estilos = e;
+    }
+    if (t.proprios || l.proprios) {
+        const ids = new Set((l.proprios || []).map((p) => p.id));
+        out.proprios = [...(t.proprios || []).filter((p) => !ids.has(p.id)), ...(l.proprios || [])];
+    }
+    if (t.numero_pagina || l.numero_pagina)
+        out.numero_pagina = Object.assign(Object.assign({}, t.numero_pagina), l.numero_pagina);
+    for (const k of ['cabecalho', 'rodape']) {
+        const fd = l[k];
+        const ft = t[k];
+        if (fd === null || fd === void 0 ? void 0 : fd.modo)
+            out[k] = fd;
+        else if (ft || (fd === null || fd === void 0 ? void 0 : fd.paginas))
+            out[k] = Object.assign(Object.assign({}, ft), ((fd === null || fd === void 0 ? void 0 : fd.paginas) ? { paginas: fd.paginas } : {}));
+        else
+            delete out[k];
+    }
+    return out;
+}
+/** O documento com o layout do timbrado por baixo (PDF e Word). */
+const docComTimbrado = (doc, t) => (t ? Object.assign(Object.assign({}, doc), { attrs: Object.assign(Object.assign({}, (doc.attrs || {})), { layout: comTimbrado((0, exports.layoutDe)(doc), t) }) }) : doc);
+exports.docComTimbrado = docComTimbrado;
 /** Tamanho da folha em cm, já virada se for paisagem. */
 function folha(l) {
     const p = exports.PAPEIS[l.papel || 'A4'] || exports.PAPEIS.A4;
