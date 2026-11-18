@@ -17,6 +17,7 @@ import { MAX_PARTICIPANTES, MODOS_AUDIENCIA, QUALIDADES } from '@/lib/audiencias
 import { FUNCOES, MAX_MEMBROS, SITUACOES, apurar, problemasDosVotos, textoDaApuracao } from '@/lib/julgamento';
 import { quandoBr } from '@/lib/certames';
 import { secProcesso } from '@/services/secretariaService';
+import { fraseDoCronograma } from '@/lib/cronograma';
 
 const br = (iso) => (iso || '').slice(0, 10).split('-').reverse().join('/');
 
@@ -45,7 +46,7 @@ export function SelosAcao({ r }) {
  * Uma ação da fase. `info`: a informação registrada nesta rodada da fase (se a ação pede um dado).
  * `onMarcar(feita, valor)` chama o servidor.
  */
-export function AcaoDaFase({ acao, r, feita, info, podeMexer, reservada, ocupado, nota, onMarcar, onRegistrar, onDesfazer, partes = [], comunicacao, espera, onExpedir, certame, onAbrirDerivado }) {
+export function AcaoDaFase({ acao, r, feita, info, podeMexer, reservada, ocupado, nota, onMarcar, onRegistrar, onDesfazer, partes = [], comunicacao, espera, onExpedir, certame, onAbrirDerivado, cronograma }) {
     const pede = pedidoDaAcao(r);
     // Reservada pelo rito a outra pessoa: quem tem o processo vê por quê não pode cumprir.
     // `nota`: recado sobre a ação pendente (ex.: a alternativa já foi cumprida).
@@ -106,6 +107,16 @@ export function AcaoDaFase({ acao, r, feita, info, podeMexer, reservada, ocupado
                 <span className={feita ? 'line-through text-slate-600' : ''}>{acao}</span><SelosAcao r={r} />
                 {r?.ajuda && !feita && <span className="block text-xs text-slate-600 dark:text-slate-400">{r.ajuda}</span>}
                 {aviso}{situacaoEspera}
+                {pede === 'cronograma' && !feita && (
+                    <span className="block text-xs text-slate-600 dark:text-slate-400">
+                        Informe as parcelas ou obrigações, com vencimento e valor. Cada uma vira um prazo do processo, com alerta, e a parte comprova pelo portal.
+                    </span>
+                )}
+                {pede === 'quitacao' && !feita && (
+                    <span className="block text-xs text-slate-600 dark:text-slate-400">
+                        {cronograma?.total ? `${fraseDoCronograma(cronograma)}.` : 'O processo ainda não tem cronograma de obrigações.'} Cumpre-se sozinha quando todas estiverem cumpridas.
+                    </span>
+                )}
                 {pede === 'derivado' && !feita && (
                     <span className="block text-xs text-slate-600 dark:text-slate-400">
                         O processo nasce ligado a este{r?.derivado?.tipo ? `. Sugestão de tipo: ${r.derivado.tipo}` : ''}. Criado, a ação se cumpre sozinha.
@@ -137,7 +148,8 @@ export function AcaoDaFase({ acao, r, feita, info, podeMexer, reservada, ocupado
             </span>
             {pede === 'disputa' && !feita && (podeMexer || certame) && <Button size="sm" variant="outline" disabled={ocupado} onClick={onRegistrar}>{!certame ? 'Montar a disputa' : 'Abrir a disputa'}</Button>}
             {pede === 'derivado' && podeMexer && !feita && onAbrirDerivado && <Button size="sm" className="gap-1" disabled={ocupado} onClick={onAbrirDerivado}><Plus className="w-4 h-4" aria-hidden /> Abrir processo</Button>}
-            {podeMexer && !feita && pede !== 'disputa' && <Button size="sm" variant={pede === 'derivado' ? 'ghost' : 'outline'} disabled={ocupado} onClick={onRegistrar}>{pede === 'audiencia' ? 'Designar' : pede === 'julgamento' ? 'Registrar julgamento' : pede === 'derivado' ? 'Já existe' : 'Registrar'}</Button>}
+            {podeMexer && !feita && pede === 'quitacao' && cronograma?.cumpridas > 0 && cronograma.abertas === 0 && <Button size="sm" variant="outline" disabled={ocupado} onClick={() => onMarcar(true)}>Registrar</Button>}
+            {podeMexer && !feita && pede !== 'disputa' && pede !== 'quitacao' && <Button size="sm" variant={pede === 'derivado' ? 'ghost' : 'outline'} disabled={ocupado} onClick={onRegistrar}>{pede === 'audiencia' ? 'Designar' : pede === 'julgamento' ? 'Registrar julgamento' : pede === 'derivado' ? 'Já existe' : pede === 'cronograma' ? 'Montar cronograma' : 'Registrar'}</Button>}
             {podeMexer && feita && pede !== 'disputa' && <Button size="sm" variant="ghost" className="gap-1" disabled={ocupado} onClick={onDesfazer}><Undo2 className="w-4 h-4" /> Desfazer</Button>}
         </div>
     );

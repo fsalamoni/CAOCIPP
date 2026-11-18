@@ -14,6 +14,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.secretariaPortal = exports.COL_ACESSOS = exports.AVISOS_PARTE = exports.TIPOS_PETICAO_PORTAL = exports.MOVIMENTOS_INTERNOS = void 0;
 exports.nomeParaPartes = nomeParaPartes;
 const admin = require("firebase-admin");
+const cronograma_1 = require("../shared/cronograma");
 const numeracao_1 = require("../shared/numeracao");
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
@@ -269,7 +270,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             const visto = acessos[d.id] || '';
             const ultimo = ultimoPublico(x);
             const novidades = !!ultimo && ultimo.em > visto;
-            const meusPrazos = prazosDaParte(x, parte);
+            const meusPrazos = (0, cronograma_1.prazosEmFoco)(prazosDaParte(x, parte), hoje);
             const minhasPeticoes = (x.pendencias || []).filter((q) => q.tipo === 'peticao' && q.status === 'aberta' && String(q.aberta_por || '').startsWith(`${parte === null || parte === void 0 ? void 0 : parte.nome} (`));
             for (const pr of meusPrazos) {
                 paraVoce.push({ tipo: 'prazo', processoId: d.id, numero: x.numero, assunto: x.assunto, descricao: pr.descricao, vence_em: pr.vence_em, vencido: pr.vence_em < hoje, prazo_id: pr.id });
@@ -319,7 +320,9 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
                 // Só os campos que o órgão marcou para as partes verem.
                 campos: camposPartes.filter((x) => aberta(x.ref)).map((x) => (Object.assign({ rotulo: x.rotulo, tipo: x.tipo, valor: x.valor }, (x.formato ? { formato: x.formato } : {})))), fase_nome: nomeParaPartes(data, data.fase_atual) }, (((_d = (data.fases || []).find((x) => x.id === data.fase_atual)) === null || _d === void 0 ? void 0 : _d.explicacao_publica)
                 ? { fase_explicacao: data.fases.find((x) => x.id === data.fase_atual).explicacao_publica } : {})), { fase_atual: data.fase_atual, fases: fasesPublicas(data), partes: (data.partes || []).filter((x) => !x.retirada).map((x) => ({ nome: x.nome, polo: x.polo })), nomes_polos: data.nomes_polos || {}, prazos: prazosPublicos(data)
-                    .map((x) => ({ id: x.id, descricao: x.descricao, destinatario: x.destinatario || '', vence_em: x.vence_em, meu: prazosDaParte(data, parte).some((q) => q.id === x.id) })), minha_parte: parte, comunicacoes: comunicacoesDaConta(data, uid), 
+                    .map((x) => (Object.assign({ id: x.id, descricao: x.descricao, destinatario: x.destinatario || '', vence_em: x.vence_em, meu: prazosDaParte(data, parte).some((q) => q.id === x.id) }, (x.obrigacao === true ? Object.assign({ obrigacao: true }, (typeof x.valor === 'number' ? { valor: x.valor } : {})) : {})))), 
+                // Cronograma de obrigações: quantas já foram cumpridas (as abertas estão nos prazos).
+                cronograma: (0, cronograma_1.situacaoDasObrigacoes)(data.prazos, (0, secretaria_1.hojeBrasil)()), minha_parte: parte, comunicacoes: comunicacoesDaConta(data, uid), 
                 // Audiências designadas a partir de hoje: ato público (a certidão está nos autos).
                 audiencias: (0, audiencias_1.audienciasFuturas)(data.audiencias, (0, secretaria_1.hojeBrasil)())
                     .map((a) => (Object.assign(Object.assign({ especie: a.especie }, (a.especie_nome ? { especie_nome: a.especie_nome } : {})), { data: a.data, hora: a.hora, modo: a.modo, local: a.local || '', link: a.link || '', participantes: a.participantes || [] }))), 

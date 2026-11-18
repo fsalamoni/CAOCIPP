@@ -109,7 +109,7 @@ export const NIVEIS = ['recomendado', 'opcional'] as const;
 export type NivelExigencia = typeof NIVEIS[number];
 
 /** O que a ação pede a quem a cumpre. */
-export const PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'derivado', 'formulario', 'documento', 'orientacao', 'comunicacao', 'resposta', 'audiencia', 'julgamento', 'disputa'] as const;
+export const PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'derivado', 'cronograma', 'quitacao', 'formulario', 'documento', 'orientacao', 'comunicacao', 'resposta', 'audiencia', 'julgamento', 'disputa'] as const;
 export type Pedido = typeof PEDIDOS[number];
 export const MAX_OPCOES_ACAO = 30;
 /** Campos de uma ação que pede um formulário. */
@@ -335,6 +335,10 @@ function sanitizeRegra(raw: unknown, acao: string): RegraAcao | null {
         Object.assign(out, sanitizeQuem(r.quem, r.atribuicao, `A ação "${acao}"`));
         return { ...out, pede: 'julgamento', julgamento: sanitizeJulgamentoDaAcao(r.julgamento, acao), destino: 'autos', partes: true,
             ...(r.obrigatoria === true ? { obrigatoria: true as const } : r.recomendada === true ? { recomendada: true as const } : {}) };
+    }
+    // Esperar o cumprimento do cronograma de obrigações: cumpre-se sozinha, sem dado a informar (ver shared/cronograma.ts).
+    if (pedeBruto === 'quitacao') {
+        return { ...out, pede: 'quitacao', ...(r.obrigatoria === true ? { obrigatoria: true as const } : r.recomendada === true ? { recomendada: true as const } : {}) };
     }
     // Esperar a resposta: a ação de que depende é validada com todas as regras da fase (sanitizeRegras).
     if (pedeBruto === 'resposta') {

@@ -300,11 +300,11 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase, f, i }) {
                 </>
             )}
             {!soOrienta(r) && <>
-            {daPartes(r) ? <ConfigDasPartes id={id} r={r} f={f} i={i} onChange={onChange} /> : (
+            {daPartes(r) ? <ConfigDasPartes id={id} r={r} f={f} i={i} onChange={onChange} /> : pede === 'quitacao' ? null : (
                 <EscolhaDestino id={`${id}-dest`} valor={dest} onChange={setDestino} acao={acao} fase={fase}
                     documento={pede === 'documento'} opcoes={pede === 'documento' ? DESTINOS_DOCUMENTO : Object.entries(DESTINO_INFO).map(([d, x]) => [d, x.rotulo])} />
             )}
-            {pede !== 'confirmar' && pede !== 'documento' && !daPartes(r) && (
+            {pede !== 'confirmar' && pede !== 'documento' && pede !== 'quitacao' && !daPartes(r) && (
                 <div className="grid sm:grid-cols-2 gap-2">
                     <div>
                         <Label htmlFor={`${id}-rot`}>Nome do dado</Label>
@@ -327,6 +327,19 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase, f, i }) {
                         <OpcoesDaLista id={`${id}-op`} opcoes={r?.opcoes || []} onChange={(opcoes) => set({ opcoes })} />
                     ) : null}
                 </div>
+            )}
+            {pede === 'cronograma' && (
+                <p className="text-xs text-slate-600 dark:text-slate-400">
+                    Na tela do processo, a ação mostra o botão &quot;Montar cronograma&quot;: quem cumpre gera as parcelas (quantidade, primeiro vencimento, periodicidade e valor) ou inclui as obrigações uma a uma.
+                    Cada obrigação vira um prazo do processo, com alerta de vencimento. A parte a vê no portal e responde a ela com o comprovante; quem conduz o processo a encerra como cumprida.
+                    Para esperar o cumprimento de todas numa fase adiante, use &quot;Esperar o cumprimento do cronograma&quot;.
+                </p>
+            )}
+            {pede === 'quitacao' && (
+                <p className="text-xs text-slate-600 dark:text-slate-400">
+                    Esta ação não se marca à mão: ela se cumpre sozinha quando todas as obrigações do cronograma do processo estiverem cumpridas, e mostra o andamento enquanto isso (quantas cumpridas, quantas atrasadas, a próxima).
+                    Obrigatória, ela impede que a fase seja concluída antes do cumprimento integral. O cronograma nasce de uma ação &quot;Registrar um cronograma de obrigações&quot; ou do botão &quot;Cronograma&quot; da tela do processo.
+                </p>
             )}
             {pede === 'derivado' && (
                 <p className="text-xs text-slate-600 dark:text-slate-400">

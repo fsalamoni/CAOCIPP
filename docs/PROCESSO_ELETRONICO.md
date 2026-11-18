@@ -3106,6 +3106,31 @@ A exportação é registrada em `auditLogs` (`SECRETARIA_PDF_EXPORTADO`).
   excluem sábados, domingos e feriados nacionais (fixos, Carnaval, Sexta-feira
   Santa e Corpus Christi). `encerrarPrazo` marca cumprido (no prazo ou fora
   dele) ou cancelado.
+- **Cronograma de obrigações** (nov/2026; `shared/cronograma.ts`, espelho em
+  `src/lib/cronograma.js`): parcelas e obrigações com vencimento e valor
+  opcional, registradas de uma vez (até 120 por registro). Cada obrigação é
+  um prazo com `obrigacao: true` (e `valor`, quando há): entra no alerta de
+  vencimento e em `proximo_vencimento`, aparece para a parte no portal com
+  "Enviar comprovante" (a petição cita o `prazo_id` e abre a pendência
+  "Apreciar petição", sem encerrar nada) e a equipe a encerra como cumprida
+  ou cancelada por `encerrarPrazo`. Nasce de duas formas: a ação do rito
+  `pede: 'cronograma'` (`marcarAcao` com `valor: { itens, destinatario }`;
+  desfazer cancela só as que a ação abriu e seguem abertas, pela marca
+  `cronograma_de: "fase:índice"`) ou o botão "Cronograma" de "Pendências e
+  prazos" (`abrirCronograma`, com a mesma permissão de `abrirPrazo`), para
+  processo de qualquer rito. A obrigação não leva `fase_id` nem `acao_idx`:
+  sobrevive à saída da fase e ao cumprimento da ação, ao contrário do prazo
+  próprio da ação. A ação `pede: 'quitacao'` ("Esperar o cumprimento do
+  cronograma") não se marca à mão: mostra o andamento e o servidor a cumpre
+  (`cumprirQuitacao`, depois de `encerrarPrazo`, `marcarAcao`, `avancarFase`
+  e `tramitar`) quando há ao menos uma obrigação cumprida e nenhuma aberta
+  (`quitado`; as canceladas não contam). Obrigatória, segura a fase como
+  toda ação obrigatória (sair sem ela exige motivo, que fica registrado). O
+  servidor confere os itens (`sanitizeObrigacoes`: descrição, data válida,
+  valor positivo). Na tela, as 4 obrigações mais próximas ficam à vista e as
+  demais recolhidas; em "Meus processos" do portal entram só as vencidas ou
+  dos próximos 30 dias (`prazosEmFoco`). Testes: `test/cronograma.test.js`,
+  `src/lib/cronograma.test.js` e `scripts/e2e-cronograma.mjs`.
 - O processo grava `pendencias_abertas`, `fase_suspensa` e
   `proximo_vencimento`, que a lista usa em selos e filtros (com pendência,
   com prazo, prazo vencido).

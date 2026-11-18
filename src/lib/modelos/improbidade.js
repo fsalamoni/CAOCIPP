@@ -254,10 +254,9 @@ function fasesAcompanhamento() {
     return [
         {
             nome: 'Início do acompanhamento', unidade: 'Secretaria', nome_publico: 'Início do cumprimento', vai: ['Acompanhamento do cumprimento'],
-            orientacao: 'Monte o cronograma: cada parcela e cada obrigação, com o vencimento. É dele que saem as cobranças. Confira se as garantias e as indisponibilidades combinadas foram registradas. Avise o celebrante e o ente lesado de que os comprovantes e as informações chegam por este processo, pelo portal.',
+            orientacao: 'Monte o cronograma: cada parcela e cada obrigação, com o vencimento e o valor. Cada uma vira um prazo do processo, com alerta, e o celebrante responde a ela pelo portal com o comprovante. É dele que saem as cobranças. Confira se as garantias e as indisponibilidades combinadas foram registradas. Avise o celebrante e o ente lesado de que os comprovantes e as informações chegam por este processo, pelo portal.',
             acoes: [
-                A.textoLongo('Cronograma das obrigações e dos vencimentos', { obrigatoria: true, destino: 'informacao', folha_dados: true, ajuda: 'Uma linha por parcela ou obrigação: o que é, o valor e o vencimento.' }),
-                A.data('Próximo vencimento', { obrigatoria: true, destino: 'informacao' }),
+                A.cronograma('Registrar o cronograma das obrigações', { obrigatoria: true, destino: 'autos', ajuda: 'Gere as parcelas e inclua as demais obrigações. Cada uma vira um prazo com alerta, e o celebrante comprova pelo portal.' }),
                 A.fazer('Conferir o registro das garantias e das indisponibilidades', { ajuda: 'Garantias reais ou fidejussórias e bens indisponíveis previstos no acordo (art. 8º, XII e XIII).' }),
                 A.comunicar('Informar como comprovar o cumprimento', { especie: 'comunicacao', polos: ['requerido', 'interessado'], dias: 0, texto: 'Este processo acompanha o cumprimento do acordo. Os comprovantes e as informações devem ser enviados por aqui, em "Peticionar", até cada vencimento.' }, { obrigatoria: true }),
             ],
@@ -267,10 +266,8 @@ function fasesAcompanhamento() {
             vai: ['Pedido de comprovação', 'Consulta ao ente lesado', 'Atraso ou descumprimento', 'Aditamento do acordo', 'Prorrogação do acompanhamento', 'Cumprimento integral'],
             orientacao: `A cada vencimento, confira o comprovante e, no que é devido ao ente lesado, confirme com ele o recebimento. O descumprimento injustificado, mesmo parcial, vence todas as obrigações de uma vez (${PROV}, art. 22): por isso todo atraso passa pela fase própria. O procedimento de acompanhamento dura 1 ano, prorrogável enquanto houver obrigação a vencer (Provimento 71/2017-PGJ).`,
             acoes: [
-                A.fazer('Conferir os vencimentos do período'),
+                A.fazer('Conferir os vencimentos do período', { ajuda: 'O quadro "Cronograma de obrigações" mostra o que foi cumprido, o que está atrasado e o próximo vencimento. Encerre como cumprida cada obrigação comprovada.' }),
                 A.documento('Juntar comprovantes, relatórios e extratos', '', { forma: 'qualquer', nivel: 'recomendado' }),
-                A.numero('Total já pago ou devolvido (R$)', { destino: 'informacao' }),
-                A.data('Próximo vencimento a conferir', { destino: 'informacao' }),
                 A.escolha('Situação do cumprimento', ['Pedir comprovação ao celebrante', 'Confirmar com o ente lesado', 'Há atraso ou descumprimento', 'Aditar o acordo', 'Prorrogar o acompanhamento', 'Todas as obrigações cumpridas'], { obrigatoria: true, destino: 'autos' }),
             ],
             saidas: {
@@ -378,6 +375,7 @@ function fasesAcompanhamento() {
             nome: 'Cumprimento integral', unidade: 'Gabinete', nome_publico: 'Acordo cumprido', vai: ['Arquivamento'],
             orientacao: `Cumprido tudo, o procedimento de acompanhamento é arquivado (${PROV}, art. 21). Informe o juízo; no acordo feito depois da sentença, só agora cabe pedir a extinção do processo (art. 2º, § 2º). Libere as garantias e os bens que ficaram indisponíveis.`,
             acoes: [
+                A.quitacao('Todas as obrigações do cronograma cumpridas', { obrigatoria: true }),
                 A.documento('Promoção de arquivamento do acompanhamento', 'Promoção de arquivamento', { forma: 'redigir' }),
                 A.fazer('Informar o cumprimento ao juízo', { obrigatoria: true }),
                 A.fazer('Providenciar a liberação das garantias e dos bens indisponíveis'),

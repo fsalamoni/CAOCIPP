@@ -54,6 +54,10 @@ export const A = {
     textoLongo: (texto, extra) => com(texto, { pede: 'texto_longo' }, extra),
     /** Abrir um processo que nasce deste: `tipo` é o nome do tipo de processo sugerido (opcional). Cumpre-se sozinha quando o processo é aberto. */
     derivado: (texto, tipo, extra) => com(texto, { pede: 'derivado', ...(tipo ? { derivado: { tipo } } : {}) }, extra),
+    /** Registrar o cronograma de obrigações: cada parcela vira um prazo do processo, com alerta, e a parte comprova pelo portal. */
+    cronograma: (texto, extra) => com(texto, { pede: 'cronograma' }, extra),
+    /** Esperar o cumprimento do cronograma: cumpre-se sozinha quando todas as obrigações estiverem cumpridas. */
+    quitacao: (texto, extra) => com(texto, { pede: 'quitacao' }, extra),
     /** campos: [{ id, rotulo, tipo, obrigatorio, opcoes? }] */
     formulario: (texto, campos, extra) => com(texto, { pede: 'formulario', campos }, extra),
     /** Documento: tipo (ex.: "Despacho"), forma redigir | juntar | qualquer, nivel recomendado | opcional (ausente = obrigatório). */

@@ -23,6 +23,7 @@ export const RECURSOS_FILTRO = [
     ['disputa', 'Disputa de preços'],
     ['audiencia', 'Audiência ou reunião'],
     ['derivado', 'Processo derivado'],
+    ['cronograma', 'Cronograma de obrigações'],
 ];
 export const usaRecurso = (m, r) => (m.fases || []).some((f) => (f.acoes_regras || []).some((x) => x?.pede === r));
 

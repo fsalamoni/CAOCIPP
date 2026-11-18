@@ -47,7 +47,7 @@ export const COL = {
  */
 export const ATOS_QUE_MUDAM = new Set([
     // secretariaProcesso
-    'autuar', 'tramitar', 'atribuir', 'avancarFase', 'alterarStatus', 'abrirPendencia', 'resolverPendencia', 'abrirPrazo', 'encerrarPrazo',
+    'autuar', 'tramitar', 'atribuir', 'avancarFase', 'alterarStatus', 'abrirPendencia', 'resolverPendencia', 'abrirPrazo', 'abrirCronograma', 'encerrarPrazo',
     'prorrogarPrazo', 'devolverPrazo', 'convidarParte', 'revogarParte', 'marcarAcao', 'concluirOrientacao', 'alterarDados', 'urgencia',
     'expedirComunicacao', 'tornarSemEfeito', 'excluir', 'restaurar', 'emitirCertidao',
     // secretariaDocumento

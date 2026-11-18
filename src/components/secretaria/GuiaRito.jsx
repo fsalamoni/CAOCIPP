@@ -37,6 +37,8 @@ const QUANDO_USAR = {
     sim_nao: 'Uma decisão de sim ou não. Também serve para criar desvios.',
     registro: 'Ligar o processo a um registro de outro módulo, como uma consulta.',
     derivado: 'Quando a fase manda abrir outro processo ligado a este (a apuração de uma infração, as tratativas de um acordo, o acompanhamento do que foi firmado). A ação traz o botão que abre o "Novo processo" já com a origem e o tipo sugerido, e se cumpre sozinha quando ele é criado.',
+    cronograma: 'Quando há parcelas ou obrigações com vencimento (um acordo, um parcelamento, um ajustamento de conduta). Quem cumpre a ação gera as parcelas de uma vez; cada uma vira um prazo com alerta, a parte comprova pelo portal e o órgão a encerra como cumprida.',
+    quitacao: 'Na fase que só pode terminar com tudo cumprido. A ação mostra o andamento do cronograma e se cumpre sozinha quando a última obrigação é encerrada como cumprida.',
     formulario: 'Vários dados de uma vez, cada um com o seu campo. Um campo de lista ou de sim ou não também serve para criar desvios.',
     documento: 'Uma peça redigida no órgão ou um arquivo recebido.',
     comunicacao: 'Intimar, notificar ou citar as partes de um polo, com prazo e texto que o rito propõe. Cumpre-se expedindo pela própria ação (parte 15).',
