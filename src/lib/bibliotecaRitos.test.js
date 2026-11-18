@@ -67,3 +67,9 @@ test('biblioteca: o diagrama (Mermaid) preserva fases e prazos', async () => {
         assert.deepEqual(volta.map((f) => [f.nome, f.prazo_dias]), m.fases.map((f) => [f.nome, f.prazo_dias]), m.nome);
     }
 });
+
+test('biblioteca: todo modelo propõe o nome do painel e da planilha de acompanhamento', () => {
+    for (const m of bibliotecaDeModelos()) {
+        assert.ok(Array.isArray(m.painel) && m.painel.length === 2 && m.painel.every((n) => n && n.length <= 60), m.id);
+    }
+});

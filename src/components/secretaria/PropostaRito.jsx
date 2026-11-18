@@ -323,7 +323,8 @@ export default function PropostaRito({ aberto, orgId, estado, rito = null, copia
         // Modelo que cita unidades pelo nome: casa com as do órgão ou propõe criar, como num arquivo importado.
         const base = r.fases.some((f) => f.unidade) ? { exigir_tipo: false, ...vincularProposta(r, estado) } : deRito(r);
         if (trocar) { editarP({ ...base, ...manter() }, true); setTrocar(false); setConfirmar(false); return; }
-        setP(base);
+        // Modelo da biblioteca: leva o nome que ele propõe para o painel e a planilha.
+        setP(r.painel ? { ...base, painel: r.painel } : base);
         // Modelo da biblioteca com partes: propõe o tipo já com os polos e os nomes que o processo usa.
         setTipo({ criar: (criarTipo && semTipos) || !!r.tipo, nome: r.nome || '', sigla: '', ...(r.tipo ? { formulario: r.tipo, descricao: r.descricao } : {}) });
         setConfirmar(false);
@@ -768,8 +769,13 @@ function Revisao({
                         )}
                         <SugestoesLigacao fases={p.fases} tipos={tiposDoRito} nomeFase={(id) => p.fases.find((f) => f.id === id)?.nome || 'fase'}
                             onAplicar={(escolhidas) => { setConfirmar(false); setP({ ...p, fases: aplicarSugestoes(p.fases, escolhidas) }, true); anunciar(`${plural(escolhidas.length, 'ligação aplicada', 'ligações aplicadas')}. Confira e salve o rito.`); }} />
-                        <IntegracaoPainel fases={p.fases} irParaFase={irParaFase} nomeRito={p.nome}
-                            onAplicar={(fases, n, texto) => { setConfirmar(false); setP({ ...p, fases }, true); anunciar(texto || `${plural(n, 'ligação com o painel aplicada', 'ligações com o painel aplicadas')}. Confira e salve o rito.`); }} />
+                        <IntegracaoPainel fases={p.fases} irParaFase={irParaFase} nomeRito={p.nome} nomes={p.painel} convite={!editando} criaTipo={tipo.criar}
+                            onAplicar={(fases, n, texto, pagina) => {
+                                setConfirmar(false); setP({ ...p, fases }, true);
+                                // Painel gerado aqui: se o tipo nascer com o rito, já cria o registro na autuação.
+                                if (pagina) setTipo({ ...tipo, cria_registro: { pagina, valores: [{ campo: 'processo', de: 'numero' }, { campo: 'assunto', de: 'assunto' }] } });
+                                anunciar(texto || `${plural(n, 'ligação com o painel aplicada', 'ligações com o painel aplicadas')}. Confira e salve o rito.`);
+                            }} />
                         <div className="flex flex-wrap items-center gap-2 pt-1">
                             <h3 className="text-sm font-semibold">{plural(p.fases.length, 'fase', 'fases')}</h3>
                             {p.fases.length > 10 && (
@@ -871,6 +877,8 @@ function Revisao({
                                     <Input aria-label="Sigla" placeholder="Sigla" value={tipo.sigla} onChange={(e) => setTipo({ ...tipo, sigla: e.target.value })} className="h-8 w-24" />
                                 </div>
                             )}
+                            {tipo.criar && tipo.cria_registro && <p className="text-xs text-emerald-800 dark:text-emerald-200">Cada processo autuado neste tipo cria um registro no painel gerado, com o número e o assunto. Para mudar, edite o tipo depois de implantar ("Criar registro na autuação").</p>}
+                            {!tipo.criar && tipo.cria_registro && <p className="text-xs text-amber-900 dark:text-amber-100">O painel foi gerado, mas só recebe processos se um tipo criar o registro na autuação: marque acima para criar o tipo, ou ligue "Criar registro na autuação" num tipo existente depois de implantar.</p>}
                             {tipo.criar && <p className="text-xs text-slate-600">Começa na unidade da primeira fase{p.fases[0]?.unidade_ref ? ` (${nomeUnidade(p.fases[0].unidade_ref)})` : ''}.</p>}
                             {tipo.criar && tipo.formulario?.polos?.length > 0 && (
                                 <p className="text-xs text-slate-600">Já com as partes do modelo: {tipo.formulario.polos.map((x) => tipo.formulario.nomes_polos?.[x] || x).join(', ')}. Os nomes e os demais campos se ajustam depois, no próprio tipo.</p>

@@ -1334,6 +1334,17 @@ opcionais; rito sem elas funciona como antes.
   o que falta), aplicadas por `aplicarIntegracao`. O pacote de rito leva a
   página de `ao_registro` pelo nome. Testes: `functions-v2/test/painelModulos.test.js`
   e `src/lib/painelModulos.test.js` (com o Rito Consultas CAOCIPP).
+- **Painel opcional em todo modelo e tipo que já cria o registro**
+  (18/11/2026). `PAINEIS`, em `src/lib/bibliotecaRitos.js`, dá a cada
+  modelo o nome do painel (`painel: [singular, plural]`, exigido por
+  teste). Na revisão de rito novo, `IntegracaoPainel` recebe `convite` e
+  mostra a escolha "Ligar: criar painel e planilha" ou "Seguir sem
+  painel" antes da seção recolhida; `nomes` preenche o formulário de
+  geração. Gerada a página, a tela guarda em `tipo.cria_registro`
+  `{ pagina, valores: processo ← numero, assunto ← assunto }`;
+  `montarPayload` só o envia se o tipo for criado, e `aplicarPropostaRito`
+  confere com `sanitizeCriaRegistro` e `errosCriaRegistro` (página do
+  próprio órgão, ativa, campos existentes; módulo fixo é recusado ali).
 - **Gerar painel e planilha do rito** (18/11/2026, etapa 2; "Integração com
   o painel" → Gerar). `painelDoRito(fases, [singular, plural])` monta a
   definição da página própria: uma fase da página por fase do rito (chaves

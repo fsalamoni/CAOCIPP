@@ -5,6 +5,30 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 18/11/2026 — Ritos do MPRS para contratos e bens, e painel em todo modelo
+- Três modelos novos na biblioteca (agora 55), pelas normas internas do
+  Ministério Público do RS. **Gestão de contrato no MPRS** (Provimentos
+  104/2023 e 05/2023-PGJ): empenho, Unidade de Contratos, assinatura
+  eletrônica, Diário Eletrônico, Licitacon e PNCP, gestor e fiscais,
+  pagamento com lista de checagem, aditivo aprovado pelo Diretor-Geral,
+  prorrogação pedida 45 dias antes, reajuste por apostila, verificação anual
+  da habilitação, extinção e encerramento. **Descumprimento contratual no
+  MPRS** (arts. 89 a 98): instauração pelo fiscal, defesa em 15 dias úteis ou
+  comissão processante, decisão do Diretor-Geral ou do Subprocurador-Geral
+  para Assuntos Administrativos, recurso, CFIL/RS, CEIS e cobrança, com a
+  multa de até R$ 250,00 sobrestada. **Bens móveis no MPRS** (Provimentos
+  55/2022 e 02/2009): tombamento, Termo de Responsabilidade, inventário com
+  as datas de 31/07 a 31/10, conferência de 30 dias do novo titular,
+  movimentação, perda, furto ou dano com a tabela de indenização, triagem,
+  cessão de uso, Comissão Permanente de Avaliação e baixa.
+- **Todo modelo com painel e planilha opcionais.** Cada um dos 55 modelos
+  traz o nome sugerido do painel. Na revisão de um rito novo, um quadro em
+  destaque pergunta se o órgão quer ligar: "Ligar: criar painel e planilha"
+  ou "Seguir sem painel", com o que cada escolha faz e como ligar depois.
+- O painel gerado na revisão já recebe os processos: o tipo de processo
+  criado com o rito nasce com "Criar registro na autuação" apontando para a
+  página gerada (número e assunto), conferido no servidor ao implantar.
+
 ### 18/11/2026 — Gestão contratual completa e gestão de bens patrimoniais
 - Dois modelos novos na biblioteca (agora 52). **Gestão contratual completa:
   da assinatura à extinção** (Lei 14.133): assinatura, garantia, PNCP,

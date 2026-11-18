@@ -870,10 +870,18 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             // Modelo da biblioteca: o tipo nasce com os polos e os nomes que o processo usa.
             let formulario;
             if (tp.formulario) { try { formulario = sanitizeFormulario(tp.formulario); } catch (e) { erroUsuario(e); } }
+            // Painel gerado do rito na revisão: o tipo já nasce criando o registro na autuação (só página própria do órgão).
+            const criaRegistro = sanitizeCriaRegistro(tp.cria_registro);
+            if (criaRegistro) {
+                if (criaRegistro.modulo) throw new HttpsError('invalid-argument', 'Ao implantar, o tipo só pode criar registro em página própria. Ajuste no tipo de processo depois.');
+                const pg = (await db.collection('entityTypes').doc(criaRegistro.pagina).get()).data();
+                const erros = errosCriaRegistro(criaRegistro, pg && pg.organization_id === orgId ? (pg as PaginaDef) : null, formulario || { campos: [] });
+                if (erros.length) throw new HttpsError('invalid-argument', erros[0]);
+            }
             const ref = db.collection(COL.tipos).doc();
             tipoId = ref.id;
             batch.set(ref, {
-                ...(formulario ? { formulario } : {}),
+                ...(formulario ? { formulario } : {}), ...(criaRegistro ? { cria_registro: criaRegistro } : {}),
                 nome: texto(tp.nome), sigla: texto(tp.sigla, 12), descricao: texto(tp.descricao, MAX_TEXTO_LONGO), rito_id: ritoRef.id,
                 sigilo_padrao: tp.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', unidade_inicial: rito.fases[0]?.unidade_id || null,
                 ativo: true, organization_id: orgId, created_at: agora, created_by: auth.uid, updated_at: agora, updated_by: auth.uid,

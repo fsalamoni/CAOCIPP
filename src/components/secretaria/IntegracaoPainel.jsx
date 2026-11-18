@@ -30,9 +30,12 @@ function EstadoInfo({ info }) {
 /**
  * Painel "Integração com o painel" no editor do rito. `fases`: as do rito em
  * edição; `onAplicar(fases, n)`: grava as fases com as sugestões aplicadas;
- * `irParaFase(id)`: abre a fase no editor; `nomeRito`: sugere o nome do painel gerado.
+ * `irParaFase(id)`: abre a fase no editor; `nomeRito`: sugere o nome do painel gerado;
+ * `nomes`: [um registro, o painel] que o modelo da biblioteca propõe; `convite`:
+ * rito novo, mostra a escolha "criar painel ou seguir sem" antes de tudo;
+ * `criaTipo`: o tipo nasce com o rito e já cria o registro na autuação.
  */
-export default function IntegracaoPainel({ fases, onAplicar, irParaFase, nomeRito }) {
+export default function IntegracaoPainel({ fases, onAplicar, irParaFase, nomeRito, nomes, convite, criaTipo }) {
     const { ligadas, paginas } = useContext(RegistroContexto);
     const opcoes = paineisDisponiveis(ligadas, paginas);
     const doRito = alvoDoRito(fases);
@@ -43,12 +46,42 @@ export default function IntegracaoPainel({ fases, onAplicar, irParaFase, nomeRit
     const sugestoes = useMemo(() => (alvo ? sugestoesDeIntegracao(fases, alvo, paginas) : []), [fases, valor, paginas]);
     const [fora, setFora] = useState(() => new Set());
     const [aberto, setAberto] = useState(!!doRito);
+    // Escolha do convite: null (ainda não decidiu), 'criar' ou 'sem'.
+    const [decisao, setDecisao] = useState(null);
     const escolhidas = sugestoes.filter((s) => !fora.has(s.chave));
     const integrado = !!doRito && valorDoAlvo(doRito) === valor;
     const estado = !opcoes.length ? 'Nenhum painel disponível'
         : !integrado ? 'Não integrado'
             : rel?.pronto ? 'Pronto' : `${plural(rel?.faltas.length || 0, 'pendência', 'pendências')}`;
     const corEstado = integrado && rel?.pronto ? 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-100' : integrado ? 'bg-amber-100 text-amber-900 dark:bg-amber-900/50 dark:text-amber-100' : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200';
+    const aoGerar = (novas, id, nome) => {
+        setEscolhido(`paginas:${id}`); setFora(new Set());
+        const depois = criaTipo
+            ? `O tipo de processo criado com este rito vai abrir um registro em ${nome} a cada autuação. Implante para valer.`
+            : `Salve o rito e, no tipo de processo, marque "Criar registro na autuação" com ${nome}.`;
+        onAplicar(novas, novas.filter((f, i) => f !== fases[i]).length, `Painel ${nome} criado e ligado ao rito. ${depois}`, id);
+    };
+    if (convite && !doRito && decisao !== 'sem') {
+        return (
+            <section aria-labelledby="conv-painel" className="rounded-md border-2 border-indigo-300 dark:border-indigo-700 bg-indigo-50/60 dark:bg-indigo-950/40 p-3 space-y-3">
+                <h3 id="conv-painel" className="text-sm font-semibold flex items-center gap-1.5"><LayoutGrid className="w-4 h-4 shrink-0 text-indigo-600 dark:text-indigo-400" aria-hidden /> Painel e planilha de acompanhamento: ligar ou não?</h3>
+                <p className="text-sm text-slate-800 dark:text-slate-200">
+                    Este rito pode ter um painel próprio: um quadro com uma coluna por fase, onde cada processo é um cartão que anda sozinho, e uma planilha com os dados que as ações pedem (valores, datas, responsáveis). <b>É opcional.</b> Sem o painel, o processo funciona igual e aparece só nas listas do Processo Eletrônico. Você pode ligar depois, abrindo o rito em "Integração com o painel".
+                </p>
+                <ul className="text-xs text-slate-700 dark:text-slate-300 list-disc pl-5 space-y-0.5">
+                    <li><b>Ligar</b> cria agora uma página própria do órgão{nomes?.[1] ? ` (sugestão: ${nomes[1]})` : ''}. Ela fica gravada mesmo que você desista de implantar o rito, e pode ser ajustada ou excluída em Páginas personalizadas.</li>
+                    <li><b>Não ligar</b> não cria nada. Vale a pena ligar quando a equipe precisa ver todos os processos deste rito num quadro ou exportar a planilha.</li>
+                </ul>
+                {decisao === 'criar' || !ligadas?.paginas
+                    ? <GerarPainel fases={fases} nomeRito={nomeRito} nomes={nomes} aberto onCancelar={() => setDecisao(null)} onGerado={aoGerar} />
+                    : null}
+                <div className="flex flex-wrap gap-2">
+                    {decisao !== 'criar' && ligadas?.paginas && <Button size="sm" className="h-11 sm:h-8 gap-1" onClick={() => setDecisao('criar')}><Sparkles className="w-4 h-4" aria-hidden /> Ligar: criar painel e planilha</Button>}
+                    <Button size="sm" variant="outline" className="h-11 sm:h-8" onClick={() => setDecisao('sem')}>Seguir sem painel</Button>
+                </div>
+            </section>
+        );
+    }
     return (
         <section aria-labelledby="int-painel" className="rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
             <button type="button" className="w-full flex items-center gap-2 p-3 text-left min-h-[2.75rem]" aria-expanded={aberto} aria-controls="int-painel-corpo" onClick={() => setAberto((x) => !x)}>
@@ -62,7 +95,7 @@ export default function IntegracaoPainel({ fases, onAplicar, irParaFase, nomeRit
                     <p className="text-xs text-slate-700 dark:text-slate-300">
                         Cada fase pode mover o cartão do processo no painel (a coluna dele no quadro) e cada ação pode levar o dado que pede para a ficha do registro. Aqui você vê, coluna por coluna, se o rito cobre o que o painel precisa e aplica de uma vez o que o SIGO reconheceu pelos nomes. Para funcionar, o processo precisa estar ligado ao registro: nascer dele, ou o tipo de processo criá-lo na autuação.
                     </p>
-                    <GerarPainel fases={fases} nomeRito={nomeRito} onGerado={(novas, id, nome) => { setEscolhido(`paginas:${id}`); setFora(new Set()); onAplicar(novas, novas.filter((f, i) => f !== fases[i]).length, `Painel ${nome} criado e ligado ao rito. Salve o rito e, no tipo de processo, marque "Criar registro na autuação" com ${nome}.`); }} />
+                    <GerarPainel fases={fases} nomeRito={nomeRito} nomes={nomes} onGerado={aoGerar} />
                     {!opcoes.length ? (
                         <p className="text-sm text-amber-900 dark:text-amber-100">Nenhuma integração ligada. Ligue Consultas, Expedientes, Parcerias ou Páginas próprias em "Integrações com outros módulos", na configuração do Processo Eletrônico.</p>
                     ) : (
@@ -177,16 +210,16 @@ export function LevaAoPainel({ id, r, set }) {
  * página é gravada na hora (upsertEntityType confere no servidor); o rito,
  * ao salvar.
  */
-function GerarPainel({ fases, nomeRito, onGerado }) {
+function GerarPainel({ fases, nomeRito, nomes, aberto, onCancelar, onGerado }) {
     const { orgId, ligadas } = useContext(RegistroContexto);
-    const [abrir, setAbrir] = useState(false);
+    const [abrir, setAbrir] = useState(!!aberto);
     const base = String(nomeRito || '').replace(/^Rito\s+(d[aeo]s?\s+)?/i, '').trim() || 'Registro';
-    const [singular, setSingular] = useState(base);
-    const [nomePlural, setNomePlural] = useState(base);
+    const [singular, setSingular] = useState(nomes?.[0] || base);
+    const [nomePlural, setNomePlural] = useState(nomes?.[1] || base);
     const [gravando, setGravando] = useState(false);
     const g = useMemo(() => painelDoRito(fases, [singular || base, nomePlural || base]), [fases, singular, nomePlural, base]);
     if (!ligadas?.paginas) {
-        return <p className="text-xs text-slate-600 dark:text-slate-400">Para gerar um painel próprio a partir do rito (colunas das fases, campos dos dados das ações), ligue Páginas próprias em "Integrações com outros módulos".</p>;
+        return <p className="text-xs text-slate-600 dark:text-slate-400">Para gerar um painel próprio a partir do rito (colunas das fases, campos dos dados das ações), ligue Páginas próprias em "Integrações com outros módulos", no alto da configuração do Processo Eletrônico. Depois, volte a este rito.</p>;
     }
     const gerar = async () => {
         setGravando(true);
@@ -228,7 +261,7 @@ function GerarPainel({ fases, nomeRito, onGerado }) {
             {livres < fases.length && <p className="text-xs text-amber-900 dark:text-amber-100">{plural(fases.length - livres, 'fase já conduz', 'fases já conduzem')} outro painel: {fases.length - livres === 1 ? 'vira' : 'viram'} coluna, mas continua{fases.length - livres === 1 ? '' : 'm'} movendo o outro.</p>}
             <div className="flex flex-wrap gap-2">
                 <Button size="sm" disabled={gravando || !singular.trim() || !nomePlural.trim()} onClick={gerar}>{gravando ? 'Criando…' : 'Criar painel e ligar ao rito'}</Button>
-                <Button size="sm" variant="ghost" onClick={() => setAbrir(false)}>Cancelar</Button>
+                <Button size="sm" variant="ghost" onClick={() => (onCancelar ? onCancelar() : setAbrir(false))}>Cancelar</Button>
             </div>
         </div>
     );
