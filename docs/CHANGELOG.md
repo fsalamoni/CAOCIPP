@@ -5,6 +5,28 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 18/11/2026 — Acordo de não persecução civil e inquérito de improbidade (MPRS)
+- **Quatro modelos novos na biblioteca (agora 62)**, pelo Provimento
+  27/2026-PGJ e pela Resolução CNMP 306/2025, lidos na íntegra: "tratativas
+  e celebração" (da sinalização à homologação judicial, em sigilo, com
+  recusa e pedido de revisão, oitiva do ente lesado e aprovação do Conselho
+  Superior em até 60 dias); "acompanhamento do cumprimento" (do registro do
+  acordo firmado ao cumprimento integral, ou ao vencimento antecipado com
+  execução, ação ou remessa ao órgão de execução responsável); "das
+  tratativas ao cumprimento" (os dois num processo só); e "Inquérito civil
+  de improbidade administrativa (MPRS)", com a prescrição, os 365 dias
+  prorrogáveis uma vez e a manifestação do investigado da Lei 8.429/1992.
+- **Inquérito Civil geral ligado ao acordo.** A instrução ganhou a saída
+  "Acordo de não persecução civil", que manda abrir os processos derivados
+  de tratativas e de acompanhamento. O modelo de ajustamento de conduta
+  avisa que, em improbidade, o instrumento é o acordo (a Resolução CNMP
+  306/2025 revogou o art. 1º, § 2º, da Resolução 179).
+- **Partes externas.** O celebrante é parte, o advogado ou defensor é
+  representante dele, e o ente lesado é interessado só no acompanhamento:
+  as tratativas são confidenciais até a homologação.
+- **Próximas etapas do plano:** ação "Abrir processo derivado", cronograma
+  de obrigações com comprovação pelo portal e visibilidade por polo.
+
 ### 18/11/2026 — Versões federal e do Estado do RS dos ritos de sanção e de bens
 - **Três modelos novos na biblioteca (agora 58).** "Sanção a fornecedor no
   Estado do RS: apuração e registro no CFIL/RS" (Lei 14.133 com a Lei

@@ -98,7 +98,7 @@ Os modelos ficam em `src/lib/modelos/<área>.js` e são escritos com a linguagem
 
 ## Fontes
 
-A pesquisa normativa que embasou os modelos está nos arquivos do projeto, em `/mnt/project-files/modelos-rito/`: `pesquisa-modelos.md` (os primeiros 28 modelos), `pesquisa-conselhos.md` (OAB/RS e CAU), `pesquisa-mprs.md` (CNMP e MPRS) e `pesquisa-agu-cgu.md` (AGU e CGU) `pesquisa-contratos-patrimonio.md` (gestão contratual completa e gestão de bens patrimoniais), `pesquisa-esferas-federal-estadual.md` (versões federal e do Estado do RS de sanção a fornecedor e de bens inservíveis, e por que não há versão própria de gestão de contrato) e `pesquisa-mprs-contratos-patrimonio.md` (contratos, descumprimento contratual e bens móveis no MPRS, pelos Provimentos 104/2023, 05/2023, 55/2022 e 02/2009 da PGJ, e o que vale do Estado do RS), cada um com as URLs consultadas. Em cada modelo, a **Base** cita as normas e os artigos. Onde a pesquisa não confirmou um ponto, a orientação da fase avisa e pede que o órgão confira.
+A pesquisa normativa que embasou os modelos está nos arquivos do projeto, em `/mnt/project-files/modelos-rito/`: `pesquisa-modelos.md` (os primeiros 28 modelos), `pesquisa-conselhos.md` (OAB/RS e CAU), `pesquisa-mprs.md` (CNMP e MPRS), `pesquisa-anpc-improbidade.md` (acordo de não persecução civil e inquérito de improbidade, pelo Provimento 27/2026-PGJ e pela Resolução CNMP 306/2025) e `pesquisa-agu-cgu.md` (AGU e CGU) `pesquisa-contratos-patrimonio.md` (gestão contratual completa e gestão de bens patrimoniais), `pesquisa-esferas-federal-estadual.md` (versões federal e do Estado do RS de sanção a fornecedor e de bens inservíveis, e por que não há versão própria de gestão de contrato) e `pesquisa-mprs-contratos-patrimonio.md` (contratos, descumprimento contratual e bens móveis no MPRS, pelos Provimentos 104/2023, 05/2023, 55/2022 e 02/2009 da PGJ, e o que vale do Estado do RS), cada um com as URLs consultadas. Em cada modelo, a **Base** cita as normas e os artigos. Onde a pesquisa não confirmou um ponto, a orientação da fase avisa e pede que o órgão confira.
 
 ## Catálogo
 
@@ -110,7 +110,7 @@ A pesquisa normativa que embasou os modelos está nos arquivos do projeto, em `/
 | Sancionador e fiscalização | Responsabilização de pessoa jurídica (PAR) (longo); Infração contratual e sanção a fornecedor (médio); Descumprimento contratual no MPRS: apuração e sanção (longo); Sanção a fornecedor no Estado do RS: apuração e registro no CFIL/RS (longo); Fiscalização com auto de infração e defesa (médio); Processo administrativo fiscal (lançamento e impugnação) (longo); Multa de trânsito (defesa prévia e recursos) (médio); Fiscalização do exercício profissional no CAU (médio); Acordo de leniência (Lei Anticorrupção) (longo) |
 | Contratações e contratos | Contratação pública por licitação (longo); Contratação direta: dispensa e inexigibilidade (médio); Compra ou contratação privada (médio); Gestão contratual completa: da assinatura à extinção (longo); Gestão de contrato no MPRS: do empenho ao encerramento (longo); Gestão e fiscalização de contrato de serviço continuado (longo); Recebimento de bens ou serviços, liquidação e pagamento (curto); Parceria com organização da sociedade civil (longo) |
 | Atendimento, ouvidoria e transparência | Manifestação de ouvidoria (curto); Pedido de acesso à informação (curto) |
-| Ministério Público (não penal) | Notícia de Fato (curto); Procedimento Administrativo do Ministério Público (médio); Procedimento Preparatório (médio); Inquérito Civil (longo); Compromisso de ajustamento de conduta (TAC) (longo); Recomendação do Ministério Público (curto); Audiência pública do Ministério Público (curto); Revisão de arquivamento pelo Conselho Superior (MPRS) (médio); Destinação de bens e valores de tutela coletiva (MPRS) (médio); Cadastramento de entidade para destinação de recursos (MPRS) (curto); Triagem de representação sobre patrimônio público (MPRS) (curto) |
+| Ministério Público (não penal) | Notícia de Fato (curto); Procedimento Administrativo do Ministério Público (médio); Procedimento Preparatório (médio); Inquérito Civil (longo); Compromisso de ajustamento de conduta (TAC) (longo); Recomendação do Ministério Público (curto); Audiência pública do Ministério Público (curto); Revisão de arquivamento pelo Conselho Superior (MPRS) (médio); Destinação de bens e valores de tutela coletiva (MPRS) (médio); Cadastramento de entidade para destinação de recursos (MPRS) (curto); Triagem de representação sobre patrimônio público (MPRS) (curto); Inquérito civil de improbidade administrativa (MPRS) (longo); Acordo de não persecução civil no MPRS: tratativas e celebração (longo); Acordo de não persecução civil no MPRS: acompanhamento do cumprimento (longo); Acordo de não persecução civil no MPRS: das tratativas ao cumprimento (longo) |
 | Gestão interna e pessoas | Consulta ou parecer interno (curto); Concessão de benefício ou licença a servidor (curto); Proposta de ato normativo ao conselho (curto); Gestão de bens patrimoniais: do tombamento à baixa (longo); Bens móveis no MPRS: do tombamento à baixa (longo); Bens móveis inservíveis no Estado do RS: avaliação, destinação e baixa (médio); Bens móveis inservíveis na administração federal: circularidade e desfazimento (médio) |
 | Controle e contas | Tomada de contas especial (fase interna) (longo) |
 | Advocacia pública e consultoria | Mediação e conciliação na câmara da advocacia pública (CCAF) (médio); Acordo para prevenir ou encerrar litígio com a União (médio); Cobrança administrativa e inscrição em dívida ativa (crédito não tributário) (médio) |
@@ -755,19 +755,19 @@ Antecede o inquérito civil quando ainda falta identificar o investigado ou deli
 
 ### Inquérito Civil
 
-**Porte:** Longo, 18 fases. **Inspirado em:** CNMP. **Identificador:** `inquerito-civil`.
+**Porte:** Longo, 19 fases. **Inspirado em:** CNMP. **Identificador:** `inquerito-civil`.
 
 Investigação presidida por membro do Ministério Público para apurar lesão a direitos difusos, coletivos ou individuais homogêneos, como meio ambiente, consumidor e patrimônio público, e preparar ação civil pública, ajustamento de conduta ou recomendação. A representação pode ser indeferida em 30 dias, com recurso; instaurado por portaria, corre por um ano, prorrogável quantas vezes for preciso, com requisições, oitivas e audiências. É inquisitivo, mas o investigado e o representante podem ser ouvidos e juntar documentos a qualquer tempo. Termina com ação civil pública ou com promoção de arquivamento, que sobe ao Conselho Superior em 3 dias para homologação.
 
-**Quando usar:** Quando há elementos de lesão a direito difuso, coletivo ou individual homogêneo, com investigado e objeto identificáveis, a apurar antes de ação civil pública ou solução negociada.
+**Quando usar:** Quando há elementos de lesão a direito difuso, coletivo ou individual homogêneo, com investigado e objeto identificáveis, a apurar antes de ação civil pública ou solução negociada. Para improbidade administrativa no Ministério Público do RS, prefira o "Inquérito civil de improbidade administrativa (MPRS)", com os prazos da Lei 8.429/1992.
 
-**Base:** Res. CNMP 23/2007, arts. 2º (representação), 4º (portaria), 5º (indeferimento e recurso), 6º (instrução), 7º (publicidade), 9º e 9º-A (prazo e declínio), 10 e 11 (arquivamento e revisão), 12 (desarquivamento) e 14 (ajustamento); Lei 7.347/1985, arts. 5º, § 6º, 8º e 9º.
+**Base:** Res. CNMP 23/2007, arts. 2º (representação), 4º (portaria), 5º (indeferimento e recurso), 6º (instrução), 7º (publicidade), 9º e 9º-A (prazo e declínio), 10 e 11 (arquivamento e revisão), 12 (desarquivamento) e 14 (ajustamento); Lei 7.347/1985, arts. 5º, § 6º, 8º e 9º; Res. CNMP 306/2025 (acordo de não persecução civil em improbidade).
 
 **Partes:** Representante (requerente), Investigado (requerido), Interessado (interessado), Órgão requisitado (terceiro).
 
-**Recursos do motor usados:** 8 comunicações às partes; 3 esperas de resposta; audiência (oitiva, reunião, sessão); 1 julgamento colegiado; 15 documentos; 2 formulários de dados; 8 fases com saída decidida pela resposta; 1 fase de espera.
+**Recursos do motor usados:** 8 comunicações às partes; 3 esperas de resposta; audiência, reunião ou sessão; 1 julgamento colegiado; 15 documentos; 2 formulários de dados; 9 fases com saída decidida pela resposta.
 
-**Fases:** 1. Representação ou atuação de ofício, Secretaria; 2. Admissibilidade (30 dias corridos), Gabinete; 3. Indeferimento da representação, Gabinete; 4. Recurso do indeferimento (3 dias corridos), Gabinete; 5. Instauração, Gabinete; 6. Registro e publicação, Secretaria; 7. Instrução (365 dias corridos), Gabinete; 8. Aguardando resposta a requisição, Secretaria; 9. Recomendação, Gabinete; 10. Ajustamento de conduta, Gabinete; 11. Prorrogação, Gabinete; 12. Declínio de atribuição (3 dias corridos), Gabinete; 13. Conclusão, Gabinete; 14. Ajuizamento de ação civil pública, Gabinete; 15. Cientificação e remessa ao Conselho Superior (3 dias corridos), Secretaria; 16. Revisão pelo Conselho Superior, Conselho Superior; 17. Designação de outro membro, Secretaria; 18. Arquivamento, Secretaria.
+**Fases:** 1. Representação ou atuação de ofício, Secretaria; 2. Admissibilidade (30 dias corridos), Gabinete; 3. Indeferimento da representação, Gabinete; 4. Recurso do indeferimento (3 dias corridos), Gabinete; 5. Instauração, Gabinete; 6. Registro e publicação, Secretaria; 7. Instrução (365 dias corridos), Gabinete; 8. Aguardando resposta a requisição, Secretaria; 9. Recomendação, Gabinete; 10. Ajustamento de conduta, Gabinete; 11. Acordo de não persecução civil, Gabinete; 12. Prorrogação, Gabinete; 13. Declínio de atribuição (3 dias corridos), Gabinete; 14. Conclusão, Gabinete; 15. Ajuizamento de ação civil pública, Gabinete; 16. Cientificação e remessa ao Conselho Superior (3 dias corridos), Secretaria; 17. Revisão pelo Conselho Superior, Conselho Superior; 18. Designação de outro membro, Secretaria; 19. Arquivamento, Secretaria.
 
 ### Compromisso de ajustamento de conduta (TAC)
 
@@ -775,13 +775,13 @@ Investigação presidida por membro do Ministério Público para apurar lesão a
 
 Acompanha num só processo a vida inteira do compromisso de ajustamento de conduta tomado pelo Ministério Público: a negociação com o responsável pela lesão, em reuniões e, se for o caso, audiência pública; a celebração do termo, com obrigações certas, líquidas e exigíveis, prazos e multa; a promoção de arquivamento do procedimento de origem e a ciência ao Conselho Superior em até 3 dias; a publicação do extrato em 15 dias; e a fiscalização do cumprimento. Descumprido o termo, o compromissário é instado a justificar e o membro executa em até 60 dias, repactua ou segue acompanhando. Cumprido, o acompanhamento é arquivado com ciência ao compromissário, que pode recorrer em 10 dias ao Conselho Superior. Difere do procedimento administrativo genérico por trazer as fases e cláusulas próprias do ajuste.
 
-**Quando usar:** Quando, num inquérito civil, procedimento preparatório ou procedimento administrativo, o investigado aceita adequar a conduta. Ajuste os prazos de comunicação ao Conselho Superior e de recurso conforme o regulamento do seu Ministério Público (no MPRS, Provimento 71/2017-PGJ, arts. 34 a 45).
+**Quando usar:** Quando, num inquérito civil, procedimento preparatório ou procedimento administrativo, o investigado aceita adequar a conduta. Ajuste os prazos de comunicação ao Conselho Superior e de recurso conforme o regulamento do seu Ministério Público (no MPRS, Provimento 71/2017-PGJ, arts. 34 a 45). Em improbidade administrativa, o instrumento é o acordo de não persecução civil (Res. CNMP 306/2025, que revogou o art. 1º, § 2º, da Res. 179); o ajustamento só cabe quando a improbidade é afastada ou as sanções prescreveram.
 
 **Base:** Lei 7.347/1985, art. 5º, § 6º; Res. CNMP 179/2017, arts. 1º a 4º (cabimento, forma e multa), 5º (destinação), 6º (ciência ao órgão superior em até 3 dias), 7º (extrato em 15 dias), 8º (Portal, redação da Res. CNMP 326/2026), 9º e 10 (fiscalização) e 11 (execução em 60 dias); Res. CNMP 174/2017, art. 8º, I; no MPRS, Provimento 71/2017-PGJ, arts. 34 a 45 e 70 (prazos em dias corridos).
 
 **Partes:** Compromissário (requerido), Interessado (interessado).
 
-**Recursos do motor usados:** 7 comunicações às partes; 3 esperas de resposta; audiência (reunião, inspeção); 2 julgamentos colegiados; 10 documentos; 1 formulário de dados; 6 fases com saída decidida pela resposta; 1 fase de espera.
+**Recursos do motor usados:** 7 comunicações às partes; 3 esperas de resposta; audiência, reunião ou sessão; 2 julgamentos colegiados; 10 documentos; 1 formulário de dados; 6 fases com saída decidida pela resposta.
 
 **Fases:** 1. Proposta de ajustamento, Gabinete; 2. Negociação, Gabinete; 3. Celebração do termo, Gabinete; 4. Arquivamento do procedimento de origem (3 dias corridos), Secretaria; 5. Homologação pelo Conselho Superior, Conselho Superior; 6. Publicidade do termo (15 dias corridos), Secretaria; 7. Acompanhamento do cumprimento (365 dias corridos), Gabinete; 8. Pedido de informações ao compromissário, Secretaria; 9. Descumprimento, Gabinete; 10. Repactuação, Gabinete; 11. Execução judicial, Gabinete; 12. Arquivamento do acompanhamento, Secretaria; 13. Recurso do arquivamento, Conselho Superior; 14. Encerramento sem acordo, Gabinete; 15. Encerramento com execução, Secretaria; 16. Arquivamento, Secretaria.
 
@@ -880,6 +880,70 @@ Filtro próprio do MPRS para representações sobre improbidade e dano ao erári
 **Recursos do motor usados:** 3 comunicações às partes; 2 esperas de resposta; 1 julgamento colegiado; 5 documentos; 1 formulário de dados; 2 fases com saída decidida pela resposta; 1 fase de espera.
 
 **Fases:** 1. Registro da representação, Secretaria; 2. Análise de relevância (30 dias corridos), Gabinete; 3. Aguardando apuração do ente, Secretaria; 4. Decisão de não instaurar, Gabinete; 5. Cientificação e remessa ao Conselho Superior, Secretaria; 6. Deliberação do Conselho Superior, Conselho Superior; 7. Instauração de procedimento, Gabinete; 8. Arquivamento, Secretaria.
+
+### Inquérito civil de improbidade administrativa (MPRS)
+
+**Porte:** Longo, 19 fases. **Inspirado em:** MPRS. **Identificador:** `inquerito-civil-improbidade-mprs`.
+
+A investigação de ato de improbidade administrativa pelo Ministério Público, com o que a Lei 8.429/1992 tem de próprio. Registra a data do fato, para o controle dos 8 anos de prescrição, e a modalidade apurada. A instrução corre em 365 dias corridos, prorrogáveis uma única vez, e garante ao investigado a manifestação por escrito e a juntada de documentos. No caminho cabem o pedido judicial de indisponibilidade de bens e a abertura de tratativas de acordo de não persecução civil, que correm em processo derivado e confidencial; homologado o acordo, outro processo derivado acompanha o cumprimento. Encerrada a instrução, a ação de improbidade é proposta em 30 dias, ou o arquivamento é promovido e sobe ao Conselho Superior. Sem improbidade ou com prescrição, ainda cabe ajustamento de conduta para recompor o patrimônio.
+
+**Quando usar:** Quando há notícia de enriquecimento ilícito, dano ao erário ou ofensa aos princípios da administração por agente público ou terceiro. Para valores pequenos ou fato já apurado pelo ente, use antes a "Triagem de representação sobre patrimônio público (MPRS)". Para lesão a outros direitos coletivos, use o "Inquérito Civil" geral.
+
+**Base:** Lei 8.429/1992 (redação da Lei 14.230/2021), arts. 9º a 11 (modalidades), 16 (indisponibilidade), 17 e 17-B (ação e acordo), 22 (inquérito e manifestação do investigado) e 23 (prescrição e prazos do inquérito); Provimento 27/2026-PGJ (acordo de não persecução civil); Provimento 71/2017-PGJ (inquérito civil, arquivamento e prazos em dias corridos); Provimento 04/2012-PGJ (patrimônio público); Resolução CNMP 23/2007.
+
+**Partes:** Representante (requerente), Investigado (requerido), Ente lesado (interessado), Órgão requisitado (terceiro).
+
+**Recursos do motor usados:** 7 comunicações às partes; 2 esperas de resposta; audiência, reunião ou sessão; 1 julgamento colegiado; 13 documentos; 2 formulários de dados; 7 fases com saída decidida pela resposta.
+
+**Fases:** 1. Representação ou atuação de ofício, Secretaria; 2. Admissibilidade (30 dias corridos), Gabinete; 3. Indeferimento da representação, Gabinete; 4. Instauração, Gabinete; 5. Registro e publicação, Secretaria; 6. Instrução (365 dias corridos), Gabinete; 7. Aguardando resposta a requisição, Secretaria; 8. Indisponibilidade de bens, Gabinete; 9. Tratativas de acordo, Gabinete; 10. Acordo homologado, Secretaria; 11. Prorrogação, Gabinete; 12. Declínio de atribuição (3 dias corridos), Gabinete; 13. Conclusão (30 dias corridos), Gabinete; 14. Ajuizamento da ação de improbidade, Gabinete; 15. Ajustamento de conduta, Gabinete; 16. Cientificação e remessa ao Conselho Superior (3 dias corridos), Secretaria; 17. Revisão pelo Conselho Superior, Conselho Superior; 18. Designação de outro membro, Secretaria; 19. Arquivamento, Secretaria.
+
+### Acordo de não persecução civil no MPRS: tratativas e celebração
+
+**Porte:** Longo, 19 fases. **Inspirado em:** MPRS. **Identificador:** `anpc-tratativas-mprs`.
+
+O procedimento de negociação do acordo de não persecução civil (também chamado de não persecução cível) em caso de improbidade administrativa, da primeira sinalização à homologação judicial. Começa em sigilo, porque as tratativas são confidenciais para terceiros. O membro avalia se o acordo cabe e pode recusar, com pedido de revisão ao Conselho Superior em 10 dias. Na negociação, as reuniões vão para ata, o dano é apurado sem desconto e o celebrante participa sempre com advogado ou defensor público. Fechados os termos, a pessoa jurídica lesada é ouvida, o acordo é assinado e, se for anterior à ação, vai ao Conselho Superior em 3 dias, que decide em até 60: aprova, pede ajustes, converte em diligência ou reprova. Por fim vem a homologação judicial. Homologado, o inteiro teor é publicado, o acordo entra no cadastro e o cumprimento passa ao processo de acompanhamento.
+
+**Quando usar:** Quando o investigado ou demandado por improbidade sinaliza interesse em acordo, ou o Ministério Público o propõe, em inquérito civil, procedimento preparatório, ação em curso ou cumprimento de sentença. Abra como processo derivado do procedimento de origem. Para acompanhar um acordo já homologado, use o modelo de acompanhamento; para tudo num processo só, o modelo "das tratativas ao cumprimento".
+
+**Base:** Provimento 27/2026-PGJ (MPRS), que revogou o Provimento 68/2022-PGJ; Resolução CNMP 306/2025; Lei 8.429/1992, arts. 17, § 4º-A, e 17-B; Provimento 71/2017-PGJ, arts. 47, V e VI, e 70 (prazos em dias corridos); Resolução CNMP 174/2017, art. 8º, V e VI.
+
+**Partes:** Celebrante (requerido).
+
+**Recursos do motor usados:** 5 comunicações às partes; 2 esperas de resposta; audiência, reunião ou sessão; 2 julgamentos colegiados; 14 documentos; 3 formulários de dados; 10 fases com saída decidida pela resposta; sigilo ao entrar.
+
+**Fases:** 1. Abertura das tratativas, Secretaria; 2. Análise de cabimento, Gabinete; 3. Recusa da proposta, Gabinete; 4. Pedido de revisão (3 dias corridos), Gabinete; 5. Revisão da recusa pelo Conselho Superior, Conselho Superior; 6. Negociação, Gabinete; 7. Aguardando proposta ou documentos, Secretaria; 8. Oitiva do ente lesado, Secretaria; 9. Celebração do acordo, Gabinete; 10. Remessa ao Conselho Superior (3 dias corridos), Secretaria; 11. Aprovação pelo Conselho Superior (60 dias corridos), Conselho Superior; 12. Ajustes pedidos pelo Conselho Superior, Gabinete; 13. Diligências do Conselho Superior, Gabinete; 14. Designação de outro membro, Secretaria; 15. Acordo reprovado, Gabinete; 16. Homologação judicial, Gabinete; 17. Providências da homologação, Secretaria; 18. Encerramento sem acordo, Secretaria; 19. Arquivamento das tratativas, Secretaria.
+
+### Acordo de não persecução civil no MPRS: acompanhamento do cumprimento
+
+**Porte:** Longo, 15 fases. **Inspirado em:** MPRS. **Identificador:** `anpc-acompanhamento-mprs`.
+
+Controla o acordo de não persecução civil (ou cível) já firmado, do registro na plataforma até o fim. Guarda os números do acordo (ressarcimento, devolução, multa civil, parcelas, garantias e sanções), as datas da aprovação pelo Conselho Superior e da homologação judicial, e o cronograma dos vencimentos. A cada vencimento, o celebrante comprova pelo portal e a pessoa jurídica lesada confirma o recebimento. Havendo atraso, o celebrante é ouvido: se justificar ou regularizar, o acompanhamento segue; se couber, o acordo é aditado, com nova aprovação do Conselho Superior. O descumprimento sem justificativa vence todas as obrigações de uma vez, impede novo acordo por 5 anos e leva à execução do título ou à ação de improbidade, pelo próprio órgão ou com remessa completa ao órgão de execução responsável. Cumprido tudo, o juízo é informado, as garantias são liberadas e o acompanhamento é arquivado.
+
+**Quando usar:** Depois da homologação judicial do acordo, quando o cumprimento não pode ser conferido só nos autos judiciais. Abra como processo derivado das tratativas ou do procedimento de origem, um processo por acordo. Para ver todos os acordos num quadro, use "Gerar painel e planilha" na Integração com o painel.
+
+**Base:** Provimento 27/2026-PGJ (MPRS), que revogou o Provimento 68/2022-PGJ; Resolução CNMP 306/2025; Lei 8.429/1992, arts. 17, § 4º-A, e 17-B; Provimento 71/2017-PGJ, arts. 47, V e VI, e 70 (prazos em dias corridos); Resolução CNMP 174/2017, art. 8º, V e VI. Quanto ao acompanhamento: Provimento 27/2026-PGJ, arts. 3º, § 3º (impedimento por 5 anos), 16, parágrafo único (aditamento), 19 (procedimento de acompanhamento), 21 (arquivamento) e 22 (vencimento antecipado).
+
+**Partes:** Celebrante (requerido), Ente lesado (interessado).
+
+**Recursos do motor usados:** 7 comunicações às partes; 3 esperas de resposta; 1 julgamento colegiado; 11 documentos; 2 formulários de dados; 5 fases com saída decidida pela resposta.
+
+**Fases:** 1. Registro do acordo firmado, Secretaria; 2. Início do acompanhamento, Secretaria; 3. Acompanhamento do cumprimento (365 dias corridos), Gabinete; 4. Pedido de comprovação, Secretaria; 5. Consulta ao ente lesado, Secretaria; 6. Prorrogação do acompanhamento, Gabinete; 7. Atraso ou descumprimento, Gabinete; 8. Aditamento do acordo, Gabinete; 9. Aprovação do aditamento, Conselho Superior; 10. Vencimento antecipado, Gabinete; 11. Remessa ao órgão de execução, Secretaria; 12. Execução ou ação pelo próprio órgão, Gabinete; 13. Cumprimento integral, Gabinete; 14. Encerramento por descumprimento, Secretaria; 15. Arquivamento, Secretaria.
+
+### Acordo de não persecução civil no MPRS: das tratativas ao cumprimento
+
+**Porte:** Longo, 32 fases. **Inspirado em:** MPRS. **Identificador:** `anpc-completo-mprs`.
+
+O acordo de não persecução civil (ou cível) inteiro num único processo: sinalização das tratativas, análise de cabimento, negociação com o celebrante e seu advogado ou defensor, oitiva da pessoa jurídica lesada, assinatura, aprovação pelo Conselho Superior, homologação judicial e, em seguida, o acompanhamento de cada vencimento até o cumprimento integral ou até o vencimento antecipado, com execução, ação de improbidade ou remessa ao órgão de execução responsável. Reúne as fases dos modelos de tratativas e de acompanhamento. O provimento do Ministério Público do RS prevê dois procedimentos; este modelo serve ao órgão que prefere controlar tudo num lugar só.
+
+**Quando usar:** Quando o órgão quer um processo único por acordo, sem abrir outro depois da homologação. Como as tratativas são confidenciais, a pessoa jurídica lesada só deve ser cadastrada como parte depois da homologação judicial. Se o órgão segue à risca a divisão do provimento, use os dois modelos separados.
+
+**Base:** Provimento 27/2026-PGJ (MPRS), que revogou o Provimento 68/2022-PGJ; Resolução CNMP 306/2025; Lei 8.429/1992, arts. 17, § 4º-A, e 17-B; Provimento 71/2017-PGJ, arts. 47, V e VI, e 70 (prazos em dias corridos); Resolução CNMP 174/2017, art. 8º, V e VI.
+
+**Partes:** Celebrante (requerido), Ente lesado (interessado).
+
+**Recursos do motor usados:** 12 comunicações às partes; 5 esperas de resposta; audiência, reunião ou sessão; 3 julgamentos colegiados; 22 documentos; 3 formulários de dados; 15 fases com saída decidida pela resposta; sigilo ao entrar.
+
+**Fases:** 1. Abertura das tratativas, Secretaria; 2. Análise de cabimento, Gabinete; 3. Recusa da proposta, Gabinete; 4. Pedido de revisão (3 dias corridos), Gabinete; 5. Revisão da recusa pelo Conselho Superior, Conselho Superior; 6. Negociação, Gabinete; 7. Aguardando proposta ou documentos, Secretaria; 8. Oitiva do ente lesado, Secretaria; 9. Celebração do acordo, Gabinete; 10. Remessa ao Conselho Superior (3 dias corridos), Secretaria; 11. Aprovação pelo Conselho Superior (60 dias corridos), Conselho Superior; 12. Ajustes pedidos pelo Conselho Superior, Gabinete; 13. Diligências do Conselho Superior, Gabinete; 14. Designação de outro membro, Secretaria; 15. Acordo reprovado, Gabinete; 16. Homologação judicial, Gabinete; 17. Providências da homologação, Secretaria; 18. Encerramento sem acordo, Secretaria; 19. Início do acompanhamento, Secretaria; 20. Acompanhamento do cumprimento (365 dias corridos), Gabinete; 21. Pedido de comprovação, Secretaria; 22. Consulta ao ente lesado, Secretaria; 23. Prorrogação do acompanhamento, Gabinete; 24. Atraso ou descumprimento, Gabinete; 25. Aditamento do acordo, Gabinete; 26. Aprovação do aditamento, Conselho Superior; 27. Vencimento antecipado, Gabinete; 28. Remessa ao órgão de execução, Secretaria; 29. Execução ou ação pelo próprio órgão, Gabinete; 30. Cumprimento integral, Gabinete; 31. Encerramento por descumprimento, Secretaria; 32. Arquivamento, Secretaria.
 
 ## Gestão interna e pessoas
 
