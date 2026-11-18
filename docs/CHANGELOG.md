@@ -5,6 +5,12 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 18/11/2026 — Painel e planilha gerados a partir do rito
+- Em "Integração com o painel", **Gerar painel e planilha**: o SIGO monta uma
+  página própria com uma coluna por fase do rito e um campo por dado que as
+  ações pedem, mostra antes de criar e liga o rito a ela (cada fase move o
+  cartão, cada ação leva o dado à ficha).
+
 ### 18/11/2026 — Integração do rito com o painel
 - O editor do rito mostra as colunas com o nome do quadro (Em Análise,
   Aguarda Terceiros, Arquivados), não mais o nome interno da situação.

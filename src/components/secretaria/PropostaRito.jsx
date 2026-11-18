@@ -768,8 +768,8 @@ function Revisao({
                         )}
                         <SugestoesLigacao fases={p.fases} tipos={tiposDoRito} nomeFase={(id) => p.fases.find((f) => f.id === id)?.nome || 'fase'}
                             onAplicar={(escolhidas) => { setConfirmar(false); setP({ ...p, fases: aplicarSugestoes(p.fases, escolhidas) }, true); anunciar(`${plural(escolhidas.length, 'ligação aplicada', 'ligações aplicadas')}. Confira e salve o rito.`); }} />
-                        <IntegracaoPainel fases={p.fases} irParaFase={irParaFase}
-                            onAplicar={(fases, n) => { setConfirmar(false); setP({ ...p, fases }, true); anunciar(`${plural(n, 'ligação com o painel aplicada', 'ligações com o painel aplicadas')}. Confira e salve o rito.`); }} />
+                        <IntegracaoPainel fases={p.fases} irParaFase={irParaFase} nomeRito={p.nome}
+                            onAplicar={(fases, n, texto) => { setConfirmar(false); setP({ ...p, fases }, true); anunciar(texto || `${plural(n, 'ligação com o painel aplicada', 'ligações com o painel aplicadas')}. Confira e salve o rito.`); }} />
                         <div className="flex flex-wrap items-center gap-2 pt-1">
                             <h3 className="text-sm font-semibold">{plural(p.fases.length, 'fase', 'fases')}</h3>
                             {p.fases.length > 10 && (

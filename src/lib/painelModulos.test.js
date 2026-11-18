@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { ritoConsultas } from './secretariaRito.js';
-import { PAINEIS, aplicarIntegracao, camposParaLevar, painelDe, relatorioIntegracao, rotuloDaColuna, sugestoesDeIntegracao } from './painelModulos.js';
+import { PAINEIS, aplicarIntegracao, camposParaLevar, ligarAoPainelGerado, painelDe, painelDoRito, relatorioIntegracao, rotuloDaColuna, sugestoesDeIntegracao } from './painelModulos.js';
 import { situacoesDaRegra } from './andamentoFase.js';
 
 const require = createRequire(import.meta.url);
@@ -76,4 +76,28 @@ test('página própria: colunas são as fases dela e os campos os dela', () => {
     const sug = sugestoesDeIntegracao(fases, alvo, paginas);
     assert.deepEqual(sug.map((s) => s.tipo), ['coluna', 'levar']);
     assert.ok(relatorioIntegracao(aplicarIntegracao(fases, sug, alvo), alvo, paginas).pronto);
+});
+
+test('gerar o painel do rito: uma coluna por fase, um campo por dado', () => {
+    const fases = [
+        { id: 'a', nome: 'Assinatura do contrato', acoes: ['Informar o número do contrato', 'Conferir garantia'], acoes_regras: [{ pede: 'texto', obrigatoria: true }, null] },
+        { id: 'b', nome: 'Execução', acoes: ['Registrar medição'], acoes_regras: [{ pede: 'formulario', campos: [{ id: 'm', rotulo: 'Data da medição', tipo: 'data' }, { id: 'v', rotulo: 'Situação', tipo: 'lista', opcoes: ['Regular', 'Irregular'] }] }] },
+        { id: 'c', nome: 'Execução', situacao_registro: { modulo: 'consultas', ao_entrar: 'Pendente' } },
+        { id: 'd', nome: 'Encerramento', final: true },
+    ];
+    const g = painelDoRito(fases, ['Contrato', 'Contratos']);
+    assert.deepEqual(g.def.phases.map((p) => [p.key, !!p.is_initial, !!p.is_final]), [['assinatura_do_contrato', true, false], ['execucao', false, false], ['execucao_2', false, false], ['encerramento', false, true]]);
+    assert.deepEqual(g.def.fields.map((f) => [f.key, f.type, f.phase || '']), [
+        ['processo', 'text', ''], ['assunto', 'textarea', ''], ['informar_o_numero_do_contrato', 'text', 'assinatura_do_contrato'],
+        ['data_da_medicao', 'date', 'execucao'], ['situacao', 'select', 'execucao'],
+    ]);
+    const ligadas = ligarAoPainelGerado(fases, g, 'pg9');
+    assert.deepEqual(ligadas[0].situacao_registro, { modulo: 'paginas', pagina: 'pg9', ao_entrar: 'assinatura_do_contrato', na_autuacao: true });
+    assert.deepEqual(ligadas[0].acoes_regras[0].ao_registro, { modulo: 'paginas', pagina: 'pg9', campo: 'informar_o_numero_do_contrato' });
+    assert.equal(ligadas[0].acoes_regras[1], null);
+    assert.deepEqual(ligadas[1].acoes_regras[0].ao_registro.campos, { m: 'data_da_medicao', v: 'situacao' });
+    assert.equal(ligadas[2].situacao_registro.modulo, 'consultas', 'fase que conduz outro painel fica como está');
+    const paginas = [{ id: 'pg9', nome: 'Contrato', plural: 'Contratos', fases: g.def.phases, campos: g.def.fields }];
+    const rel = relatorioIntegracao(ligadas, { modulo: 'paginas', pagina: 'pg9' }, paginas);
+    assert.equal(rel.colunas.filter((c) => !c.coberta).map((c) => c.rotulo).join(), 'Execução', 'só a coluna da fase que conduz outro painel');
 });
