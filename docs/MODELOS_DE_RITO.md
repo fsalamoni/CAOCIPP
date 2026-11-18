@@ -435,7 +435,7 @@ O procedimento "Descumprimento Contratual" do Ministério Público do RS: o fisc
 
 **Quando usar:** Inexecução total ou parcial de contrato, de nota de empenho ou de ata de registro de preços do MPRS, e recusa em assinar. Abra como processo derivado do contrato ("Novo processo derivado deste"). A sanção é administrativa. Ligue o painel e a planilha para acompanhar defesas, prazos e multas a cobrar.
 
-**Base:** Provimento 104/2023-PGJ, arts. 55, § 2º, 66 e 89 a 98; Provimento 05/2023-PGJ, arts. 21, XVI, 22, XVI, e 23, VII; Provimento 75/2016-PGJ (atos da Lei 12.846/2013); Lei 14.133/2021, arts. 155 a 163 e 165 a 168; Lei estadual 11.389/1999 e Decreto 42.250/2003 (CFIL/RS: conferir na norma vigente); Lei estadual 15.612/2021 (processo administrativo do RS, subsidiária: não cita o Ministério Público). O provimento não fala em efeito suspensivo nem em alegações finais: valem os arts. 158, § 2º, e 168 da lei.
+**Base:** Provimento 104/2023-PGJ, arts. 55, § 2º, 66 e 89 a 98; Provimento 05/2023-PGJ, arts. 21, XVI, 22, XVI, e 23, VII; Provimento 75/2016-PGJ (atos da Lei 12.846/2013); Lei 14.133/2021, arts. 155 a 163 e 165 a 168; Lei estadual 11.389/1999 (com a Lei 14.657/2014), Decreto 42.250/2003 (com os Decretos 45.680/2008 e 54.434/2018) e Instrução Normativa CAGE 2/2003, que põe o Ministério Público entre os órgãos da administração estadual (art. 1º, parágrafo único, II), com o manual do módulo CFIL/RS do sistema FPE, versão 2025.1; Lei estadual 15.612/2021 (processo administrativo do RS, subsidiária: não cita o Ministério Público). O provimento não fala em efeito suspensivo nem em alegações finais: valem os arts. 158, § 2º, e 168 da lei.
 
 **Partes:** Ministério Público (requerente), Contratada (requerido).
 
@@ -939,7 +939,7 @@ A vida do bem móvel permanente do Ministério Público do RS, pelo Provimento 5
 
 **Quando usar:** Bens móveis permanentes do MPRS. Abra um processo por bem ou por lote (uma aquisição, uma unidade, um conjunto para baixa). Bem de consumo fica no controle do almoxarifado. Não trata de imóveis nem de patrimônio histórico e cultural. Ligue o painel e a planilha para ter a relação dos bens, com tombo, unidade e situação.
 
-**Base:** Provimento 55/2022-PGJ (bens móveis), arts. 1º a 35; Provimento 02/2009, arts. 2º a 7º e 16 (alienação e desfazimento; o capítulo da venda foi revogado pelo Provimento 05/2023-PGJ); Lei 14.133/2021, arts. 6º, XL, 31 e 76, II (alienação de bens móveis e leilão); Lei 4.320/1964, arts. 94 a 96; Lei 12.305/2010 (resíduos); Decreto estadual 58.685/2026 (Programa Sustentare, de adesão facultativa pelos outros Poderes e órgãos); Decreto estadual 57.408/2023 (bens inservíveis do Executivo: só referência, conferir na norma vigente).
+**Base:** Provimento 55/2022-PGJ (bens móveis), arts. 1º a 35; Provimento 02/2009, arts. 2º a 7º e 16 (alienação e desfazimento; o capítulo da venda foi revogado pelo Provimento 05/2023-PGJ); Lei 14.133/2021, arts. 6º, XL, 31 e 76, II (alienação de bens móveis e leilão); Lei 4.320/1964, arts. 94 a 96; Lei 12.305/2010 (resíduos); Decreto estadual 58.685/2026 (Programa Sustentare, de adesão facultativa pelos outros Poderes e órgãos); Decreto estadual 57.408/2023, com o § 3º do art. 3º incluído pelo Decreto 58.684/2026 (bens móveis inservíveis da administração direta, das autarquias e das fundações do Executivo, exceto veículos: não obriga o Ministério Público e entra só como referência de boa prática).
 
 **Partes:** sem partes (processo interno).
 

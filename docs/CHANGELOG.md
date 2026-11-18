@@ -44,6 +44,15 @@ cada mudança está nas mensagens de commit (`git log`).
   tutorial ganhou três receitas (contrato, bens e painel), e o Guia do rito
   (parte 16), o Guia de implantação e o glossário falam do painel opcional.
   Novo `scripts/e2e-painel-modelo.mjs`, com a tela, do modelo à autuação.
+- **Decreto 57.408/2023 e manual do CFIL/RS lidos.** Os dois textos que
+  estavam marcados "conferir" entraram nos ritos do MPRS. No descumprimento
+  contratual, a fase de publicação diz o que o CFIL/RS pede (procedimento,
+  contrato ou empenho, inciso do art. 155, data e página da publicação), quem
+  cadastra, a carga mensal ao CEIS e a baixa automática ao fim do prazo, e
+  ganhou a juntada do comprovante. No contrato, a consulta ao CFIL/RS antes
+  da assinatura vem com a regra e o comprovante. Nos bens móveis, o decreto
+  do Executivo entra como referência: o antieconômico, a preferência por
+  outro órgão público, os motivos de doação e a ata da eliminação.
 
 ### 18/11/2026 — Gestão contratual completa e gestão de bens patrimoniais
 - Dois modelos novos na biblioteca (agora 52). **Gestão contratual completa:
