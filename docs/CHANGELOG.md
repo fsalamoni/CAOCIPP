@@ -5,6 +5,19 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 18/11/2026 — Gestão contratual completa e gestão de bens patrimoniais
+- Dois modelos novos na biblioteca (agora 52). **Gestão contratual completa:
+  da assinatura à extinção** (Lei 14.133): assinatura, garantia, PNCP,
+  designação, fiscalização, recebimento, pagamento e, a partir de cada
+  pagamento, os eventos do contrato (aditivo, apostila, prorrogação,
+  reequilíbrio, subcontratação, controvérsia e extinção), com remessa a
+  processo derivado de apuração de infração, avaliação de desempenho e
+  encerramento.
+- **Gestão de bens patrimoniais: do tombamento à baixa**: entrada,
+  tombamento, carga, inventário, movimentação, manutenção, reavaliação,
+  cessão, extravio ou dano, inservível, reaproveitamento, alienação e baixa.
+- Todo modelo da biblioteca gera um painel que o servidor aceita (teste).
+
 ### 18/11/2026 — Painel e planilha gerados a partir do rito
 - Em "Integração com o painel", **Gerar painel e planilha**: o SIGO monta uma
   página própria com uma coluna por fase do rito e um campo por dado que as

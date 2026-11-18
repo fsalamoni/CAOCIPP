@@ -93,7 +93,7 @@ Os modelos ficam em `src/lib/modelos/<área>.js` e são escritos com a linguagem
 
 ## Fontes
 
-A pesquisa normativa que embasou os modelos está nos arquivos do projeto, em `/mnt/project-files/modelos-rito/`: `pesquisa-modelos.md` (os primeiros 28 modelos), `pesquisa-conselhos.md` (OAB/RS e CAU), `pesquisa-mprs.md` (CNMP e MPRS) e `pesquisa-agu-cgu.md` (AGU e CGU), cada um com as URLs consultadas. Em cada modelo, a **Base** cita as normas e os artigos. Onde a pesquisa não confirmou um ponto, a orientação da fase avisa e pede que o órgão confira.
+A pesquisa normativa que embasou os modelos está nos arquivos do projeto, em `/mnt/project-files/modelos-rito/`: `pesquisa-modelos.md` (os primeiros 28 modelos), `pesquisa-conselhos.md` (OAB/RS e CAU), `pesquisa-mprs.md` (CNMP e MPRS) e `pesquisa-agu-cgu.md` (AGU e CGU) e `pesquisa-contratos-patrimonio.md` (gestão contratual completa e gestão de bens patrimoniais), cada um com as URLs consultadas. Em cada modelo, a **Base** cita as normas e os artigos. Onde a pesquisa não confirmou um ponto, a orientação da fase avisa e pede que o órgão confira.
 
 ## Catálogo
 
@@ -103,10 +103,10 @@ A pesquisa normativa que embasou os modelos está nos arquivos do projeto, em `/
 | Correcional e disciplinar | Sindicância investigativa e investigação preliminar sumária (curto); Processo administrativo disciplinar, rito ordinário (longo); Processo administrativo disciplinar, rito sumário (médio); Termo de ajustamento de conduta disciplinar (curto); Correição e inspeção em Promotoria de Justiça (MPRS) (médio); Sindicância patrimonial (médio); Juízo de admissibilidade correcional (curto); Processo disciplinar de empregado público (médio) |
 | Ética e conselhos profissionais | Processo ético-profissional (conselho profissional) (longo); Processo disciplinar (entidade de classe) (longo); Apuração ética por comissão de ética pública (médio); Processo disciplinar no TED da OAB/RS (longo); Revisão de processo disciplinar (OAB) (curto); Reabilitação de inscrito punido (OAB) (curto); Processo ético-disciplinar do CAU (longo) |
 | Sancionador e fiscalização | Responsabilização de pessoa jurídica (PAR) (longo); Infração contratual e sanção a fornecedor (médio); Fiscalização com auto de infração e defesa (médio); Processo administrativo fiscal (lançamento e impugnação) (longo); Multa de trânsito (defesa prévia e recursos) (médio); Fiscalização do exercício profissional no CAU (médio); Acordo de leniência (Lei Anticorrupção) (longo) |
-| Contratações e contratos | Contratação pública por licitação (longo); Contratação direta: dispensa e inexigibilidade (médio); Compra ou contratação privada (médio); Gestão e fiscalização de contrato de serviço continuado (longo); Recebimento de bens ou serviços, liquidação e pagamento (curto); Parceria com organização da sociedade civil (longo) |
+| Contratações e contratos | Contratação pública por licitação (longo); Contratação direta: dispensa e inexigibilidade (médio); Compra ou contratação privada (médio); Gestão contratual completa: da assinatura à extinção (longo); Gestão e fiscalização de contrato de serviço continuado (longo); Recebimento de bens ou serviços, liquidação e pagamento (curto); Parceria com organização da sociedade civil (longo) |
 | Atendimento, ouvidoria e transparência | Manifestação de ouvidoria (curto); Pedido de acesso à informação (curto) |
 | Ministério Público (não penal) | Notícia de Fato (curto); Procedimento Administrativo do Ministério Público (médio); Procedimento Preparatório (médio); Inquérito Civil (longo); Compromisso de ajustamento de conduta (TAC) (longo); Recomendação do Ministério Público (curto); Audiência pública do Ministério Público (curto); Revisão de arquivamento pelo Conselho Superior (MPRS) (médio); Destinação de bens e valores de tutela coletiva (MPRS) (médio); Cadastramento de entidade para destinação de recursos (MPRS) (curto); Triagem de representação sobre patrimônio público (MPRS) (curto) |
-| Gestão interna e pessoas | Consulta ou parecer interno (curto); Concessão de benefício ou licença a servidor (curto); Proposta de ato normativo ao conselho (curto) |
+| Gestão interna e pessoas | Consulta ou parecer interno (curto); Concessão de benefício ou licença a servidor (curto); Proposta de ato normativo ao conselho (curto); Gestão de bens patrimoniais: do tombamento à baixa (longo) |
 | Controle e contas | Tomada de contas especial (fase interna) (longo) |
 | Advocacia pública e consultoria | Mediação e conciliação na câmara da advocacia pública (CCAF) (médio); Acordo para prevenir ou encerrar litígio com a União (médio); Cobrança administrativa e inscrição em dívida ativa (crédito não tributário) (médio) |
 
@@ -552,6 +552,22 @@ Fluxo de aquisição de bens e serviços em empresa ou entidade privada, da requ
 
 **Fases:** 1. Requisição de compra, Área requisitante; 2. Aprovação do gestor (2 dias), Área requisitante; 3. Cotação (5 dias), Setor de compras; 4. Mapa comparativo e negociação, Setor de compras; 5. Homologação do fornecedor, Setor de compras; 6. Aprovação por alçada, Gabinete; 7. Análise jurídica, Assessoria jurídica; 8. Pedido ou contrato, Setor de compras; 9. Recebimento, Área requisitante; 10. Conferência e pagamento, Setor financeiro; 11. Avaliação do fornecedor, Setor de compras; 12. Arquivamento, Secretaria; 13. Correção pelo fornecedor, Área requisitante.
 
+### Gestão contratual completa: da assinatura à extinção
+
+**Porte:** Longo, 24 fases. **Inspirado em:** Lei 14.133. **Identificador:** `gestao-contratual-completa`.
+
+Um processo por contrato administrativo, do começo ao fim: convocação e assinatura, garantia, publicação no PNCP (condição de eficácia), designação de gestor e fiscais, início da execução, fiscalização a cada período, recebimento, liquidação e pagamento em ordem cronológica. De cada pagamento o contrato segue para o período seguinte ou para um evento: termo aditivo, apostila, prorrogação da vigência, reequilíbrio, subcontratação ou mudança societária, solução consensual de controvérsia e extinção antecipada. Falha não corrigida é remetida a processo derivado de apuração de infração ("Novo processo derivado deste", com o modelo "Infração contratual e sanção a fornecedor"); o contrato continua sendo acompanhado aqui. No fim, recebimento definitivo, avaliação de desempenho da contratada para o cadastro de fornecedores, liberação da garantia e encerramento.
+
+**Quando usar:** Qualquer contrato administrativo (serviço contínuo ou por escopo, fornecimento, obra ou serviço de engenharia), de licitação ou de contratação direta. Um processo por contrato. Para o quadro de todos os contratos, use "Gerar painel e planilha" na Integração com o painel (Guia do rito, parte 21).
+
+**Base:** Lei 14.133/2021, arts. 53, § 4º, 88, §§ 3º e 4º, 89 a 103, 104, 105 a 114, 115 a 123, 124 a 136, 137 a 139, 140 a 146, 151 a 154, 155 a 163 e 165 a 168; Decreto 11.246/2022; IN SEGES 5/2017; IN SEGES 77/2022; Lei 4.320/1964, arts. 58 a 65.
+
+**Partes:** Contratante (requerente), Contratada (requerido).
+
+**Recursos do motor usados:** 16 comunicações às partes; 8 esperas de resposta; audiências (reunião e conciliação); 35 documentos; 6 formulários de dados; 11 fases com saída decidida pela resposta.
+
+**Fases:** 1. Formalização e assinatura, Setor de contratos; 2. Recusa em assinar, Gabinete; 3. Garantia contratual, Setor de contratos; 4. Publicação no PNCP (20 dias), Setor de contratos; 5. Designação de gestão e fiscalização, Gabinete; 6. Início da execução, Gestão do contrato; 7. Execução e fiscalização, Fiscalização do contrato; 8. Notificação para correção, Fiscalização do contrato; 9. Remessa a processo de apuração, Gestão do contrato; 10. Ateste e recebimento, Gestão do contrato; 11. Liquidação e pagamento (20 dias), Setor financeiro; 12. Termo aditivo: instrução (30 dias corridos), Gestão do contrato; 13. Apostila (30 dias corridos), Setor de contratos; 14. Prorrogação da vigência, Gestão do contrato; 15. Reequilíbrio econômico-financeiro (30 dias corridos), Gestão do contrato; 16. Subcontratação ou mudança na contratada, Gestão do contrato; 17. Solução de controvérsia, Gabinete; 18. Parecer jurídico, Assessoria jurídica; 19. Termo aditivo: assinatura e publicação (20 dias), Setor de contratos; 20. Extinção antecipada, Gabinete; 21. Recebimento definitivo do objeto, Gestão do contrato; 22. Avaliação de desempenho da contratada, Gestão do contrato; 23. Encerramento e liberação da garantia, Gestão do contrato; 24. Arquivamento, Secretaria.
+
 ### Gestão e fiscalização de contrato de serviço continuado
 
 **Porte:** Longo, 16 fases. **Inspirado em:** Lei 14.133. **Identificador:** `gestao-contrato`.
@@ -861,6 +877,22 @@ Para conselhos e colegiados que editam resoluções, enunciados, instruções e 
 **Recursos do motor usados:** 1 julgamento colegiado; 5 documentos; 1 formulário de dados; 2 fases com saída decidida pela resposta.
 
 **Fases:** 1. Proposta, Secretaria do colegiado; 2. Parecer da comissão (15 dias corridos), Comissão temática; 3. Consulta pública (30 dias corridos), Secretaria do colegiado; 4. Relatoria, Gabinete do relator; 5. Deliberação em sessão, Secretaria do colegiado; 6. Publicação, Secretaria do colegiado; 7. Ato publicado, Secretaria do colegiado; 8. Arquivamento, Secretaria.
+
+### Gestão de bens patrimoniais: do tombamento à baixa
+
+**Porte:** Longo, 15 fases. **Inspirado em:** Lei 4.320. **Identificador:** `gestao-patrimonio`.
+
+Acompanha a vida de um bem do órgão (ou de um lote de bens iguais) do ingresso à baixa: conferência e classificação (permanente ou consumo), tombamento com plaqueta e registro patrimonial e contábil (vida útil e valor residual), carga ao responsável por termo de responsabilidade. Em uso, o processo fica em "Bem em uso" e dela saem os eventos: inventário anual, movimentação ou troca de responsável, manutenção, reavaliação e depreciação, cessão ou empréstimo, apuração de extravio, dano ou furto (termo circunstanciado para pequeno valor sem dolo, ou processo disciplinar derivado) e bem sem uso ou com defeito. O inservível é classificado por comissão (ocioso, recuperável, antieconômico, irrecuperável) e segue para reaproveitamento, alienação (leilão, doação de interesse social, permuta) ou descarte ambientalmente adequado. Tudo termina na baixa patrimonial e contábil. Não trata de patrimônio histórico ou cultural.
+
+**Quando usar:** Bens permanentes de uso do órgão (mobiliário, equipamentos, veículos, informática, imóveis, softwares e licenças). Um processo por bem ou por lote do mesmo ingresso. Para o quadro e a planilha dos bens, use "Gerar painel e planilha".
+
+**Base:** Lei 4.320/1964, arts. 15, § 2º, 94 a 96 e 106; Lei 14.133/2021, arts. 76 e 140; NBC TSP 07 e 09; MCASP, Parte II; Portaria STN 448/2002; Lei 12.305/2010; na União, Decreto 12.785/2025 (que substituiu o Decreto 9.373/2018) e IN CGU 4/2009. Estados e municípios: conferir o regulamento próprio de bens e de desfazimento.
+
+**Partes:** sem partes (processo interno).
+
+**Recursos do motor usados:** 17 documentos; 5 formulários de dados; 9 fases com saída decidida pela resposta.
+
+**Fases:** 1. Entrada e conferência, Almoxarifado; 2. Tombamento e registro, Patrimônio; 3. Carga ao responsável, Patrimônio; 4. Bem em uso, Patrimônio; 5. Inventário, Comissão de inventário; 6. Movimentação ou transferência, Patrimônio; 7. Manutenção, Manutenção; 8. Reavaliação e depreciação, Contabilidade; 9. Cessão ou empréstimo, Gabinete; 10. Apuração de extravio ou dano, Patrimônio; 11. Classificação de inservível, Comissão de desfazimento; 12. Reaproveitamento, Patrimônio; 13. Alienação ou descarte, Gabinete; 14. Baixa patrimonial, Patrimônio; 15. Arquivamento, Secretaria.
 
 ## Controle e contas
 
