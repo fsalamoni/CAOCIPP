@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ExternalLink, Lock, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, ExternalLink, Lock, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,8 +8,10 @@ import { DadosCampos } from './CamposProcesso';
 import { POLOS, STATUS_ROTULO, SeloUrgente, dataHora, rotuloOrigem } from './comum';
 import AjudaTermo from './AjudaTermo';
 import { ROTULO_DESTINO } from '@/lib/exigencias';
-import { ROTULO_REF, abaDoRegistro, integracoesLigadas, nomePolo, registrosLigados } from '@/lib/camposProcesso';
+import { ROTULO_REF, abaDoRegistro, integracoesLigadas, nomePolo, paineisSemRegistro, registrosLigados } from '@/lib/camposProcesso';
 import { createPageUrl } from '@/utils';
+import { nomeDoRegistro } from '@/lib/andamentoFase';
+import { RegistroContexto } from './SeletorRegistro';
 
 // Capa do processo: só informação, igual para todos os perfis, sem nenhum
 // botão de ato (intimar, juntar, tramitar ficam no Andamento). O que entra e
@@ -69,12 +71,26 @@ function RefOrigem({ r }) {
 
 function RegistrosLigados({ p, informacoes, estado }) {
     const [params] = useSearchParams();
+    const { paginas } = useContext(RegistroContexto);
     const lista = registrosLigados(p, informacoes);
-    if (!lista.length) return null;
-    const orgId = params.get('org');
     const ligadas = integracoesLigadas(estado);
+    // O rito conduz um painel e o processo não tem registro dele: avisa a equipe, que liga o registro em "Corrigir dados".
+    const semRegistro = ['arquivado', 'excluido'].includes(p.status) ? [] : paineisSemRegistro(p, informacoes).filter((u) => ligadas[u.modulo]);
+    if (!lista.length && !semRegistro.length) return null;
+    const orgId = params.get('org');
+    const aviso = semRegistro.length > 0 && (
+        <p role="note" className="mb-2 flex gap-2 rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 p-2 text-sm text-amber-900 dark:text-amber-100">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
+            <span>
+                O rito conduz {semRegistro.map((u) => nomeDoRegistro(u, paginas)).join(' e ')}, mas nenhum registro desse painel está ligado a este processo: o cartão não anda no painel e os dados das ações não chegam à ficha.
+                {' '}Ligue o registro num campo do processo (Corrigir dados) ou, para os próximos, marque "Criar registro na autuação" no tipo de processo.
+            </span>
+        </p>
+    );
+    if (!lista.length) return <Bloco titulo="Registros ligados" className="md:col-span-2">{aviso}</Bloco>;
     return (
         <Bloco titulo={`Registros ligados (${lista.length})`} className="md:col-span-2">
+            {aviso}
             <ul className="divide-y divide-slate-100 dark:divide-slate-800">
                 {lista.map((r) => {
                     const nome = `${ROTULO_REF[r.modulo]} ${r.numero}`;

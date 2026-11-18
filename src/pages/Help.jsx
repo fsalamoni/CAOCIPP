@@ -230,7 +230,7 @@ export default function Help() {
               Abre no <strong>Tutorial</strong>: um passo a passo em 12 etapas para montar o rito do começo ao fim, com perguntas e
               respostas em cada etapa; "Quero fazer…", que diz qual ferramenta usar para cada situação, onde ela fica e o modelo que já
               faz assim; e "Qual modelo usar?", que indica os modelos da biblioteca pelo assunto, pela forma de decidir e pelo tamanho.
-              A <strong>Referência</strong> explica, em 20 partes, cada peça e cada opção do editor, com um exemplo completo. Serve para
+              A <strong>Referência</strong> explica, em 21 partes, cada peça e cada opção do editor, com um exemplo completo. Serve para
               quem monta o rito e para quem trabalha no processo entender por que cada passo acontece.
             </p>
             <Suspense fallback={<p className="text-sm text-slate-600 dark:text-slate-400">Carregando o guia…</p>}>

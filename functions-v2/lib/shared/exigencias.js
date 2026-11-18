@@ -64,6 +64,7 @@ const julgamento_1 = require("./julgamento");
 const certames_1 = require("./certames");
 const listasOrgao_1 = require("./listasOrgao");
 const doProcesso_1 = require("./doProcesso");
+const painelModulos_1 = require("./painelModulos");
 // Sem importar ./secretaria (que importa este módulo): o mesmo corte de texto.
 const MAX_TEXTO_CURTO = 200;
 const texto = (v, max = MAX_TEXTO_CURTO) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
@@ -308,6 +309,10 @@ function sanitizeRegra(raw, acao) {
     }
     // "Vem do processo": o campo do tipo que, preenchido, cumpre a ação sozinho (ver shared/doProcesso.ts).
     Object.assign(out, (0, doProcesso_1.sanitizeDoProcesso)(r, out));
+    // "Leva ao painel": o dado também vai ao registro ligado de outro módulo (ver shared/painelModulos.ts).
+    const ao = (0, painelModulos_1.sanitizeAoRegistro)(r.ao_registro, out);
+    if (ao)
+        out.ao_registro = ao;
     return Object.keys(out).length ? out : null;
 }
 /** Campos do formulário da ação que condicionam: os de escolha, e nunca os de ação com dado reservado. */

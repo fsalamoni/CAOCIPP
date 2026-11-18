@@ -26,6 +26,7 @@ import { EditorCampos, EscolhaPagina } from './CamposProcesso';
 import { ItemOrdenavel, ListaOrdenavel } from './Ordenavel';
 import { PERFIS_DISPUTA } from '@/lib/certames';
 import { LIGAVEL_NO_FORM, camposLigaveis, podeLigar } from '@/lib/doProcesso';
+import { LevaAoPainel } from './IntegracaoPainel';
 
 // Editor do que cada fase do rito pede e de onde cada ato fica registrado.
 // Usado pela tela de rito (criar e alterar). Fundamento e exemplos:
@@ -328,6 +329,7 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase, f, i }) {
                 <CamposExigencia id={`${id}-doc`} e={r.documento} modelos={modelos} onChange={(d) => onChange({ ...r, documento: { ...d, descricao: acao } })} />
             )}
             {podeLigar(r) && <VemDoProcesso id={id} r={r} set={set} />}
+            <LevaAoPainel id={id} r={r} set={set} />
             <div>
                 <Label htmlFor={`${id}-aj`}>Orientação a quem cumpre</Label>
                 <Input id={`${id}-aj`} className="mt-1" value={r?.ajuda || ''} maxLength={200} placeholder="Opcional: aparece abaixo da ação, na tela do processo"

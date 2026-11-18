@@ -14,7 +14,7 @@ import type { FieldDef, PhaseDef } from '../customEntities/schema';
 export const FONTES = ['numero', 'assunto', 'descricao', 'autuacao', 'unidade', 'tipo', 'partes', 'fixo'] as const;
 export type Fonte = typeof FONTES[number] | `campo:${string}`;
 export interface ValorDoRegistro { campo: string; de: Fonte; valor?: string }
-export interface CriaRegistro { pagina: string; fase?: string; valores: ValorDoRegistro[] }
+export interface CriaRegistro { pagina: string; modulo?: ModuloCriacao; fase?: string; valores: ValorDoRegistro[] }
 /** O que a autuação usa da página: os campos e as fases. */
 export interface PaginaDef { label_singular?: unknown; enabled?: unknown; fields?: FieldDef[]; phases?: PhaseDef[] }
 
@@ -22,11 +22,16 @@ const MAX_VALORES = 40;
 const CHAVE = /^[a-z][a-z0-9_]{0,39}$/;
 const ID_CAMPO = /^campo:[a-z0-9_]{1,24}$/;
 
-/** Limpa o que veio da tela. Sem página: null (o tipo não cria registro). */
+/** Módulos fixos onde a autuação também cria o registro (os campos estão em shared/painelModulos.ts, CAMPOS_CRIACAO). */
+export const MODULOS_CRIACAO = ['consultas', 'expedientes'] as const;
+export type ModuloCriacao = typeof MODULOS_CRIACAO[number];
+
+/** Limpa o que veio da tela. Sem página nem módulo: null (o tipo não cria registro). */
 export function sanitizeCriaRegistro(v: unknown): CriaRegistro | null {
     const o = (v && typeof v === 'object' && !Array.isArray(v) ? v : {}) as Record<string, unknown>;
-    const pagina = typeof o.pagina === 'string' ? o.pagina.trim() : '';
-    if (!ID_PAGINA.test(pagina)) return null;
+    const modulo = MODULOS_CRIACAO.find((m) => m === o.modulo);
+    const pagina = modulo ? '' : typeof o.pagina === 'string' ? o.pagina.trim() : '';
+    if (!modulo && !ID_PAGINA.test(pagina)) return null;
     const vistos = new Set<string>();
     const valores: ValorDoRegistro[] = [];
     for (const x of (Array.isArray(o.valores) ? o.valores : []).slice(0, MAX_VALORES)) {
@@ -36,6 +41,7 @@ export function sanitizeCriaRegistro(v: unknown): CriaRegistro | null {
         vistos.add(campo);
         valores.push(de === 'fixo' ? { campo, de, valor: String(x.valor ?? '').slice(0, 500) } : { campo, de: de as Fonte });
     }
+    if (modulo) return { pagina: '', modulo, valores };
     const fase = typeof o.fase === 'string' && CHAVE.test(o.fase) ? o.fase : '';
     return { pagina, ...(fase ? { fase } : {}), valores };
 }

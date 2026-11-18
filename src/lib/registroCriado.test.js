@@ -2,7 +2,7 @@
 // "Criar registro na autuação" no editor do tipo.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { comFonte, faseInicial, fontesDoTipo, problemasCriaRegistro } from './registroCriado.js';
+import { comDestino, comFonte, destinoDoCriaRegistro, faseInicial, fontesDoTipo, problemasCriaRegistro, valorDoCriaRegistro } from './registroCriado.js';
 
 const PAGINA = {
     id: 'pg1', nome: 'Contrato', plural: 'Contratos',
@@ -38,4 +38,19 @@ test('trocar a fonte mantém a ordem, guarda o valor fixo e "" tira o campo', ()
     assert.deepEqual(c.valores, [{ campo: 'numero_pe', de: 'assunto' }, { campo: 'objeto', de: 'fixo', valor: 'Serviço de limpeza' }]);
     assert.deepEqual(comFonte(c, 'objeto', 'fixo').valores[1], { campo: 'objeto', de: 'fixo', valor: 'Serviço de limpeza' });
     assert.deepEqual(comFonte(c, 'numero_pe', '').valores, [{ campo: 'objeto', de: 'fixo', valor: 'Serviço de limpeza' }]);
+});
+
+test('consulta criada na autuação: campos obrigatórios da ficha', () => {
+    const c = comDestino('modulo:consultas');
+    assert.deepEqual(c, { pagina: '', modulo: 'consultas', valores: [] });
+    assert.equal(valorDoCriaRegistro(c), 'modulo:consultas');
+    const d = destinoDoCriaRegistro(c, []);
+    assert.equal(d.plural, 'Consultas');
+    assert.deepEqual(problemasCriaRegistro(c, d, { campos: [] }), [
+        '"Nº da Consulta - PGEA" é obrigatório em Consulta: diga de onde vem o valor.',
+        '"Consulente (quem pediu)" é obrigatório em Consulta: diga de onde vem o valor.',
+    ]);
+    const ok = comFonte(comFonte(c, 'process_number', 'numero'), 'consultant', 'partes');
+    assert.deepEqual(problemasCriaRegistro(ok, d, { campos: [] }), []);
+    assert.deepEqual(comDestino('pg1'), { pagina: 'pg1', valores: [] });
 });

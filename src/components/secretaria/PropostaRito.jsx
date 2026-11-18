@@ -40,6 +40,7 @@ import { alguemTem, resumoPermissoes } from '@/lib/permissoesFase';
 import { ALERTA_PADRAO, AVISO_PARA, DESIGNA, MAX_ALERTA_DIAS, MAX_MENSAGEM_AVISO, MAX_PENDENCIA_FASE, SIGILO_FASE, abrePrazo, comAoEntrar, comAviso, comPrazoVencido, efeitosAoEntrar, problemasDosEfeitos, textoDoAviso, textosDosPrazos } from '@/lib/efeitosFase';
 import { CampoAtribuicao } from './PermissoesDaFase';
 import { aplicarSugestoes, problemasDasLigacoes, sugestoesDeLigacao } from '@/lib/doProcesso';
+import IntegracaoPainel from './IntegracaoPainel';
 
 const MAX_MB = 5;
 const MAX_FASES = 60; // igual ao servidor (MAX_FASES em functions-v2/src/shared/secretaria.ts)
@@ -767,6 +768,8 @@ function Revisao({
                         )}
                         <SugestoesLigacao fases={p.fases} tipos={tiposDoRito} nomeFase={(id) => p.fases.find((f) => f.id === id)?.nome || 'fase'}
                             onAplicar={(escolhidas) => { setConfirmar(false); setP({ ...p, fases: aplicarSugestoes(p.fases, escolhidas) }, true); anunciar(`${plural(escolhidas.length, 'ligação aplicada', 'ligações aplicadas')}. Confira e salve o rito.`); }} />
+                        <IntegracaoPainel fases={p.fases} irParaFase={irParaFase}
+                            onAplicar={(fases, n) => { setConfirmar(false); setP({ ...p, fases }, true); anunciar(`${plural(n, 'ligação com o painel aplicada', 'ligações com o painel aplicadas')}. Confira e salve o rito.`); }} />
                         <div className="flex flex-wrap items-center gap-2 pt-1">
                             <h3 className="text-sm font-semibold">{plural(p.fases.length, 'fase', 'fases')}</h3>
                             {p.fases.length > 10 && (

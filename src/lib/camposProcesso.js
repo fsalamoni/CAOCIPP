@@ -49,6 +49,25 @@ export function registrosLigados(p, informacoes = []) {
     return [...out.values()];
 }
 
+/**
+ * Painéis que o rito conduz (fase que move o cartão ou ação que leva dado)
+ * sem registro deles ligado ao processo: o andamento não chega lá. Páginas
+ * próprias contam pela página. [{ modulo, pagina? }].
+ */
+export function paineisSemRegistro(p, informacoes = []) {
+    const usados = new Map();
+    const usar = (s) => s?.modulo && (s.modulo !== 'paginas' || s.pagina) && usados.set(`${s.modulo}:${s.pagina || ''}`, { modulo: s.modulo, ...(s.pagina ? { pagina: s.pagina } : {}) });
+    for (const f of p?.fases || []) {
+        usar(f.situacao_registro);
+        (f.acoes_regras || []).forEach((r) => usar(r?.ao_registro));
+    }
+    const lista = registrosLigados(p, informacoes);
+    const vinculos = (p?.vinculos || []).map(String);
+    return [...usados.values()].filter((u) => (u.modulo === 'paginas'
+        ? !lista.some((r) => r.modulo === 'paginas' && (!r.pagina || r.pagina === u.pagina)) && !vinculos.some((v) => v.startsWith('paginas:'))
+        : !lista.some((r) => r.modulo === u.modulo) && !vinculos.some((v) => v.startsWith(`${u.modulo}:`))));
+}
+
 /** Campos 'registro' do tipo que vêm do mesmo módulo da origem, já preenchidos com ela. */
 export function camposDaOrigem(form, ref) {
     if (!ref || ref.modulo === 'pe') return {};
