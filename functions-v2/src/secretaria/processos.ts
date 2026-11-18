@@ -30,9 +30,10 @@ import {
 import { chaveContador, faltasCodigo, formatarNumero, identificadorSemNumero, numeracaoDe, numeracaoTipoDe } from '../shared/numeracao';
 import { informacaoVisivel, informacoesDoAndamento, semReservado } from '../shared/informacoes';
 import { COLECAO, MODULOS, Modulo, ROTULO_MODULO, Ref, ehInterno, ehModuloOrigem, idEscolhido, integracoesDe, lerFlags, TipoPagina, refDe, refDePagina, refsDoFormulario, refsFechadas, resolverRegistro, vinculosDe } from '../shared/modulos';
-import { ModuloSituacao, chaveDoRegistro, mudancasDaPagina, mudancasDaParceria, mudancasDaSituacao, registroDoProcesso } from '../shared/situacaoRegistro';
+import { ModuloSituacao, SituacaoRegistro, chaveDoRegistro, mudancasDaPagina, mudancasDaParceria, mudancasDaSituacao, registroDoProcesso } from '../shared/situacaoRegistro';
 import { phasesReachedUpTo, validateRecordValues } from '../customEntities/schema';
-import type { EntityTypeDef } from '../customEntities/schema';
+import type { EntityTypeDef, FieldDef } from '../customEntities/schema';
+import { AoRegistro, CAMPOS_CRIACAO, ModuloPainel, NOME_CRIACAO, camposParaModulo, camposParaPagina, defDaCriacao, docDoModulo, paresDaAcao } from '../shared/painelModulos';
 import { CriaRegistro, DadosDaAutuacao, PaginaDef, faseDoRegistro, sanitizeCriaRegistro, valoresDoRegistro } from '../shared/registroCriado';
 import { historyEntryId } from '../shared/history';
 import { formatPersonName } from '../shared/normalization';
@@ -353,13 +354,52 @@ async function lerPaginasDoRito(
     }
 }
 
+/** O registro para onde a ação leva o dado ("Leva ao painel"): o mesmo que o rito conduziria nesse módulo. */
+async function lerRegistroDaAcao(tx: admin.firestore.Transaction, c: Ctx, proc: admin.firestore.DocumentData, ao: AoRegistro): Promise<RegistroLido> {
+    const regra = { modulo: ao.modulo, ...(ao.pagina ? { pagina: ao.pagina } : {}), ao_entrar: 'x' } as SituacaoRegistro;
+    const lidos = await lerRegistrosDoRito(tx, c, { ...proc, fases: [{ situacao_registro: regra }] });
+    return lidos.get(chaveDoRegistro(regra)) || { falta: 'o registro ligado não foi lido' };
+}
+
+/**
+ * "Leva ao painel": grava no registro ligado o dado que a ação registrou, na
+ * mesma transação do ato, com uma entrada no histórico do registro. Devolve as
+ * notas do registro interno (o que foi levado e o que ficou de fora).
+ */
+function levarAoRegistro(
+    tx: admin.firestore.Transaction, c: Ctx, r: RegistroLido | null, ao: AoRegistro, dado: { tipo: string; rotulo: string; valor: unknown },
+    proc: admin.firestore.DocumentData, fase: Fase, acao: string,
+): string[] {
+    if (!r) return [];
+    const nome = ao.modulo === 'paginas' ? ROTULO_MODULO.paginas : ROTULO_MODULO[ao.modulo];
+    if ('falta' in r) return [`"${acao}": o dado não foi levado a ${nome}: ${r.falta}.`];
+    const pares = paresDaAcao(ao, dado);
+    const g = r.modulo === 'paginas'
+        ? camposParaPagina(((r.tipo?.fields || []) as FieldDef[]), r.doc, pares)
+        : camposParaModulo(r.modulo as ModuloPainel, r.doc, pares);
+    const rotulo = r.modulo === 'paginas' ? String(r.rotulo || 'Registro') : nome;
+    const notas = g.fora.map((x) => `${rotulo} ${r.numero}: não levado pela ação "${acao}": ${x}.`);
+    if (!g.levados.length) return notas;
+    gravarNoRegistro(tx, c, r, g.campos, `Dados do processo eletrônico ${proc.numero} (fase ${fase.nome}, ação "${acao}"): ${g.levados.join('; ')}`);
+    return [`${rotulo} ${r.numero}: ${g.levados.join('; ')} (pela ação "${acao}").`, ...notas];
+}
+
 type Arquivado = { modulo: ModuloSituacao; id: string; numero: string };
 
 /** Página onde o tipo cria o registro na autuação, lida antes da transação. Null: o tipo não cria, ou o processo já nasce de um registro dela. */
 type PaginaNova = { cfg: CriaRegistro; def: admin.firestore.DocumentData; ref: admin.firestore.DocumentReference };
 async function paginaDoTipo(c: Ctx, tipo: admin.firestore.DocumentData | null, origem: { ref?: { modulo: string; pagina?: string } } | null): Promise<PaginaNova | null> {
     const cfg = sanitizeCriaRegistro(tipo?.cria_registro);
-    if (!tipo || !cfg || (origem?.ref?.modulo === 'paginas' && origem.ref.pagina === cfg.pagina)) return null;
+    if (!tipo || !cfg) return null;
+    if (cfg.modulo) {
+        // Consulta ou expediente: processo que já nasce de um registro do módulo não cria outro.
+        if (origem?.ref?.modulo === cfg.modulo) return null;
+        if (!integracoesDe(c.org, await lerFlags(c.db))[cfg.modulo]) {
+            throw new HttpsError('failed-precondition', `O tipo ${tipo.nome} cria ${cfg.modulo === 'consultas' ? 'uma consulta' : 'um expediente'} na autuação, mas a integração com ${ROTULO_MODULO[cfg.modulo]} está desligada. Peça ao administrador para ligá-la em "Integrações com outros módulos".`);
+        }
+        return { cfg, def: defDaCriacao(cfg.modulo), ref: c.db.collection(COLECAO[cfg.modulo]).doc() };
+    }
+    if (origem?.ref?.modulo === 'paginas' && origem.ref.pagina === cfg.pagina) return null;
     if (!integracoesDe(c.org, await lerFlags(c.db)).paginas) {
         throw new HttpsError('failed-precondition', `O tipo ${tipo.nome} cria um registro numa página própria, mas a integração com Páginas próprias está desligada. Peça ao administrador para ligá-la em "Integrações com outros módulos".`);
     }
@@ -372,6 +412,7 @@ async function paginaDoTipo(c: Ctx, tipo: admin.firestore.DocumentData | null, o
 
 /** Grava, na transação da autuação, o registro novo da página (mesmo formato de createRecord, validado pelas regras da página). */
 function criarRegistroDaAutuacao(tx: admin.firestore.Transaction, c: Ctx, pg: PaginaNova, dados: DadosDaAutuacao): { ref: Ref; doc: admin.firestore.DocumentData } {
+    if (pg.cfg.modulo) return criarNoModulo(tx, c, pg, pg.cfg.modulo, dados);
     const def = pg.def as PaginaDef & { key?: string };
     const nome = String(def.label_singular || 'Registro');
     const fase = faseDoRegistro(pg.cfg, def);
@@ -391,6 +432,36 @@ function criarRegistroDaAutuacao(tx: admin.firestore.Transaction, c: Ctx, pg: Pa
         details: { entity_type_id: pg.cfg.pagina, record_id: pg.ref.id, processo: dados.numero }, timestamp: FieldValue.serverTimestamp(),
     });
     return { ref: refDePagina(pg.ref.id, doc, def as TipoPagina), doc };
+}
+
+/**
+ * Consulta ou expediente criado na autuação: o mesmo documento de
+ * createProcess e createExpediente (Pendente, sem datas de tramitação), com os
+ * valores que o tipo tira do processo, histórico, contadores do órgão e
+ * registro na auditoria. Número e quem pediu são obrigatórios.
+ */
+function criarNoModulo(tx: admin.firestore.Transaction, c: Ctx, pg: PaginaNova, modulo: 'consultas' | 'expedientes', dados: DadosDaAutuacao): { ref: Ref; doc: admin.firestore.DocumentData } {
+    const nome = NOME_CRIACAO[modulo].singular;
+    const fields = CAMPOS_CRIACAO[modulo];
+    const { ok, errors, normalized } = validateRecordValues(fields, valoresDoRegistro(pg.cfg, pg.def as PaginaDef, dados));
+    if (!ok) throw new HttpsError('invalid-argument', `Não foi possível criar ${modulo === 'consultas' ? 'a consulta' : 'o expediente'}: ${Object.values(errors)[0]} Preencha o que falta ou peça ao administrador para ajustar o tipo.`);
+    const agora = new Date();
+    const entrada = { date: agora.toISOString().split('T')[0], time: agora.toTimeString().split(' ')[0], user_id: c.ctx.uid, user_name: c.userName, action: `${nome} criad${modulo === 'consultas' ? 'a' : 'o'} pelo processo eletrônico ${dados.numero}`, timestamp: agora.toISOString() };
+    const doc = {
+        id: pg.ref.id, organization_id: c.orgId, ...docDoModulo(modulo, normalized),
+        created_by: c.ctx.uid, created_at: FieldValue.serverTimestamp(), updated_at: FieldValue.serverTimestamp(), activity_log: [entrada],
+    };
+    tx.set(pg.ref, doc);
+    tx.set(pg.ref.collection('history').doc(historyEntryId(entrada)), { ...entrada, created_at: FieldValue.serverTimestamp() });
+    const stats = modulo === 'consultas'
+        ? { processes_count: FieldValue.increment(1), active_processes: FieldValue.increment(1) }
+        : { expedientes_count: FieldValue.increment(1), active_expedientes: FieldValue.increment(1) };
+    tx.set(c.db.collection('organizations').doc(c.orgId), { stats }, { merge: true });
+    tx.set(c.db.collection('auditLogs').doc(), {
+        organization_id: c.orgId, user_id: c.ctx.uid, user_name: c.userName, action: modulo === 'consultas' ? 'CREATE_PROCESS' : 'CREATE_EXPEDIENTE',
+        details: { [modulo === 'consultas' ? 'process_id' : 'expediente_id']: pg.ref.id, processo: dados.numero }, timestamp: FieldValue.serverTimestamp(),
+    });
+    return { ref: refDe(modulo, pg.ref.id, doc), doc };
 }
 
 /** Registro ligado arquivado pela regra da fase: mesmo webhook de quando se arquiva no quadro. */
@@ -1133,10 +1204,14 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, comSin
             const criado = paginaNova ? criarRegistroDaAutuacao(tx, c, paginaNova, {
                 numero, assunto, descricao, hoje: hojeBrasil(), unidade: unidade.nome, tipo: tipo?.nome || '', partes: partes.map((x) => x.nome), campos,
             }) : null;
-            const chaveCriado = criado ? `paginas:${criado.ref.id}` : '';
+            const moduloCriado = paginaNova?.cfg.modulo;
+            const chaveCriado = criado ? `${moduloCriado || 'paginas'}:${criado.ref.id}` : '';
             // A regra da primeira fase que vale na autuação conduz o registro recém-criado.
-            if (criado && registros.has(`paginas:${paginaNova!.cfg.pagina}`)) {
-                registros.set(`paginas:${paginaNova!.cfg.pagina}`, { ref: paginaNova!.ref, doc: criado.doc, modulo: 'paginas', numero: criado.ref.numero, tipo: paginaNova!.def, rotulo: String(paginaNova!.def.label_singular || 'Registro') });
+            const chaveConduz = moduloCriado || `paginas:${paginaNova?.cfg.pagina}`;
+            if (criado && registros.has(chaveConduz)) {
+                registros.set(chaveConduz, moduloCriado
+                    ? { ref: paginaNova!.ref, doc: criado.doc, modulo: moduloCriado, numero: criado.ref.numero }
+                    : { ref: paginaNova!.ref, doc: criado.doc, modulo: 'paginas', numero: criado.ref.numero, tipo: paginaNova!.def, rotulo: String(paginaNova!.def.label_singular || 'Registro') });
             }
             const fases = rito.fases as Fase[];
             // Campos que o tipo exige para sair de cada fase (cópia: mudar o tipo depois não muda este processo).
@@ -1186,7 +1261,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, comSin
                 : aplicarSituacao(tx, c, registros, fases[0], designacaoInicial?.uid && fase1.situacao_registro?.ao_assumir ? 'ao_assumir' : 'ao_entrar', base,
                     designacaoInicial?.uid ? { uid: designacaoInicial.uid, nome: designacaoInicial.nome || '' } : undefined);
             registroArquivado = sit.arquivou;
-            const notaCriado = criado ? [`${String(paginaNova!.def.label_singular || 'Registro')} ${criado.ref.numero} criado em ${String(paginaNova!.def.label_plural || paginaNova!.def.label_singular || 'Páginas próprias')} com os dados da autuação.`] : [];
+            const notaCriado = criado ? [`${String(paginaNova!.def.label_singular || 'Registro')} ${criado.ref.numero}: registro criado em ${String(paginaNova!.def.label_plural || paginaNova!.def.label_singular || 'Páginas próprias')} com os dados da autuação.`] : [];
             const ef = { ...efFase, interno: [...efFase.interno, ...notaCriado, ...sit.notas] };
             autuado = { proc: { ...base, ...ef.campos }, ...(ef.pendencia ? { pendencia: ef.pendencia } : {}) };
             const mov = registrarMovimento(tx, c, procRef, base, 'autuacao',
@@ -1608,6 +1683,9 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             // Disputa de preços: vale o resultado registrado na disputa (S13), não o que vier na tela.
             const disputa = regra?.pede === 'disputa' ? data.certame : null;
             const dado = feita ? await valorDaAcao(c, regra, acao, proclamado ? { data: proclamado.data, votos: proclamado.votos } : disputa ? { resultado: disputa.resultado, resumo: disputa.resumo } : p.valor) : null;
+            // "Leva ao painel": o registro ligado é lido aqui, antes de qualquer escrita da transação.
+            const leva = dado && regra?.ao_registro && !regra.ve ? regra.ao_registro : null;
+            const registroLeva = leva ? await lerRegistroDaAcao(tx, c, data, leva) : null;
             // Resposta registrada à mão (manifestação por outro meio): "sem manifestação" ou "parcial" só depois de
             // decorrido o prazo de quem foi comunicado. Contraditório: ninguém perde a vez antes da hora.
             if (regra?.pede === 'resposta' && dado && dado.valor !== 'Apresentada'
@@ -1667,7 +1745,7 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             // Prazos das ações: encerra o da cumprida, reabre o da desfeita e acompanha a ação condicional que passou a valer (ou deixou).
             const pz = prazosDasAcoes({ ...data, acoes_feitas: feitas, ...comResposta }, fase, hojeBrasil(), new Date().toISOString(), calendario, c.userName, () => randomBytes(10).toString('hex'));
             const comPrazos = pz ? { prazos: pz.prazos, ...derivados((data.pendencias || []) as Pendencia[], pz.prazos) } : {};
-            const notasPrazo = pz?.notas || [];
+            const notasPrazo = [...(pz?.notas || []), ...(leva && dado ? levarAoRegistro(tx, c, registroLeva, leva, dado as { tipo: string; rotulo: string; valor: unknown }, data, fase, acao) : [])];
             if (notasPrazo.length) expedidas += 1;
             // Audiência: designar grava a audiência no processo; desfazer a cancela (fica na lista, para a história).
             let comAudiencia = {};

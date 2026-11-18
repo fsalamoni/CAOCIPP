@@ -1294,10 +1294,46 @@ opcionais; rito sem elas funciona como antes.
   é o conduzido; nas outras fases, `lerPaginasDoRito` prefere a origem,
   depois o criado. Processo que nasce de registro da mesma página não cria
   outro. A nota vai ao registro interno; a capa mostra "Criado na
-  autuação". Consultas, Expedientes e Parcerias não são criados pela
-  autuação: a ficha deles pede dados do domínio (consulente, promotor,
-  PGEA) que o processo não tem. Testes: `functions-v2/test/registroCriado.test.js`
-  e `src/lib/registroCriado.test.js`.
+  autuação". Desde 18/11/2026 a autuação também cria **consulta ou
+  expediente** (`cria_registro: { pagina: '', modulo: 'consultas' |
+  'expedientes', valores }`): os campos que o tipo preenche são os de
+  `CAMPOS_CRIACAO` (`shared/painelModulos.ts`; Nº do PGEA e consulente
+  obrigatórios na consulta, Nº do PGEA no expediente), o documento nasce
+  Pendente como em `createProcess`/`createExpediente` (`docDoModulo`), com
+  histórico, contadores e `CREATE_PROCESS`/`CREATE_EXPEDIENTE` no auditLogs
+  (`criarNoModulo`). Parcerias seguem sem criação pela autuação (a ficha pede
+  promotor, partes e objeto do termo). Testes: `functions-v2/test/registroCriado.test.js`,
+  `functions-v2/test/painelModulos.test.js` e `src/lib/registroCriado.test.js`.
+- **Integração com o painel** (18/11/2026; `shared/painelModulos.ts`,
+  espelho `src/lib/painelModulos.js`, tela `IntegracaoPainel.jsx`, Guia do
+  rito parte 21). Por que o Rito Consultas CAOCIPP não "conversava" com o
+  Painel de Consultas: (1) o editor mostrava as situações gravadas ("Em
+  elaboração", "Na pasta") e o quadro mostra outros nomes ("Em Análise",
+  "Arquivados"), então parecia que as fases não existiam no painel; (2) o
+  que as colunas pedem no quadro (destinatário da diligência, pasta na rede)
+  não vinha de nenhuma ação; (3) o processo autuado sem nascer de uma
+  consulta não tinha registro para conduzir. Agora: `PAINEIS` descreve, por
+  módulo, as colunas com o nome do quadro (`rotuloDaColuna`, usado também em
+  `situacoesDaRegra`), as informações que cada coluna pede (`auto` quando o
+  sistema preenche) e os campos da ficha que uma ação pode gravar. Cada
+  regra de ação ganha `ao_registro: { modulo, pagina?, campo? | campos? }`
+  ("Leva ao painel"; `sanitizeAoRegistro` no `sanitizeRegra`: só ação que
+  pede dado e não reservada, campo da lista e tipo compatível; página
+  conferida em `exigirPaginas`/`aoRegistroInvalido`; o módulo entra em
+  `modulosDoRito`). Em `marcarAcao`, com dado e `ao_registro`, o registro é
+  lido antes das escritas (`lerRegistroDaAcao`, o mesmo de
+  `registroDoProcesso`) e gravado por `levarAoRegistro` →
+  `camposParaModulo`/`camposParaPagina` (texto aparado, data só ISO, data que
+  marca coluna só quando o registro já está nela, valor de página validado
+  por `validateRecordValues`), com entrada no histórico do registro. Sem
+  registro ligado, nada muda nele e o registro interno do processo diz o
+  motivo; a capa avisa a equipe (`paineisSemRegistro`). No editor do rito,
+  "Integração com o painel" mostra a cobertura coluna a coluna
+  (`relatorioIntegracao`) e sugere pelos nomes (`sugestoesDeIntegracao`:
+  coluna da fase, levar dado de ação existente, criar ação obrigatória para
+  o que falta), aplicadas por `aplicarIntegracao`. O pacote de rito leva a
+  página de `ao_registro` pelo nome. Testes: `functions-v2/test/painelModulos.test.js`
+  e `src/lib/painelModulos.test.js` (com o Rito Consultas CAOCIPP).
 - **Assumir.** Na tela do processo, quem está lotado na unidade que tem o
   processo vê o botão **Assumir** enquanto ele não tem responsável (é a ação
   `atribuir` para si mesmo; o destino do registro continua sendo o da linha

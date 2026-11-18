@@ -69,15 +69,21 @@ ordenada pela data de arquivamento, a mais recente primeiro
 um processo pode mandar a consulta de coluna: ao entrar numa fase ou quando
 alguém assume o processo, a consulta ligada vai para a situação que o rito
 indica, com as mesmas datas que o quadro gravaria e uma entrada no histórico
-("Situação "X" pelo processo eletrônico N"). O rito não preenche o que o
-diálogo pede a mais (pasta na rede, destinatário); isso continua na ficha.
+("Situação "X" pelo processo eletrônico N"). Desde 18/11/2026 o rito também
+preenche o que o diálogo pede a mais (pasta na rede, destinatário): a ação
+que pede o dado tem "Leva ao painel" e grava o campo na ficha, com entrada no
+histórico. O editor do rito mostra os nomes das colunas como no quadro (Em
+Análise, Arquivados) e, em "Integração com o painel", o que cada coluna pede e
+de onde vem, com as ligações sugeridas pelos nomes. O tipo de processo pode
+criar a consulta na autuação ("Criar registro na autuação" → Consultas).
 A fase de espera do rito (diligências externas) usa "Aguarda retorno de
 terceiros" e, na volta, devolve a consulta à situação da fase de origem.
 O mesmo vale para Expedientes. Detalhes em
 [PROCESSO_ELETRONICO.md](PROCESSO_ELETRONICO.md), "Andamento automático da
 fase". O modelo pronto "Rito Consultas CAOCIPP" (14/11/2026) já vem com
-essas regras em cada fase; o processo não cria a consulta, que precisa
-existir e estar ligada a ele.
+essas regras em cada fase; a consulta precisa estar ligada ao processo (ele
+nasce dela, a tem num campo ou o tipo a cria na autuação). Sem consulta
+ligada, a capa do processo avisa a equipe.
 
 ---
 

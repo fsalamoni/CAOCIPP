@@ -5,6 +5,21 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 18/11/2026 — Integração do rito com o painel
+- O editor do rito mostra as colunas com o nome do quadro (Em Análise,
+  Aguarda Terceiros, Arquivados), não mais o nome interno da situação.
+- **Integração com o painel**, no editor do rito: coluna por coluna, a fase
+  que põe o cartão nela e de onde vem cada informação que ela pede (o
+  sistema, uma ação ou falta), com as ligações reconhecidas pelos nomes e o
+  botão Aplicar. O que falta vira uma ação obrigatória na fase certa.
+- **Leva ao painel**, em cada ação que pede um dado: o dado vai para a ficha
+  da consulta, do expediente, da parceria ou do registro da página, com
+  entrada no histórico.
+- **Criar registro na autuação** agora cria também a consulta ou o
+  expediente, com os dados do processo.
+- A capa do processo avisa quando o rito conduz um painel e nenhum registro
+  dele está ligado. Guia do rito, parte 21.
+
 ### 17/11/2026 — Aditivos em Consultas e Expedientes
 - **Criar aditivo** na ficha de qualquer consulta ou expediente, em qualquer
   fase, ou direto do aviso de número já existente no cadastro. Pode haver

@@ -108,6 +108,16 @@ export function propostaDePacote(pac, estado, paginas = []) {
                 if (!id) avisos.push(`Em ${rot}, a ação "${acao}" pede um registro da página "${nomePg(out.pagina)}", que este órgão não tem: escolha a página na ação.`);
                 out = { ...out, pagina: id };
             }
+            // "Leva ao painel" para página própria: casa pelo nome; sem a página aqui, a ligação sai.
+            if (out.ao_registro?.modulo === 'paginas') {
+                const id = pgDe(out.ao_registro.pagina);
+                if (id) out = { ...out, ao_registro: { ...out.ao_registro, pagina: id } };
+                else {
+                    avisos.push(`Em ${rot}, a ação "${acao}" levava o dado à página "${nomePg(out.ao_registro.pagina)}", que este órgão não tem: a ligação saiu.`);
+                    const { ao_registro: _a, ...sem } = out;
+                    out = sem;
+                }
+            }
             if (out.campos) {
                 out = {
                     ...out, campos: lista(out.campos).map((c) => {

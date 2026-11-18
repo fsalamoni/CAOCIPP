@@ -35,6 +35,7 @@ const conversao_1 = require("./conversao");
 const listasArquivo_1 = require("./listasArquivo");
 const modulos_1 = require("../shared/modulos");
 const situacaoRegistro_1 = require("../shared/situacaoRegistro");
+const painelModulos_1 = require("../shared/painelModulos");
 const registroCriado_1 = require("../shared/registroCriado");
 const unidades_1 = require("./unidades");
 const migrarRito_1 = require("./migrarRito");
@@ -154,13 +155,23 @@ const modulosDoRito = (r) => new Set((Array.isArray(r === null || r === void 0 ?
     return [
         // A fase que conduz a situação de um registro (consulta, expediente) também usa o módulo.
         ...(((_a = f.situacao_registro) === null || _a === void 0 ? void 0 : _a.modulo) ? [String(f.situacao_registro.modulo)] : []),
-        ...(f.acoes_regras || []).flatMap((x) => ((x === null || x === void 0 ? void 0 : x.pede) === 'registro' && x.modulo ? [String(x.modulo)] : (x === null || x === void 0 ? void 0 : x.pede) === 'formulario' ? [...modulosDoForm(x)] : [])),
+        ...(f.acoes_regras || []).flatMap((x) => {
+            var _a;
+            return [
+                ...((x === null || x === void 0 ? void 0 : x.pede) === 'registro' && x.modulo ? [String(x.modulo)] : (x === null || x === void 0 ? void 0 : x.pede) === 'formulario' ? [...modulosDoForm(x)] : []),
+                // "Leva ao painel": a ação escreve no registro do módulo.
+                ...(((_a = x === null || x === void 0 ? void 0 : x.ao_registro) === null || _a === void 0 ? void 0 : _a.modulo) ? [String(x.ao_registro.modulo)] : []),
+            ];
+        }),
     ];
 }));
-/** Rito que conduz registros de páginas próprias: a página e as fases que ele cita têm de existir. */
+/** Rito que conduz registros de páginas próprias (ou leva dados a eles): a página, as fases e os campos que ele cita têm de existir. */
 async function exigirPaginas(c, rito) {
     const fases = (Array.isArray(rito === null || rito === void 0 ? void 0 : rito.fases) ? rito.fases : []);
-    const ids = [...new Set(fases.filter((f) => { var _a; return ((_a = f.situacao_registro) === null || _a === void 0 ? void 0 : _a.modulo) === 'paginas'; }).map((f) => String(f.situacao_registro.pagina)))];
+    const ids = [...new Set([
+            ...fases.filter((f) => { var _a; return ((_a = f.situacao_registro) === null || _a === void 0 ? void 0 : _a.modulo) === 'paginas'; }).map((f) => String(f.situacao_registro.pagina)),
+            ...fases.flatMap((f) => (f.acoes_regras || []).filter((r) => { var _a; return ((_a = r === null || r === void 0 ? void 0 : r.ao_registro) === null || _a === void 0 ? void 0 : _a.modulo) === 'paginas'; }).map((r) => String(r.ao_registro.pagina))),
+        ])];
     if (!ids.length)
         return;
     const tipos = {};
@@ -168,14 +179,16 @@ async function exigirPaginas(c, rito) {
         const d = (await c.db.collection('entityTypes').doc(id).get()).data();
         tipos[id] = d && d.organization_id === c.orgId ? d : null;
     }
-    const erros = (0, situacaoRegistro_1.fasesDePaginaInvalidas)(fases, tipos);
+    const erros = [...(0, situacaoRegistro_1.fasesDePaginaInvalidas)(fases, tipos), ...(0, painelModulos_1.aoRegistroInvalido)(fases, tipos)];
     if (erros.length)
         throw new https_1.HttpsError('failed-precondition', erros[0]);
 }
 /** De onde o tipo pode nascer ("Criar processo eletrônico" no outro módulo ou "Novo processo derivado"). */
 const nascerDe = (v) => [...new Set(Array.isArray(v) ? v.filter(modulos_1.ehModuloOrigem) : [])];
 /** Módulos que o tipo usa: os dos campos, os de onde pode nascer e a página onde cria o registro. */
-const modulosDoTipo = (t) => new Set([...modulosDoForm(t === null || t === void 0 ? void 0 : t.formulario), ...nascerDe(t === null || t === void 0 ? void 0 : t.pode_nascer_de).filter((m) => m !== 'pe'), ...((0, registroCriado_1.sanitizeCriaRegistro)(t === null || t === void 0 ? void 0 : t.cria_registro) ? ['paginas'] : [])]);
+const modulosDoTipo = (t) => new Set([...modulosDoForm(t === null || t === void 0 ? void 0 : t.formulario), ...nascerDe(t === null || t === void 0 ? void 0 : t.pode_nascer_de).filter((m) => m !== 'pe'), ...criaEm((0, registroCriado_1.sanitizeCriaRegistro)(t === null || t === void 0 ? void 0 : t.cria_registro))]);
+/** Módulo onde o tipo cria o registro na autuação (a página própria ou a consulta e o expediente). */
+const criaEm = (cr) => (!cr ? [] : [cr.modulo || 'paginas']);
 /** Módulo novo no tipo ou no rito precisa da integração ligada (o que já estava gravado segue valendo). */
 async function exigirIntegracoes(c, usados, antes) {
     const novos = [...usados].filter((m) => !antes.has(m));
@@ -1012,8 +1025,9 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         // "Criar registro na autuação": página do órgão, campos que existem e fonte para o que a página exige.
         const criaRegistro = (0, registroCriado_1.sanitizeCriaRegistro)(t.cria_registro);
         if (criaRegistro) {
-            const pg = (await db.collection('entityTypes').doc(criaRegistro.pagina).get()).data();
-            const erros = (0, registroCriado_1.errosCriaRegistro)(criaRegistro, pg && pg.organization_id === orgId ? pg : null, formulario);
+            // Consulta ou expediente: os campos são os do módulo (o número e quem pediu são obrigatórios).
+            const pg = criaRegistro.modulo ? (0, painelModulos_1.defDaCriacao)(criaRegistro.modulo) : (await db.collection('entityTypes').doc(criaRegistro.pagina).get()).data();
+            const erros = (0, registroCriado_1.errosCriaRegistro)(criaRegistro, pg && (criaRegistro.modulo || pg.organization_id === orgId) ? pg : null, formulario);
             if (erros.length)
                 throw new https_1.HttpsError('invalid-argument', erros[0]);
         }

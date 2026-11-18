@@ -87,7 +87,7 @@ export default function GuiaRito({ variante = 'outline', className = '', inicial
                     <Tabs value={aba} onValueChange={setAba}>
                     <TabsList className="h-auto flex-wrap justify-start">
                         <TabsTrigger value="tutorial">Tutorial</TabsTrigger>
-                        <TabsTrigger value="referencia">Referência (20 partes)</TabsTrigger>
+                        <TabsTrigger value="referencia">Referência (21 partes)</TabsTrigger>
                     </TabsList>
                     {/* Montado sempre: a etapa e o que foi conferido continuam ao voltar da referência. */}
                     <TabsContent value="tutorial" forceMount tabIndex={-1} className="data-[state=inactive]:hidden">
@@ -452,6 +452,37 @@ export default function GuiaRito({ variante = 'outline', className = '', inicial
                                 <li>Só a administração do Processo Eletrônico exporta e implanta rito. Ao implantar, o servidor confere de novo cada fase, regra e texto, como em qualquer rito, e registra no histórico quem exportou e quem implantou.</li>
                                 <li>O que vem de fora vira do seu órgão: mudar depois não afeta o órgão de origem, e o de origem mudar o dele não afeta o seu.</li>
                             </ul>
+                        </Parte>
+                        <Parte titulo="21. Integração com o painel (Consultas, Expedientes, Parcerias e páginas próprias)">
+                            <p>
+                                O painel é o quadro que a equipe acompanha: cada coluna é uma situação (no Painel de Consultas: Pendentes, Em Análise, Aguarda Terceiros, Em Revisão, Revisadas e Arquivados)
+                                e algumas colunas pedem informações (o destinatário da diligência, a pasta na rede). Integrar o rito é fazer o processo eletrônico mover o cartão e preencher a ficha sozinho, sem ninguém repetir no painel o que já fez nos autos.
+                            </p>
+                            <ol className="list-decimal space-y-1.5 pl-5">
+                                <li>Ligue o módulo em "Integrações com outros módulos" (Consultas, Expedientes, Parcerias ou Páginas próprias).</li>
+                                <li>No editor do rito, abra <strong>Integração com o painel</strong> e escolha o painel. Cada coluna aparece com a fase que põe o cartão nela e, item por item, de onde vem o que a coluna pede: o sistema preenche, uma ação dá, ou falta.</li>
+                                <li>O SIGO reconhece as ligações pelos nomes das fases e das ações (ex.: a fase Análise põe a consulta em Em Análise quando alguém assume; "Informar o destinatário" leva o dado para a ficha). Desmarque o que não quiser e clique em <strong>Aplicar</strong>. O que a coluna pede e nenhuma ação dá ganha uma ação nova, obrigatória, na fase certa.</li>
+                                <li>Em cada ação que pede um dado, <strong>Leva ao painel</strong> mostra para qual campo da ficha ele vai. No formulário, cada campo escolhe o seu.</li>
+                                <li>No tipo de processo, marque <strong>Criar registro na autuação</strong> e escolha Consultas, Expedientes ou a página: ao autuar, a consulta (ou o expediente, ou o registro) nasce com os dados do processo e fica ligada a ele. Sem isso, o processo precisa nascer do registro ou tê-lo num campo.</li>
+                                <li>Salve o rito e o tipo. O servidor confere tudo de novo: painel ligado, campo que existe e tipo de dado compatível.</li>
+                            </ol>
+                            <ul className="space-y-1.5">
+                                <Termo nome="Coluna">A situação do registro no painel. A fase tem duas regras: ao entrar e quando alguém assume (parte 8). O editor mostra o nome da coluna como está no quadro.</Termo>
+                                <Termo nome="Leva ao painel">Ao cumprir a ação, o dado vai para a ficha do registro, com uma entrada no histórico dele dizendo de qual processo, fase e ação veio. Data que marca uma coluna só é gravada quando o registro já está nela, para o cartão não pular de coluna.</Termo>
+                                <Termo nome="Sem registro ligado">A capa do processo avisa a equipe que o rito conduz um painel e nenhum registro dele está ligado. O andamento do processo segue normal; só o painel fica parado, e o registro interno do processo diz o motivo.</Termo>
+                                <Termo nome="Ação reservada">Ação marcada como reservada (só alguns veem) não leva dado ao painel, que toda a equipe do módulo lê.</Termo>
+                            </ul>
+                            <table className={tabela}>
+                                <thead><tr><th>Coluna do Painel de Consultas</th><th>Fase do Rito Consultas CAOCIPP</th><th>O que a coluna pede e de onde vem</th></tr></thead>
+                                <tbody>
+                                    <tr><td>Pendentes</td><td>Análise, ao entrar (o registro já nasce nesta coluna)</td><td>Número, consulente, local e entrada: da autuação (Criar registro na autuação) ou das ações do Recebimento</td></tr>
+                                    <tr><td>Em Análise</td><td>Análise, quando alguém assume</td><td>Responsável e início da análise: o sistema preenche</td></tr>
+                                    <tr><td>Aguarda Terceiros</td><td>Diligências externas</td><td>Data da remessa: o sistema preenche; a quem foi remetido: da ação de diligência</td></tr>
+                                    <tr><td>Em Revisão</td><td>Revisão</td><td>Remessa para revisão: o sistema preenche; pasta na rede: da ação "Informar: Pasta na rede", que a integração cria</td></tr>
+                                    <tr><td>Revisadas</td><td>Devolução</td><td>Data da revisão: o sistema preenche</td></tr>
+                                    <tr><td>Arquivados</td><td>Arquivamento</td><td>Devolução ao consulente e arquivamento: o sistema preenche</td></tr>
+                                </tbody>
+                            </table>
                         </Parte>
                     </TabsContent>
                     </Tabs>

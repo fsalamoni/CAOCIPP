@@ -16,6 +16,7 @@ import { JulgamentoDaAcao, sanitizeJulgamentoDaAcao } from './julgamento';
 import { DisputaDaAcao, RESULTADOS_DISPUTA, sanitizeDisputaDaAcao } from './certames';
 import { ehDoOrgao } from './listasOrgao';
 import { sanitizeDoProcesso } from './doProcesso';
+import { AoRegistro, sanitizeAoRegistro } from './painelModulos';
 
 export { QUEM, Quem };
 
@@ -224,6 +225,8 @@ export interface RegraAcao {
     do_processo?: string;
     /** Na ação que pede um formulário: { id do campo da ação: id do campo do processo }. */
     do_processo_campos?: Record<string, string>;
+    /** "Leva ao painel": o dado vai para um campo da consulta, expediente, parceria ou registro de página ligado (ver shared/painelModulos.ts). */
+    ao_registro?: AoRegistro;
     /** Formato antigo: certidão nos autos. */
     autos?: true;
     documento?: Exigencia;
@@ -389,6 +392,9 @@ function sanitizeRegra(raw: unknown, acao: string): RegraAcao | null {
     }
     // "Vem do processo": o campo do tipo que, preenchido, cumpre a ação sozinho (ver shared/doProcesso.ts).
     Object.assign(out, sanitizeDoProcesso(r, out));
+    // "Leva ao painel": o dado também vai ao registro ligado de outro módulo (ver shared/painelModulos.ts).
+    const ao = sanitizeAoRegistro(r.ao_registro, out);
+    if (ao) out.ao_registro = ao;
     return Object.keys(out).length ? out : null;
 }
 

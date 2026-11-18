@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.faseDoRegistro = exports.FONTES = void 0;
+exports.faseDoRegistro = exports.MODULOS_CRIACAO = exports.FONTES = void 0;
 exports.sanitizeCriaRegistro = sanitizeCriaRegistro;
 exports.errosCriaRegistro = errosCriaRegistro;
 exports.paraCampo = paraCampo;
@@ -11,12 +11,15 @@ exports.FONTES = ['numero', 'assunto', 'descricao', 'autuacao', 'unidade', 'tipo
 const MAX_VALORES = 40;
 const CHAVE = /^[a-z][a-z0-9_]{0,39}$/;
 const ID_CAMPO = /^campo:[a-z0-9_]{1,24}$/;
-/** Limpa o que veio da tela. Sem página: null (o tipo não cria registro). */
+/** Módulos fixos onde a autuação também cria o registro (os campos estão em shared/painelModulos.ts, CAMPOS_CRIACAO). */
+exports.MODULOS_CRIACAO = ['consultas', 'expedientes'];
+/** Limpa o que veio da tela. Sem página nem módulo: null (o tipo não cria registro). */
 function sanitizeCriaRegistro(v) {
     var _a;
     const o = (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
-    const pagina = typeof o.pagina === 'string' ? o.pagina.trim() : '';
-    if (!modulos_1.ID_PAGINA.test(pagina))
+    const modulo = exports.MODULOS_CRIACAO.find((m) => m === o.modulo);
+    const pagina = modulo ? '' : typeof o.pagina === 'string' ? o.pagina.trim() : '';
+    if (!modulo && !modulos_1.ID_PAGINA.test(pagina))
         return null;
     const vistos = new Set();
     const valores = [];
@@ -28,6 +31,8 @@ function sanitizeCriaRegistro(v) {
         vistos.add(campo);
         valores.push(de === 'fixo' ? { campo, de, valor: String((_a = x.valor) !== null && _a !== void 0 ? _a : '').slice(0, 500) } : { campo, de: de });
     }
+    if (modulo)
+        return { pagina: '', modulo, valores };
     const fase = typeof o.fase === 'string' && CHAVE.test(o.fase) ? o.fase : '';
     return Object.assign(Object.assign({ pagina }, (fase ? { fase } : {})), { valores });
 }

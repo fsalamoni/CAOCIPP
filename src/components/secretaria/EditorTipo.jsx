@@ -15,7 +15,7 @@ import FormularioAutuacao from './FormularioAutuacao';
 import EditorNumeracao from './EditorNumeracao';
 import VersoesDialog from './VersoesDialog';
 import { RegistroContexto } from './SeletorRegistro';
-import { comFonte, faseInicial, fontesDoTipo, problemasCriaRegistro } from '@/lib/registroCriado';
+import { comDestino, comFonte, destinoDoCriaRegistro, faseInicial, fontesDoTipo, problemasCriaRegistro, valorDoCriaRegistro } from '@/lib/registroCriado';
 import { acoesPorCampo, problemasDasLigacoes, sugestoesDeLigacao } from '@/lib/doProcesso';
 
 // ============================================================================
@@ -133,31 +133,37 @@ function NascerDe({ tipo, set, ligadas }) {
 function CriarRegistro({ tipo, set, ligadas }) {
     const { paginas } = useContext(RegistroContexto);
     const cfg = tipo.cria_registro || null;
-    const pagina = cfg ? paginas.find((x) => x.id === cfg.pagina) : null;
-    const disponivel = ligadas.paginas && paginas.length > 0;
+    const pagina = cfg ? destinoDoCriaRegistro(cfg, paginas) : null;
+    // Onde o registro pode nascer: Consultas, Expedientes e as páginas próprias, conforme as integrações ligadas.
+    const destinos = [
+        ...['consultas', 'expedientes'].filter((m) => ligadas[m]).map((m) => [`modulo:${m}`, m === 'consultas' ? 'Consultas' : 'Expedientes']),
+        ...(ligadas.paginas ? paginas.map((x) => [x.id, x.plural]) : []),
+    ];
+    const disponivel = destinos.length > 0;
     const fontes = fontesDoTipo(tipo.formulario);
     const mudar = (c) => set({ cria_registro: c });
-    const ligar = (sim) => mudar(sim ? { pagina: paginas[0]?.id || '', valores: [] } : null);
+    const ligar = (sim) => mudar(sim ? comDestino(destinos[0]?.[0] || '') : null);
+    const valor = valorDoCriaRegistro(cfg);
     return (
         <fieldset className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-3">
             <legend className="text-sm font-medium px-1">Criar registro na autuação</legend>
             <label className={`flex items-start gap-2 text-sm ${!disponivel && !cfg ? 'text-slate-400 dark:text-slate-500' : ''}`}>
                 <Checkbox id="tp-cr" className="mt-0.5" checked={!!cfg} disabled={!disponivel && !cfg} onCheckedChange={(c) => ligar(c === true)} />
                 <span>
-                    <span className="font-medium">Ao autuar, criar um registro numa página própria</span>
+                    <span className="font-medium">Ao autuar, criar a consulta, o expediente ou o registro de uma página própria</span>
                     <span className="block text-xs text-slate-600 dark:text-slate-400">
                         {disponivel
-                            ? 'O registro nasce com os dados do processo, fica ligado a ele e é o que o rito conduz se uma fase tiver regra para essa página. Se o processo já nasce de um registro dessa página, nada é criado.'
-                            : 'Precisa de uma página própria ativa e da integração com Páginas próprias ligada em "Integrações com outros módulos".'}
+                            ? 'O registro nasce com os dados do processo, fica ligado a ele e aparece no painel. É ele que o rito conduz: as fases movem o cartão entre as colunas e as ações levam os dados para a ficha. Se o processo já nasce de um registro desse painel, nada é criado.'
+                            : 'Precisa da integração com Consultas, Expedientes ou Páginas próprias ligada em "Integrações com outros módulos" (e, para página, de uma página ativa).'}
                     </span>
                 </span>
             </label>
             {cfg && (
                 <>
                     <div className="grid sm:grid-cols-2 gap-3">
-                        <NativeSelect id="tp-cr-pagina" label="Página" value={cfg.pagina} onChange={(v) => mudar({ pagina: v, valores: [] })}
-                            options={[...(pagina || !cfg.pagina ? [] : [[cfg.pagina, 'Página que não existe mais']]), ...paginas.map((x) => [x.id, x.plural])]} />
-                        {pagina && (
+                        <NativeSelect id="tp-cr-pagina" label="Onde criar" value={valor} onChange={(v) => mudar(comDestino(v))}
+                            options={[...(destinos.some(([v]) => v === valor) || !valor ? [] : [[valor, pagina ? `${pagina.plural} (integração desligada)` : 'Página que não existe mais']]), ...destinos]} />
+                        {pagina && pagina.fases.length > 0 && (
                             <NativeSelect id="tp-cr-fase" label="Fase em que o registro nasce" value={cfg.fase || ''} onChange={(v) => mudar({ ...cfg, fase: v || undefined })}
                                 options={[['', `A inicial (${pagina.fases.find((f) => f.key === faseInicial({}, pagina))?.label || 'primeira'})`], ...pagina.fases.map((f) => [f.key, f.label])]} />
                         )}
@@ -167,7 +173,7 @@ function CriarRegistro({ tipo, set, ligadas }) {
                             <p className="text-xs text-slate-600 dark:text-slate-400">De onde vem cada campo do registro. O que ficar vazio nasce em branco; o obrigatório da fase em que o registro nasce precisa de uma fonte.</p>
                             {pagina.campos.filter((f) => f.type !== 'user_ref').map((f) => {
                                 const v = (cfg.valores || []).find((x) => x.campo === f.key);
-                                const opcoes = f.type === 'select' || f.type === 'multiselect' ? f.options : null;
+                                const opcoes = f.type === 'select' || f.type === 'multiselect' ? f.options : f.type === 'boolean' ? [{ value: 'sim', label: 'Sim' }, { value: 'não', label: 'Não' }] : null;
                                 return (
                                     <div key={f.key} className="grid sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2 items-end">
                                         <NativeSelect id={`tp-cr-${f.key}`} label={`${f.label}${f.required ? ' (obrigatório)' : ''}`} value={v?.de || ''}
@@ -212,7 +218,7 @@ export default function EditorTipo({ tipo, setTipo, estado, salvando, onSalvar, 
     const probForm = problemasFormulario(tipo.formulario, fases.map((f) => f.id));
     const probNum = numTipo.modo === 'propria' ? problemasNumeracao(numTipo) : [];
     // A página só é conferida depois de lida (antes disso, toda página pareceria apagada).
-    const probRegistro = tipo.cria_registro && paginasProntas && integracoesLigadas(estado).paginas ? problemasCriaRegistro(tipo.cria_registro, paginas.find((x) => x.id === tipo.cria_registro.pagina), tipo.formulario) : [];
+    const probRegistro = tipo.cria_registro && paginasProntas && integracoesLigadas(estado)[tipo.cria_registro.modulo || 'paginas'] ? problemasCriaRegistro(tipo.cria_registro, destinoDoCriaRegistro(tipo.cria_registro, paginas), tipo.formulario) : [];
     const probDados = [!tipo.nome?.trim() && 'Dê um nome ao tipo', !tipo.rito_id && 'Escolha o rito', ...probRegistro].filter(Boolean);
     const pendencias = { dados: probDados, formulario: probForm, numeracao: probNum };
     const total = probDados.length + probForm.length + probNum.length;

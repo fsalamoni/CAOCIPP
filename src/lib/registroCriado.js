@@ -28,7 +28,7 @@ export function faseInicial(cfg, pagina) {
 
 /** O que impede salvar, com o mesmo texto do servidor. */
 export function problemasCriaRegistro(cfg, pagina, form) {
-    if (!cfg?.pagina) return [];
+    if (!cfg?.pagina && !cfg?.modulo) return [];
     if (!pagina) return ['A página própria escolhida em "Criar registro na autuação" não existe mais. Escolha outra ou desligue a opção.'];
     const campos = pagina.campos || [];
     const erros = [];
@@ -49,6 +49,46 @@ export function problemasCriaRegistro(cfg, pagina, form) {
         }
     }
     return erros;
+}
+
+/**
+ * Consultas e Expedientes também nascem na autuação (`cria_registro.modulo`):
+ * os campos da ficha que o tipo pode preencher. Espelho de CAMPOS_CRIACAO em
+ * functions-v2/src/shared/painelModulos.ts.
+ */
+export const CAMPOS_CRIACAO = {
+    consultas: [
+        { key: 'process_number', label: 'Nº da Consulta - PGEA', type: 'text', required: true },
+        { key: 'consultant', label: 'Consulente (quem pediu)', type: 'text', required: true },
+        { key: 'location', label: 'Local', type: 'text' },
+        { key: 'entry_date', label: 'Entrada no órgão', type: 'date' },
+        { key: 'matter_object', label: 'Objeto ou assunto', type: 'textarea' },
+        { key: 'urgency_request', label: 'Urgência', type: 'boolean' },
+        { key: 'observations', label: 'Observações', type: 'textarea' },
+    ],
+    expedientes: [
+        { key: 'expediente_number', label: 'Nº do Expediente - PGEA', type: 'text', required: true },
+        { key: 'system', label: 'Sistema', type: 'text' },
+        { key: 'origin', label: 'Origem', type: 'text' },
+        { key: 'entry_date', label: 'Entrada no órgão', type: 'date' },
+        { key: 'object', label: 'Objeto', type: 'textarea' },
+        { key: 'urgency_request', label: 'Urgência', type: 'boolean' },
+        { key: 'observations', label: 'Observações', type: 'textarea' },
+    ],
+};
+const NOMES_CRIACAO = { consultas: ['Consulta', 'Consultas'], expedientes: ['Expediente', 'Expedientes'] };
+
+/** Valor do seletor "Onde criar": `modulo:<id>` ou o id da página. */
+export const valorDoCriaRegistro = (cfg) => (cfg?.modulo ? `modulo:${cfg.modulo}` : cfg?.pagina || '');
+/** Configuração depois de trocar onde criar (os campos começam de novo). */
+export const comDestino = (v) => (v.startsWith('modulo:') ? { pagina: '', modulo: v.slice(7), valores: [] } : { pagina: v, valores: [] });
+/** O destino como página ({ nome, plural, fases, campos }), para a tela e para problemasCriaRegistro. */
+export function destinoDoCriaRegistro(cfg, paginas) {
+    if (cfg?.modulo) {
+        const n = NOMES_CRIACAO[cfg.modulo];
+        return n ? { id: `modulo:${cfg.modulo}`, nome: n[0], plural: n[1], fases: [], campos: CAMPOS_CRIACAO[cfg.modulo], modulo: cfg.modulo } : null;
+    }
+    return (paginas || []).find((x) => x.id === cfg?.pagina) || null;
 }
 
 /** Troca a fonte de um campo da página ('' tira o campo da lista). */
