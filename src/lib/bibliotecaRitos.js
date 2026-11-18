@@ -18,11 +18,12 @@ import { modelos as colegiados } from './modelos/colegiados.js';
 import { modelos as gestaoContratual } from './modelos/gestao_contratual.js';
 import { modelos as patrimonio } from './modelos/patrimonio.js';
 import { modelos as mprs } from './modelos/mprs_administrativo.js';
+import { modelos as esferas } from './modelos/esferas.js';
 
 export { A, AREAS, PORTES, montar, nomeArea, nomePorte, quando } from './modelos/dsl.js';
 
 /** Funções dos modelos, na ordem em que aparecem (cada chamada gera ids novos). */
-export const MODELOS = [...geral, ...correcional, ...etica, ...sancionador, ...contratacoes, ...gestaoContratual, ...contratos, ...atendimento, ...ministerio_publico, ...conselhos, ...mp_extrajudicial, ...uniao, ...colegiados, ...patrimonio, ...mprs];
+export const MODELOS = [...geral, ...correcional, ...etica, ...sancionador, ...contratacoes, ...gestaoContratual, ...contratos, ...atendimento, ...ministerio_publico, ...conselhos, ...mp_extrajudicial, ...uniao, ...colegiados, ...patrimonio, ...mprs, ...esferas];
 
 /**
  * Nome do painel e da planilha de acompanhamento que cada modelo propõe
@@ -85,6 +86,9 @@ export const PAINEIS = {
     'gestao-contratual-mprs': ['Contrato', 'Contratos'],
     'descumprimento-contratual-mprs': ['Descumprimento contratual', 'Descumprimentos contratuais'],
     'gestao-patrimonio-mprs': ['Bem móvel', 'Bens móveis'],
+    'sancao-fornecedor-rs': ['Apuração de fornecedor', 'Apurações de fornecedores'],
+    'bens-inserviveis-rs': ['Lote de inservíveis', 'Bens inservíveis'],
+    'bens-inserviveis-federal': ['Lote de inservíveis', 'Bens inservíveis'],
 };
 
 export function bibliotecaDeModelos() {
