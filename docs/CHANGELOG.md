@@ -28,6 +28,15 @@ cada mudança está nas mensagens de commit (`git log`).
 - O painel gerado na revisão já recebe os processos: o tipo de processo
   criado com o rito nasce com "Criar registro na autuação" apontando para a
   página gerada (número e assunto), conferido no servidor ao implantar.
+- **Revisão no mesmo dia.** No contrato do MPRS, o descumprimento apontado
+  na verificação anual da habilitação volta à fiscalização (antes ia ao
+  ateste de um período); a equipe ganhou a fiscalização administrativa e o
+  fiscal público usuário; a análise do gestor explica a diferença entre os
+  Provimentos 05/2023 e 104/2023 sobre a advertência. Os modelos gerais de
+  contrato continuado e de sanção a fornecedor apontam para os do MPRS. O
+  tutorial ganhou três receitas (contrato, bens e painel), e o Guia do rito
+  (parte 16), o Guia de implantação e o glossário falam do painel opcional.
+  Novo `scripts/e2e-painel-modelo.mjs`, com a tela, do modelo à autuação.
 
 ### 18/11/2026 — Gestão contratual completa e gestão de bens patrimoniais
 - Dois modelos novos na biblioteca (agora 52). **Gestão contratual completa:

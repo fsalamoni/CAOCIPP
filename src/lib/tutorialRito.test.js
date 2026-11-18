@@ -6,7 +6,7 @@ import { ETAPAS, RECEITAS, TEMAS, PERGUNTAS_MODELO, buscarReceitas, sugerirModel
 
 const MODELOS = bibliotecaDeModelos();
 const ids = new Set(MODELOS.map((m) => m.id));
-const PARTES_DO_GUIA = 20;
+const PARTES_DO_GUIA = 21;
 const perguntas = ETAPAS.flatMap((e) => e.perguntas);
 
 test('toda etapa tem objetivo, passos, perguntas e o que conferir', () => {

@@ -181,7 +181,7 @@ Texto pronto criado pelo admin do órgão, com campos como `{{numero}}` e `{{par
 Item de uma fase do rito. Cada ação diz o que pede (confirmar, um dado, uma escolha, um formulário, um documento, um registro de outro módulo, uma comunicação às partes, a resposta delas, uma audiência, um julgamento colegiado ou uma disputa de preços), onde o registro fica, quem vê e quem pode cumprir.
 
 ### Biblioteca de modelos de rito (modelo da plataforma)
-Ritos prontos que são da plataforma e ficam no código. Usar um grava uma cópia só do órgão, que ele ajusta à vontade e que não muda quando a plataforma muda o modelo. Catálogo em [MODELOS_DE_RITO.md](./MODELOS_DE_RITO.md).
+Ritos prontos que são da plataforma e ficam no código. Usar um grava uma cópia só do órgão, que ele ajusta à vontade e que não muda quando a plataforma muda o modelo. Todo modelo propõe um painel e uma planilha de acompanhamento, que o órgão liga ou não na revisão. Catálogo em [MODELOS_DE_RITO.md](./MODELOS_DE_RITO.md).
 
 ### Pacote para outro órgão
 Arquivo `.json` com um rito inteiro (e as unidades, os modelos de documento e o tipo que ele usa) ou com um modelo de documento, baixado em "Exportar para outro órgão" e lido em "Importar de outro órgão". Não leva nada que identifique o órgão de origem.
