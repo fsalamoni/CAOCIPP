@@ -6,7 +6,7 @@ import { historyEntryId } from '../shared/history';
 import { formatPersonName } from '../shared/normalization';
 import { fireOrgWebhook } from '../shared/webhooks';
 import { vinculoBloqueado } from '../shared/vinculo';
-import { protegerVinculo, propagarNumero } from '../registros/aditivos';
+import { protegerVinculo, propagarNumero, conferirEdicaoEntrada } from '../registros/aditivos';
 
 interface UpdateExpedienteRequest {
     id: string;
@@ -63,6 +63,7 @@ export const updateExpediente = onCall<UpdateExpedienteRequest>(
         delete changes.anonymized_by;
         // Vínculo original/aditivo só pelo servidor; aditivo segue o nº do original.
         protegerVinculo(changes, expedienteData, 'expediente_number');
+        await conferirEdicaoEntrada('expedientes', expedienteData, changes);
         const numeroMudou = !expedienteData.aditivo_de && typeof changes.expediente_number === 'string'
             && changes.expediente_number.trim() !== '' && changes.expediente_number !== expedienteData.expediente_number;
 

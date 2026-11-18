@@ -53,6 +53,27 @@ test('aditivo herda a identificação e começa em Pendente', () => {
     assert.equal(e.consultant, undefined);
 });
 
+test('aditivo tem entrada e fases próprias, nada do original', () => {
+    const raiz = { id: 'r', process_number: '1/2024', entry_date: '2024-03-04', distribution_date: '2024-03-05', analysis_start_date: '2024-03-10', reviewed_date: '2024-06-01', archived_date: '2024-06-10' };
+    const a = montarAditivo('consultas', raiz, raiz, { id: 'n', orgId: 'o', numero: 1, motivo: 'm', entrada: '2026-11-18', urgente: false, responsavelId: null, responsavelNome: null, uid: 'u', log: {} });
+    assert.equal(a.entry_date, '2026-11-18');
+    for (const k of ['distribution_date', 'analysis_start_date', 'third_party_referral_date', 'review_submission_date', 'reviewed_date', 'review_return_date', 'archived_date']) assert.equal(a[k], null, k);
+});
+
+test('data de entrada do aditivo: nem antes do original nem futura', () => {
+    const { conferirEntradaAditivo } = require('../lib/registros/aditivos');
+    const hoje = '2026-11-18';
+    assert.equal(conferirEntradaAditivo('2026-11-18', '2024-03-04', hoje), null);
+    assert.equal(conferirEntradaAditivo('2024-03-04', '2024-03-04', hoje), null);
+    assert.match(conferirEntradaAditivo('2024-03-03', '2024-03-04', hoje), /anterior à entrada do original \(04\/03\/2024\)/);
+    assert.match(conferirEntradaAditivo('2026-11-19', '2024-03-04', hoje), /futura/);
+    assert.match(conferirEntradaAditivo('18/11/2026', '2024-03-04', hoje), /inválida/);
+    // Original com data em formato antigo ou sem data: não compara.
+    assert.equal(conferirEntradaAditivo('2020-01-01', '04/03/2024', hoje), null);
+    assert.equal(conferirEntradaAditivo('2020-01-01', null, hoje), null);
+    assert.equal(conferirEntradaAditivo('2024-03-04', '2024-03-04T10:00:00Z', hoje), null);
+});
+
 test('edição não mexe no vínculo nem no número do aditivo', () => {
     const ch = { aditivo_de: 'x', aditivos_count: 9, aditivo_numero: 5, process_number: '2/2024', consultant: 'Y' };
     protegerVinculo(ch, { aditivo_de: 'r' }, 'process_number');

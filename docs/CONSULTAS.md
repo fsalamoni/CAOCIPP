@@ -201,6 +201,12 @@ o assessor (opcional; se escolhido, a distribuição fica com a data de
 entrada) e a urgência. Cloud Function `criarAditivo`
 (`functions-v2/src/registros/aditivos.ts`).
 
+**Data de entrada do aditivo.** É a dele, nunca a do original: o dia em que
+chegou a informação que deu origem ao aditivo ou o dia em que foi criado no
+sistema. O servidor recusa data anterior à entrada do original e data futura
+(`conferirEntradaAditivo`), na criação e na edição do aditivo. Original com
+data em formato antigo (não AAAA-MM-DD) não é comparado.
+
 **O que o aditivo é.** Um documento novo em `processes/`, com:
 - o mesmo `process_number` do original e os dados de identificação copiados
   (consulente, local, matérias, objeto, restrição de acesso);

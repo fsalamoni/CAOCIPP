@@ -1,6 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.criarAditivo = exports.CAMPOS_VINCULO = exports.CAMPOS_HERDADOS = void 0;
+exports.conferirEntradaAditivo = conferirEntradaAditivo;
+exports.conferirEdicaoEntrada = conferirEdicaoEntrada;
 exports.montarAditivo = montarAditivo;
 exports.protegerVinculo = protegerVinculo;
 exports.propagarNumero = propagarNumero;
@@ -22,6 +24,7 @@ const normalization_1 = require("../shared/normalization");
 const history_1 = require("../shared/history");
 const vinculo_1 = require("../shared/vinculo");
 const registrosPgea_1 = require("../shared/registrosPgea");
+const secretaria_1 = require("../shared/secretaria");
 /** Campos de identificação que o aditivo herda de quem o originou. */
 exports.CAMPOS_HERDADOS = {
     consultas: ['consultant', 'location', 'matter_category', 'matter_subcategory', 'matter_object', 'access_restriction'],
@@ -30,6 +33,32 @@ exports.CAMPOS_HERDADOS = {
 /** Campos do vínculo que só o servidor grava. */
 exports.CAMPOS_VINCULO = ['aditivo_de', 'aditivo_numero', 'aditivo_motivo', 'aditivos_seq', 'aditivos_count'];
 const DATA = /^\d{4}-\d{2}-\d{2}$/;
+/**
+ * A entrada do aditivo é a dele: o dia em que chegou a informação que o
+ * originou ou o dia em que foi criado. Não pode ser anterior à entrada do
+ * original nem posterior a hoje. Original com data em formato antigo (não
+ * AAAA-MM-DD) não é comparado. Devolve a mensagem de erro ou null.
+ */
+function conferirEntradaAditivo(entrada, entradaOriginal, hoje) {
+    if (!DATA.test(entrada))
+        return 'Data de entrada inválida.';
+    if (entrada > hoje)
+        return 'A data de entrada do aditivo não pode ser futura.';
+    const orig = String(entradaOriginal || '').slice(0, 10);
+    if (DATA.test(orig) && entrada < orig) {
+        return `A data de entrada do aditivo não pode ser anterior à entrada do original (${orig.split('-').reverse().join('/')}).`;
+    }
+    return null;
+}
+/** Edição da data de entrada de um aditivo: mesma regra da criação, conferida com o original. */
+async function conferirEdicaoEntrada(colecao, atual, changes) {
+    if (!atual.aditivo_de || typeof changes.entry_date !== 'string' || changes.entry_date === atual.entry_date)
+        return;
+    const raiz = await admin.firestore().collection(colecao).doc(String(atual.aditivo_de)).get();
+    const erro = conferirEntradaAditivo(changes.entry_date, raiz.get('entry_date'), (0, secretaria_1.hojeBrasil)());
+    if (erro)
+        throw new https_1.HttpsError('invalid-argument', erro);
+}
 function entradaLog(uid, nome, action) {
     const now = new Date();
     return {
@@ -65,7 +94,7 @@ exports.criarAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, asy
     const d = request.data || {};
     const cfg = (0, registrosPgea_1.moduloPgea)(d.modulo);
     const motivo = String(d.motivo || '').trim();
-    const entrada = d.entryDate ? String(d.entryDate) : new Date().toISOString().split('T')[0];
+    const entrada = d.entryDate ? String(d.entryDate) : (0, secretaria_1.hojeBrasil)();
     if (!d.organizationId || !cfg || !d.origemId || typeof d.origemId !== 'string') {
         throw new https_1.HttpsError('invalid-argument', 'Pedido incompleto.');
     }
@@ -111,6 +140,9 @@ exports.criarAditivo = (0, https_1.onCall)({ region: 'southamerica-east1' }, asy
             raiz = Object.assign({ id: raizSnap.id }, raizSnap.data());
             raizRef = raizSnap.ref;
         }
+        const erroEntrada = conferirEntradaAditivo(entrada, raiz.entry_date, (0, secretaria_1.hojeBrasil)());
+        if (erroEntrada)
+            throw new https_1.HttpsError('invalid-argument', erroEntrada);
         const numero = (Number(raiz.aditivos_seq) || 0) + 1;
         const numeroPgea = String(raiz[cfg.campoNumero] || '');
         const logNovo = entradaLog(uid, nomeUsuario, `Aditivo nº ${numero} criado a partir d${cfg.nome === 'consulta' ? 'a consulta' : 'o expediente'} ${numeroPgea}. Motivo: ${motivo}`);

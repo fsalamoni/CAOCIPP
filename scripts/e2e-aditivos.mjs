@@ -86,6 +86,18 @@ assert.equal((await ler('processes', a1.id)).status, 'Em elaboração');
 assert.equal((await ler('processes', 'c1')).status, 'Na pasta');
 console.log('ok 4: tramitação paralela');
 
+// 4b) Entrada do aditivo é dele: não antes do original (04/03/2024), não futura; vale na edição também.
+assert.equal((await ler('processes', a1.id)).entry_date, '2026-11-17');
+await falha(aditivo('consultas', 'c1', { entryDate: '2024-03-03' }), /anterior à entrada do original \(04\/03\/2024\)/);
+await falha(aditivo('consultas', a1.id, { entryDate: '2024-03-03' }), /anterior à entrada do original/);
+await falha(aditivo('consultas', 'c1', { entryDate: '2099-01-01' }), /futura/);
+await falha(call('updateProcess', { id: a1.id, organizationId: 'org1', changes: { entry_date: '2024-01-01' } }), /anterior à entrada do original/);
+await call('updateProcess', { id: a1.id, organizationId: 'org1', changes: { entry_date: '2026-11-16' } });
+assert.equal((await ler('processes', a1.id)).entry_date, '2026-11-16');
+assert.equal((await ler('processes', 'c1')).entry_date, '2024-03-04');
+assert.equal((await ler('processes', 'c1')).aditivos_count, 2);
+console.log('ok 4b: data de entrada própria do aditivo, conferida na criação e na edição');
+
 // 5) Exclusão: original com aditivos recusado; aditivo excluído desconta.
 await falha(call('deleteProcess', { id: 'c1', organizationId: 'org1' }), /tem aditivos/);
 await call('deleteProcess', { id: a2.id, organizationId: 'org1' });
