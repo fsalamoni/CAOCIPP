@@ -330,6 +330,37 @@ export default function ConfigurarPagina({
                         <p className="text-xs text-slate-600 dark:text-slate-400">Na tela, o cabeçalho e o rodapé aparecem como na primeira página; a prévia em PDF mostra cada folha. No Word, a opção vira "Primeira página diferente".</p>
                     </TabsContent>
 
+                    <TabsContent value="faixas" className="space-y-6">
+                        <EditarFaixa tipo="cabecalho" rotulo="Cabeçalho" faixa={l.cabecalho} onFaixa={(f) => mudar({ cabecalho: f })}
+                            config={config} campos={campos} EditorFaixa={EditorFaixa} larguraUtil={larguraUtil} uid={uid} />
+                        <EditarFaixa tipo="rodape" rotulo="Rodapé" faixa={l.rodape} onFaixa={(f) => mudar({ rodape: f })}
+                            config={config} campos={campos} EditorFaixa={EditorFaixa} larguraUtil={larguraUtil} uid={uid} />
+                        <fieldset className="space-y-2">
+                            <legend className="text-sm font-semibold">Número de página</legend>
+                            <div className="grid grid-cols-2 sm:grid-cols-[1fr_1fr_6rem] gap-2">
+                                <div>
+                                    <Label htmlFor={`${uid}-np-pos`} className="text-xs">Posição</Label>
+                                    <select id={`${uid}-np-pos`} className={`mt-1 ${campo}`} value={np.posicao || 'rodape-direita'} onChange={(e) => mudar({ numero_pagina: { ...np, posicao: e.target.value } })}>
+                                        {POSICOES_NUMERO.map(([v, r]) => <option key={v} value={v}>{r}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <Label htmlFor={`${uid}-np-fmt`} className="text-xs">Formato</Label>
+                                    <select id={`${uid}-np-fmt`} className={`mt-1 ${campo}`} value={np.formato || 'pagina-de'} disabled={np.posicao === 'nenhum'} onChange={(e) => mudar({ numero_pagina: { ...np, formato: e.target.value } })}>
+                                        {FORMATOS_NUMERO.map(([v, r]) => <option key={v} value={v}>{r}</option>)}
+                                    </select>
+                                </div>
+                                <Medida id={`${uid}-np-tam`} rotulo="Tamanho" unidade="pt" min={6} max={16} passo={0.5} valor={np.tamanho || TAMANHO_NUMERO}
+                                    onChange={(v) => mudar({ numero_pagina: { ...np, tamanho: v } })} />
+                            </div>
+                            <label className="flex items-center gap-2 text-sm">
+                                <input type="checkbox" checked={np.primeira !== false} disabled={np.posicao === 'nenhum'} onChange={(e) => mudar({ numero_pagina: { ...np, primeira: e.target.checked } })} />
+                                Mostrar o número também na primeira página
+                            </label>
+                        </fieldset>
+                        <p className="text-xs text-slate-600 dark:text-slate-400">Na tela, o cabeçalho e o rodapé aparecem como na primeira página; a prévia em PDF mostra cada folha. No Word, a opção vira "Primeira página diferente".</p>
+                    </TabsContent>
+
                     <TabsContent value="estilos" className="grid sm:grid-cols-[190px_1fr] gap-4">
                         <div className="min-w-0 space-y-2">
                             <div role="listbox" aria-label="Estilos do documento" className="rounded-md border border-input divide-y divide-slate-200 dark:divide-slate-700 overflow-hidden">
