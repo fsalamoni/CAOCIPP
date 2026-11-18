@@ -337,8 +337,8 @@ export function inqueritoCivil() {
     return montar({
         id: 'inquerito-civil', nome: 'Inquérito Civil', area: 'ministerio_publico', porte: 'longo', referencia: 'CNMP',
         descricao: 'Investigação presidida por membro do Ministério Público para apurar lesão a direitos difusos, coletivos ou individuais homogêneos, como meio ambiente, consumidor e patrimônio público, e preparar ação civil pública, ajustamento de conduta ou recomendação. A representação pode ser indeferida em 30 dias, com recurso; instaurado por portaria, corre por um ano, prorrogável quantas vezes for preciso, com requisições, oitivas e audiências. É inquisitivo, mas o investigado e o representante podem ser ouvidos e juntar documentos a qualquer tempo. Termina com ação civil pública ou com promoção de arquivamento, que sobe ao Conselho Superior em 3 dias para homologação.',
-        quando: 'Quando há elementos de lesão a direito difuso, coletivo ou individual homogêneo, com investigado e objeto identificáveis, a apurar antes de ação civil pública ou solução negociada.',
-        base: 'Res. CNMP 23/2007, arts. 2º (representação), 4º (portaria), 5º (indeferimento e recurso), 6º (instrução), 7º (publicidade), 9º e 9º-A (prazo e declínio), 10 e 11 (arquivamento e revisão), 12 (desarquivamento) e 14 (ajustamento); Lei 7.347/1985, arts. 5º, § 6º, 8º e 9º.',
+        quando: 'Quando há elementos de lesão a direito difuso, coletivo ou individual homogêneo, com investigado e objeto identificáveis, a apurar antes de ação civil pública ou solução negociada. Para improbidade administrativa no Ministério Público do RS, prefira o "Inquérito civil de improbidade administrativa (MPRS)", com os prazos da Lei 8.429/1992.',
+        base: 'Res. CNMP 23/2007, arts. 2º (representação), 4º (portaria), 5º (indeferimento e recurso), 6º (instrução), 7º (publicidade), 9º e 9º-A (prazo e declínio), 10 e 11 (arquivamento e revisão), 12 (desarquivamento) e 14 (ajustamento); Lei 7.347/1985, arts. 5º, § 6º, 8º e 9º; Res. CNMP 306/2025 (acordo de não persecução civil em improbidade).',
         tipo: { polos: ['requerente', 'requerido', 'interessado', 'terceiro'], nomes_polos: { requerente: 'Representante', requerido: 'Investigado', interessado: 'Interessado', terceiro: 'Órgão requisitado' } },
     }, [
         {
@@ -409,7 +409,7 @@ export function inqueritoCivil() {
         },
         {
             nome: 'Instrução', unidade: 'Gabinete', prazo_dias: 365, prazo_auto: true, prazo_contagem: corridos,
-            vai: ['Aguardando resposta a requisição', 'Recomendação', 'Ajustamento de conduta', 'Prorrogação', 'Declínio de atribuição', 'Conclusão'],
+            vai: ['Aguardando resposta a requisição', 'Recomendação', 'Ajustamento de conduta', 'Acordo de não persecução civil', 'Prorrogação', 'Declínio de atribuição', 'Conclusão'],
             orientacao: 'Cabem todas as provas permitidas; diligências por termo ou auto circunstanciado e declarações por termo, assinado pelos presentes; diligências podem ser deprecadas (art. 6º). Qualquer pessoa pode juntar documentos. Sem audiências de 20 de dezembro a 20 de janeiro, salvo urgência (art. 9º, § 4º). Prazo de 1 ano, prorrogável (art. 9º).',
             acoes: [
                 A.fazer('Expedir requisições, notificações e diligências'),
@@ -418,12 +418,13 @@ export function inqueritoCivil() {
                 A.documento('Juntar termos, autos de diligência e documentos', '', { forma: 'qualquer', nivel: 'recomendado' }),
                 A.simNao('Surgiu objeto diverso do da portaria?', { obrigatoria: true, ajuda: 'Se sim, adite a portaria ou extraia peças para novo inquérito (art. 4º, parágrafo único).' }),
                 A.documento('Aditamento da portaria', 'Portaria', { forma: 'redigir', se: quando('Surgiu objeto diverso do da portaria?', 'sim') }),
-                A.escolha('Próximo passo', ['Aguardar resposta a requisição', 'Expedir recomendação', 'Propor ajustamento de conduta', 'Prorrogar o prazo', 'Declinar atribuição', 'Concluir a investigação'], { obrigatoria: true }),
+                A.escolha('Próximo passo', ['Aguardar resposta a requisição', 'Expedir recomendação', 'Propor ajustamento de conduta', 'Tratar de acordo de não persecução civil', 'Prorrogar o prazo', 'Declinar atribuição', 'Concluir a investigação'], { obrigatoria: true }),
             ],
             saidas: {
                 'Aguardando resposta a requisição': quando('Próximo passo', 'Aguardar resposta a requisição'),
                 'Recomendação': quando('Próximo passo', 'Expedir recomendação'),
                 'Ajustamento de conduta': quando('Próximo passo', 'Propor ajustamento de conduta'),
+                'Acordo de não persecução civil': quando('Próximo passo', 'Tratar de acordo de não persecução civil'),
                 'Prorrogação': quando('Próximo passo', 'Prorrogar o prazo'),
                 'Declínio de atribuição': quando('Próximo passo', 'Declinar atribuição'),
                 'Conclusão': quando('Próximo passo', 'Concluir a investigação'),
@@ -458,6 +459,21 @@ export function inqueritoCivil() {
                 A.documento('Promoção de arquivamento', 'Promoção de arquivamento', { forma: 'redigir', se: quando('Ajustamento firmado?', 'sim') }),
             ],
             saidas: { 'Cientificação e remessa ao Conselho Superior': quando('Ajustamento firmado?', 'sim'), 'Instrução': quando('Ajustamento firmado?', 'nao') },
+        },
+        {
+            nome: 'Acordo de não persecução civil', unidade: 'Gabinete', nome_publico: 'Tratativas de acordo em andamento', vai: ['Instrução', 'Cientificação e remessa ao Conselho Superior'],
+            orientacao: 'Só em caso de improbidade administrativa (Lei 8.429/1992, art. 17-B; Res. CNMP 306/2025). As tratativas não correm nestes autos: abrem-se em procedimento próprio e confidencial, como processo derivado deste ("Novo processo derivado deste", na capa). Homologado o acordo pelo juízo, outro processo derivado acompanha o cumprimento. Acordo que esgota o objeto encerra o inquérito, e os autos sobem ao órgão de revisão junto com os da negociação; acordo parcial ou falta de acordo devolvem à instrução.',
+            acoes: [
+                A.fazer('Abrir o processo derivado de tratativas', { obrigatoria: true, ajuda: 'Use "Novo processo derivado deste", com o tipo do modelo de tratativas do acordo de não persecução civil.' }),
+                A.texto('Número do processo de tratativas', { destino: 'informacao', folha_dados: true }),
+                A.escolha('Resultado das tratativas', ['Acordo homologado que esgota o objeto', 'Acordo parcial: a investigação segue', 'Sem acordo: a investigação segue', 'Ainda em negociação: seguir investigando'], { obrigatoria: true, destino: 'autos' }),
+                A.fazer('Abrir o processo derivado de acompanhamento do acordo', { se: quando('Resultado das tratativas', 'Acordo homologado que esgota o objeto', 'Acordo parcial: a investigação segue'), ajuda: 'Dispensado se o cumprimento puder ser conferido nos autos judiciais (Res. CNMP 306/2025, art. 16).' }),
+                A.texto('Número do processo de acompanhamento', { destino: 'informacao', folha_dados: true, se: quando('Resultado das tratativas', 'Acordo homologado que esgota o objeto', 'Acordo parcial: a investigação segue') }),
+            ],
+            saidas: {
+                'Cientificação e remessa ao Conselho Superior': quando('Resultado das tratativas', 'Acordo homologado que esgota o objeto'),
+                'Instrução': quando('Resultado das tratativas', 'Acordo parcial: a investigação segue', 'Sem acordo: a investigação segue', 'Ainda em negociação: seguir investigando'),
+            },
         },
         {
             nome: 'Prorrogação', unidade: 'Gabinete', vai: ['Instrução'],

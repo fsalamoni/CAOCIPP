@@ -19,11 +19,12 @@ import { modelos as gestaoContratual } from './modelos/gestao_contratual.js';
 import { modelos as patrimonio } from './modelos/patrimonio.js';
 import { modelos as mprs } from './modelos/mprs_administrativo.js';
 import { modelos as esferas } from './modelos/esferas.js';
+import { modelos as improbidade } from './modelos/improbidade.js';
 
 export { A, AREAS, PORTES, montar, nomeArea, nomePorte, quando } from './modelos/dsl.js';
 
 /** Funções dos modelos, na ordem em que aparecem (cada chamada gera ids novos). */
-export const MODELOS = [...geral, ...correcional, ...etica, ...sancionador, ...contratacoes, ...gestaoContratual, ...contratos, ...atendimento, ...ministerio_publico, ...conselhos, ...mp_extrajudicial, ...uniao, ...colegiados, ...patrimonio, ...mprs, ...esferas];
+export const MODELOS = [...geral, ...correcional, ...etica, ...sancionador, ...contratacoes, ...gestaoContratual, ...contratos, ...atendimento, ...ministerio_publico, ...conselhos, ...mp_extrajudicial, ...improbidade, ...uniao, ...colegiados, ...patrimonio, ...mprs, ...esferas];
 
 /**
  * Nome do painel e da planilha de acompanhamento que cada modelo propõe
@@ -89,6 +90,10 @@ export const PAINEIS = {
     'sancao-fornecedor-rs': ['Apuração de fornecedor', 'Apurações de fornecedores'],
     'bens-inserviveis-rs': ['Lote de inservíveis', 'Bens inservíveis'],
     'bens-inserviveis-federal': ['Lote de inservíveis', 'Bens inservíveis'],
+    'inquerito-civil-improbidade-mprs': ['Inquérito de improbidade', 'Inquéritos de improbidade'],
+    'anpc-tratativas-mprs': ['Tratativa de acordo', 'Tratativas de acordo'],
+    'anpc-acompanhamento-mprs': ['Acordo em acompanhamento', 'Acordos em acompanhamento'],
+    'anpc-completo-mprs': ['Acordo de não persecução', 'Acordos de não persecução civil'],
 };
 
 export function bibliotecaDeModelos() {
