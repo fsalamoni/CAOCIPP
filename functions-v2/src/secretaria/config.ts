@@ -138,7 +138,7 @@ const RITO_PADRAO = {
 };
 
 type Acao = 'estado' | 'ativar' | 'salvarUnidade' | 'salvarRito' | 'salvarPreferencias' | 'salvarTipo' | 'salvarNumeracao' | 'salvarCodigos'
-    | 'salvarDocumentoConfig' | 'salvarModelo' | 'obterModelo' | 'salvarCalendario'
+    | 'salvarDocumentoConfig' | 'salvarModelo' | 'obterModelo' | 'previaModelo' | 'salvarCalendario'
     | 'obterUnidadeDocumento' | 'salvarUnidadeDocumento' | 'convidarEquipe' | 'revogarConviteEquipe'
     | 'pedirLotacao' | 'decidirPedido' | 'verConviteEquipe' | 'aceitarConviteEquipe'
     | 'importarModelo' | 'baixarModelo' | 'extrairTextoRito' | 'aplicarPropostaRito'
@@ -427,6 +427,25 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             const msg = e instanceof Error ? e.message : '';
             throw new HttpsError('invalid-argument', msg && msg.length < 300 ? msg : 'Não foi possível ler o arquivo');
         }
+    }
+
+    // Prévia do modelo como sai nos autos (PDF com marca d'água) ou em Word, sem salvar nada.
+    if (p.action === 'previaModelo') {
+        const m = (p.modelo && typeof p.modelo === 'object' ? p.modelo : {}) as Record<string, unknown>;
+        const unidadeId = m.unidade_id ? String(m.unidade_id) : null;
+        if (unidadeId) exigirGestor(c, unidadeId); else exigirAdminDoOrgao(c, m.orgao_id || null);
+        let conteudo = null;
+        try { conteudo = sanitizeDoc(m.conteudo); } catch (e) { erroUsuario(e); }
+        const { lerConfigDocumento } = await import('./autos');
+        const cfg = await lerConfigDocumento(db, orgId, unidadeId || undefined);
+        const nome = texto(m.nome, 60).replace(/[^\p{L}\p{N} _-]+/gu, '') || 'modelo';
+        if (p.formato === 'docx') {
+            const { docParaDocx } = await import('./docxExportar');
+            return { base64: (await docParaDocx(conteudo!, cfg, { titulo: nome })).toString('base64'), nome: `${nome}.docx`, mime: MIME_DOCX };
+        }
+        const { renderizarDocumento } = await import('./pdfDocumento');
+        const r = await renderizarDocumento(conteudo!, cfg, { marcaDagua: 'MODELO' });
+        return { base64: r.buffer.toString('base64'), nome: `${nome}.pdf`, mime: 'application/pdf', paginas: r.paginas };
     }
 
     if (p.action === 'salvarModelo') {

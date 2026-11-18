@@ -417,6 +417,32 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             throw new https_1.HttpsError('invalid-argument', msg && msg.length < 300 ? msg : 'Não foi possível ler o arquivo');
         }
     }
+    // Prévia do modelo como sai nos autos (PDF com marca d'água) ou em Word, sem salvar nada.
+    if (p.action === 'previaModelo') {
+        const m = (p.modelo && typeof p.modelo === 'object' ? p.modelo : {});
+        const unidadeId = m.unidade_id ? String(m.unidade_id) : null;
+        if (unidadeId)
+            (0, context_1.exigirGestor)(c, unidadeId);
+        else
+            (0, context_1.exigirAdminDoOrgao)(c, m.orgao_id || null);
+        let conteudo = null;
+        try {
+            conteudo = (0, documento_1.sanitizeDoc)(m.conteudo);
+        }
+        catch (e) {
+            (0, context_1.erroUsuario)(e);
+        }
+        const { lerConfigDocumento } = await Promise.resolve().then(() => require('./autos'));
+        const cfg = await lerConfigDocumento(db, orgId, unidadeId || undefined);
+        const nome = (0, secretaria_1.texto)(m.nome, 60).replace(/[^\p{L}\p{N} _-]+/gu, '') || 'modelo';
+        if (p.formato === 'docx') {
+            const { docParaDocx } = await Promise.resolve().then(() => require('./docxExportar'));
+            return { base64: (await docParaDocx(conteudo, cfg, { titulo: nome })).toString('base64'), nome: `${nome}.docx`, mime: conversao_1.MIME_DOCX };
+        }
+        const { renderizarDocumento } = await Promise.resolve().then(() => require('./pdfDocumento'));
+        const r = await renderizarDocumento(conteudo, cfg, { marcaDagua: 'MODELO' });
+        return { base64: r.buffer.toString('base64'), nome: `${nome}.pdf`, mime: 'application/pdf', paginas: r.paginas };
+    }
     if (p.action === 'salvarModelo') {
         const m = (p.modelo && typeof p.modelo === 'object' ? p.modelo : {});
         const col = db.collection(context_1.COL.modelos);

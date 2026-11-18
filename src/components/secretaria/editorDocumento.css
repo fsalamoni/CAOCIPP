@@ -1,13 +1,16 @@
-/* Folha do editor de documentos da Secretaria: aparência de página A4, com as
-   margens do PDF gerado na juntada (3 cm à esquerda, 2 cm à direita). */
+/* Folha do editor de documentos da Secretaria: aparência da página do PDF
+   gerado na juntada. Papel e margens vêm do layout do documento (variáveis
+   --folha-w, --folha-h e --m-sup, --m-inf, --m-esq, --m-dir); sem layout, A4 com 3 cm à esquerda e 2 cm à direita.
+   Estilos (Normal, Títulos, Citação, próprios) e numeração automática saem
+   de src/lib/layoutDocumento.js (cssDoLayout). */
 .doc-mesa { background: #e2e8f0; }
 .dark .doc-mesa { background: #0f172a; }
 .doc-folha {
     background: #fff;
     color: #0f172a;
-    width: 21cm;
-    min-height: 29.7cm;
-    padding: 2.5cm 2cm 2.5cm 3cm;
+    width: var(--folha-w, 21cm);
+    min-height: var(--folha-h, 29.7cm);
+    padding: var(--m-sup, 2.5cm) var(--m-dir, 2cm) var(--m-inf, 2.2cm) var(--m-esq, 3cm);
     box-shadow: 0 1px 3px rgb(15 23 42 / 0.15), 0 8px 24px rgb(15 23 42 / 0.08);
     margin: 0 auto;
 }
@@ -16,14 +19,23 @@
 }
 .doc-folha .ProseMirror { outline: none; min-height: 20cm; word-wrap: break-word; position: relative; }
 @media (max-width: 860px) { .doc-folha .ProseMirror { min-height: 50vh; } }
-.doc-folha .ProseMirror p { margin: 0 0 6pt; }
-.doc-folha .ProseMirror h1 { font-size: 18pt; font-weight: 700; margin: 8pt 0 6pt; }
-.doc-folha .ProseMirror h2 { font-size: 15pt; font-weight: 700; margin: 8pt 0 6pt; }
-.doc-folha .ProseMirror h3 { font-size: 13pt; font-weight: 700; margin: 8pt 0 6pt; }
-.doc-folha .ProseMirror h4 { font-size: 12pt; font-weight: 700; margin: 8pt 0 6pt; }
 .doc-folha .ProseMirror ul { list-style: disc; padding-left: 1.5em; margin: 0 0 6pt; }
 .doc-folha .ProseMirror ol { list-style: decimal; padding-left: 1.5em; margin: 0 0 6pt; }
-.doc-folha .ProseMirror li > p { margin: 0 0 2pt; }
+/* Marcadores e numeração de lista (como "Marcadores e numeração" do Word). */
+.doc-folha .ProseMirror ul[data-marcador="circle"] { list-style-type: circle; }
+.doc-folha .ProseMirror ul[data-marcador="square"] { list-style-type: square; }
+.doc-folha .ProseMirror ul[data-marcador="dash"] { list-style-type: "–  "; }
+.doc-folha .ProseMirror ol[data-formato="lower-alpha"] { list-style-type: lower-alpha; }
+.doc-folha .ProseMirror ol[data-formato="upper-alpha"] { list-style-type: upper-alpha; }
+.doc-folha .ProseMirror ol[data-formato="lower-roman"] { list-style-type: lower-roman; }
+.doc-folha .ProseMirror ol[data-formato="upper-roman"] { list-style-type: upper-roman; }
+.doc-folha .ProseMirror ol[data-separador=")"] > li::marker { content: counter(list-item) ") "; }
+.doc-folha .ProseMirror ol[data-separador=")"][data-formato="lower-alpha"] > li::marker { content: counter(list-item, lower-alpha) ") "; }
+.doc-folha .ProseMirror ol[data-separador=")"][data-formato="upper-alpha"] > li::marker { content: counter(list-item, upper-alpha) ") "; }
+.doc-folha .ProseMirror ol[data-separador=")"][data-formato="lower-roman"] > li::marker { content: counter(list-item, lower-roman) ") "; }
+.doc-folha .ProseMirror ol[data-separador=")"][data-formato="upper-roman"] > li::marker { content: counter(list-item, upper-roman) ") "; }
+/* Em listas e tabelas o recuo de primeira linha do estilo não vale (como no PDF e no Word). */
+.doc-folha .ProseMirror li > p { margin: 0 0 2pt; text-indent: 0; }
 .doc-folha .ProseMirror blockquote { border-left: 2px solid #94a3b8; padding-left: 12px; margin: 0 0 8pt 12px; }
 .doc-folha .ProseMirror hr { border: 0; border-top: 1px solid #64748b; margin: 8pt 0 12pt; }
 .doc-folha .ProseMirror a { color: #1d4ed8; text-decoration: underline; }
@@ -34,7 +46,7 @@
 .doc-folha .ProseMirror table { border-collapse: collapse; table-layout: fixed; width: 100%; margin: 2pt 0 8pt; overflow: hidden; }
 .doc-folha .ProseMirror td, .doc-folha .ProseMirror th { border: 1px solid #94a3b8; padding: 3pt 5pt; vertical-align: top; position: relative; min-width: 2em; }
 .doc-folha .ProseMirror th { background: #f1f5f9; font-weight: 700; text-align: left; }
-.doc-folha .ProseMirror td p, .doc-folha .ProseMirror th p { margin: 0; }
+.doc-folha .ProseMirror td p, .doc-folha .ProseMirror th p { margin: 0; text-indent: 0; }
 .doc-folha .ProseMirror .selectedCell::after { content: ''; position: absolute; inset: 0; background: rgb(79 70 229 / 0.12); pointer-events: none; }
 .doc-folha .ProseMirror .column-resize-handle { position: absolute; right: -2px; top: 0; bottom: -2px; width: 4px; background: #6366f1; pointer-events: none; }
 .doc-folha .ProseMirror.resize-cursor { cursor: col-resize; }
@@ -52,5 +64,23 @@
 .doc-folha .ProseMirror .achado { background: #fde68a; }
 .doc-folha .ProseMirror img[data-align="center"] { margin-left: auto; margin-right: auto; }
 .doc-folha .ProseMirror img[data-align="right"] { margin-left: auto; margin-right: 0; }
+/* Imagem que se redimensiona arrastando os cantos (como no Word). */
+.doc-folha .ProseMirror [data-resize-container] { margin: 4pt 0 8pt; }
+.doc-folha .ProseMirror [data-resize-container][data-align="center"] { justify-content: center; }
+.doc-folha .ProseMirror [data-resize-container][data-align="right"] { justify-content: flex-end; }
+.doc-folha .ProseMirror [data-resize-wrapper] { max-width: 100%; }
+.doc-folha .ProseMirror [data-resize-container] img { margin: 0; }
+.doc-folha .ProseMirror [data-resize-container].ProseMirror-selectednode img { outline: 2px solid #4f46e5; }
+.doc-folha .ProseMirror [data-resize-handle] { width: 12px; height: 12px; background: #fff; border: 2px solid #4f46e5; border-radius: 3px; opacity: 0; z-index: 1; }
+.doc-folha .ProseMirror [data-resize-container]:hover [data-resize-handle],
+.doc-folha .ProseMirror [data-resize-container].ProseMirror-selectednode [data-resize-handle] { opacity: 1; }
+.doc-folha .ProseMirror [data-resize-handle="top-left"], .doc-folha .ProseMirror [data-resize-handle="bottom-right"] { cursor: nwse-resize; }
+.doc-folha .ProseMirror [data-resize-handle="top-right"], .doc-folha .ProseMirror [data-resize-handle="bottom-left"] { cursor: nesw-resize; }
+/* Cabeçalho e rodapé próprios na folha, e o editor compacto deles. */
+.doc-folha .ProseMirror.doc-faixa-previa { min-height: 0; }
+.doc-folha.doc-faixa { min-height: 0; padding: 0.4cm 0.5cm; width: calc(var(--folha-w) + 1cm); max-width: 100%; }
+.doc-folha.doc-faixa .ProseMirror { min-height: 2.5cm; }
 /* Tabela sem bordas: no PDF e no Word não há linhas; aqui, tracejado leve só para orientar. */
 .doc-folha .ProseMirror table[data-sem-bordas] td, .doc-folha .ProseMirror table[data-sem-bordas] th { border: 1px dashed #cbd5e1; background: transparent; }
+/* Parágrafo numerado: o número entra antes do texto, como no PDF. */
+.doc-folha .ProseMirror p[data-numerado]::before { font-weight: inherit; }

@@ -453,6 +453,64 @@ Regras comuns:
     em branco, entra inteiro; com texto, entra onde está o cursor.
   - **Word:** baixa a minuta em .docx (ação `docx`, `docxExportar.ts`), com o
     timbrado no cabeçalho e "Página X de Y" no rodapé.
+- **Página e estilos do documento (18/11/2026):** botão **Página** (régua) do
+  editor, ou "Modificar estilos…" na lista de estilos, abre
+  `LayoutDocumento.jsx` com três abas. Tudo fica em `doc.attrs.layout` (o
+  próprio texto do modelo ou da minuta), então viaja do modelo para a minuta
+  (`preencherCampos` preserva), para o pacote de outro órgão, para o PDF dos
+  autos e para o .docx. Documento sem `layout` sai exatamente como antes.
+  - *Papel e margens:* A4, Ofício (21,6 × 33), Carta ou A5, retrato ou
+    paisagem; margens de 0,5 a 8 cm, com prontas (SIGO 2,5/2,2/3/2, ABNT,
+    Word, moderadas, estreitas). Com timbrado, o texto começa abaixo dele e a
+    margem superior só vale se for maior.
+  - *Estilos:* Texto normal, Títulos 1 a 4 e Citação editáveis (fonte,
+    tamanho, negrito, itálico, sublinhado, maiúsculas, cor, alinhamento,
+    recuos de primeira linha, esquerda e direita, entre linhas, antes e
+    depois) e até 30 estilos próprios (`proprios`, parágrafo com `estilo`).
+    "Usar o parágrafo atual" copia a formatação de onde está o cursor. O que
+    está no parágrafo vale mais que o estilo; em listas e tabelas o recuo de
+    primeira linha do estilo não vale.
+  - *Numeração automática:* títulos em 1./1.1./1.1.1. ou I./1./1.1.
+    (`numeracao_titulos`); parágrafos marcados com o botão # (`numerado`)
+    contam pelo documento em 1., 1), 1 – ou 1º (`numeracao_paragrafos`). Na
+    tela são contadores do CSS; no PDF, `numerosAutomaticos`; no Word,
+    numeração nativa (o Word renumera ao editar).
+  - *Listas:* barra "Lista" aparece com o cursor numa lista: marcador •, ◦, ▪
+    ou – (`bulletList.marcador`); 1, a, A, i, I (`orderedList.formato`) com
+    "." ou ")" (`separador`) e "Começar em".
+  - *Recuo exato:* primeira linha, esquerda e direita (`margemDir`, novo) em cm
+    no menu ↕.
+  - *Fontes novas:* Georgia (Gelasio, mesma medida), Garamond (EB Garamond),
+    Open Sans e Lato, no editor, no PDF e no papel timbrado.
+  - Servidor: `shared/layoutDocumento.ts` (`sanitizeLayout`, lista fechada e só
+    o que difere do padrão; `estiloDoBloco`; `numerosAutomaticos`). Tela:
+    `src/lib/layoutDocumento.js` (espelho conferido em teste; `cssDoLayout`).
+  - *Cabeçalho e rodapé (etapa 2, 18/11/2026):* quarta aba da janela. Cada
+    um pode ser o da unidade (timbrado e rodapé de sempre), **próprio do
+    documento** (`layout.cabecalho/rodape.modo = 'proprio'`, `conteudo` com
+    os mesmos blocos do texto: parágrafos, imagens, tabelas, sem bordas para
+    logotipo ao lado do texto) ou nenhum; e aparecer em todas as páginas, só
+    na primeira ou em todas menos a primeira (`paginas`). O próprio nasce do
+    timbrado ("Recomeçar do timbrado") e é editado num editor compacto
+    (`EditorDocumento` com `faixa`). `{{pagina}}` e `{{paginas}}` (em Campos)
+    saem com o número de cada folha; os outros campos do modelo se preenchem
+    na minuta como no texto. O texto próprio fica guardado mesmo voltando ao
+    timbrado. No PDF, o corpo começa abaixo do cabeçalho próprio (altura
+    medida pelo pdfmake, `alturaDe`), como no Word; a margem de cima é a mesma
+    em todas as folhas. No Word, viram cabeçalhos/rodapés nativos com campos
+    PAGE e NUMPAGES e "Primeira página diferente" (`titlePg`).
+  - *Número de página:* posição (rodapé ou cabeçalho, à esquerda, ao centro
+    ou à direita, ou sem número), formato (Página 1 de 5, Página 1, 1, 1/5,
+    – 1 –), tamanho e "mostrar na primeira página" (`layout.numero_pagina`).
+    Sem nada, "Página X de Y" à direita do rodapé, como sempre.
+  - *Imagens:* arrastar os cantos redimensiona (proporção mantida); largura
+    exata em cm na barra "Imagem", além de 25/50/75/100% da área útil da
+    página escolhida; posição à esquerda, ao centro ou à direita.
+  - *Prévia do modelo:* no editor de modelo, **Prévia em PDF** (como sai nos
+    autos, com marca d'água MODELO) e **Word** (.docx), sem salvar (ação
+    `previaModelo` de `secretariaConfig`, mesma permissão de salvar o modelo).
+  - Limites: texto contornando imagem (imagem flutuante) não existe; a
+    importação de .docx não traz o layout, o cabeçalho nem o rodapé do Word.
 - **Revisar no editor qualquer minuta:** a minuta enviada como arquivo tem
   "Abrir no editor" (ação `paraEditor`). A conversão é feita no servidor, sem
   programa externo: Word .docx (`docx.ts`: estilos e herança, fontes do tema,
