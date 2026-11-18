@@ -78,6 +78,8 @@ Toda mudança na biblioteca passa por dois testes:
 
 O teste de tela (e2e) abre cada modelo em **Novo rito** e confere que nenhum chega com pendência que impeça implantar.
 
+`scripts/e2e-painel-modelo.mjs` confere, nos emuladores e com o navegador, o painel opcional: usar um modelo mostra a escolha com o nome sugerido; **Seguir sem painel** não cria página; **Ligar** cria a página, o rito é implantado, o tipo nasce com "Criar registro na autuação" e a autuação cria o registro. Faz capturas no computador e no celular.
+
 ## Como acrescentar um modelo
 
 Os modelos ficam em `src/lib/modelos/<área>.js` e são escritos com a linguagem de `src/lib/modelos/dsl.js`.
@@ -415,7 +417,7 @@ Apura a responsabilidade objetiva de pessoa jurídica por ato lesivo à Administ
 
 Apura infração de licitante ou contratada, como inexecução, atraso injustificado, não manter a proposta ou apresentar documento falso, e aplica advertência, multa, impedimento de licitar e contratar ou declaração de inidoneidade. O juízo de admissibilidade define a sanção cabível em tese, e com ela o rito: o simples, conduzido pelo setor de contratos, para advertência e multa; ou o com comissão de dois ou mais servidores estáveis, obrigatório para impedimento e inidoneidade. O contraditório está na defesa em 15 dias úteis, nas alegações finais em 15 dias úteis quando há prova nova e no recurso ou pedido de reconsideração, ambos com efeito suspensivo. Termina com a execução da sanção, a cobrança da multa e o registro no CEIS e no CNEP.
 
-**Quando usar:** Ocorrência registrada pelo fiscal ou gestor do contrato, ou pelo agente de contratação na licitação, que possa configurar infração do art. 155 da Lei 14.133.
+**Quando usar:** Ocorrência registrada pelo fiscal ou gestor do contrato, ou pelo agente de contratação na licitação, que possa configurar infração do art. 155 da Lei 14.133. No Ministério Público do RS, prefira "Descumprimento contratual no MPRS", com as autoridades e os prazos do Provimento 104/2023-PGJ.
 
 **Base:** Lei 14.133/2021, arts. 117, § 1º, 155 a 163, 166 a 168 e 183.
 
@@ -433,7 +435,7 @@ O procedimento "Descumprimento Contratual" do Ministério Público do RS: o fisc
 
 **Quando usar:** Inexecução total ou parcial de contrato, de nota de empenho ou de ata de registro de preços do MPRS, e recusa em assinar. Abra como processo derivado do contrato ("Novo processo derivado deste"). A sanção é administrativa. Ligue o painel e a planilha para acompanhar defesas, prazos e multas a cobrar.
 
-**Base:** Provimento 104/2023-PGJ, arts. 55, § 2º, 66 e 89 a 98; Provimento 05/2023-PGJ, arts. 21, XVI, 22, XVI, e 23, VII; Provimento 75/2016-PGJ (atos da Lei 12.846/2013); Lei 14.133/2021, arts. 155 a 163 e 165 a 168; Lei estadual 11.389/1999 e Decreto 42.250/2003 (CFIL/RS: conferir na norma vigente). O provimento não fala em efeito suspensivo nem em alegações finais: valem os arts. 158, § 2º, e 168 da lei.
+**Base:** Provimento 104/2023-PGJ, arts. 55, § 2º, 66 e 89 a 98; Provimento 05/2023-PGJ, arts. 21, XVI, 22, XVI, e 23, VII; Provimento 75/2016-PGJ (atos da Lei 12.846/2013); Lei 14.133/2021, arts. 155 a 163 e 165 a 168; Lei estadual 11.389/1999 e Decreto 42.250/2003 (CFIL/RS: conferir na norma vigente); Lei estadual 15.612/2021 (processo administrativo do RS, subsidiária: não cita o Ministério Público). O provimento não fala em efeito suspensivo nem em alegações finais: valem os arts. 158, § 2º, e 168 da lei.
 
 **Partes:** Ministério Público (requerente), Contratada (requerido).
 
@@ -609,7 +611,7 @@ O contrato do Ministério Público do RS como os provimentos internos mandam: a 
 
 Acompanha a execução de um contrato de serviço que se repete mês a mês (limpeza, vigilância, manutenção, suporte de TI), da designação do gestor e dos fiscais até o termo de recebimento definitivo e o encerramento. O processo é cíclico: a cada período os fiscais medem e recebem provisoriamente, o gestor atesta e o setor financeiro paga, e o ciclo volta para a medição seguinte. Repactuação, reajuste, prorrogação, alteração e reequilíbrio são tratados como eventos que saem do ciclo e voltam a ele; o descumprimento que persiste é remetido a processo próprio de apuração. A contratada é notificada para corrigir falhas, pode contestar glosas, é ouvida antes de qualquer alteração e tem defesa e recurso antes da extinção unilateral.
 
-**Quando usar:** Contratos de serviço contínuo, com ou sem dedicação exclusiva de mão de obra, durante toda a vigência. Abra um processo por contrato.
+**Quando usar:** Contratos de serviço contínuo, com ou sem dedicação exclusiva de mão de obra, durante toda a vigência. Abra um processo por contrato. No Ministério Público do RS, prefira "Gestão de contrato no MPRS".
 
 **Base:** Lei 14.133/2021, arts. 92, §§ 4º e 6º, 94, 106, 107, 117, 123 a 125, 135, 136, 137 a 141 e 165; Decreto 11.246/2022, arts. 8º e 21 a 25; IN SEGES 5/2017, arts. 39 a 50 e 54 a 57; IN SEGES 77/2022, arts. 7º e 8º.
 

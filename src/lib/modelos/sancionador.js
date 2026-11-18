@@ -172,7 +172,7 @@ export function sancaoFornecedor() {
     return montar({
         id: 'sancao-fornecedor', nome: 'Infração contratual e sanção a fornecedor', area: 'sancionador', porte: 'medio', referencia: 'Lei 14.133',
         descricao: 'Apura infração de licitante ou contratada, como inexecução, atraso injustificado, não manter a proposta ou apresentar documento falso, e aplica advertência, multa, impedimento de licitar e contratar ou declaração de inidoneidade. O juízo de admissibilidade define a sanção cabível em tese, e com ela o rito: o simples, conduzido pelo setor de contratos, para advertência e multa; ou o com comissão de dois ou mais servidores estáveis, obrigatório para impedimento e inidoneidade. O contraditório está na defesa em 15 dias úteis, nas alegações finais em 15 dias úteis quando há prova nova e no recurso ou pedido de reconsideração, ambos com efeito suspensivo. Termina com a execução da sanção, a cobrança da multa e o registro no CEIS e no CNEP.',
-        quando: 'Ocorrência registrada pelo fiscal ou gestor do contrato, ou pelo agente de contratação na licitação, que possa configurar infração do art. 155 da Lei 14.133.',
+        quando: 'Ocorrência registrada pelo fiscal ou gestor do contrato, ou pelo agente de contratação na licitação, que possa configurar infração do art. 155 da Lei 14.133. No Ministério Público do RS, prefira "Descumprimento contratual no MPRS", com as autoridades e os prazos do Provimento 104/2023-PGJ.',
         base: 'Lei 14.133/2021, arts. 117, § 1º, 155 a 163, 166 a 168 e 183.',
         tipo: { polos: ['requerido'], nomes_polos: { requerido: 'Contratada ou licitante' } },
     }, [

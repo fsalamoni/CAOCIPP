@@ -8,7 +8,7 @@ export function gestaoContrato() {
     return montar({
         id: 'gestao-contrato', nome: 'Gestão e fiscalização de contrato de serviço continuado', area: 'contratacoes', porte: 'longo', referencia: 'Lei 14.133',
         descricao: 'Acompanha a execução de um contrato de serviço que se repete mês a mês (limpeza, vigilância, manutenção, suporte de TI), da designação do gestor e dos fiscais até o termo de recebimento definitivo e o encerramento. O processo é cíclico: a cada período os fiscais medem e recebem provisoriamente, o gestor atesta e o setor financeiro paga, e o ciclo volta para a medição seguinte. Repactuação, reajuste, prorrogação, alteração e reequilíbrio são tratados como eventos que saem do ciclo e voltam a ele; o descumprimento que persiste é remetido a processo próprio de apuração. A contratada é notificada para corrigir falhas, pode contestar glosas, é ouvida antes de qualquer alteração e tem defesa e recurso antes da extinção unilateral.',
-        quando: 'Contratos de serviço contínuo, com ou sem dedicação exclusiva de mão de obra, durante toda a vigência. Abra um processo por contrato.',
+        quando: 'Contratos de serviço contínuo, com ou sem dedicação exclusiva de mão de obra, durante toda a vigência. Abra um processo por contrato. No Ministério Público do RS, prefira "Gestão de contrato no MPRS".',
         base: 'Lei 14.133/2021, arts. 92, §§ 4º e 6º, 94, 106, 107, 117, 123 a 125, 135, 136, 137 a 141 e 165; Decreto 11.246/2022, arts. 8º e 21 a 25; IN SEGES 5/2017, arts. 39 a 50 e 54 a 57; IN SEGES 77/2022, arts. 7º e 8º.',
         tipo: { polos: ['requerente', 'requerido'], nomes_polos: { requerente: 'Contratante', requerido: 'Contratada' } },
     }, [

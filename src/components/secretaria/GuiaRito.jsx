@@ -352,7 +352,7 @@ export default function GuiaRito({ variante = 'outline', className = '', inicial
                             </table>
                         </Parte>
                         <Parte titulo="16. Começar de um modelo da biblioteca">
-                            <p>Em <strong>Novo rito</strong>, a <strong>Biblioteca de modelos de processo</strong> traz processos completos, montados a partir da lei de cada área: administrativo geral, disciplinar, ético, sancionador e fiscalização, contratações e contratos, ouvidoria e acesso à informação, gestão de pessoas, contas, advocacia pública e procedimentos extrajudiciais do Ministério Público, muitos inspirados no rito de uma instituição (OAB/RS, CAU/BR, MPRS, CNMP, AGU, CGU). Nenhum é penal.</p>
+                            <p>Em <strong>Novo rito</strong>, a <strong>Biblioteca de modelos de processo</strong> traz processos completos, montados a partir da lei de cada área: administrativo geral, disciplinar, ético, sancionador e fiscalização, contratações e contratos, ouvidoria e acesso à informação, gestão de pessoas, contas, advocacia pública e procedimentos extrajudiciais do Ministério Público, muitos inspirados no rito de uma instituição (OAB/RS, CAU/BR, MPRS, CNMP, AGU, CGU). Do MPRS há também os ritos administrativos: gestão de contrato, descumprimento contratual e bens móveis, pelos provimentos da Procuradoria-Geral de Justiça. Nenhum é penal.</p>
                             <ul className="list-disc space-y-1 pl-5">
                                 <li>A biblioteca abre e fecha pelo título (a tela lembra a sua escolha). Fechada, mostra só as áreas: clique numa para abrir já filtrada.</li>
                                 <li>Os modelos ficam agrupados por área, cada grupo fechado com a contagem e os nomes. Abra um grupo, ou use <strong>Abrir todas as áreas</strong>.</li>
@@ -367,6 +367,7 @@ export default function GuiaRito({ variante = 'outline', className = '', inicial
                                 <li>Confira prazos e contagem (úteis ou corridos) com a norma que vale para o seu órgão. Regimentos locais costumam mudar prazos.</li>
                                 <li>Ajuste ações, documentos e saídas: tire o que não se aplica, acrescente o que o seu órgão exige.</li>
                                 <li>Se o modelo tem partes, o tipo de processo é proposto já com os polos e os nomes (Denunciante, Acusado, Licitante). Desmarque se quiser ligar o rito a um tipo que já existe.</li>
+                                <li>Decida sobre o <strong>painel e a planilha de acompanhamento</strong>. A revisão mostra um quadro em destaque: <strong>Ligar</strong> cria uma página própria do órgão com uma coluna por fase e um campo por dado das ações, já com o nome que o modelo sugere (Contratos, Bens móveis, Sindicâncias), e o tipo criado com o rito passa a abrir um registro nela a cada autuação; <strong>Seguir sem painel</strong> não cria nada, e o processo funciona igual. Dá para ligar depois (parte 21).</li>
                                 <li>Implante. Depois, o rito e o tipo se editam como qualquer outro.</li>
                             </ol>
                         </Parte>
