@@ -61,6 +61,7 @@ exports.updateProcess = (0, https_1.onCall)({ region: 'southamerica-east1' }, as
     delete changes.anonymized_by;
     // Vínculo original/aditivo só pelo servidor; aditivo segue o nº do original.
     (0, aditivos_1.protegerVinculo)(changes, processData, 'process_number');
+    await (0, aditivos_1.conferirEdicaoEntrada)('processes', processData, changes);
     const numeroMudou = !processData.aditivo_de && typeof changes.process_number === 'string'
         && changes.process_number.trim() !== '' && changes.process_number !== processData.process_number;
     if (typeof changes.responsible_user_name === 'string') {

@@ -102,7 +102,8 @@ no **Novo Expediente**. O aditivo é um expediente novo, com o mesmo
 `expediente_number`, sistema, origem e objeto copiados, que entra em Pendente
 com tramitação e linha do tempo próprias; o original fica como está. Regras,
 campos (`aditivo_de`, `aditivo_numero`, `aditivo_motivo`, `aditivos_seq`,
-`aditivos_count`) e telas em [CONSULTAS.md](./CONSULTAS.md#9-aditivos).
+`aditivos_count`), a regra da data de entrada (própria, nem anterior à do
+original nem futura) e telas em [CONSULTAS.md](./CONSULTAS.md#9-aditivos).
 
 ---
 

@@ -5,6 +5,13 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 18/11/2026 — Data de entrada própria do aditivo
+- A data de entrada do aditivo é a dele (dia em que chegou a informação que
+  o originou, ou hoje), nunca a do original. O servidor recusa data anterior
+  à entrada do original e data futura, na criação e na edição do aditivo; a
+  tela de criação explica a regra e limita o calendário. O padrão "hoje"
+  passa a ser o dia em Brasília.
+
 ### 18/11/2026 — Ritos do MPRS para contratos e bens, e painel em todo modelo
 - Três modelos novos na biblioteca (agora 55), pelas normas internas do
   Ministério Público do RS. **Gestão de contrato no MPRS** (Provimentos

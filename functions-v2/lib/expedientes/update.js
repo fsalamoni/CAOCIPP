@@ -49,6 +49,7 @@ exports.updateExpediente = (0, https_1.onCall)({ region: 'southamerica-east1' },
     delete changes.anonymized_by;
     // Vínculo original/aditivo só pelo servidor; aditivo segue o nº do original.
     (0, aditivos_1.protegerVinculo)(changes, expedienteData, 'expediente_number');
+    await (0, aditivos_1.conferirEdicaoEntrada)('expedientes', expedienteData, changes);
     const numeroMudou = !expedienteData.aditivo_de && typeof changes.expediente_number === 'string'
         && changes.expediente_number.trim() !== '' && changes.expediente_number !== expedienteData.expediente_number;
     if (typeof changes.responsible_user_name === 'string') {

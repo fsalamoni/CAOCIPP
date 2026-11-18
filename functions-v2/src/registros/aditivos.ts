@@ -15,6 +15,7 @@ import { formatPersonName } from '../shared/normalization';
 import { historyEntryId } from '../shared/history';
 import { vinculoBloqueado } from '../shared/vinculo';
 import { moduloPgea, ModuloPgea } from '../shared/registrosPgea';
+import { hojeBrasil } from '../shared/secretaria';
 
 /** Campos de identificação que o aditivo herda de quem o originou. */
 export const CAMPOS_HERDADOS: Record<ModuloPgea, string[]> = {
@@ -26,6 +27,30 @@ export const CAMPOS_HERDADOS: Record<ModuloPgea, string[]> = {
 export const CAMPOS_VINCULO = ['aditivo_de', 'aditivo_numero', 'aditivo_motivo', 'aditivos_seq', 'aditivos_count'];
 
 const DATA = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * A entrada do aditivo é a dele: o dia em que chegou a informação que o
+ * originou ou o dia em que foi criado. Não pode ser anterior à entrada do
+ * original nem posterior a hoje. Original com data em formato antigo (não
+ * AAAA-MM-DD) não é comparado. Devolve a mensagem de erro ou null.
+ */
+export function conferirEntradaAditivo(entrada: string, entradaOriginal: unknown, hoje: string): string | null {
+    if (!DATA.test(entrada)) return 'Data de entrada inválida.';
+    if (entrada > hoje) return 'A data de entrada do aditivo não pode ser futura.';
+    const orig = String(entradaOriginal || '').slice(0, 10);
+    if (DATA.test(orig) && entrada < orig) {
+        return `A data de entrada do aditivo não pode ser anterior à entrada do original (${orig.split('-').reverse().join('/')}).`;
+    }
+    return null;
+}
+
+/** Edição da data de entrada de um aditivo: mesma regra da criação, conferida com o original. */
+export async function conferirEdicaoEntrada(colecao: string, atual: Record<string, any>, changes: Record<string, any>) {
+    if (!atual.aditivo_de || typeof changes.entry_date !== 'string' || changes.entry_date === atual.entry_date) return;
+    const raiz = await admin.firestore().collection(colecao).doc(String(atual.aditivo_de)).get();
+    const erro = conferirEntradaAditivo(changes.entry_date, raiz.get('entry_date'), hojeBrasil());
+    if (erro) throw new HttpsError('invalid-argument', erro);
+}
 
 function entradaLog(uid: string, nome: string, action: string) {
     const now = new Date();
@@ -99,7 +124,7 @@ export const criarAditivo = onCall<Req>(
         const d = request.data || ({} as Req);
         const cfg = moduloPgea(d.modulo);
         const motivo = String(d.motivo || '').trim();
-        const entrada = d.entryDate ? String(d.entryDate) : new Date().toISOString().split('T')[0];
+        const entrada = d.entryDate ? String(d.entryDate) : hojeBrasil();
         if (!d.organizationId || !cfg || !d.origemId || typeof d.origemId !== 'string') {
             throw new HttpsError('invalid-argument', 'Pedido incompleto.');
         }
@@ -143,6 +168,8 @@ export const criarAditivo = onCall<Req>(
                 raiz = { id: raizSnap.id, ...raizSnap.data() };
                 raizRef = raizSnap.ref;
             }
+            const erroEntrada = conferirEntradaAditivo(entrada, raiz.entry_date, hojeBrasil());
+            if (erroEntrada) throw new HttpsError('invalid-argument', erroEntrada);
             const numero = (Number(raiz.aditivos_seq) || 0) + 1;
             const numeroPgea = String(raiz[cfg.campoNumero] || '');
             const logNovo = entradaLog(uid, nomeUsuario, `Aditivo nº ${numero} criado a partir d${cfg.nome === 'consulta' ? 'a consulta' : 'o expediente'} ${numeroPgea}. Motivo: ${motivo}`);
