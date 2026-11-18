@@ -55,6 +55,7 @@ const sessoes_2 = require("./sessoes");
 const certames_3 = require("./certames");
 const avisosEquipe_1 = require("./avisosEquipe");
 const comunicacoes_1 = require("./comunicacoes");
+const cronograma_1 = require("../shared/cronograma");
 const doProcesso_1 = require("../shared/doProcesso");
 const context_1 = require("./context");
 const CONVITE_DIAS = 7;
@@ -527,7 +528,7 @@ const antesDeJuntar = (data, grupo, item) => {
 const itensDepois = (proc, grupo, item) => { var _a; return ({ grupo, itens: [...(((_a = proc.consolidacao) === null || _a === void 0 ? void 0 : _a.itens) || []), item] }); };
 const textoDispensa = (d) => (d.length ? ` Dispensado o que o rito exigia na fase: ${d.join('; ')}.` : '');
 /** Valor informado ao cumprir a ação, conferido contra o que o rito pede. Lança HttpsError. */
-async function valorDaAcao(c, regra, acao, bruto, procId = '') {
+async function valorDaAcao(c, regra, acao, bruto, procId = '', prazos = []) {
     const pede = (0, exigencias_1.pedidoDaAcao)(regra);
     if (pede === 'confirmar' || pede === 'documento' || pede === 'orientacao' || pede === 'comunicacao')
         return null;
@@ -578,6 +579,26 @@ async function valorDaAcao(c, regra, acao, bruto, procId = '') {
         if (!campos.length)
             throw new https_1.HttpsError('invalid-argument', `Preencha "${rotulo}"`);
         return (0, camposProcesso_1.dadoDoFormulario)(rotulo, campos);
+    }
+    if (pede === 'cronograma') {
+        // Cronograma de obrigações: as parcelas viram prazos do processo (na transação); o dado é o resumo.
+        const b = (bruto && typeof bruto === 'object' ? bruto : {});
+        let itens = [];
+        try {
+            itens = (0, cronograma_1.sanitizeObrigacoes)(b.itens);
+        }
+        catch (e) {
+            (0, context_1.erroUsuario)(e);
+        }
+        const destinatario = (0, secretaria_1.texto)(b.destinatario, 120);
+        const t = `${(0, cronograma_1.resumoDoCronograma)(itens)}${destinatario ? `, a cargo de ${destinatario}` : ''}`;
+        return { rotulo: (regra === null || regra === void 0 ? void 0 : regra.rotulo) || 'Cronograma de obrigações', tipo: 'texto', valor: t, valor_texto: t, ref: undefined, refs: [], restrito: false, cronograma: { itens, destinatario } };
+    }
+    if (pede === 'quitacao') {
+        if (!(0, cronograma_1.quitado)(prazos))
+            throw new https_1.HttpsError('failed-precondition', `"${acao}" se cumpre sozinha quando todas as obrigações do cronograma estiverem cumpridas.`);
+        const t = (0, cronograma_1.textoDaQuitacao)(prazos, (0, secretaria_1.hojeBrasil)());
+        return { rotulo: (regra === null || regra === void 0 ? void 0 : regra.rotulo) || 'Obrigações do cronograma', tipo: 'texto', valor: t, valor_texto: t, ref: undefined, refs: [], restrito: false };
     }
     if (pede === 'derivado') {
         // Processo derivado: o servidor confere que ele nasceu deste (ou está ligado a este) e guarda só o número.
@@ -1270,6 +1291,30 @@ async function cumprirPeloProcesso(c, id) {
     return ultimo;
 }
 /**
+ * Cronograma de obrigações todo cumprido: cumpre a ação pendente da fase atual
+ * que espera por isso (`pede: 'quitacao'`), pelo mesmo caminho da caixa de
+ * marcar e com as permissões de quem praticou o ato. Devolve o resultado, ou
+ * null quando não há o que cumprir (ou não coube: fica para a equipe).
+ */
+async function cumprirQuitacao(c, id) {
+    try {
+        const d = (await c.db.collection(context_1.COL.processos).doc(id).get()).data();
+        if (!d || d.status !== 'em_tramitacao' || !(0, cronograma_1.quitado)(d.prazos))
+            return null;
+        const fase = (d.fases || []).find((f) => f.id === d.fase_atual);
+        const feitas = ((d.acoes_feitas || {})[String(d.fase_atual)] || []);
+        const resp = (0, exigencias_1.respostasDaFase)(d);
+        const idx = ((fase === null || fase === void 0 ? void 0 : fase.acoes_regras) || []).findIndex((r, i) => (r === null || r === void 0 ? void 0 : r.pede) === 'quitacao' && !feitas.includes(i) && (0, exigencias_1.acaoAtiva)(fase, i, resp));
+        if (idx < 0)
+            return null;
+        return await movimentar(c, { organizationId: c.orgId, action: 'marcarAcao', id, version: d.version, acao_idx: idx, feita: true });
+    }
+    catch (e) {
+        console.warn('[secretaria] ação de cumprimento do cronograma não registrada', id, e === null || e === void 0 ? void 0 : e.message);
+        return null;
+    }
+}
+/**
  * Processo derivado aberto: cumpre, no processo de origem, a ação "Abrir
  * processo derivado" pendente na fase atual (a que sugere o tipo ou o rito do
  * novo processo; na falta, a que não sugere nada), pelo mesmo caminho da caixa de
@@ -1367,12 +1412,15 @@ async function movimentar(c, p, opcoes = {}) {
     let entrou = null;
     // Ações ligadas a campos do processo: depois do ato, o sistema confere o que se cumpre sozinho (cumprirPeloProcesso).
     let ligacoes = false;
+    // Rito com a ação que espera o cumprimento do cronograma: depois do ato, o sistema confere se ela se cumpriu.
+    let temQuitacao = false;
     const resultado = await db.runTransaction(async (tx) => {
         var _a, _b, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _s, _v, _w, _x;
         const { ref, data } = await (0, context_1.lerProcesso)(c, p.id, tx);
         (0, context_1.conferirVersao)(data, p.version);
         (0, context_1.exigirPosse)(c, data);
         ligacoes = temLigacoes(data.fases);
+        temQuitacao = (data.fases || []).some((f) => (f.acoes_regras || []).some((r) => (r === null || r === void 0 ? void 0 : r.pede) === 'quitacao'));
         // Campos exigidos por fase: valem os que o tipo ainda pede (lido antes de qualquer escrita).
         const tipoAtual = data.campos_exigidos && data.tipo_id && ['tramitar', 'avancarFase', 'alterarStatus'].includes(String(p.action))
             ? (await tx.get(db.collection(context_1.COL.tipos).doc(String(data.tipo_id)))).data() : null;
@@ -1630,7 +1678,7 @@ async function movimentar(c, p, opcoes = {}) {
             const proclamado = (regra === null || regra === void 0 ? void 0 : regra.pede) === 'julgamento' ? (_k = data.sessao) === null || _k === void 0 ? void 0 : _k.proclamado : null;
             // Disputa de preços: vale o resultado registrado na disputa (S13), não o que vier na tela.
             const disputa = (regra === null || regra === void 0 ? void 0 : regra.pede) === 'disputa' ? data.certame : null;
-            const dado = feita ? await valorDaAcao(c, regra, acao, proclamado ? { data: proclamado.data, votos: proclamado.votos } : disputa ? { resultado: disputa.resultado, resumo: disputa.resumo } : p.valor, String(p.id)) : null;
+            const dado = feita ? await valorDaAcao(c, regra, acao, proclamado ? { data: proclamado.data, votos: proclamado.votos } : disputa ? { resultado: disputa.resultado, resumo: disputa.resumo } : p.valor, String(p.id), (data.prazos || [])) : null;
             // "Leva ao painel": o registro ligado é lido aqui, antes de qualquer escrita da transação.
             const leva = dado && (regra === null || regra === void 0 ? void 0 : regra.ao_registro) && !regra.ve ? regra.ao_registro : null;
             const registroLeva = leva ? await lerRegistroDaAcao(tx, c, data, leva) : null;
@@ -1701,7 +1749,29 @@ async function movimentar(c, p, opcoes = {}) {
             const comResposta = respondeu ? { acoes_respostas: todasRespostas } : {};
             // Prazos das ações: encerra o da cumprida, reabre o da desfeita e acompanha a ação condicional que passou a valer (ou deixou).
             const pz = (0, prazosFase_1.prazosDasAcoes)(Object.assign(Object.assign(Object.assign({}, data), { acoes_feitas: feitas }), comResposta), fase, (0, secretaria_1.hojeBrasil)(), new Date().toISOString(), calendario, c.userName, () => (0, crypto_1.randomBytes)(10).toString('hex'));
-            const comPrazos = pz ? Object.assign({ prazos: pz.prazos }, (0, secretaria_1.derivados)((data.pendencias || []), pz.prazos)) : {};
+            // Cronograma de obrigações: registrar cria os prazos; desfazer cancela os que a ação criou e seguem em aberto.
+            let listaPrazos = pz ? pz.prazos : null;
+            let notaCronograma = '';
+            if ((regra === null || regra === void 0 ? void 0 : regra.pede) === 'cronograma') {
+                const basePrazos = (listaPrazos || data.prazos || []);
+                if (feita && dado && 'cronograma' in dado && dado.cronograma) {
+                    if (basePrazos.length + dado.cronograma.itens.length > secretaria_1.MAX_ITENS)
+                        throw new https_1.HttpsError('resource-exhausted', 'Limite de prazos do processo');
+                    listaPrazos = [...basePrazos, ...(0, cronograma_1.prazosDoCronograma)(dado.cronograma.itens, {
+                            hoje: (0, secretaria_1.hojeBrasil)(), agora: new Date().toISOString(), quem: c.userName, destinatario: dado.cronograma.destinatario,
+                            novoId: () => (0, crypto_1.randomBytes)(10).toString('hex'), cronograma_de: `${fase.id}:${idx}`,
+                        })];
+                }
+                else if (!feita) {
+                    const sai = (x) => x.obrigacao === true && x.status === 'aberto' && x.cronograma_de === `${fase.id}:${idx}`;
+                    const n = basePrazos.filter(sai).length;
+                    if (n) {
+                        listaPrazos = basePrazos.map((x) => (sai(x) ? Object.assign(Object.assign({}, x), { status: 'cancelado', encerrado_em: (0, secretaria_1.hojeBrasil)(), encerrado_por: c.userName }) : x));
+                        notaCronograma = ` ${n === 1 ? 'Fica cancelada a obrigação em aberto' : `Ficam canceladas as ${n} obrigações em aberto`} do cronograma.`;
+                    }
+                }
+            }
+            const comPrazos = listaPrazos ? Object.assign({ prazos: listaPrazos }, (0, secretaria_1.derivados)((data.pendencias || []), listaPrazos)) : {};
             const notasPrazo = [...((pz === null || pz === void 0 ? void 0 : pz.notas) || []), ...(leva && dado ? levarAoRegistro(tx, c, registroLeva, leva, dado, data, fase, acao) : [])];
             if (notasPrazo.length)
                 expedidas += 1;
@@ -1730,7 +1800,7 @@ async function movimentar(c, p, opcoes = {}) {
             // O rito diz onde fica: certidão nos autos (com folha), evento no extrato, só no sistema ou sem evento.
             const dest = (0, exigencias_1.destinoDaAcao)(regra);
             const sufixoAuto = !doProc ? '' : feita ? ' Cumprida automaticamente: o dado já consta do processo.' : ' Desfeita automaticamente: o dado do processo foi apagado ou mudou.';
-            const comDado = (!dado ? '' : reservado ? ` ${dado.rotulo}: reservado a quem gere a unidade.` : ` ${dado.rotulo}: ${dado.valor_texto}.`) + cancelada + sufixoAuto + notaLigacao;
+            const comDado = (!dado ? '' : reservado ? ` ${dado.rotulo}: reservado a quem gere a unidade.` : ` ${dado.rotulo}: ${dado.valor_texto}.`) + cancelada + notaCronograma + sufixoAuto + notaLigacao;
             const marcaAuto = doProc ? { do_processo: true } : {};
             if (dest === 'consolidar') {
                 // Certidão conjunta: o ato fica oculto e entra como item da certidão do grupo.
@@ -1973,6 +2043,23 @@ async function movimentar(c, p, opcoes = {}) {
             tx.update(ref, Object.assign(Object.assign(Object.assign({}, mov), { prazos: lista }), (0, secretaria_1.derivados)(pendencias, lista)));
             return mov;
         }
+        if (p.action === 'abrirCronograma') {
+            // Cronograma de obrigações fora do rito: o mesmo registro da ação "Registrar o cronograma".
+            let itens = [];
+            try {
+                itens = (0, cronograma_1.sanitizeObrigacoes)(p.itens);
+            }
+            catch (e) {
+                (0, context_1.erroUsuario)(e);
+            }
+            if (prazos.length + itens.length > secretaria_1.MAX_ITENS)
+                throw new https_1.HttpsError('resource-exhausted', 'Limite de prazos do processo');
+            const destinatario = (0, secretaria_1.texto)(p.destinatario, 120);
+            const lista = [...prazos, ...(0, cronograma_1.prazosDoCronograma)(itens, { hoje: (0, secretaria_1.hojeBrasil)(), agora, quem: c.userName, destinatario, novoId: () => ref.collection('_').doc().id })];
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'prazo', `Cronograma de obrigações registrado: ${(0, cronograma_1.resumoDoCronograma)(itens)}${destinatario ? `, a cargo de ${destinatario}` : ''}.`, Object.assign({ cronograma: itens.length }, (0, exigencias_1.marcasNaFase)(data, 'prazo')));
+            tx.update(ref, Object.assign(Object.assign(Object.assign({}, mov), { prazos: lista }), (0, secretaria_1.derivados)(pendencias, lista)));
+            return mov;
+        }
         if (p.action === 'encerrarPrazo') {
             const alvo = prazos.find((x) => x.id === p.prazo_id && x.status === 'aberto');
             if (!alvo)
@@ -2115,6 +2202,12 @@ async function movimentar(c, p, opcoes = {}) {
         const auto = await avancarSozinho(c, String(p.id));
         if (auto)
             return auto;
+    }
+    // Obrigação encerrada, cronograma registrado ou fase nova: com tudo cumprido, a ação que espera o cronograma se cumpre.
+    if (temQuitacao && ['encerrarPrazo', 'avancarFase', 'tramitar', 'marcarAcao'].includes(String(p.action))) {
+        const q = await cumprirQuitacao(c, String(p.id));
+        if (q)
+            return { success: true, version: q.version, automaticas: true };
     }
     // Entrou em fase, os dados mudaram ou a ação preencheu um campo: o que o processo já informa cumpre as ações ligadas.
     if (ligacoes && !opcoes.doProcesso && ['avancarFase', 'tramitar', 'alterarDados', 'marcarAcao', 'alterarStatus'].includes(String(p.action))) {

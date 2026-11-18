@@ -41,6 +41,8 @@ import { resumoAndamento, textoAvanco } from '@/lib/andamentoFase';
 import { notaDoPrazo, prazoAbertoDaAcao } from '@/lib/efeitosFase';
 import { atorNoProcesso, podeQuem, podeReserva, resumoPermissoes, textoQuem, textoReserva, unidadeDecide, unidadeExpede } from '@/lib/permissoesFase';
 import { RegistroContexto } from './SeletorRegistro';
+import { CronogramaDialog, ResumoCronograma } from './Cronograma';
+import { reais, situacaoDasObrigacoes } from '@/lib/cronograma';
 import { ligada, nomeDoCampo } from '@/lib/doProcesso';
 import { FORMAS, ROTULO_DESTINO, acaoAtiva, exigeDoDocumento, alternativaCumprida, soOrienta, destinoDaAcao, destinoDaMudanca, faltaNaFase, niveisDaFase, pedidoDaAcao, pendentesDaFase, recomendadosNaFase, respostasDoProcesso, saidaPadrao, saidasComCondicao, situacaoDaFase, sugeridas, textoCondicao } from '@/lib/exigencias';
 import { AcaoDaFase, RegistrarAcao } from './AcoesNoProcesso';
@@ -86,6 +88,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     const [leitura, setLeitura] = useState(null); // id do documento aberto no leitor contínuo
     const [confirmar, setConfirmar] = useState(null); // {titulo, texto, rotulo, fn}: ato que não se desfaz
     const [vista, setVista] = useState(null); // capa | andamento | autos | eventos (null = padrão do perfil)
+    const [cronograma, setCronograma] = useState(null); // cronograma de obrigações a registrar: {idx?, titulo, version}
     const [registrar, setRegistrar] = useState(null); // ação da fase que pede um dado: {idx, acao, r, fase}
     const pendenciasRef = useRef(null);
     const eventosRef = useRef(null);
@@ -691,7 +694,8 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                             onMarcar={(feita) => mov('marcarAcao', { acao_idx: i, feita })}
                                             certame={r?.pede === 'disputa' && p.certame?.fase_id === faseAtual.id && p.certame?.acao_idx === i ? p.certame : null}
                                             onAbrirDerivado={estado.minhasUnidades.length > 0 ? () => navigate(`/ProcessoEletronico?org=${orgId}&de=pe:${procId}`, { state: { semente: { modulo: 'pe', id: procId, numero: p.numero, tipo_nome: r?.derivado?.tipo || '' } } }) : undefined}
-                                            onRegistrar={() => (r?.pede === 'disputa' ? setDisputa(true) : setRegistrar({ idx: i, acao: a, r, fase: p.fase_nome, version: p.version, orgId, procId,
+                                            cronograma={r?.pede === 'quitacao' ? situacaoDasObrigacoes(p.prazos, hoje) : null}
+                                            onRegistrar={() => (r?.pede === 'disputa' ? setDisputa(true) : r?.pede === 'cronograma' ? setCronograma({ idx: i, titulo: a, version: p.version }) : setRegistrar({ idx: i, acao: a, r, fase: p.fase_nome, version: p.version, orgId, procId,
                                                 proclamado: r?.pede === 'julgamento' ? p.sessao?.proclamado || null : null,
                                                 membros: r?.pede === 'julgamento' ? membrosDoJulgamento(estado, p.unidade_atual, new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })) : [] }))}
                                             onDesfazer={desfazer} />
@@ -831,10 +835,12 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                 <div className="flex gap-2">
                                     <Button size="sm" variant="outline" className="gap-1" disabled={!podeMexer || ocupado} onClick={() => setAcao({ tipo: 'pendencia' })}><AlertCircle className="w-4 h-4" /> Pendência</Button>
                                     <Button size="sm" variant="outline" className="gap-1" disabled={!podeMexer || ocupado} onClick={() => setAcao({ tipo: 'prazo' })}><CalendarClock className="w-4 h-4" /> Prazo</Button>
+                                    <Button size="sm" variant="outline" className="gap-1" disabled={!podeMexer || ocupado} onClick={() => setCronograma({ titulo: 'Cronograma de obrigações' })}><ListChecks className="w-4 h-4" /> Cronograma</Button>
                                 </div>
                             )}
                         </CardHeader>
                         <CardContent className="space-y-2 text-sm">
+                            <ResumoCronograma prazos={p.prazos} hoje={hoje} />
                             {p.fase_suspensa && <p className="text-amber-700 dark:text-amber-400 font-medium">Fase interrompida até o decisor apreciar a pendência.</p>}
                             {pendenciasAbertas.map((x) => {
                                 const dias = diasDesde(x.aberta_em);
@@ -853,7 +859,8 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                     </div>
                                 );
                             })}
-                            {p.prazos.filter((x) => x.status === 'aberto').map((x) => {
+                            {(() => {
+                              const linha = (x) => {
                                 const vencido = hoje > x.vence_em;
                                 return (
                                     <div key={x.id} className="flex flex-wrap items-center gap-2 py-2 border-b last:border-0 border-slate-100 dark:border-slate-800">
@@ -861,15 +868,30 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                         <div className="flex-1 min-w-[10rem]">
                                             <p>{x.descricao}{x.destinatario ? ` · ${x.destinatario}` : ''}</p>
                                             <p className={`text-xs ${vencido ? 'text-red-700 dark:text-red-400 font-medium' : 'text-slate-600 dark:text-slate-400'}`}>
-                                                {x.dias} dias {x.contagem === 'uteis' ? 'úteis' : 'corridos'} · {vencido ? 'venceu' : 'vence'} em {x.vence_em.split('-').reverse().join('/')}
+                                                {x.obrigacao ? `Obrigação${x.valor ? ` de ${reais(x.valor)}` : ''}` : `${x.dias} dias ${x.contagem === 'uteis' ? 'úteis' : 'corridos'}`} · {vencido ? 'venceu' : 'vence'} em {x.vence_em.split('-').reverse().join('/')}
                                                 {x.ajustes?.length ? ` · ${x.ajustes.map((a) => `${a.tipo === 'prorrogacao' ? 'prorrogado' : 'devolvido'} por ${a.dias}`).join(', ')}` : ''}
                                             </p>
                                         </div>
                                         {posse && <Button size="sm" variant="outline" disabled={ocupado || arquivado} onClick={() => setAcao({ tipo: 'ajustarPrazo', prazo: x, modo: vencido ? 'devolverPrazo' : 'prorrogarPrazo' })}>{vencido ? 'Devolver' : 'Prorrogar'}</Button>}
-                                        {posse && <Button size="sm" variant="outline" disabled={ocupado || arquivado} onClick={() => setAcao({ tipo: 'encerrarPrazo', prazo: x })}>Encerrar</Button>}
+                                        {posse && <Button size="sm" variant="outline" disabled={ocupado || arquivado} onClick={() => setAcao({ tipo: 'encerrarPrazo', prazo: x })}>{x.obrigacao ? 'Cumprida' : 'Encerrar'}</Button>}
                                     </div>
                                 );
-                            })}
+                              };
+                              const abertos = p.prazos.filter((x) => x.status === 'aberto');
+                              const obrig = abertos.filter((x) => x.obrigacao).sort((a, b) => a.vence_em.localeCompare(b.vence_em));
+                              return (
+                                <>
+                                    {abertos.filter((x) => !x.obrigacao).map(linha)}
+                                    {obrig.slice(0, 4).map(linha)}
+                                    {obrig.length > 4 && (
+                                        <details>
+                                            <summary className="cursor-pointer py-2 text-slate-600 dark:text-slate-300">Ver as demais {obrig.length - 4} obrigações do cronograma</summary>
+                                            {obrig.slice(4).map(linha)}
+                                        </details>
+                                    )}
+                                </>
+                              );
+                            })()}
                             {pendenciasAbertas.length === 0 && !p.prazos.some((x) => x.status === 'aberto') && <p className="text-slate-600">Nenhuma pendência ou prazo aberto.</p>}
                             {noGabinete && p.pendencias.some((x) => x.status === 'resolvida') && (
                                 <details className="pt-1">
@@ -1006,6 +1028,14 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
             </TabsContent>
             </Tabs>
 
+            <CronogramaDialog alvo={cronograma} partes={p.partes || []} ocupado={ocupado} onFechar={() => setCronograma(null)}
+                onEnviar={async (valor) => {
+                    const ok = cronograma.idx === undefined
+                        ? await mov('abrirCronograma', valor, 'Cronograma registrado')
+                        : await mov('marcarAcao', { acao_idx: cronograma.idx, feita: true, valor, version: cronograma.version }, 'Cronograma registrado');
+                    if (ok) setCronograma(null);
+                    return ok;
+                }} />
             <RegistrarAcao alvo={registrar} ocupado={ocupado} onFechar={() => setRegistrar(null)}
                 onEnviar={async (valor) => { const ok = await mov('marcarAcao', { acao_idx: registrar.idx, feita: true, valor, version: registrar.version }, 'Ação registrada'); if (ok) setRegistrar(null); return ok; }} />
 
@@ -1334,12 +1364,12 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
         );
         enviar = () => mov(acao.modo, { prazo_id: pz.id, dias: Number(dias), motivo }, devolve ? 'Prazo devolvido' : 'Prazo prorrogado');
     } else if (tipo === 'encerrarPrazo') {
-        titulo = 'Encerrar prazo';
+        titulo = acao.prazo.obrigacao ? 'Encerrar obrigação' : 'Encerrar prazo';
         exigeValor = true;
         campo = (
             <>
                 <p className="text-sm text-slate-700 dark:text-slate-300">{acao.prazo.descricao} · vence {acao.prazo.vence_em.split('-').reverse().join('/')}</p>
-                <NativeSelect label="Resultado" value={valor} onChange={setValor} options={[['', 'Escolha…'], ['cumprido', 'Cumprido'], ['cancelado', 'Cancelado']]} />
+                <NativeSelect label="Resultado" value={valor} onChange={setValor} options={[['', 'Escolha…'], ['cumprido', acao.prazo.obrigacao ? 'Cumprida (comprovante conferido)' : 'Cumprido'], ['cancelado', acao.prazo.obrigacao ? 'Cancelada (deixou de ser devida)' : 'Cancelado']]} />
             </>
         );
         enviar = () => mov('encerrarPrazo', { prazo_id: acao.prazo.id, resultado: valor, motivo }, 'Prazo encerrado');

@@ -1,4 +1,5 @@
 import * as admin from 'firebase-admin';
+import { prazosEmFoco, situacaoDasObrigacoes } from '../shared/cronograma';
 import { numeroArquivo } from '../shared/numeracao';
 import { FieldValue } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
@@ -293,7 +294,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             const visto = acessos[d.id] || '';
             const ultimo = ultimoPublico(x);
             const novidades = !!ultimo && ultimo.em > visto;
-            const meusPrazos = prazosDaParte(x, parte);
+            const meusPrazos = prazosEmFoco(prazosDaParte(x, parte), hoje);
             const minhasPeticoes = ((x.pendencias || []) as Pendencia[]).filter((q) => q.tipo === 'peticao' && q.status === 'aberta' && String(q.aberta_por || '').startsWith(`${parte?.nome} (`));
             for (const pr of meusPrazos) {
                 paraVoce.push({ tipo: 'prazo', processoId: d.id, numero: x.numero, assunto: x.assunto, descricao: pr.descricao, vence_em: pr.vence_em, vencido: pr.vence_em < hoje, prazo_id: pr.id });
@@ -360,7 +361,10 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
                 partes: (data.partes || []).filter((x: { retirada?: unknown }) => !x.retirada).map((x: { nome: string; polo: string }) => ({ nome: x.nome, polo: x.polo })),
                 nomes_polos: data.nomes_polos || {},
                 prazos: prazosPublicos(data)
-                    .map((x) => ({ id: x.id, descricao: x.descricao, destinatario: x.destinatario || '', vence_em: x.vence_em, meu: prazosDaParte(data, parte).some((q) => q.id === x.id) })),
+                    .map((x) => ({ id: x.id, descricao: x.descricao, destinatario: x.destinatario || '', vence_em: x.vence_em, meu: prazosDaParte(data, parte).some((q) => q.id === x.id),
+                        ...(x.obrigacao === true ? { obrigacao: true, ...(typeof x.valor === 'number' ? { valor: x.valor } : {}) } : {}) })),
+                // Cronograma de obrigações: quantas já foram cumpridas (as abertas estão nos prazos).
+                cronograma: situacaoDasObrigacoes(data.prazos as Prazo[] | undefined, hojeBrasil()),
                 minha_parte: parte,
                 comunicacoes: comunicacoesDaConta(data, uid),
                 // Audiências designadas a partir de hoje: ato público (a certidão está nos autos).

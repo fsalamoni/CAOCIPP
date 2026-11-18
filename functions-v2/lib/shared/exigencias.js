@@ -116,7 +116,7 @@ exports.FORMAS = ['redigir', 'juntar', 'qualquer'];
 exports.MAX_ASSINATURAS_EXIGIDAS = 5;
 exports.NIVEIS = ['recomendado', 'opcional'];
 /** O que a ação pede a quem a cumpre. */
-exports.PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'derivado', 'formulario', 'documento', 'orientacao', 'comunicacao', 'resposta', 'audiencia', 'julgamento', 'disputa'];
+exports.PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'derivado', 'cronograma', 'quitacao', 'formulario', 'documento', 'orientacao', 'comunicacao', 'resposta', 'audiencia', 'julgamento', 'disputa'];
 exports.MAX_OPCOES_ACAO = 30;
 /** Campos de uma ação que pede um formulário. */
 exports.MAX_CAMPOS_ACAO = 10;
@@ -236,6 +236,10 @@ function sanitizeRegra(raw, acao) {
     if (pedeBruto === 'julgamento') {
         Object.assign(out, (0, permissoesFase_1.sanitizeQuem)(r.quem, r.atribuicao, `A ação "${acao}"`));
         return Object.assign(Object.assign(Object.assign({}, out), { pede: 'julgamento', julgamento: (0, julgamento_1.sanitizeJulgamentoDaAcao)(r.julgamento, acao), destino: 'autos', partes: true }), (r.obrigatoria === true ? { obrigatoria: true } : r.recomendada === true ? { recomendada: true } : {}));
+    }
+    // Esperar o cumprimento do cronograma de obrigações: cumpre-se sozinha, sem dado a informar (ver shared/cronograma.ts).
+    if (pedeBruto === 'quitacao') {
+        return Object.assign(Object.assign(Object.assign({}, out), { pede: 'quitacao' }), (r.obrigatoria === true ? { obrigatoria: true } : r.recomendada === true ? { recomendada: true } : {}));
     }
     // Esperar a resposta: a ação de que depende é validada com todas as regras da fase (sanitizeRegras).
     if (pedeBruto === 'resposta') {

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { fraseDoCronograma, reais } from '@/lib/cronograma';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -546,18 +547,34 @@ function ProcessoParte({ id, onVoltar }) {
                         <Card className={p.prazos.some((x) => x.meu) ? 'border-amber-300 dark:border-amber-700' : ''}>
                             <CardHeader className="pb-2"><CardTitle className="text-base">Prazos em aberto</CardTitle></CardHeader>
                             <CardContent className="space-y-2 text-sm">
-                                {p.prazos.map((x) => {
+                                {p.cronograma?.total > 0 && <p className="text-slate-700 dark:text-slate-300"><b>Cronograma de obrigações:</b> {fraseDoCronograma(p.cronograma)}.</p>}
+                                {(() => {
+                                  const linha = (x) => {
                                     const dias = diasAte(x.vence_em);
                                     return (
                                         <div key={x.id} className="flex flex-wrap items-center gap-2">
                                             <CalendarClock className={`w-4 h-4 ${dias < 0 ? 'text-red-600' : 'text-indigo-600'}`} aria-hidden />
                                             <span className="flex-1 min-w-[10rem]">
-                                                {x.descricao}{x.destinatario ? ` (${x.destinatario})` : ''} · <span className={dias < 0 ? 'text-red-700 dark:text-red-300 font-medium' : ''}>{dias < 0 ? `venceu em ${brData(x.vence_em)}` : dias === 0 ? 'vence hoje' : `vence em ${brData(x.vence_em)} (${dias} dias)`}</span>
+                                                {x.descricao}{x.valor ? `, ${reais(x.valor)}` : ''}{x.destinatario ? ` (${x.destinatario})` : ''} · <span className={dias < 0 ? 'text-red-700 dark:text-red-300 font-medium' : ''}>{dias < 0 ? `venceu em ${brData(x.vence_em)}` : dias === 0 ? 'vence hoje' : `vence em ${brData(x.vence_em)} (${dias} dias)`}</span>
                                             </span>
-                                            {x.meu && <Button size="sm" variant="outline" onClick={() => irParaManifestar(x)}>Responder</Button>}
+                                            {x.meu && <Button size="sm" variant="outline" onClick={() => irParaManifestar(x)}>{x.obrigacao ? 'Enviar comprovante' : 'Responder'}</Button>}
                                         </div>
                                     );
-                                })}
+                                  };
+                                  const obrig = p.prazos.filter((x) => x.obrigacao).sort((a, b) => a.vence_em.localeCompare(b.vence_em));
+                                  return (
+                                    <>
+                                        {p.prazos.filter((x) => !x.obrigacao).map(linha)}
+                                        {obrig.slice(0, 4).map(linha)}
+                                        {obrig.length > 4 && (
+                                            <details>
+                                                <summary className="cursor-pointer text-slate-600 dark:text-slate-300">Ver as demais {obrig.length - 4} obrigações</summary>
+                                                <div className="mt-2 space-y-2">{obrig.slice(4).map(linha)}</div>
+                                            </details>
+                                        )}
+                                    </>
+                                  );
+                                })()}
                             </CardContent>
                         </Card>
                     )}

@@ -5,6 +5,27 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 18/11/2026 — Cronograma de obrigações (parcelas com alerta e comprovante pelo portal)
+- **Nova opção em "O que pede"**, para qualquer rito: **Registrar um
+  cronograma de obrigações**. Na tela do processo, "Montar cronograma" gera
+  parcelas iguais (quantidade, primeiro vencimento, periodicidade, valor de
+  cada uma ou total a dividir) e aceita obrigações avulsas, com ou sem
+  valor. Cada uma vira um prazo do processo, com alerta de vencimento.
+- **A parte comprova pelo portal**: vê o andamento do cronograma, o valor e
+  o vencimento de cada obrigação e o botão "Enviar comprovante". A equipe
+  confere e encerra a obrigação como cumprida.
+- **Outra opção nova: Esperar o cumprimento do cronograma.** A ação mostra
+  quantas obrigações foram cumpridas, quantas estão atrasadas e a próxima,
+  e se cumpre sozinha quando a última é cumprida. Obrigatória, segura a
+  fase até o cumprimento integral.
+- **Botão "Cronograma"** em "Pendências e prazos", para processo de qualquer
+  rito, mesmo sem a ação (um parcelamento, um ajustamento de conduta).
+- **Modelos atualizados**: o acompanhamento do acordo de não persecução
+  civil e o acordo completo (MPRS) registram o cronograma no início e só
+  chegam ao "Cumprimento integral" com todas as obrigações cumpridas.
+- Guia do rito (parte 3), tutorial e filtro "Cronograma de obrigações" na
+  biblioteca de modelos.
+
 ### 18/11/2026 — Ação "Abrir um processo derivado" no rito
 - **Nova opção em "O que pede"**, para qualquer rito: **Abrir um processo
   derivado**. Na tela do processo, a ação mostra o botão "Abrir processo",
