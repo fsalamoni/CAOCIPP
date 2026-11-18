@@ -3137,6 +3137,31 @@ A exportação é registrada em `auditLogs` (`SECRETARIA_PDF_EXPORTADO`).
 
 ## Portal das partes (fase 3)
 
+- **Parte externa (nov/2026).** Três recursos para quem é de fora do órgão:
+  1. *Representante qualificado* (`shared/representacao.ts`, espelho em
+     `src/lib/representacao.js`): `convidarParte` com `representante {nome,
+     email, qualidade, inscricao, poderes}`. Qualidades: advogado (inscrição
+     obrigatória), defensor, procurador, legal, preposto, outro. Advogado,
+     representante legal e preposto exigem `poderes: true` (procuração ou
+     ato conferido); o servidor recusa sem isso. O rótulo e a assinatura do
+     representante levam a qualificação (`nomeQualificado`). Representante
+     sem qualidade segue valendo (os antigos).
+  2. *Visibilidade por polo* (`shared/autos.ts`): documento e movimento
+     podem levar `visivel_polos: string[]`. `documentoVisivel(d, polo)` e
+     `visivelParaPartes(m, polo)` respondem para o polo de quem lê; sem
+     polo (último andamento público, "Meus processos"), o restrito não
+     aparece. Vale para a lista, o PDF dos autos, a certidão, o download e o
+     aviso por e-mail (só às partes do polo). A juntada aceita
+     `visivel_polos` (`polosEscolhidos`: só polos com parte ativa; todos =
+     sem restrição). Comunicação não leva documento restrito a destinatário
+     de outro polo.
+  3. *Petições por polo*: `formulario.peticoes_por_polo` no tipo de processo
+     é copiado para o processo na autuação; a petição do portal nasce com
+     `visivel_polos: [polo da parte]`. A equipe sempre vê tudo.
+- **Tipos de petição do órgão**: lista `peticao` em Listas do órgão
+  (`tiposDePeticao`: os do sistema, os do órgão e "Outro" no fim). O portal
+  oferece e o servidor valida pela mesma função.
+
 - **Convite:** a unidade que tem o processo clica em Convidar ao lado da parte.
   A function gera um token aleatório (24 bytes), guarda só o SHA-256 em
   `secConvites` e devolve o link `/Portal?convite=...`, que a equipe copia. Com

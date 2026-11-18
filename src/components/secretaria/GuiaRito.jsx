@@ -405,8 +405,17 @@ export default function GuiaRito({ variante = 'outline', className = '', inicial
                                     <tr><td>Espécies de comunicação</td><td>Expedir comunicação, ação do rito que pede comunicação às partes, textos prontos, portal</td><td>Edital, notificação extrajudicial, convocação</td></tr>
                                     <tr><td>Espécies de audiência</td><td>Ação do rito que designa audiência, aviso na capa, portal das partes</td><td>Sessão de mediação, reunião de conciliação, audiência pública</td></tr>
                                     <tr><td>Origens do processo</td><td>Autuação, retificação, capa, PDF da equipe, condições do rito (dado Origem)</td><td>Ouvidoria, corregedoria, auditoria interna</td></tr>
+                                    <tr><td>Tipos de petição</td><td>Portal das partes, em &quot;Tipo de petição&quot;, junto dos do sistema; a petição guarda o nome do tipo</td><td>Comprovante de cumprimento, proposta de acordo, pedido de repactuação</td></tr>
                                 </tbody>
                             </table>
+                            <p>
+                                <strong>Quem é de fora do órgão</strong> entra pelo portal das partes, como parte ou como representante dela. Ao convidar um representante,
+                                informe a qualidade (advogado, defensor público, procurador do ente público, representante legal, preposto) e a inscrição; advogado,
+                                representante legal e preposto só recebem o acesso com a procuração ou o ato de representação conferido, e tudo o que ele protocola sai
+                                assinado com a qualificação. Quando um documento não deve ir a todas as partes, a juntada oferece &quot;Só para&quot; cada polo. E, no tipo
+                                de processo, &quot;Cada polo vê só as próprias petições no portal&quot; mantém em reserva o que cada lado apresenta, como numa negociação
+                                de acordo: a equipe vê tudo e decide o que mostrar a cada um.
+                            </p>
                             <ul className="list-disc pl-5 space-y-1">
                                 <li>Marque "Nome masculino" nas espécies como edital ou ofício: os textos saem "ao edital", "ciência do edital", "edital expedido".</li>
                                 <li>Uma espécie do órgão funciona como as do sistema: com prazo, a parte responde no prazo; sem prazo, fica só a ciência.</li>

@@ -32,8 +32,31 @@ export function origemEvento(m: Evento): 'sistema' | 'usuario' | 'interno' {
 export const MOVIMENTOS_INTERNOS = ['atribuicao', 'pendencia', 'acao_fase', 'orientacao_concluida', 'guarda', 'efeitos_fase', 'rito_atualizado'];
 
 /** A parte vê o evento? Registros internos e de controle, não; certidão de ação no rito, sim. */
-export const visivelParaPartes = (m: Evento): boolean =>
-    m.dados?.visivel_partes !== false && origemEvento(m) !== 'interno'
+/** Polos que veem o item no portal, quando ele é restrito a alguns (null = todos os polos). */
+export const polosQueVeem = (x: { visivel_polos?: unknown } | null | undefined): string[] | null => {
+    const l = Array.isArray(x?.visivel_polos) ? (x!.visivel_polos as unknown[]).filter((p): p is string => typeof p === 'string' && !!p) : [];
+    return l.length ? l : null;
+};
+/** Saneia a escolha de "quem vê": só polos que o processo tem; todos (ou nenhum) = sem restrição. */
+export function polosEscolhidos(bruto: unknown, polosDoProcesso: string[]): string[] | null {
+    const l = [...new Set((Array.isArray(bruto) ? bruto : []).filter((p): p is string => typeof p === 'string' && polosDoProcesso.includes(p)))];
+    return l.length && l.length < new Set(polosDoProcesso).size ? l : null;
+}
+/** O polo vê o documento juntado? (fora do portal, ninguém; restrito, só os polos indicados) */
+export const documentoVisivel = (d: { visivel_partes?: unknown; visivel_polos?: unknown }, polo: string | null | undefined): boolean => {
+    if (d.visivel_partes === false) return false;
+    const so = polosQueVeem(d);
+    return !so || (!!polo && so.includes(polo));
+};
+
+/**
+ * A parte vê o evento? Com `polo`, responde para aquele polo; sem ele, só é
+ * visível o que todos os polos veem (o "último andamento" e os avisos gerais
+ * nunca levam o que é restrito a um polo).
+ */
+export const visivelParaPartes = (m: Evento, polo?: string | null): boolean =>
+    (!polosQueVeem(m.dados as { visivel_polos?: unknown }) || (!!polo && polosQueVeem(m.dados as { visivel_polos?: unknown })!.includes(polo)))
+    && m.dados?.visivel_partes !== false && origemEvento(m) !== 'interno'
     // Pendência aberta à mão é assunto entre a equipe e o decisor, mesmo com termo nos autos.
     && (!MOVIMENTOS_INTERNOS.includes(m.tipo) || (m.tipo === 'acao_fase' && m.dados?.nos_autos === true));
 

@@ -9,10 +9,10 @@ import { codigoDe, codigosRepetidos, numeracaoDe, numeracaoTipoDe, sanitizeNumer
 import { COL, REGION, administraOrgao, carregarContexto, erroUsuario, exigirAdmin, exigirAdminDoOrgao, exigirAuth, exigirGestor } from './context';
 import { ESPECIES, cienciaDias, sanitizeTextosProntos, textosProntosDe } from '../shared/comunicacoes';
 import { ESPECIES_AUDIENCIA } from '../shared/audiencias';
-import { MAX_ITENS_PROPOSTA, listasDe, sanitizeListas } from '../shared/listasOrgao';
+import { MAX_ITENS_PROPOSTA, TIPOS_PETICAO, listasDe, sanitizeListas } from '../shared/listasOrgao';
 
 /** Nomes que o sistema já tem em cada lista do órgão (não se repetem). */
-const SISTEMA_LISTAS = { comunicacao: Object.values(ESPECIES), audiencia: Object.values(ESPECIES_AUDIENCIA), origem: Object.values(ROTULO_ORIGEM) };
+const SISTEMA_LISTAS = { comunicacao: Object.values(ESPECIES), audiencia: Object.values(ESPECIES_AUDIENCIA), origem: Object.values(ROTULO_ORIGEM), peticao: TIPOS_PETICAO };
 import { emArvore, orgaosDe, sanitizeCompetencias } from '../shared/orgaos';
 import { criarEstrutura, lerOrgaos, removerOrgao, salvarOrgao } from './orgaos';
 import { sanitizeDocumentoConfig } from './documentoConfig';
@@ -747,7 +747,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         await db.collection(COL.config).doc(orgId).set({ organization_id: orgId, listas, updated_at: agora, updated_by: auth.uid }, { merge: true });
         const importado = texto(p.arquivo_nome, 160);
         await audit('SECRETARIA_LISTAS', {
-            comunicacao: listas!.comunicacao?.length || 0, audiencia: listas!.audiencia?.length || 0, origem: listas!.origem?.length || 0,
+            comunicacao: listas!.comunicacao?.length || 0, audiencia: listas!.audiencia?.length || 0, origem: listas!.origem?.length || 0, peticao: listas!.peticao?.length || 0,
             ...(importado ? { importado_de: importado, itens_importados: Math.max(0, Math.min(MAX_ITENS_PROPOSTA, Number(p.itens_importados) || 0)) } : {}),
         });
         return { success: true };

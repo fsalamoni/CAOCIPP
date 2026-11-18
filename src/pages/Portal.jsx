@@ -606,7 +606,7 @@ function ProcessoParte({ id, onVoltar }) {
                     </Card>
 
                     <div ref={formRef}>
-                        <Peticionar id={id} prazos={p.prazos.filter((x) => x.meu)} tipos={tipos} prazoInicial={responderPrazo} onFeito={atualizar} onComprovante={comprovante}
+                        <Peticionar id={id} prazos={p.prazos.filter((x) => x.meu)} tipos={tipos} prazoInicial={responderPrazo} reservada={p.peticoes_por_polo === true} onFeito={atualizar} onComprovante={comprovante}
                             aviso={p.status === 'em_tramitacao' ? '' : `Este processo está ${STATUS_ROTULO[p.status]?.toLowerCase() || p.status}. Você ainda pode se manifestar: o pedido entra nos autos e vai para quem decide, que avalia se o processo volta a andar.`} />
                     </div>
 
@@ -749,7 +749,7 @@ function PedidosSessao({ id, sessao, onFeito }) {
     );
 }
 
-function Peticionar({ id, prazos, tipos = [], prazoInicial, aviso, onFeito, onComprovante }) {
+function Peticionar({ id, prazos, tipos = [], prazoInicial, aviso, reservada, onFeito, onComprovante }) {
     const chave = `portal-rascunho-${id}`;
     const rascunho = useMemo(() => { try { return JSON.parse(localStorage.getItem(chave) || 'null'); } catch { return null; } }, [chave]);
     const [tipo, setTipo] = useState(rascunho?.tipo || '');
@@ -808,6 +808,7 @@ function Peticionar({ id, prazos, tipos = [], prazoInicial, aviso, onFeito, onCo
             <CardHeader className="pb-2"><CardTitle className="text-base">Manifestar-se neste processo</CardTitle></CardHeader>
             <CardContent className="space-y-3">
                 {aviso && <p className="text-sm rounded-md bg-amber-50 dark:bg-amber-950 text-amber-900 dark:text-amber-100 px-3 py-2">{aviso}</p>}
+                {reservada && <p className="text-sm text-slate-600 dark:text-slate-400">Neste processo, o que você protocola fica visível só para você, quem o representa e o órgão. As demais partes não veem.</p>}
                 {protocolo && (
                     <div role="status" className="rounded-md bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 p-3 text-sm space-y-2">
                         <p>Protocolado sob nº <b>{protocolo.protocolo}</b> em {dataHora(protocolo.em)} e incluído nos autos como documento nº {protocolo.ordem}. Quem decide foi avisado.</p>

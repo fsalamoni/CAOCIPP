@@ -1,4 +1,6 @@
 import * as admin from 'firebase-admin';
+import { TIPOS_PETICAO as TIPOS_PETICAO_SISTEMA, tiposDePeticao } from '../shared/listasOrgao';
+import { Representacao, nomeQualificado } from '../shared/representacao';
 import { prazosEmFoco, situacaoDasObrigacoes } from '../shared/cronograma';
 import { numeroArquivo } from '../shared/numeracao';
 import { FieldValue } from 'firebase-admin/firestore';
@@ -14,7 +16,7 @@ import { FONTES_ATUAIS, caminhoPdf, conteudoDoDocumento, folhasDoProcesso, novoC
 import { entregar, gravarOriginal, lerArquivoEnviado, lerOriginal } from './arquivos';
 import { renderizarDocumento, textoParaDoc } from './pdfDocumento';
 import { montarPdfAutos, selecaoOuErro } from './exportar';
-import { extrasDoEvento, visivelParaPartes } from '../shared/autos';
+import { documentoVisivel, extrasDoEvento, visivelParaPartes } from '../shared/autos';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { avisarPeticao } from './avisosEquipe';
 import { Comunicacao, destinatario, nomeDaEspecie, textoPrazo } from '../shared/comunicacoes';
@@ -48,7 +50,10 @@ import { exigirContaLiberada, peSuspensoPlataforma } from '../shared/vinculo';
 export { MOVIMENTOS_INTERNOS } from '../shared/autos';
 const TIPOS_PETICAO: Record<string, string> = { 'application/pdf': 'pdf', 'image/png': 'png', 'image/jpeg': 'jpg', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx' };
 /** Tipos de petição oferecidos no portal; o texto vai no título e no movimento. */
-export const TIPOS_PETICAO_PORTAL = ['Manifestação', 'Juntada de documento', 'Pedido de prazo', 'Pedido de urgência', 'Pedido de vista', 'Recurso', 'Outro'];
+export const TIPOS_PETICAO_PORTAL = TIPOS_PETICAO_SISTEMA;
+/** Tipos de petição do órgão do processo (os do sistema e os da lista do órgão). */
+const tiposDoOrgao = async (db: admin.firestore.Firestore, orgId: unknown) =>
+    tiposDePeticao((await db.collection(COL.config).doc(String(orgId)).get().catch(() => null))?.data()?.listas);
 export const AVISOS_PARTE = ['tudo', 'prazos', 'nenhum'] as const;
 export type AvisosParte = typeof AVISOS_PARTE[number];
 /** Dados do portal por conta de parte: último acesso a cada processo e preferência de aviso. */
@@ -150,7 +155,7 @@ async function lerComoParte(db: admin.firestore.Firestore, uid: string, id: unkn
     return { ref, data, org };
 }
 
-type ParteDoc = { uid?: string; nome: string; polo: string; representantes?: Array<{ uid?: string; nome: string }> };
+type ParteDoc = { uid?: string; nome: string; polo: string; representantes?: Array<{ uid?: string; nome: string } & Representacao> };
 /** Quem a conta é no processo: a própria parte ou representante dela. */
 export interface Quem {
     nome: string; polo: string; como: 'parte' | 'representante';
@@ -170,7 +175,7 @@ function parteDoUsuario(proc: admin.firestore.DocumentData, uid: string): Quem |
     if (propria) return { nome: propria.nome, polo: propria.polo, nome_polo: np(propria.polo), como: 'parte', assina: propria.nome, rotulo: `${propria.nome} (${np(propria.polo)})` };
     for (const p of partes) {
         const r = (p.representantes || []).find((x) => x.uid === uid);
-        if (r) return { nome: p.nome, polo: p.polo, nome_polo: np(p.polo), como: 'representante', representante: r.nome, assina: `${r.nome}, representante de ${p.nome}`, rotulo: `${r.nome}, representante de ${p.nome} (${np(p.polo)})` };
+        if (r) return { nome: p.nome, polo: p.polo, nome_polo: np(p.polo), como: 'representante', representante: r.nome, assina: `${nomeQualificado(r)}, representante de ${p.nome}`, rotulo: `${nomeQualificado(r)}, representante de ${p.nome} (${np(p.polo)})` };
     }
     return undefined;
 }
@@ -221,8 +226,8 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
                 if (rep.uid && rep.uid !== uid) throw new HttpsError('failed-precondition', 'Este representante já está vinculado a outra conta');
                 reps[ridx] = { ...rep, uid, habilitada_em: new Date().toISOString(), conta: nomeConta };
                 partes[conv.parte_idx] = { ...parte, representantes: reps };
-                rotulo = `${rep.nome}, representante de ${parte.nome} (${nomeDoPolo(proc.nomes_polos, parte.polo)}),`;
-                assina = `${rep.nome}, representante de ${parte.nome}`;
+                rotulo = `${nomeQualificado(rep)}, representante de ${parte.nome} (${nomeDoPolo(proc.nomes_polos, parte.polo)}),`;
+                assina = `${nomeQualificado(rep)}, representante de ${parte.nome}`;
             } else {
                 if (parte.uid && parte.uid !== uid) throw new HttpsError('failed-precondition', 'Esta parte já está vinculada a outra conta');
                 partes[conv.parte_idx] = { ...parte, uid, habilitada_em: new Date().toISOString(), conta: nomeConta };
@@ -329,7 +334,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
         const [movs, docs] = await Promise.all([
             ref.collection('movimentos').orderBy('seq').get(),
             ref.collection('documentos').where('status', '==', 'juntado')
-                .select('ordem', 'titulo', 'tipo', 'juntado_em', 'origem', 'sha256', 'visivel_partes', 'folha_inicial', 'folha_final', 'codigo_verificacao', 'peticao', 'peticao_tipo', 'autor_uid').get(),
+                .select('ordem', 'titulo', 'tipo', 'juntado_em', 'origem', 'sha256', 'visivel_partes', 'visivel_polos', 'folha_inicial', 'folha_final', 'codigo_verificacao', 'peticao', 'peticao_tipo', 'autor_uid').get(),
         ]);
         const todos = movs.docs.map((d) => d.data());
         const parte = parteDoUsuario(data, uid);
@@ -338,7 +343,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
         // Marca o acesso para o "Para você" saber o que é novidade.
         await acessoRef.set({ processos: { [ref.id]: new Date().toISOString() }, email: auth.token.email || null }, { merge: true });
         const documentos = docs.docs.map((d) => ({ id: d.id, ...d.data() } as admin.firestore.DocumentData))
-            .filter((d) => d.visivel_partes !== false)
+            .filter((d) => documentoVisivel(d, parte?.polo))
             .sort((a, b) => a.ordem - b.ordem);
         // Registro de outro módulo que hoje é restrito, anonimizado ou sumiu: as partes não veem mais.
         const camposPartes = ((data.campos || []) as Array<{ rotulo: string; tipo: string; valor: unknown; visivel_partes?: boolean; formato?: string; ref?: Ref }>)
@@ -364,6 +369,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
                     .map((x) => ({ id: x.id, descricao: x.descricao, destinatario: x.destinatario || '', vence_em: x.vence_em, meu: prazosDaParte(data, parte).some((q) => q.id === x.id),
                         ...(x.obrigacao === true ? { obrigacao: true, ...(typeof x.valor === 'number' ? { valor: x.valor } : {}) } : {}) })),
                 // Cronograma de obrigações: quantas já foram cumpridas (as abertas estão nos prazos).
+                ...(data.peticoes_por_polo === true ? { peticoes_por_polo: true } : {}),
                 cronograma: situacaoDasObrigacoes(data.prazos as Prazo[] | undefined, hojeBrasil()),
                 minha_parte: parte,
                 comunicacoes: comunicacoesDaConta(data, uid),
@@ -385,11 +391,11 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
                 informacoes: infosPartes.filter((i) => aberta(i.ref) && (i.refs || []).every(aberta))
                     .map((i) => ({ fase_nome: i.fase_nome, rotulo: i.rotulo, valor_texto: i.valor_texto, em: i.em })),
             },
-            movimentos: todos.filter((m) => visivelParaPartes(m as never))
+            movimentos: todos.filter((m) => visivelParaPartes(m as never, parte?.polo))
                 .map((m) => ({ seq: m.seq, tipo: m.tipo, descricao: m.descricao, em: m.em, autor_nome: m.autor_nome, hash: m.hash, novo: !!vistoEm && m.em > vistoEm, ...extrasDoEvento(m as never, new Map(documentos.map((d) => [d.id, d]))) })),
             documentos: documentos.map((d) => ({ id: d.id, ordem: d.ordem, titulo: d.titulo, tipo: d.tipo, juntado_em: d.juntado_em, origem: d.origem, sha256: d.sha256, folha_inicial: d.folha_inicial || null, folha_final: d.folha_final || null, codigo_verificacao: d.codigo_verificacao || null, novo: !!vistoEm && d.juntado_em > vistoEm })),
             minhas_peticoes: peticoesDaParte(data, documentos, uid),
-            tipos_peticao: TIPOS_PETICAO_PORTAL,
+            tipos_peticao: await tiposDoOrgao(db, data.organization_id),
             visto_em: vistoEm,
             cadeiaIntegra: verificarCadeia(todos as never) === null,
         };
@@ -403,8 +409,9 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             ref.collection('documentos').where('status', '==', 'juntado').get(),
         ]);
         const todos = movs.docs.map((d) => d.data());
-        const movimentos = todos.filter((m) => visivelParaPartes(m as never));
-        const documentos = docs.docs.map((d) => ({ id: d.id, ...d.data() } as admin.firestore.DocumentData)).filter((d) => d.visivel_partes !== false).sort((a, b) => a.ordem - b.ordem);
+        const poloDaParte = parteDoUsuario(proc, uid)?.polo;
+        const movimentos = todos.filter((m) => visivelParaPartes(m as never, poloDaParte));
+        const documentos = docs.docs.map((d) => ({ id: d.id, ...d.data() } as admin.firestore.DocumentData)).filter((d) => documentoVisivel(d, poloDaParte)).sort((a, b) => a.ordem - b.ordem);
         // Folha de dados: só os campos e os dados do andamento que o órgão marcou para as partes,
         // sem registro de outro módulo que hoje é restrito, anonimizado ou sumiu (como em "obter").
         const camposPartes = ((proc.campos || []) as CampoValor[]).filter((x) => x.visivel_partes === true);
@@ -424,7 +431,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
         // Uma folha: situação atual e últimos movimentos públicos, com data e hora.
         const { ref, data: proc, org } = await lerComoParte(db, uid, p.processoId);
         const movs = (await ref.collection('movimentos').orderBy('seq', 'desc').limit(40).get()).docs.map((d) => d.data())
-            .filter((m) => visivelParaPartes(m as never)).slice(0, 10);
+            .filter((m) => visivelParaPartes(m as never, parteDoUsuario(proc, uid)?.polo)).slice(0, 10);
         const fase = nomeParaPartes(proc, proc.fase_atual);
         const situacao = { em_tramitacao: 'Em tramitação', sobrestado: 'Sobrestado', arquivado: 'Arquivado' }[proc.status as string] || proc.status;
         const parte = parteDoUsuario(proc, uid);
@@ -469,7 +476,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
     if (p.action === 'baixar' || p.action === 'pdf') {
         const { ref, data: proc } = await lerComoParte(db, uid, p.processoId);
         const d = (await ref.collection('documentos').doc(String(p.docId || '_')).get()).data();
-        if (!d || d.status !== 'juntado' || d.visivel_partes === false) throw new HttpsError('not-found', 'Documento não encontrado');
+        if (!d || d.status !== 'juntado' || !documentoVisivel(d, parteDoUsuario(proc, uid)?.polo)) throw new HttpsError('not-found', 'Documento não encontrado');
         if (p.action === 'pdf') return entregar(await pdfCarimbado(db, proc.organization_id, ref.id, String(proc.numero), String(p.docId), d), `documento-${d.ordem}.pdf`, 'application/pdf', uid);
         if (d.origem === 'editor') return { origem: 'editor', titulo: d.titulo, conteudo: await conteudoDoDocumento(d) };
         const arq = await entregar(await lerOriginal(d), String(d.nome_arquivo || d.titulo), String(d.mime), uid);
@@ -505,7 +512,8 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
     }
 
     if (p.action === 'peticionar') {
-        const tipoPeticao = TIPOS_PETICAO_PORTAL.includes(String(p.tipo)) ? String(p.tipo) : '';
+        const orgDaPeticao = (await db.collection(COL.processos).doc(String(p.processoId || '_')).get()).data()?.organization_id;
+        const tipoPeticao = p.tipo && (await tiposDoOrgao(db, orgDaPeticao)).includes(String(p.tipo)) ? String(p.tipo) : '';
         const titulo = texto(p.titulo) || tipoPeticao || 'Petição';
         const prazoId = texto(p.prazo_id, 60);
         const corpo = texto(p.texto, MAX_TEXTO_LONGO * 10);
@@ -557,6 +565,8 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
         const r = await db.runTransaction(async (tx) => {
             const { data: proc, org } = await lerComoParte(db, uid, p.processoId, tx);
             const parte = parteDoUsuario(proc, uid)!;
+            // Tipo de processo em que cada polo vê só as próprias petições (ex.: tratativas de acordo).
+            const porPolo = proc.peticoes_por_polo === true ? { visivel_polos: [parte.polo] } : {};
             const folha = (await folhasDoProcesso(tx, procRef, proc)) + 1;
             const ordem = (Number(proc.doc_seq) || 0) + 1;
             // Tempestividade: compara com prazos abertos para esta parte (ou sem destinatário).
@@ -581,7 +591,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             const mov = registrarMovimento(tx, c, procRef, proc, 'peticao',
                 `Petição protocolada por ${parte.rotulo}: ${titulo}. Juntada como documento nº ${ordem}, ${textoFolhas(folha, paginas)}.${tempest ? ` ${tempest}.` : ''} Pendência aberta para o decisor${interrompe ? ', com interrupção da fase' : ''}.`
                 + `${cumpridas.length ? ` Cumpre o exigido pelo rito: ${cumpridas.map((e) => e.descricao).join('; ')}.` : ''}`,
-                { documento_id: docRef.id, ordem, folha_inicial: folha, paginas, ...(cumpridas.length ? { exigencias: cumpridas.map((e) => e.chave) } : {}) });
+                { documento_id: docRef.id, ordem, folha_inicial: folha, paginas, ...porPolo, ...(cumpridas.length ? { exigencias: cumpridas.map((e) => e.chave) } : {}) });
             const exig = fase ? camposDoCumprimento(proc, fase.id, cumpridas, docRef.id, ordem) : {};
             const codigo = novoCodigo();
             const dadosDoc = {
@@ -592,7 +602,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
                 ...(buf && corpo ? { observacao: corpo } : {}),
                 paginas, folha_inicial: folha, folha_final: folha + paginas - 1,
                 sha256: hashConteudo, unidade_origem: 'parte', autor_uid: uid, autor_nome: parte.assina, criado_em: agora,
-                juntado_em: agora, juntado_por: uid, juntado_por_nome: `${parte.assina} (parte)`, visivel_partes: true,
+                juntado_em: agora, juntado_por: uid, juntado_por_nome: `${parte.assina} (parte)`, visivel_partes: true, ...porPolo,
                 assinaturas: [{ uid, nome: parte.assina, em: agora, sha256: hashConteudo, nivel: 'simples' }],
                 codigo_verificacao: codigo,
             };

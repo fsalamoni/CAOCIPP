@@ -5,6 +5,27 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 18/11/2026 — Parte externa: representante qualificado, documento por polo e tipos de petição
+- **Representante com qualidade e inscrição.** Ao convidar o representante
+  de uma parte, a equipe informa se ele é advogado, defensor público,
+  procurador do ente público, representante legal ou preposto, e a
+  inscrição (a da OAB é obrigatória para advogado). Quem depende de
+  procuração ou de ato de representação só recebe o acesso com a
+  conferência marcada, que fica no registro. O que ele protocola sai
+  assinado com a qualificação.
+- **Documento visível só a um polo.** Na juntada, "Portal das partes" ganha
+  "Só para" cada polo com parte no processo. As demais partes não veem o
+  documento, o andamento da juntada nem o aviso por e-mail, e ele só
+  acompanha comunicação a esse polo.
+- **Cada polo vê só as próprias petições** (opção do tipo de processo, em
+  Partes). Serve à negociação: a proposta de um lado não vai ao outro. O
+  portal avisa a parte de que a petição é reservada.
+- **Tipos de petição do órgão** (Listas do órgão): somam-se aos do sistema
+  no portal. Também entram pela importação de arquivo.
+- **Modelos atualizados**: as tratativas e o acordo completo (MPRS) passam a
+  aceitar o ente lesado como parte, com as petições reservadas por polo.
+- Guia do rito (parte 18) e tutorial atualizados.
+
 ### 18/11/2026 — Cronograma de obrigações (parcelas com alerta e comprovante pelo portal)
 - **Nova opção em "O que pede"**, para qualquer rito: **Registrar um
   cronograma de obrigações**. Na tela do processo, "Montar cronograma" gera

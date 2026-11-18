@@ -18,6 +18,7 @@ exports.cumprirPeloProcesso = cumprirPeloProcesso;
 exports.registrarJulgamentoDaSessao = registrarJulgamentoDaSessao;
 exports.registrarResultadoDaDisputa = registrarResultadoDaDisputa;
 const admin = require("firebase-admin");
+const representacao_1 = require("../shared/representacao");
 const crypto_1 = require("crypto");
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
@@ -984,7 +985,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, (
         const [movs, docs, leituras] = await Promise.all([
             ref.collection('movimentos').orderBy('seq').get(),
             // Sem o conteúdo (pode ter imagens): só o que a lista mostra.
-            ref.collection('documentos').select('titulo', 'tipo', 'origem', 'status', 'mime', 'nome_arquivo', 'tamanho', 'sha256', 'ordem', 'unidade_origem', 'autor_nome', 'criado_em', 'juntado_em', 'assinaturas', 'peticao', 'visivel_partes', 'paginas', 'folha_inicial', 'folha_final', 'codigo_verificacao', 'assinaturas_pedidas', 'peticao_tipo', 'modelo_id', 'unidades_acesso', 'guardado_em', 'guardado_por_nome', 'versoes_qtd').get(),
+            ref.collection('documentos').select('titulo', 'tipo', 'origem', 'status', 'mime', 'nome_arquivo', 'tamanho', 'sha256', 'ordem', 'unidade_origem', 'autor_nome', 'criado_em', 'juntado_em', 'assinaturas', 'peticao', 'visivel_partes', 'visivel_polos', 'paginas', 'folha_inicial', 'folha_final', 'codigo_verificacao', 'assinaturas_pedidas', 'peticao_tipo', 'modelo_id', 'unidades_acesso', 'guardado_em', 'guardado_por_nome', 'versoes_qtd').get(),
             // Quem leu pela pauta: para a unidade que tem o processo e a administração.
             veLeituras ? (0, sessoes_2.leiturasDoProcesso)(ref) : Promise.resolve([]),
             // Leitura do julgador: fica registrada (quem, quando, por qual sessão), fora dos autos.
@@ -999,16 +1000,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, (
             .map((d) => (Object.assign({ id: d.id }, d.data())))
             // Minuta só é vista pela unidade que a redigiu; juntado = autos; controle = guardado fora dos autos (toda a equipe).
             .filter((d) => d.status === 'juntado' || (!julgador && (d.status === 'controle' || (0, secretaria_1.minutaAcessivel)(d, c.ctx.unidadeIds))))
-            .map((d) => ({
-            id: d.id, titulo: d.titulo, tipo: d.tipo, origem: d.origem, status: d.status,
-            mime: d.mime || null, nome_arquivo: d.nome_arquivo || null, tamanho: d.tamanho || null,
-            sha256: d.sha256, ordem: d.ordem || null, unidade_origem: d.unidade_origem,
-            autor_nome: d.autor_nome, criado_em: d.criado_em, juntado_em: d.juntado_em || null,
-            assinaturas: d.assinaturas || [], assinaturas_pedidas: d.assinaturas_pedidas || [],
-            peticao: d.peticao === true, peticao_tipo: d.peticao_tipo || null, visivel_partes: d.visivel_partes !== false,
-            paginas: d.paginas || null, folha_inicial: d.folha_inicial || null, folha_final: d.folha_final || null, codigo_verificacao: d.codigo_verificacao || null, modelo_id: d.modelo_id || null, unidades_acesso: d.unidades_acesso || [],
-            guardado_em: d.guardado_em || null, guardado_por: d.guardado_por_nome || null, versoes: Number(d.versoes_qtd) || 0,
-        }))
+            .map((d) => (Object.assign(Object.assign({ id: d.id, titulo: d.titulo, tipo: d.tipo, origem: d.origem, status: d.status, mime: d.mime || null, nome_arquivo: d.nome_arquivo || null, tamanho: d.tamanho || null, sha256: d.sha256, ordem: d.ordem || null, unidade_origem: d.unidade_origem, autor_nome: d.autor_nome, criado_em: d.criado_em, juntado_em: d.juntado_em || null, assinaturas: d.assinaturas || [], assinaturas_pedidas: d.assinaturas_pedidas || [], peticao: d.peticao === true, peticao_tipo: d.peticao_tipo || null, visivel_partes: d.visivel_partes !== false }, (Array.isArray(d.visivel_polos) && d.visivel_polos.length ? { visivel_polos: d.visivel_polos } : {})), { paginas: d.paginas || null, folha_inicial: d.folha_inicial || null, folha_final: d.folha_final || null, codigo_verificacao: d.codigo_verificacao || null, modelo_id: d.modelo_id || null, unidades_acesso: d.unidades_acesso || [], guardado_em: d.guardado_em || null, guardado_por: d.guardado_por_nome || null, versoes: Number(d.versoes_qtd) || 0 })))
             .sort((a, b) => (a.ordem || 1e9) - (b.ordem || 1e9) || String(a.criado_em).localeCompare(String(b.criado_em)));
         // Registro que hoje está restrito, anonimizado ou sumiu: marcado na resposta (nada é gravado),
         // para a capa avisar e os modelos não puxarem dado dele.
@@ -1020,16 +1012,14 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, (
         const fechada = (r) => !!r && !(0, modulos_1.ehInterno)(r) && fechadas.has(`${r.modulo}:${r.id}`);
         const marcar = (r) => (r && fechada(r) ? Object.assign(Object.assign({}, r), { restrito: true }) : r);
         return {
-            processo: Object.assign(Object.assign({}, resumo(ref.id, data)), { descricao: data.descricao, campos: camposLidos.map((x) => (fechada(x.ref) ? Object.assign(Object.assign({}, x), { ref: Object.assign(Object.assign({}, x.ref), { restrito: true }) }) : x)), partes: (data.partes || []).map((_a) => {
+            processo: Object.assign(Object.assign(Object.assign(Object.assign({}, resumo(ref.id, data)), { descricao: data.descricao, campos: camposLidos.map((x) => (fechada(x.ref) ? Object.assign(Object.assign({}, x), { ref: Object.assign(Object.assign({}, x.ref), { restrito: true }) }) : x)), partes: (data.partes || []).map((_a) => {
                     var { convite_hash, uid, representantes } = _a, x = __rest(_a, ["convite_hash", "uid", "representantes"]);
-                    return (Object.assign(Object.assign({}, x), { portal: uid ? 'ativo' : convite_hash ? 'convidado' : null, representantes: (representantes || []).map(({ convite_hash: ch, uid: u, nome, email }) => ({
-                            nome, email: email || null, portal: u ? 'ativo' : ch ? 'convidado' : null,
-                        })) }));
+                    return (Object.assign(Object.assign({}, x), { portal: uid ? 'ativo' : convite_hash ? 'convidado' : null, representantes: (representantes || []).map(({ convite_hash: ch, uid: u, nome, email, qualidade, inscricao, poderes }) => (Object.assign(Object.assign(Object.assign({ nome, email: email || null, portal: u ? 'ativo' : ch ? 'convidado' : null }, (qualidade ? { qualidade } : {})), (inscricao ? { inscricao } : {})), (poderes === true ? { poderes: true } : {})))) }));
                 }), fases: data.fases || [], unidades_historico: data.unidades_historico || [], 
                 // A primeira unidade da lista é a que autuou (arrayUnion só acrescenta).
                 unidade_autuacao: (data.unidades_historico || [])[0] || null, origem: origemLida && fechada(origemLida.ref) ? Object.assign(Object.assign({}, origemLida), { ref: Object.assign(Object.assign({}, origemLida.ref), { restrito: true }) }) : data.origem || null, autuado_em: data.autuado_em, autuado_por: data.autuado_por_nome, pendencias: data.pendencias || [], prazos: data.prazos || [], comunicacoes: data.comunicacoes || [], audiencias: data.audiencias || [], 
                 // Disputa de preços da ação do rito (S11): só o resumo; o aviso e as propostas ficam em secCertames.
-                certame: data.certame || null, nomes_polos: data.nomes_polos || {}, acoes_feitas: data.acoes_feitas || {}, acoes_respostas: data.acoes_respostas || {}, 
+                certame: data.certame || null, nomes_polos: data.nomes_polos || {} }), (data.peticoes_por_polo === true ? { peticoes_por_polo: true } : {})), { acoes_feitas: data.acoes_feitas || {}, acoes_respostas: data.acoes_respostas || {}, 
                 // Ações cumpridas sozinhas pelo dado do processo (a tela diz que foi assim).
                 acoes_auto: data.acoes_auto || {}, 
                 // Atos aguardando a certidão conjunta (para "Emitir certidão agora").
@@ -1182,12 +1172,12 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, (
             const fases = rito.fases;
             // Campos que o tipo exige para sair de cada fase (cópia: mudar o tipo depois não muda este processo).
             const exigidos = (0, camposProcesso_1.camposExigidos)(form, fases.map((f) => f.id));
-            const base = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ organization_id: orgId, numero }, (numeracao ? {} : { sem_numero: true })), { assunto,
+            const base = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ organization_id: orgId, numero }, (numeracao ? {} : { sem_numero: true })), { assunto,
                 descricao,
                 partes,
                 campos }), (Object.keys(exigidos).length ? { campos_exigidos: exigidos } : {})), { sigilo }), (origem ? { origem } : {})), { 
                 // Registros e processos ligados (origem, campos e o registro criado), para "Processos eletrônicos" no outro módulo.
-                vinculos: (0, modulos_1.vinculosDe)(origem, campos, criado ? [chaveCriado] : []) }), (criado ? { registro_criado: criado.ref, vinculos_acoes: [chaveCriado] } : {})), (urgente ? { urgente: true, urgencia: { motivo: motivoUrgencia, por: c.userName, em: new Date().toISOString() } } : {})), (tipo ? { tipo_id: String(p.tipo_id), tipo_nome: tipo.nome, tipo_versao: Number(tipo.versao) || 1 } : {})), (tipo && Object.keys((0, camposProcesso_1.formularioDe)(tipo).nomes_polos).length ? { nomes_polos: (0, camposProcesso_1.formularioDe)(tipo).nomes_polos } : {})), { status: 'em_tramitacao', rito_id: ritoSnap.id, rito_nome: rito.nome, rito_versao: rito.versao || 1, fases, fase_atual: fases[0].id, unidade_atual: unidadeId, unidades_historico: [unidadeId], responsavel_uid: null, autuado_por: auth.uid, autuado_por_nome: c.userName, autuado_em: new Date().toISOString(), created_at: firestore_1.FieldValue.serverTimestamp(), mov_seq: 0, doc_seq: 0, ultimo_hash: '', version: 0, pendencias: [], prazos: [] }), (0, secretaria_1.derivados)([], []));
+                vinculos: (0, modulos_1.vinculosDe)(origem, campos, criado ? [chaveCriado] : []) }), (criado ? { registro_criado: criado.ref, vinculos_acoes: [chaveCriado] } : {})), (urgente ? { urgente: true, urgencia: { motivo: motivoUrgencia, por: c.userName, em: new Date().toISOString() } } : {})), (tipo ? { tipo_id: String(p.tipo_id), tipo_nome: tipo.nome, tipo_versao: Number(tipo.versao) || 1 } : {})), (tipo && Object.keys((0, camposProcesso_1.formularioDe)(tipo).nomes_polos).length ? { nomes_polos: (0, camposProcesso_1.formularioDe)(tipo).nomes_polos } : {})), (tipo && (0, camposProcesso_1.formularioDe)(tipo).peticoes_por_polo ? { peticoes_por_polo: true } : {})), { status: 'em_tramitacao', rito_id: ritoSnap.id, rito_nome: rito.nome, rito_versao: rito.versao || 1, fases, fase_atual: fases[0].id, unidade_atual: unidadeId, unidades_historico: [unidadeId], responsavel_uid: null, autuado_por: auth.uid, autuado_por_nome: c.userName, autuado_em: new Date().toISOString(), created_at: firestore_1.FieldValue.serverTimestamp(), mov_seq: 0, doc_seq: 0, ultimo_hash: '', version: 0, pendencias: [], prazos: [] }), (0, secretaria_1.derivados)([], []));
             const efFase = efeitosDaMudanca(base, null, fases[0], calendarioAutuacao, c.userName, { designacao: designacaoInicial });
             const sit = registros === SEM_REGISTROS ? { notas: [], arquivou: null }
                 : aplicarSituacao(tx, c, registros, fases[0], (designacaoInicial === null || designacaoInicial === void 0 ? void 0 : designacaoInicial.uid) && ((_d = fase1.situacao_registro) === null || _d === void 0 ? void 0 : _d.ao_assumir) ? 'ao_assumir' : 'ao_entrar', base, (designacaoInicial === null || designacaoInicial === void 0 ? void 0 : designacaoInicial.uid) ? { uid: designacaoInicial.uid, nome: designacaoInicial.nome || '' } : undefined);
@@ -2115,14 +2105,22 @@ async function movimentar(c, p, opcoes = {}) {
                 if (reps.length >= MAX_REPRESENTANTES)
                     throw new https_1.HttpsError('invalid-argument', `Até ${MAX_REPRESENTANTES} representantes por parte`);
                 const emailRep = (0, secretaria_1.texto)(novoRep.email, 120);
-                reps.push(Object.assign({ nome }, (emailRep ? { email: emailRep } : {})));
+                // Qualidade (advogado, defensor…), inscrição e a conferência da procuração.
+                let rep = {};
+                try {
+                    rep = (0, representacao_1.sanitizeRepresentacao)(novoRep);
+                }
+                catch (e) {
+                    (0, context_1.erroUsuario)(e);
+                }
+                reps.push(Object.assign(Object.assign({ nome }, (emailRep ? { email: emailRep } : {})), rep));
                 ridx = reps.length - 1;
             }
             const alvo = ridx >= 0 ? reps[ridx] : parte;
             if (!alvo)
                 throw new https_1.HttpsError('invalid-argument', 'Representante inválido');
             const np = (0, camposProcesso_1.nomeDoPolo)(data.nomes_polos, parte.polo);
-            const rotulo = ridx >= 0 ? `${alvo.nome}, representante de ${parte.nome} (${np})` : `${parte.nome} (${np})`;
+            const rotulo = ridx >= 0 ? `${(0, representacao_1.nomeQualificado)(alvo)}, representante de ${parte.nome} (${np})` : `${parte.nome} (${np})`;
             const dadosMov = Object.assign({ parte_idx: idx }, (ridx >= 0 ? { representante: alvo.nome } : {}));
             // Convite anterior ainda não usado deixa de valer em qualquer dos dois casos.
             if (alvo.convite_hash)
@@ -2168,7 +2166,7 @@ async function movimentar(c, p, opcoes = {}) {
             }
             else
                 partes[idx] = atualizado;
-            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'convite', `${rotulo} convidado a acompanhar o processo pelo portal das partes${email ? ' (convite por e-mail)' : ''}.`, dadosMov);
+            const mov = (0, context_1.registrarMovimento)(tx, c, ref, data, 'convite', `${rotulo} convidado a acompanhar o processo pelo portal das partes${email ? ' (convite por e-mail)' : ''}${novoRep && alvo.poderes ? '. Procuração ou ato de representação conferido' : ''}.`, dadosMov);
             tx.update(ref, Object.assign(Object.assign({}, mov), { partes }));
             return mov;
         }

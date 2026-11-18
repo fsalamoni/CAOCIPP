@@ -86,11 +86,7 @@ const nomeDoPolo = (nomes, polo) => {
     return typeof n === 'string' && n ? n : polo;
 };
 exports.nomeDoPolo = nomeDoPolo;
-const padroesDe = (f) => ({
-    assunto: usoDe('assunto', f.assunto), descricao: usoDe('descricao', f.descricao), partes: usoDe('partes', f.partes),
-    origem: usoDe('origem', f.origem), sigilo: usoDe('sigilo', f.sigilo), urgencia: usoDe('urgencia', f.urgencia), unidade: usoDe('unidade', f.unidade),
-    rotulos: textos(f.rotulos, 60), ajudas: textos(f.ajudas, 200), polos: polosDe(f.polos), nomes_polos: nomesPolosDe(f.nomes_polos, polosDe(f.polos)),
-});
+const padroesDe = (f) => (Object.assign({ assunto: usoDe('assunto', f.assunto), descricao: usoDe('descricao', f.descricao), partes: usoDe('partes', f.partes), origem: usoDe('origem', f.origem), sigilo: usoDe('sigilo', f.sigilo), urgencia: usoDe('urgencia', f.urgencia), unidade: usoDe('unidade', f.unidade), rotulos: textos(f.rotulos, 60), ajudas: textos(f.ajudas, 200), polos: polosDe(f.polos), nomes_polos: nomesPolosDe(f.nomes_polos, polosDe(f.polos)) }, (f.peticoes_por_polo === true ? { peticoes_por_polo: true } : {})));
 /** Nome do campo padrão neste formulário. */
 const rotuloDe = (form, k) => { var _a; return ((_a = form.rotulos) === null || _a === void 0 ? void 0 : _a[k]) || exports.ROTULO_PADRAO[k]; };
 exports.rotuloDe = rotuloDe;
