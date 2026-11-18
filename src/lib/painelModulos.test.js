@@ -101,3 +101,15 @@ test('gerar o painel do rito: uma coluna por fase, um campo por dado', () => {
     const rel = relatorioIntegracao(ligadas, { modulo: 'paginas', pagina: 'pg9' }, paginas);
     assert.equal(rel.colunas.filter((c) => !c.coberta).map((c) => c.rotulo).join(), 'Execução', 'só a coluna da fase que conduz outro painel');
 });
+
+test('todo modelo da biblioteca gera um painel que o servidor aceita', { skip: !servidor }, async () => {
+    const { sanitizeEntityTypeDefinition } = require('../../functions-v2/lib/customEntities/schema.js');
+    const { bibliotecaDeModelos } = await import('./bibliotecaRitos.js');
+    for (const m of bibliotecaDeModelos()) {
+        const g = painelDoRito(m.fases, [m.nome.slice(0, 40), m.nome.slice(0, 40)]);
+        assert.doesNotThrow(() => sanitizeEntityTypeDefinition(g.def), m.nome);
+        assert.equal(g.def.phases.length, m.fases.length, `${m.nome}: uma coluna por fase`);
+        const ligadas = ligarAoPainelGerado(m.fases, g, 'pg');
+        assert.ok(ligadas.every((f) => f.situacao_registro?.pagina === 'pg'), `${m.nome}: toda fase move o cartão`);
+    }
+});

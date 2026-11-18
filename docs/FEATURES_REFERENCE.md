@@ -223,7 +223,7 @@ disputa de preços), onde fica o registro, quem vê, quem pode e quando vale;
 saídas com regra pela resposta e saída padrão, andamento automático, fase de
 espera, efeitos e avisos ao entrar, certidão conjunta, permissões por fase,
 listas do órgão, nomes dos polos e tipo que cria registro de página própria.
-Biblioteca de 50 modelos de rito da plataforma (administrativo, disciplinar,
+Biblioteca de 52 modelos de rito da plataforma (administrativo, disciplinar,
 ético, sancionador, contratações, conselhos, MP extrajudicial, colegiados),
 com busca e filtros; usar um modelo grava uma cópia só do órgão. Sessões de
 julgamento e reuniões de colegiado: composição, pauta, leitura dos autos
