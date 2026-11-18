@@ -169,6 +169,10 @@ export default function Help() {
                 "Numeração automática: títulos em 1., 1.1. ou I., 1.; parágrafos numerados (botão #) em 1., 1), 1 – ou 1º",
                 "Listas: marcador •, ◦, ▪ ou travessão; numeração 1, a, A, i ou I com ponto ou parêntese, começando onde quiser",
                 "Recuos exatos em cm (primeira linha, esquerda e direita) no menu de espaçamento ↕; fontes Georgia, Garamond, Open Sans e Lato além das do Office",
+                "Cabeçalho e rodapé: o timbrado da unidade, um próprio do modelo (logotipo, texto, tabela sem bordas) ou nenhum; em todas as páginas, só na primeira ou menos na primeira",
+                "Número de página no rodapé ou no cabeçalho, à esquerda, ao centro ou à direita, em Página 1 de 5, 1/5, – 1 – e outros; pode pular a primeira página",
+                "Imagens: arraste os cantos para mudar o tamanho ou digite a largura em cm; à esquerda, ao centro ou à direita",
+                "No editor de modelo, Prévia em PDF mostra cada folha como sai nos autos, e Word baixa o .docx, sem precisar salvar",
                 "Tudo vai junto com o modelo para a minuta e sai igual no PDF dos autos e no Word (.docx)",
               ]}
             />

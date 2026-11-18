@@ -64,6 +64,22 @@
 .doc-folha .ProseMirror .achado { background: #fde68a; }
 .doc-folha .ProseMirror img[data-align="center"] { margin-left: auto; margin-right: auto; }
 .doc-folha .ProseMirror img[data-align="right"] { margin-left: auto; margin-right: 0; }
+/* Imagem que se redimensiona arrastando os cantos (como no Word). */
+.doc-folha .ProseMirror [data-resize-container] { margin: 4pt 0 8pt; }
+.doc-folha .ProseMirror [data-resize-container][data-align="center"] { justify-content: center; }
+.doc-folha .ProseMirror [data-resize-container][data-align="right"] { justify-content: flex-end; }
+.doc-folha .ProseMirror [data-resize-wrapper] { max-width: 100%; }
+.doc-folha .ProseMirror [data-resize-container] img { margin: 0; }
+.doc-folha .ProseMirror [data-resize-container].ProseMirror-selectednode img { outline: 2px solid #4f46e5; }
+.doc-folha .ProseMirror [data-resize-handle] { width: 12px; height: 12px; background: #fff; border: 2px solid #4f46e5; border-radius: 3px; opacity: 0; z-index: 1; }
+.doc-folha .ProseMirror [data-resize-container]:hover [data-resize-handle],
+.doc-folha .ProseMirror [data-resize-container].ProseMirror-selectednode [data-resize-handle] { opacity: 1; }
+.doc-folha .ProseMirror [data-resize-handle="top-left"], .doc-folha .ProseMirror [data-resize-handle="bottom-right"] { cursor: nwse-resize; }
+.doc-folha .ProseMirror [data-resize-handle="top-right"], .doc-folha .ProseMirror [data-resize-handle="bottom-left"] { cursor: nesw-resize; }
+/* Cabeçalho e rodapé próprios na folha, e o editor compacto deles. */
+.doc-folha .ProseMirror.doc-faixa-previa { min-height: 0; }
+.doc-folha.doc-faixa { min-height: 0; padding: 0.4cm 0.5cm; width: calc(var(--folha-w) + 1cm); max-width: 100%; }
+.doc-folha.doc-faixa .ProseMirror { min-height: 2.5cm; }
 /* Tabela sem bordas: no PDF e no Word não há linhas; aqui, tracejado leve só para orientar. */
 .doc-folha .ProseMirror table[data-sem-bordas] td, .doc-folha .ProseMirror table[data-sem-bordas] th { border: 1px dashed #cbd5e1; background: transparent; }
 /* Parágrafo numerado: o número entra antes do texto, como no PDF. */

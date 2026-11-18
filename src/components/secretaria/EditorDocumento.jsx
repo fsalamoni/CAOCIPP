@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { EditorContent, Extension, Node, mergeAttributes, useEditor } from '@tiptap/react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { EditorContent, Extension, Node, getHTMLFromFragment, mergeAttributes, useEditor } from '@tiptap/react';
+import { Node as NoPM } from '@tiptap/pm/model';
 import StarterKit from '@tiptap/starter-kit';
 import { FontFamily, TextStyleKit } from '@tiptap/extension-text-style';
 import TextAlign from '@tiptap/extension-text-align';
@@ -16,7 +17,9 @@ import {
     Trash2, Underline as UnderlineIcon, Undo2, Hash, Ruler,
 } from 'lucide-react';
 import ConfigurarPagina from './LayoutDocumento';
-import { FORMATOS_LISTA, MARCADORES, cssDoLayout, estiloEfetivo, folhaCm, margensDe, resumoPagina } from '@/lib/layoutDocumento';
+import {
+    FORMATOS_LISTA, MARCADORES, cssDoLayout, estiloEfetivo, faixaNaPagina, folhaCm, margensDe, resumoPagina, textoNumero, trocarPagina,
+} from '@/lib/layoutDocumento';
 import { toast } from 'sonner';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
@@ -79,7 +82,7 @@ const CORES = [
 ];
 // Só caracteres que as fontes do PDF (Times, Courier) também imprimem.
 const ESPECIAIS = '§ º ª ° ¹ ² ³ – — “ ” ‘ ’ « » … • ± × ÷ € £ © ® ™ ½ ¼ ¾ ¶ † ‡ µ ¿ ¡'.split(' ');
-const LARGURA_UTIL_PX = 605; // 16 cm a 96 dpi
+const PX_CM = 96 / 2.54; // px de tela por cm
 const MAX_IMAGEM = 1.4 * 1024 * 1024;
 const IMAGEM_LEVE = 400 * 1024;
 
@@ -168,7 +171,7 @@ const FonteSigo = FontFamily.extend({
     },
 });
 
-// Imagem alinhada à esquerda, ao centro ou à direita.
+// Imagem alinhada à esquerda, ao centro ou à direita; redimensiona arrastando os cantos.
 const ImagemSigo = Image.extend({
     addAttributes() {
         return {
@@ -178,6 +181,24 @@ const ImagemSigo = Image.extend({
                 parseHTML: (el) => el.getAttribute('data-align') || (el.getAttribute('align') === 'center' ? 'center' : null),
                 renderHTML: (a) => (a.align ? { 'data-align': a.align } : {}),
             },
+        };
+    },
+    // A vista de redimensionar só lê a largura ao abrir; a largura escolhida na barra também precisa valer na hora.
+    addNodeView() {
+        const pai = this.parent?.();
+        if (!pai) return null;
+        return (props) => {
+            const nv = pai(props);
+            const img = nv.dom.querySelector('img');
+            const atualizar = nv.update.bind(nv);
+            const medir = (n) => { if (img) { img.style.width = n.attrs.width ? `${n.attrs.width}px` : ''; img.style.height = ''; } };
+            nv.dom.dataset.align = props.node.attrs.align || 'left';
+            nv.update = (n, d, i) => {
+                const ok = atualizar(n, d, i);
+                if (ok) { medir(n); nv.dom.dataset.align = n.attrs.align || 'left'; }
+                return ok;
+            };
+            return nv;
         };
     },
 });
@@ -275,6 +296,16 @@ function CampoCm({ rotulo, valor, max, onMudar }) {
         </label>
     );
 }
+/** Cabeçalho ou rodapé próprio desenhado na folha; clicar abre a edição. */
+function FaixaNaFolha({ html, rotulo, editavel, onEditar, className = '' }) {
+    const props = editavel
+        ? { role: 'button', tabIndex: 0, title: `${rotulo}: clique para editar`, 'aria-label': `${rotulo}: editar`, onClick: onEditar, onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onEditar(); } } }
+        : { 'aria-hidden': true };
+    return (
+        <div {...props} dangerouslySetInnerHTML={{ __html: html }}
+            className={`ProseMirror doc-faixa-previa select-none ${editavel ? 'cursor-pointer rounded hover:outline hover:outline-1 hover:outline-dashed hover:outline-indigo-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500' : ''} ${className}`} />
+    );
+}
 function Lista({ titulo, value, onChange, options, className = '' }) {
     return (
         <select aria-label={titulo} title={titulo} value={value} onChange={(e) => onChange(e.target.value)}
@@ -312,8 +343,9 @@ function Paleta({ titulo, icone, cor, aoEscolher, rotuloLimpar }) {
 
 export default function EditorDocumento({
     conteudo, onChange, somenteLeitura = false, config = {}, campos = null, onSalvar, autoFocus = false, rotulo = 'Texto do documento',
-    converterArquivo = null,
+    converterArquivo = null, faixa = null,
 }) {
+    // faixa = { largura } (cm): editor compacto do cabeçalho ou rodapé próprio, sem folha nem "Página".
     const salvarRef = useRef(onSalvar);
     salvarRef.current = onSalvar;
     const [zoom, setZoom] = useState('1');
@@ -348,7 +380,10 @@ export default function EditorDocumento({
             Subscript, Superscript,
             TableKit.configure({ table: false }),
             TabelaSigo.configure({ resizable: true }),
-            ImagemSigo.configure({ allowBase64: true, inline: false }),
+            ImagemSigo.configure({
+                allowBase64: true, inline: false,
+                resize: { enabled: !somenteLeitura, directions: ['top-left', 'top-right', 'bottom-left', 'bottom-right'], minWidth: 24, minHeight: 12, alwaysPreserveAspectRatio: true },
+            }),
             CharacterCount, Placeholder.configure({ placeholder: 'Comece a escrever…' }),
             ParagrafoFormato, QuebraPagina,
             Extension.create({ name: 'atalhosSigo', addKeyboardShortcuts: () => ({ 'Mod-s': () => { salvarRef.current?.(); return true; } }) }),
@@ -360,10 +395,21 @@ export default function EditorDocumento({
     });
 
     useEffect(() => { editor?.setEditable(!somenteLeitura); }, [editor, somenteLeitura]);
-    const temCab = (config.cabecalho_linhas || []).some(Boolean) || !!config.brasao;
     const layout = editor?.state.doc.attrs.layout || {};
+    const fCab = layout.cabecalho || {};
+    const fRod = layout.rodape || {};
+    const temTimbrado = (config.cabecalho_linhas || []).some(Boolean) || !!config.brasao;
+    const temCab = !faixa && faixaNaPagina(fCab, true) && ((fCab.modo || 'unidade') === 'unidade' ? temTimbrado : fCab.modo === 'proprio' && !!fCab.conteudo?.length);
     const dimFolha = folhaCm(layout);
     const mFolha = margensDe(layout);
+    const utilPx = Math.round((faixa ? faixa.largura : dimFolha.w - mFolha.esq - mFolha.dir) * PX_CM);
+    // Cabeçalho e rodapé próprios na folha, como saem na primeira página do PDF.
+    const html = (nos) => {
+        if (!editor || !nos?.length) return '';
+        try { return getHTMLFromFragment(NoPM.fromJSON(editor.schema, { type: 'doc', content: trocarPagina(nos, 1, paginas) }).content, editor.schema); } catch { return ''; }
+    };
+    const htmlCab = useMemo(() => (fCab.modo === 'proprio' ? html(fCab.conteudo) : ''), [editor, fCab, paginas]);
+    const htmlRod = useMemo(() => (fRod.modo === 'proprio' ? html(fRod.conteudo) : ''), [editor, fRod, paginas]);
     // Páginas estimadas pela altura do texto (folha no computador); o PDF tem a paginação exata.
     useEffect(() => {
         const folha = folhaRef.current;
@@ -435,7 +481,7 @@ export default function EditorDocumento({
         try {
             const { src, largura } = await prepararImagem(f);
             ch().setImage({ src, alt: f.name.replace(/\.[^.]+$/, '') }).run();
-            ch().updateAttributes('image', { width: Math.min(largura, LARGURA_UTIL_PX) }).run();
+            ch().updateAttributes('image', { width: Math.min(largura, utilPx) }).run();
         } catch (err) { toast.error(err.message); }
     };
     const abrirArquivo = async (e) => {
@@ -488,12 +534,14 @@ export default function EditorDocumento({
                         </>
                     )}
                     <Sep />
-                    <Botao titulo="Página e estilos: papel, margens, estilos e numeração automática" onClick={() => setPagina('pagina')}>
-                        <Ruler className="w-4 h-4" /><span className="text-xs ml-1 hidden lg:inline">Página</span>
-                    </Botao>
+                    {!faixa && (
+                        <Botao titulo="Página e estilos: papel, margens, estilos, numeração, cabeçalho e rodapé" onClick={() => setPagina('pagina')}>
+                            <Ruler className="w-4 h-4" /><span className="text-xs ml-1 hidden lg:inline">Página</span>
+                        </Botao>
+                    )}
                     <Lista titulo="Estilo do parágrafo" value={estilo} onChange={setEstilo} className="w-32"
                         options={[['p', 'Texto normal'], ['h1', 'Título 1'], ['h2', 'Título 2'], ['h3', 'Título 3'], ['h4', 'Título 4'], ['citacao', 'Citação'],
-                            ...proprios.map((p) => [`c:${p.id}`, p.nome]), ['__estilos', 'Modificar estilos…']]} />
+                            ...proprios.map((p) => [`c:${p.id}`, p.nome]), ...(faixa ? [] : [['__estilos', 'Modificar estilos…']])]} />
                     <Lista titulo="Fonte" value={ts.fontFamily || ''} className="w-36"
                         onChange={(v) => (v ? ch().setFontFamily(v).run() : ch().unsetFontFamily().run())} options={FONTES} />
                     <Lista titulo="Tamanho da fonte" value={ts.fontSize ? String(parseFloat(ts.fontSize)) : ''} className="w-16"
@@ -692,8 +740,11 @@ export default function EditorDocumento({
                         <>
                             <span className="px-2 text-xs font-medium text-indigo-900 dark:text-indigo-100 shrink-0">Largura da imagem</span>
                             {[25, 50, 75, 100].map((pct) => (
-                                <Botao key={pct} titulo={`${pct}% da largura`} onClick={() => ch().updateAttributes('image', { width: Math.round(LARGURA_UTIL_PX * pct / 100) }).run()}><span className="text-xs">{pct}%</span></Botao>
+                                <Botao key={pct} titulo={`${pct}% da largura`} onClick={() => ch().updateAttributes('image', { width: Math.round(utilPx * pct / 100), height: null }).run()}><span className="text-xs">{pct}%</span></Botao>
                             ))}
+                            <span className="shrink-0 px-1"><CampoCm rotulo="Largura" max={Math.round((utilPx / PX_CM) * 10) / 10}
+                                valor={editor.getAttributes('image').width ? Math.round((editor.getAttributes('image').width / PX_CM) * 10) / 10 : null}
+                                onMudar={(v) => v && ch().updateAttributes('image', { width: Math.max(24, Math.round(v * PX_CM)), height: null }).run()} /></span>
                             <Sep />
                             {[['left', 'Imagem à esquerda', AlignLeft], ['center', 'Imagem centralizada', AlignCenter], ['right', 'Imagem à direita', AlignRight]].map(([a, t, Icone]) => (
                                 <Botao key={a} titulo={t} ativo={(editor.getAttributes('image').align || 'left') === a}
@@ -704,23 +755,42 @@ export default function EditorDocumento({
                     )}
                 </div>
             )}
-            <div className="doc-mesa flex-1 min-h-0 overflow-auto py-4 sm:py-6 px-0 sm:px-4">
+            <div className={`doc-mesa flex-1 min-h-0 overflow-auto ${faixa ? 'p-2' : 'py-4 sm:py-6 px-0 sm:px-4'}`}>
                 <style>{cssDoLayout(layout, `.${escopo}`, CSS_FONTE)}</style>
-                <div ref={folhaRef} className={`doc-folha ${escopo}`} style={{
+                <div ref={folhaRef} className={`doc-folha ${faixa ? 'doc-faixa' : ''} ${escopo}`} style={{
                     zoom: Number(zoom), fontFamily: CSS_FONTE[normal.fonte || fontePadrao] || CSS_FONTE.serif, fontSize: `${normal.tamanho || config.tamanho_padrao || 12}pt`, lineHeight: alturaLinha(1.15),
-                    '--folha-w': `${dimFolha.w}cm`, '--folha-h': `${dimFolha.h}cm`,
+                    '--folha-w': `${faixa ? faixa.largura : dimFolha.w}cm`, '--folha-h': `${dimFolha.h}cm`,
                     '--m-sup': `${mFolha.sup}cm`, '--m-inf': `${mFolha.inf}cm`, '--m-esq': `${mFolha.esq}cm`, '--m-dir': `${mFolha.dir}cm`,
                 }}>
-                    {(linhasCab.length > 0 || config.brasao) && (
+                    {temCab && (fCab.modo || 'unidade') === 'unidade' && (
                         <div className="text-center mb-6 select-none" aria-hidden style={{ fontFamily: CSS_FONTE[fontePadrao] }}>
                             {config.brasao && <img src={config.brasao} alt="" className="mx-auto h-12 w-auto mb-1" />}
                             {linhasCab.map((l, i) => <p key={i} className={i === 0 ? 'font-bold text-[11pt]' : 'text-[9pt]'}>{l}</p>)}
                         </div>
                     )}
+                    {temCab && htmlCab && (
+                        <FaixaNaFolha html={htmlCab} rotulo="Cabeçalho do documento" editavel={!somenteLeitura} onEditar={() => setPagina('faixas')} className="mb-6" />
+                    )}
                     <EditorContent editor={editor} />
+                    {!faixa && (() => {
+                        // Rodapé e número da primeira página, abaixo do texto (o PDF põe em cada folha).
+                        const np = layout.numero_pagina || {};
+                        const pos = np.posicao || 'rodape-direita';
+                        const num = pos !== 'nenhum' && np.primeira !== false ? textoNumero(np.formato, 1, paginas) : '';
+                        const naRodape = faixaNaPagina(fRod, true);
+                        if (!(naRodape && htmlRod) && !(pos.startsWith('rodape') && num)) return null;
+                        return (
+                            <div className="mt-8 pt-2 border-t border-dashed border-slate-300 select-none">
+                                {naRodape && htmlRod && <FaixaNaFolha html={htmlRod} rotulo="Rodapé do documento" editavel={!somenteLeitura} onEditar={() => setPagina('faixas')} />}
+                                {pos.startsWith('rodape') && num && (
+                                    <p aria-hidden style={{ fontSize: `${np.tamanho || 7.5}pt`, textAlign: pos.endsWith('centro') ? 'center' : pos.endsWith('esquerda') ? 'left' : 'right', color: '#64748b', margin: 0 }}>{num}</p>
+                                )}
+                            </div>
+                        );
+                    })()}
                 </div>
             </div>
-            <div className="bg-slate-50 dark:bg-slate-900 border-t border-slate-300 dark:border-slate-700 px-3 py-1 flex items-center gap-3 text-xs text-slate-600 dark:text-slate-400">
+            {!faixa && <div className="bg-slate-50 dark:bg-slate-900 border-t border-slate-300 dark:border-slate-700 px-3 py-1 flex items-center gap-3 text-xs text-slate-600 dark:text-slate-400">
                 <span aria-live="polite">{palavras} palavra{palavras === 1 ? '' : 's'} · {caracteres} caractere{caracteres === 1 ? '' : 's'}</span>
                 <span className="hidden md:inline" title="Estimativa pela altura do texto; o PDF mostra a paginação exata">≈ {paginas} página{paginas === 1 ? '' : 's'}</span>
                 {somenteLeitura
@@ -731,10 +801,11 @@ export default function EditorDocumento({
                         {['0.75', '1', '1.25', '1.5'].map((z) => <option key={z} value={z}>{Math.round(Number(z) * 100)}%</option>)}
                     </select>
                 </label>
-            </div>
-            {!somenteLeitura && (
+            </div>}
+            {!somenteLeitura && !faixa && (
                 <ConfigurarPagina aberto={!!pagina} aba={pagina || 'pagina'} onAba={setPagina} layout={layout} onMudar={setLayout}
-                    onFechar={() => setPagina(null)} fontes={FONTES} cssFonte={CSS_FONTE} editor={editor} />
+                    onFechar={() => setPagina(null)} fontes={FONTES} cssFonte={CSS_FONTE} editor={editor}
+                    config={config} campos={campos} EditorFaixa={EditorDocumento} larguraUtil={dimFolha.w - mFolha.esq - mFolha.dir} />
             )}
         </div>
     );
@@ -744,7 +815,14 @@ export default function EditorDocumento({
 export function preencherCampos(doc, valores) {
     const troca = (t) => t.replace(/\{\{\s*([a-z0-9_]+)\s*\}\}/g, (m, k) => (valores[k] !== undefined && valores[k] !== null ? String(valores[k]) : m));
     const andar = (n) => (n.type === 'text' ? { ...n, text: troca(n.text) } : n.content ? { ...n, content: n.content.map(andar) } : n);
-    return andar(doc);
+    const out = andar(doc);
+    // Cabeçalho e rodapé próprios também ({{pagina}} e {{paginas}} ficam para o PDF e o Word).
+    const l = doc?.attrs?.layout;
+    if (l?.cabecalho?.conteudo || l?.rodape?.conteudo) {
+        const f = (x) => (x?.conteudo ? { ...x, conteudo: x.conteudo.map(andar) } : x);
+        out.attrs = { ...out.attrs, layout: { ...l, cabecalho: f(l.cabecalho), rodape: f(l.rodape) } };
+    }
+    return out;
 }
 
 export const CAMPOS_MODELO = [

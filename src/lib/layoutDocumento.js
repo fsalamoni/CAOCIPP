@@ -34,6 +34,47 @@ export const FORMATOS_TITULO = [['', 'Sem numeração'], ['decimal', '1.  1.1.  
 export const MARCADORES = [['disc', '•', 'Círculo cheio'], ['circle', '◦', 'Círculo vazado'], ['square', '▪', 'Quadrado'], ['dash', '–', 'Travessão']];
 export const FORMATOS_LISTA = [['decimal', '1, 2, 3'], ['lower-alpha', 'a, b, c'], ['upper-alpha', 'A, B, C'], ['lower-roman', 'i, ii, iii'], ['upper-roman', 'I, II, III']];
 
+// Cabeçalho, rodapé e número de página (sem nada: timbrado e rodapé da unidade, "Página X de Y" à direita).
+export const MODOS_FAIXA = [['unidade', 'Timbrado da unidade'], ['proprio', 'Próprio deste documento'], ['nenhum', 'Nenhum']];
+export const PAGINAS_FAIXA = [['todas', 'Todas as páginas'], ['primeira', 'Só na primeira página'], ['demais', 'Todas, menos a primeira']];
+export const POSICOES_NUMERO = [
+    ['rodape-direita', 'Rodapé, à direita'], ['rodape-centro', 'Rodapé, ao centro'], ['rodape-esquerda', 'Rodapé, à esquerda'],
+    ['cabecalho-direita', 'Cabeçalho, à direita'], ['cabecalho-centro', 'Cabeçalho, ao centro'], ['cabecalho-esquerda', 'Cabeçalho, à esquerda'], ['nenhum', 'Sem número de página'],
+];
+export const FORMATOS_NUMERO = [['pagina-de', 'Página 1 de 5'], ['pagina', 'Página 1'], ['n', '1'], ['n-de', '1/5'], ['traco', '– 1 –']];
+export const TAMANHO_NUMERO = 7.5;
+export const CAMPOS_PAGINA = [['pagina', 'Número da página'], ['paginas', 'Total de páginas']];
+
+export function textoNumero(formato, n, total) {
+    if (formato === 'pagina') return `Página ${n}`;
+    if (formato === 'n') return String(n);
+    if (formato === 'n-de') return `${n}/${total}`;
+    if (formato === 'traco') return `– ${n} –`;
+    return `Página ${n} de ${total}`;
+}
+export const faixaNaPagina = (f, primeira) => !f?.paginas || f.paginas === 'todas' || (f.paginas === 'primeira') === primeira;
+export function trocarPagina(nos = [], n, total) {
+    const andar = (x) => (x.type === 'text' && x.text
+        ? { ...x, text: x.text.replace(/\{\{\s*(pagina|paginas)\s*\}\}/g, (_m, k) => String(k === 'paginas' ? total : n)) }
+        : x.content ? { ...x, content: x.content.map(andar) } : x);
+    return nos.map(andar);
+}
+
+/** Cabeçalho/rodapé inicial do modo próprio: o timbrado da unidade em texto, para ajustar. */
+export function faixaDoTimbrado(cfg = {}, tipo = 'cabecalho') {
+    if (tipo === 'rodape') {
+        return [{ type: 'paragraph', attrs: { textAlign: 'center' }, content: [{ type: 'text', text: cfg.rodape || 'Endereço · telefone · e-mail', marks: [{ type: 'textStyle', attrs: { fontSize: '8pt', color: '#64748b' } }] }] }];
+    }
+    const linhas = (cfg.cabecalho_linhas || []).filter(Boolean);
+    return [
+        ...(cfg.brasao ? [{ type: 'image', attrs: { src: cfg.brasao, width: 61, align: 'center' } }] : []),
+        ...(linhas.length ? linhas : ['Nome do órgão']).map((l, i) => ({
+            type: 'paragraph', attrs: { textAlign: 'center', depois: 0 },
+            content: [{ type: 'text', text: l, marks: [...(i === 0 ? [{ type: 'bold' }] : []), { type: 'textStyle', attrs: { fontSize: i === 0 ? '11pt' : '9pt' } }] }],
+        })),
+    ];
+}
+
 export const layoutDe = (doc) => doc?.attrs?.layout || {};
 
 /** Folha em cm, já virada se for paisagem. */
@@ -61,6 +102,19 @@ export function limparLayout(l = {}) {
     if (!out.proprios?.length) delete out.proprios;
     if (!out.numeracao_titulos) delete out.numeracao_titulos;
     if (!out.numeracao_paragrafos || out.numeracao_paragrafos === '1.') delete out.numeracao_paragrafos;
+    for (const k of ['cabecalho', 'rodape']) {
+        const f = { ...(out[k] || {}) };
+        if (!f.modo || f.modo === 'unidade') delete f.modo;
+        if (!f.paginas || f.paginas === 'todas') delete f.paginas;
+        if (!f.conteudo?.length) delete f.conteudo;
+        if (Object.keys(f).length) out[k] = f; else delete out[k];
+    }
+    const np = { ...(out.numero_pagina || {}) };
+    if (!np.posicao || np.posicao === 'rodape-direita') delete np.posicao;
+    if (!np.formato || np.formato === 'pagina-de') delete np.formato;
+    if (!np.tamanho || np.tamanho === TAMANHO_NUMERO) delete np.tamanho;
+    if (np.primeira !== false) delete np.primeira;
+    if (Object.keys(np).length) out.numero_pagina = np; else delete out.numero_pagina;
     return Object.keys(out).length ? out : null;
 }
 

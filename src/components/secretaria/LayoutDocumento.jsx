@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { AlignCenter, AlignJustify, AlignLeft, AlignRight, Bold, CaseUpper, Italic, Plus, RotateCcw, Trash2, Underline, Wand2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
-    CHAVES_ESTILO, ESTILOS_PADRAO, FORMATOS_PARAGRAFO, FORMATOS_TITULO, MARGENS_PADRAO, MARGENS_PRONTAS, PAPEIS,
-    cssDoEstilo, estiloEfetivo, folhaCm, idDeEstilo, limparLayout, margensDe,
+    CAMPOS_PAGINA, CHAVES_ESTILO, ESTILOS_PADRAO, FORMATOS_NUMERO, FORMATOS_PARAGRAFO, FORMATOS_TITULO, MARGENS_PADRAO, MARGENS_PRONTAS, MODOS_FAIXA, PAGINAS_FAIXA, PAPEIS,
+    POSICOES_NUMERO, TAMANHO_NUMERO, cssDoEstilo, estiloEfetivo, faixaDoTimbrado, folhaCm, idDeEstilo, limparLayout, margensDe,
 } from '@/lib/layoutDocumento';
 
 /**
@@ -137,13 +137,72 @@ export function formatoDoParagrafo(editor) {
     return Object.fromEntries(Object.entries(e).filter(([, v]) => v !== undefined));
 }
 
-export default function ConfigurarPagina({ aberto, aba = 'pagina', onAba, layout, onMudar, onFechar, fontes, cssFonte, editor }) {
+/** Escolha em botões (como "Retrato | Paisagem"), com descrição opcional em cada um. */
+function Opcoes({ rotulo, valor, opcoes, onChange, colunas = 'sm:grid-cols-3' }) {
+    return (
+        <div className={`grid grid-cols-1 ${colunas} gap-1.5`} role="radiogroup" aria-label={rotulo}>
+            {opcoes.map(([v, r, d]) => (
+                <button key={v} type="button" role="radio" aria-checked={valor === v} onClick={() => onChange(v)}
+                    className={`rounded-md border px-3 py-2 text-left text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 ${valor === v ? 'bg-indigo-50 border-indigo-400 text-indigo-900 dark:bg-indigo-950 dark:text-indigo-100' : 'border-input hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
+                    <span className="font-medium block">{r}</span>
+                    {d && <span className="block text-xs text-slate-600 dark:text-slate-400 mt-0.5 truncate">{d}</span>}
+                </button>
+            ))}
+        </div>
+    );
+}
+
+/** Cabeçalho ou rodapé: o da unidade, um próprio (editado como o texto) ou nenhum; e em quais páginas. */
+function EditarFaixa({ tipo, rotulo, faixa, onFaixa, config = {}, campos, EditorFaixa, larguraUtil, uid }) {
+    const f = faixa || {};
+    const ultima = useRef(f);
+    ultima.current = f;
+    const modo = f.modo || 'unidade';
+    const [versao, setVersao] = useState(0); // recria o editor quando o texto é trocado por fora
+    const daUnidade = tipo === 'cabecalho' ? (config.cabecalho_linhas || []).filter(Boolean)[0] || (config.brasao ? 'Brasão da unidade' : '') : config.rodape || '';
+    const recomecar = () => { onFaixa({ ...f, modo: 'proprio', conteudo: faixaDoTimbrado(config, tipo) }); setVersao((v) => v + 1); };
+    const escolher = (m) => (m === 'proprio' && !f.conteudo?.length ? recomecar() : onFaixa({ ...f, modo: m }));
+    return (
+        <fieldset className="space-y-2 min-w-0">
+            <legend className="text-sm font-semibold">{rotulo}</legend>
+            <Opcoes rotulo={rotulo} valor={modo} onChange={escolher} opcoes={MODOS_FAIXA.map(([v, r]) => [v, r,
+                v === 'unidade' ? daUnidade || 'A unidade não definiu' : v === 'proprio' ? 'Texto, imagens e tabelas à vontade' : `Sem ${rotulo.toLowerCase()}`])} />
+            <div className="flex flex-wrap items-end gap-2">
+                <div className="min-w-[13rem]">
+                    <Label htmlFor={`${uid}-${tipo}-pag`} className="text-xs">Aparece em</Label>
+                    <select id={`${uid}-${tipo}-pag`} className={`mt-1 ${campo}`} value={f.paginas || 'todas'} disabled={modo === 'nenhum'} onChange={(e) => onFaixa({ ...f, paginas: e.target.value })}>
+                        {PAGINAS_FAIXA.map(([v, r]) => <option key={v} value={v}>{r}</option>)}
+                    </select>
+                </div>
+                {modo === 'proprio' && <Button type="button" size="sm" variant="ghost" className="gap-1" onClick={recomecar}><RotateCcw className="w-4 h-4" /> Recomeçar do timbrado</Button>}
+            </div>
+            {modo === 'proprio' && EditorFaixa && (
+                <>
+                    <div className="h-[340px]">
+                        <EditorFaixa key={versao} faixa={{ largura: larguraUtil }} config={config} rotulo={`Texto do ${rotulo.toLowerCase()}`}
+                            conteudo={{ type: 'doc', content: f.conteudo?.length ? f.conteudo : [{ type: 'paragraph' }] }}
+                            campos={[...CAMPOS_PAGINA, ...(campos || [])]} onChange={(j) => onFaixa({ ...ultima.current, modo: 'proprio', conteudo: j.content || [] })} />
+                    </div>
+                    <p className="text-xs text-slate-600 dark:text-slate-400">
+                        Em <span className="font-semibold">Campos</span> ({'{ }'}), "Número da página" e "Total de páginas" viram {'{{pagina}}'} e {'{{paginas}}'}, que saem com o número de cada folha. Para logotipo à esquerda e texto à direita, use uma tabela sem bordas.
+                    </p>
+                </>
+            )}
+        </fieldset>
+    );
+}
+
+export default function ConfigurarPagina({ aberto, aba = 'pagina', onAba, layout, onMudar, onFechar, fontes, cssFonte, editor, config, campos, EditorFaixa, larguraUtil = 16 }) {
     const uid = useId().replace(/[^a-z0-9]/gi, '');
     const [sel, setSel] = useState('normal');
     const [novoNome, setNovoNome] = useState('');
     const l = layout || {};
-    const mudar = (parcial) => onMudar(limparLayout({ ...l, ...parcial }));
+    // O editor do cabeçalho/rodapé pode chamar com o fechamento antigo: parte sempre do layout atual.
+    const atual = useRef(l);
+    atual.current = l;
+    const mudar = (parcial) => onMudar(limparLayout({ ...atual.current, ...parcial }));
     const m = margensDe(l);
+    const np = l.numero_pagina || {};
     const proprios = l.proprios || [];
     const proprio = sel.startsWith('p:') ? proprios.find((p) => p.id === sel.slice(2)) : null;
     const estiloSel = proprio || estiloEfetivo(l, sel);
@@ -168,12 +227,13 @@ export default function ConfigurarPagina({ aberto, aba = 'pagina', onAba, layout
 
     return (
         <Dialog open={aberto} onOpenChange={(o) => !o && onFechar()}>
-            <DialogContent className="max-w-3xl w-[96vw] max-h-[92dvh] overflow-y-auto p-4 sm:p-6">
+            <DialogContent className={`${aba === 'faixas' ? 'max-w-5xl' : 'max-w-3xl'} w-[96vw] max-h-[92dvh] overflow-y-auto grid-cols-[minmax(0,1fr)] p-4 sm:p-6`}>
                 <DialogTitle>Página e estilos do documento</DialogTitle>
                 <DialogDescription>Vale para este documento: na tela, no PDF que entra nos autos e no Word (.docx). As mudanças aparecem na hora; Ctrl+Z desfaz.</DialogDescription>
                 <Tabs value={aba} onValueChange={onAba} className="mt-2">
-                    <TabsList className="w-full grid grid-cols-3 h-auto">
+                    <TabsList className="w-full grid grid-cols-2 sm:grid-cols-4 h-auto">
                         <TabsTrigger value="pagina" className="text-xs sm:text-sm">Papel e margens</TabsTrigger>
+                        <TabsTrigger value="faixas" className="text-xs sm:text-sm">Cabeçalho e rodapé</TabsTrigger>
                         <TabsTrigger value="estilos" className="text-xs sm:text-sm">Estilos</TabsTrigger>
                         <TabsTrigger value="numeracao" className="text-xs sm:text-sm">Numeração</TabsTrigger>
                     </TabsList>
@@ -217,6 +277,37 @@ export default function ConfigurarPagina({ aberto, aba = 'pagina', onAba, layout
                             </fieldset>
                         </div>
                         <div><p className="text-sm font-medium mb-1">Prévia</p><MiniFolha layout={l} /></div>
+                    </TabsContent>
+
+                    <TabsContent value="faixas" className="space-y-6">
+                        <EditarFaixa tipo="cabecalho" rotulo="Cabeçalho" faixa={l.cabecalho} onFaixa={(f) => mudar({ cabecalho: f })}
+                            config={config} campos={campos} EditorFaixa={EditorFaixa} larguraUtil={larguraUtil} uid={uid} />
+                        <EditarFaixa tipo="rodape" rotulo="Rodapé" faixa={l.rodape} onFaixa={(f) => mudar({ rodape: f })}
+                            config={config} campos={campos} EditorFaixa={EditorFaixa} larguraUtil={larguraUtil} uid={uid} />
+                        <fieldset className="space-y-2">
+                            <legend className="text-sm font-semibold">Número de página</legend>
+                            <div className="grid grid-cols-2 sm:grid-cols-[1fr_1fr_6rem] gap-2">
+                                <div>
+                                    <Label htmlFor={`${uid}-np-pos`} className="text-xs">Posição</Label>
+                                    <select id={`${uid}-np-pos`} className={`mt-1 ${campo}`} value={np.posicao || 'rodape-direita'} onChange={(e) => mudar({ numero_pagina: { ...np, posicao: e.target.value } })}>
+                                        {POSICOES_NUMERO.map(([v, r]) => <option key={v} value={v}>{r}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <Label htmlFor={`${uid}-np-fmt`} className="text-xs">Formato</Label>
+                                    <select id={`${uid}-np-fmt`} className={`mt-1 ${campo}`} value={np.formato || 'pagina-de'} disabled={np.posicao === 'nenhum'} onChange={(e) => mudar({ numero_pagina: { ...np, formato: e.target.value } })}>
+                                        {FORMATOS_NUMERO.map(([v, r]) => <option key={v} value={v}>{r}</option>)}
+                                    </select>
+                                </div>
+                                <Medida id={`${uid}-np-tam`} rotulo="Tamanho" unidade="pt" min={6} max={16} passo={0.5} valor={np.tamanho || TAMANHO_NUMERO}
+                                    onChange={(v) => mudar({ numero_pagina: { ...np, tamanho: v } })} />
+                            </div>
+                            <label className="flex items-center gap-2 text-sm">
+                                <input type="checkbox" checked={np.primeira !== false} disabled={np.posicao === 'nenhum'} onChange={(e) => mudar({ numero_pagina: { ...np, primeira: e.target.checked } })} />
+                                Mostrar o número também na primeira página
+                            </label>
+                        </fieldset>
+                        <p className="text-xs text-slate-600 dark:text-slate-400">Na tela, o cabeçalho e o rodapé aparecem como na primeira página; a prévia em PDF mostra cada folha. No Word, a opção vira "Primeira página diferente".</p>
                     </TabsContent>
 
                     <TabsContent value="estilos" className="grid sm:grid-cols-[190px_1fr] gap-4">
