@@ -453,6 +453,38 @@ Regras comuns:
     em branco, entra inteiro; com texto, entra onde está o cursor.
   - **Word:** baixa a minuta em .docx (ação `docx`, `docxExportar.ts`), com o
     timbrado no cabeçalho e "Página X de Y" no rodapé.
+- **Página e estilos do documento (18/11/2026):** botão **Página** (régua) do
+  editor, ou "Modificar estilos…" na lista de estilos, abre
+  `LayoutDocumento.jsx` com três abas. Tudo fica em `doc.attrs.layout` (o
+  próprio texto do modelo ou da minuta), então viaja do modelo para a minuta
+  (`preencherCampos` preserva), para o pacote de outro órgão, para o PDF dos
+  autos e para o .docx. Documento sem `layout` sai exatamente como antes.
+  - *Papel e margens:* A4, Ofício (21,6 × 33), Carta ou A5, retrato ou
+    paisagem; margens de 0,5 a 8 cm, com prontas (SIGO 2,5/2,2/3/2, ABNT,
+    Word, moderadas, estreitas). Com timbrado, o texto começa abaixo dele e a
+    margem superior só vale se for maior.
+  - *Estilos:* Texto normal, Títulos 1 a 4 e Citação editáveis (fonte,
+    tamanho, negrito, itálico, sublinhado, maiúsculas, cor, alinhamento,
+    recuos de primeira linha, esquerda e direita, entre linhas, antes e
+    depois) e até 30 estilos próprios (`proprios`, parágrafo com `estilo`).
+    "Usar o parágrafo atual" copia a formatação de onde está o cursor. O que
+    está no parágrafo vale mais que o estilo; em listas e tabelas o recuo de
+    primeira linha do estilo não vale.
+  - *Numeração automática:* títulos em 1./1.1./1.1.1. ou I./1./1.1.
+    (`numeracao_titulos`); parágrafos marcados com o botão # (`numerado`)
+    contam pelo documento em 1., 1), 1 – ou 1º (`numeracao_paragrafos`). Na
+    tela são contadores do CSS; no PDF, `numerosAutomaticos`; no Word,
+    numeração nativa (o Word renumera ao editar).
+  - *Listas:* barra "Lista" aparece com o cursor numa lista: marcador •, ◦, ▪
+    ou – (`bulletList.marcador`); 1, a, A, i, I (`orderedList.formato`) com
+    "." ou ")" (`separador`) e "Começar em".
+  - *Recuo exato:* primeira linha, esquerda e direita (`margemDir`, novo) em cm
+    no menu ↕.
+  - *Fontes novas:* Georgia (Gelasio, mesma medida), Garamond (EB Garamond),
+    Open Sans e Lato, no editor, no PDF e no papel timbrado.
+  - Servidor: `shared/layoutDocumento.ts` (`sanitizeLayout`, lista fechada e só
+    o que difere do padrão; `estiloDoBloco`; `numerosAutomaticos`). Tela:
+    `src/lib/layoutDocumento.js` (espelho conferido em teste; `cssDoLayout`).
 - **Revisar no editor qualquer minuta:** a minuta enviada como arquivo tem
   "Abrir no editor" (ação `paraEditor`). A conversão é feita no servidor, sem
   programa externo: Word .docx (`docx.ts`: estilos e herança, fontes do tema,

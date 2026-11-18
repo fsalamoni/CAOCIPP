@@ -5,6 +5,23 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 18/11/2026 — Página e estilos nos modelos de documento (etapa 1 de 2)
+- O editor de modelos e minutas ganhou o botão **Página**: papel (A4, Ofício,
+  Carta, A5), retrato ou paisagem e margens em cm, com margens prontas (SIGO,
+  ABNT, Word, estreitas) e prévia da folha.
+- **Estilos** como no Word: Texto normal, Títulos 1 a 4 e Citação se ajustam
+  (fonte, tamanho, negrito, itálico, sublinhado, maiúsculas, cor,
+  alinhamento, recuos, espaços) e o documento pode ter estilos próprios
+  ("Ementa", "Assinatura"), criados a partir do parágrafo atual.
+- **Numeração automática** de títulos (1., 1.1. ou I., 1.) e de parágrafos
+  (botão #, em 1., 1), 1 – ou 1º); **listas** com marcador •, ◦, ▪ ou
+  travessão e numeração 1, a, A, i, I com ponto ou parêntese e início
+  escolhido; **recuos exatos** em cm, inclusive à direita.
+- Fontes novas: Georgia, Garamond, Open Sans e Lato.
+- A formatação fica no próprio texto: o modelo passa para a minuta e o PDF
+  dos autos e o Word (.docx) saem iguais à tela. Documento sem essas opções
+  não muda.
+
 ### 18/11/2026 — Data de entrada própria do aditivo
 - A data de entrada do aditivo é a dele (dia em que chegou a informação que
   o originou, ou hoje), nunca a do original. O servidor recusa data anterior

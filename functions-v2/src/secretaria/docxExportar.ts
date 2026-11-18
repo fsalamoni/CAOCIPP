@@ -1,6 +1,7 @@
 const jszip = () => require('jszip') as typeof import('jszip');
 import { Marca, No } from '../shared/documento';
 import type { ConfigDocumento } from './pdfDocumento';
+import { ChaveEstilo, ESTILOS_PADRAO, Estilo, Layout, estiloDoBloco, folha, layoutDe, margens, numerosAutomaticos } from '../shared/layoutDocumento';
 
 /**
  * Documento do editor → Word (.docx), para quem quer abrir a minuta no Word
@@ -11,9 +12,11 @@ import type { ConfigDocumento } from './pdfDocumento';
  * links, citações, linhas e quebras de página.
  */
 
-const NOME_FONTE: Record<string, string> = { serif: 'Times New Roman', 'sans-serif': 'Arial', calibri: 'Calibri', cambria: 'Cambria', monospace: 'Courier New' };
-const LARGURA_UTIL_TW = 9071; // 16 cm
-const TITULOS: Record<number, number> = { 1: 18, 2: 15, 3: 13, 4: 12 };
+const NOME_FONTE: Record<string, string> = {
+    serif: 'Times New Roman', 'sans-serif': 'Arial', calibri: 'Calibri', cambria: 'Cambria', monospace: 'Courier New',
+    georgia: 'Georgia', garamond: 'Garamond', 'open-sans': 'Open Sans', lato: 'Lato',
+};
+const LARGURA_UTIL_TW = 9071; // 16 cm (A4 com as margens de sempre)
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
     // Caracteres de controle não cabem no XML.
@@ -50,9 +53,53 @@ class Escritor {
     rels: string[] = [];
     midias: Array<{ nome: string; buf: Buffer }> = [];
     nums: string[] = [];
+    /** Definições de numeração (abstractNum) por formato: marcadores, 1/a/A/i/I, parágrafos e títulos. */
+    abstratos = new Map<string, { id: number; xml: string }>();
     proximoNum = 1;
     proximoDesenho = 1;
     proximaRel = 10;
+    numParagrafos: number | null = null;
+    numTitulos: number | null = null;
+    numeros: Map<No, string>;
+
+    constructor(public layout: Layout = {}, public larguraTw = LARGURA_UTIL_TW, doc?: No) {
+        this.numeros = doc ? numerosAutomaticos(doc) : new Map();
+    }
+
+    abstrato(chave: string, nivel: (l: number) => string): number {
+        const ja = this.abstratos.get(chave);
+        if (ja) return ja.id;
+        const id = this.abstratos.size + 1;
+        this.abstratos.set(chave, { id, xml: `<w:abstractNum w:abstractNumId="${id}"><w:multiLevelType w:val="hybridMultilevel"/>${Array.from({ length: 9 }, (_, l) => nivel(l)).join('')}</w:abstractNum>` });
+        return id;
+    }
+
+    novoNum(abstrato: number, inicio = 1): number {
+        const id = this.proximoNum++;
+        this.nums.push(`<w:num w:numId="${id}"><w:abstractNumId w:val="${abstrato}"/>${inicio > 1 ? `<w:lvlOverride w:ilvl="0"><w:startOverride w:val="${inicio}"/></w:lvlOverride>` : ''}</w:num>`);
+        return id;
+    }
+
+    /** Numeração dos parágrafos marcados como numerados: uma só, contínua no documento. */
+    numeroDoParagrafo(): number {
+        if (this.numParagrafos !== null) return this.numParagrafos;
+        const f = this.layout.numeracao_paragrafos || '1.';
+        const txt = f === '1)' ? '%1)' : f === '1 –' ? '%1 –' : f === '1º' ? '%1º' : '%1.';
+        const abs = this.abstrato(`par:${f}`, (l) => `<w:lvl w:ilvl="${l}"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="${l === 0 ? txt : ''}"/><w:lvlJc w:val="left"/><w:suff w:val="space"/><w:pPr><w:ind w:left="0" w:firstLine="0"/></w:pPr></w:lvl>`);
+        return (this.numParagrafos = this.novoNum(abs));
+    }
+
+    /** Numeração automática dos títulos (1., 1.1., … ou I., 1., 1.1.). */
+    numeroDoTitulo(): number {
+        if (this.numTitulos !== null) return this.numTitulos;
+        const romano = this.layout.numeracao_titulos === 'romano';
+        const abs = this.abstrato(`tit:${romano ? 'romano' : 'decimal'}`, (l) => {
+            const de = romano ? (l === 0 ? 1 : 2) : 1;
+            const txt = romano && l === 0 ? '%1.' : `${Array.from({ length: l + 1 - (de - 1) }, (_, i) => `%${i + de}`).join('.')}.`;
+            return `<w:lvl w:ilvl="${l}"><w:start w:val="1"/><w:numFmt w:val="${romano && l === 0 ? 'upperRoman' : 'decimal'}"/><w:lvlText w:val="${txt}"/><w:lvlJc w:val="left"/><w:suff w:val="space"/><w:pPr><w:ind w:left="0" w:firstLine="0"/></w:pPr></w:lvl>`;
+        });
+        return (this.numTitulos = this.novoNum(abs));
+    }
 
 
     rel(tipo: string, alvo: string, externo = false): string {
@@ -101,22 +148,28 @@ class Escritor {
         return out;
     }
 
-    pPr(n: No, extra: { estilo?: string; num?: { id: number; nivel: number }; esq?: number } = {}): string {
+    pPr(n: No, extra: { estilo?: string; num?: { id: number; nivel: number }; esq?: number; citacao?: boolean; semRecuo?: boolean } = {}): string {
         const a = n.attrs || {};
         const titulo = n.type === 'heading';
         const p: string[] = [];
-        const estilo = titulo ? `Ttulo${Number(a.level) || 1}` : extra.estilo;
+        const proprio = !titulo && a.estilo && this.layout.proprios?.some((x) => x.id === a.estilo) ? `Est-${a.estilo}` : null;
+        const estilo = titulo ? `Ttulo${Number(a.level) || 1}` : proprio || extra.estilo;
         if (estilo) p.push(`<w:pStyle w:val="${estilo}"/>`);
-        if (extra.num) p.push(`<w:numPr><w:ilvl w:val="${extra.num.nivel}"/><w:numId w:val="${extra.num.id}"/></w:numPr>`);
-        const antes = a.antes ?? (titulo ? 8 : 0);
-        const depois = a.depois ?? 6;
-        const linha = Math.round((Number(a.espacamento) || 1.15) * 240);
+        // O estilo do documento dá o padrão; o que o parágrafo tem vale mais (como no PDF).
+        const e = estiloDoBloco(this.layout, n, extra.citacao);
+        const numero = this.numeros.has(n) ? (titulo ? { id: this.numeroDoTitulo(), nivel: (Number(a.level) || 1) - 1 } : { id: this.numeroDoParagrafo(), nivel: 0 }) : null;
+        const num = extra.num || numero;
+        if (num) p.push(`<w:numPr><w:ilvl w:val="${num.nivel}"/><w:numId w:val="${num.id}"/></w:numPr>`);
+        const antes = a.antes ?? e.antes ?? 0;
+        const depois = a.depois ?? e.depois ?? 6;
+        const linha = Math.round((Number(a.espacamento) || e.espacamento || 1.15) * 240);
         p.push(`<w:spacing w:before="${Math.round(Number(antes) * 20)}" w:after="${Math.round(Number(depois) * 20)}" w:line="${linha}" w:lineRule="auto"/>`);
-        const esq = Math.round((Number(a.margemEsq) || 0) * 567) + (extra.esq || 0);
-        const prim = Math.round((Number(a.recuo) || 0) * 567);
-        if (extra.num) p.push(`<w:ind w:left="${720 * (extra.num.nivel + 1) + esq}" w:hanging="360"/>`);
-        else if (esq || prim) p.push(`<w:ind w:left="${esq}"${prim ? ` w:firstLine="${prim}"` : ''}/>`);
-        const jc = { center: 'center', right: 'right', justify: 'both' }[String(a.textAlign)];
+        const esq = Math.round((Number(a.margemEsq ?? e.margemEsq) || 0) * 567) + (extra.esq || 0);
+        const dir = Math.round((Number(a.margemDir ?? e.margemDir) || 0) * 567);
+        const prim = Math.round((Number(a.recuo ?? (extra.semRecuo ? 0 : e.recuo)) || 0) * 567);
+        if (extra.num) p.push(`<w:ind w:left="${720 * (extra.num.nivel + 1) + esq}" w:hanging="360"${dir ? ` w:right="${dir}"` : ''}/>`);
+        else if (esq || prim || dir || numero) p.push(`<w:ind w:left="${esq}"${dir ? ` w:right="${dir}"` : ''} w:firstLine="${prim}"/>`);
+        const jc = { center: 'center', right: 'right', justify: 'both' }[String(a.textAlign || e.alinhamento)];
         if (jc) p.push(`<w:jc w:val="${jc}"/>`);
         return `<w:pPr>${p.join('')}</w:pPr>`;
     }
@@ -131,7 +184,7 @@ class Escritor {
         if (!m) return '';
         const buf = Buffer.from(m[2], 'base64');
         const dim = dimensoesImagem(buf) || { w: 600, h: 400 };
-        const w = Math.min(Number(n.attrs?.width) || dim.w, 605);
+        const w = Math.min(Number(n.attrs?.width) || dim.w, Math.round(this.larguraTw / 15));
         const h = Math.round((w * dim.h) / Math.max(1, dim.w));
         const nome = `imagem${this.midias.length + 1}.${m[1] === 'png' ? 'png' : 'jpeg'}`;
         this.midias.push({ nome, buf });
@@ -143,24 +196,36 @@ class Escritor {
         return `<w:p><w:pPr><w:spacing w:before="80" w:after="160"/>${jc ? `<w:jc w:val="${jc}"/>` : ''}</w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${id}" name="Imagem ${id}" descr="${esc(String(n.attrs?.alt || ''))}"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${id}" name="${nome}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
     }
 
+    chaveLista(n: No): string {
+        const a = n.attrs || {};
+        return n.type === 'orderedList' ? `ol:${a.formato || 'decimal'}:${a.separador || '.'}` : `ul:${a.marcador || ''}`;
+    }
+
+    /** Marcadores (•, ◦, ▪, –) e números (1, a, A, i, I com . ou )) como "Marcadores e numeração" do Word. */
+    abstratoDaLista(n: No): number {
+        const a = n.attrs || {};
+        const ordenada = n.type === 'orderedList';
+        const fmt = ({ 'lower-alpha': 'lowerLetter', 'upper-alpha': 'upperLetter', 'lower-roman': 'lowerRoman', 'upper-roman': 'upperRoman' } as Record<string, string>)[String(a.formato)] || 'decimal';
+        const fixo = ({ circle: '◦', square: '▪', dash: '–' } as Record<string, string>)[String(a.marcador)];
+        const marcadores = ['•', '◦', '▪'];
+        const sep = a.separador === ')' ? ')' : '.';
+        return this.abstrato(this.chaveLista(n), (l) => `<w:lvl w:ilvl="${l}"><w:start w:val="1"/><w:numFmt w:val="${ordenada ? fmt : 'bullet'}"/><w:lvlText w:val="${ordenada ? `%${l + 1}${sep}` : fixo || marcadores[l % 3]}"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="${720 * (l + 1)}" w:hanging="360"/></w:pPr></w:lvl>`);
+    }
+
     lista(n: No, nivel: number, numId: number | null): string {
         const ordenada = n.type === 'orderedList';
         let id = numId;
-        if (id === null) {
-            id = this.proximoNum++;
-            const inicio = Number(n.attrs?.start) || 1;
-            this.nums.push(`<w:num w:numId="${id}"><w:abstractNumId w:val="${ordenada ? 2 : 1}"/>${ordenada && inicio > 1 ? `<w:lvlOverride w:ilvl="0"><w:startOverride w:val="${inicio}"/></w:lvlOverride>` : ''}</w:num>`);
-        }
+        if (id === null) id = this.novoNum(this.abstratoDaLista(n), ordenada ? Number(n.attrs?.start) || 1 : 1);
         let out = '';
         for (const li of n.content || []) {
             let primeiro = true;
             for (const b of li.content || []) {
                 if (b.type === 'bulletList' || b.type === 'orderedList') {
-                    // Lista de outro tipo dentro: numeração própria.
-                    out += this.lista(b, nivel + 1, b.type === n.type ? id : null);
+                    // Lista de outro tipo ou formato dentro: numeração própria.
+                    out += this.lista(b, nivel + 1, this.chaveLista(b) === this.chaveLista(n) ? id : null);
                 } else if ((b.type === 'paragraph' || b.type === 'heading') && primeiro) {
                     out += this.paragrafo(b, { num: { id, nivel }, estilo: 'PargrafodaLista' });
-                } else out += this.bloco(b, { esq: 720 * (nivel + 1) });
+                } else out += this.bloco(b, { esq: 720 * (nivel + 1), semRecuo: true });
                 primeiro = false;
             }
         }
@@ -196,7 +261,7 @@ class Escritor {
         const media = conhecidas.length ? conhecidas.reduce((s, w) => s + w, 0) / conhecidas.length : 1;
         const brutas = px.map((w) => w ?? media);
         const total = brutas.reduce((s, w) => s + w, 0) || 1;
-        const escala = Math.min(15, LARGURA_UTIL_TW / total);
+        const escala = Math.min(15, this.larguraTw / total);
         const grade = brutas.map((w) => Math.max(200, Math.round(w * escala)));
         const semBordas = n.attrs?.semBordas === true;
         let out = `<w:tbl><w:tblPr><w:tblStyle w:val="${semBordas ? 'TabelaSemBordas' : 'TabeladeGrade'}"/><w:tblW w:w="${grade.reduce((s, w) => s + w, 0)}" w:type="dxa"/><w:tblLayout w:type="fixed"/><w:tblLook w:val="04A0"/></w:tblPr>`;
@@ -210,7 +275,7 @@ class Escritor {
                 const cs = aqui?.cs || deCima?.cs || 1;
                 const w = grade.slice(c, c + cs).reduce((s, x) => s + x, 0);
                 const tcPr = `<w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${cs > 1 ? `<w:gridSpan w:val="${cs}"/>` : ''}${aqui && aqui.rs > 1 ? '<w:vMerge w:val="restart"/>' : deCima ? '<w:vMerge/>' : ''}${aqui?.no.type === 'tableHeader' ? '<w:shd w:val="clear" w:color="auto" w:fill="F1F5F9"/>' : ''}</w:tcPr>`;
-                let corpo = aqui ? (aqui.no.content || []).map((b) => this.bloco(b, aqui.no.type === 'tableHeader' ? { negrito: true } : {})).join('') : '';
+                let corpo = aqui ? (aqui.no.content || []).map((b) => this.bloco(b, aqui.no.type === 'tableHeader' ? { negrito: true, semRecuo: true } : { semRecuo: true })).join('') : '';
                 if (!/<w:p[ >]/.test(corpo.slice(-400)) || !corpo.endsWith('</w:p>')) corpo += '<w:p/>';
                 out += `<w:tc>${tcPr}${corpo}</w:tc>`;
                 c += cs;
@@ -220,18 +285,18 @@ class Escritor {
         return `${out}</w:tbl><w:p><w:pPr><w:spacing w:before="0" w:after="0"/></w:pPr></w:p>`;
     }
 
-    bloco(n: No, extra: { esq?: number; negrito?: boolean } = {}): string {
+    bloco(n: No, extra: { esq?: number; negrito?: boolean; semRecuo?: boolean } = {}): string {
         switch (n.type) {
             case 'paragraph':
             case 'heading': {
                 const no = extra.negrito ? { ...n, content: (n.content || []).map((t) => (t.type === 'text' ? { ...t, marks: [...(t.marks || []), { type: 'bold' }] } : t)) } : n;
-                return this.paragrafo(no, { esq: extra.esq });
+                return this.paragrafo(no, { esq: extra.esq, semRecuo: extra.semRecuo });
             }
             case 'bulletList':
             case 'orderedList':
                 return this.lista(n, 0, null);
             case 'blockquote':
-                return (n.content || []).map((b) => (b.type === 'paragraph' || b.type === 'heading' ? this.paragrafo(b, { estilo: 'Citao', esq: extra.esq }) : this.bloco(b, extra))).join('');
+                return (n.content || []).map((b) => (b.type === 'paragraph' || b.type === 'heading' ? this.paragrafo(b, { estilo: 'Citao', esq: extra.esq, citacao: true }) : this.bloco(b, extra))).join('');
             case 'horizontalRule':
                 return '<w:p><w:pPr><w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="64748B"/></w:pBdr><w:spacing w:before="120" w:after="200"/></w:pPr></w:p>';
             case 'pageBreak':
@@ -248,33 +313,56 @@ class Escritor {
 
 const NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"';
 
-function estilos(fonte: string, tamanho: number): string {
-    const titulo = (n: number) => `<w:style w:type="paragraph" w:styleId="Ttulo${n}"><w:name w:val="heading ${n}"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before="160" w:after="120"/><w:outlineLvl w:val="${n - 1}"/></w:pPr><w:rPr><w:b/><w:bCs/><w:sz w:val="${TITULOS[n] * 2}"/><w:szCs w:val="${TITULOS[n] * 2}"/></w:rPr></w:style>`;
+/** Letra do estilo (fonte, tamanho, negrito…) no XML do Word; só o que o documento mudou. */
+function rPrDoEstilo(e: Estilo = {}): string {
+    const p: string[] = [];
+    const f = NOME_FONTE[String(e.fonte || '')];
+    if (f) p.push(`<w:rFonts w:ascii="${f}" w:hAnsi="${f}" w:eastAsia="${f}" w:cs="${f}"/>`);
+    if (e.negrito === true) p.push('<w:b/><w:bCs/>'); else if (e.negrito === false) p.push('<w:b w:val="0"/><w:bCs w:val="0"/>');
+    if (e.italico) p.push('<w:i/><w:iCs/>');
+    if (e.maiusculas) p.push('<w:caps/>');
+    const cor = hex(e.cor);
+    if (cor) p.push(`<w:color w:val="${cor}"/>`);
+    if (e.tamanho) p.push(`<w:sz w:val="${Math.round(e.tamanho * 2)}"/><w:szCs w:val="${Math.round(e.tamanho * 2)}"/>`);
+    if (e.sublinhado) p.push('<w:u w:val="single"/>');
+    return p.length ? `<w:rPr>${p.join('')}</w:rPr>` : '';
+}
+
+function estilos(fonte: string, tamanho: number, layout: Layout = {}): string {
+    const est = (k: ChaveEstilo) => ({ ...ESTILOS_PADRAO[k], ...(layout.estilos?.[k] || {}) });
+    const titulo = (n: number) => `<w:style w:type="paragraph" w:styleId="Ttulo${n}"><w:name w:val="heading ${n}"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before="160" w:after="120"/><w:outlineLvl w:val="${n - 1}"/></w:pPr>${rPrDoEstilo(est(`h${n}` as ChaveEstilo))}</w:style>`;
     const borda = (v: string) => ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map((l) => `<w:${l} w:val="${v}" w:sz="4" w:space="0" w:color="94A3B8"/>`).join('');
+    // Estilos próprios do documento ("Ementa", "Assinatura"…) aparecem com o nome na galeria do Word.
+    const proprios = (layout.proprios || []).map((x) => `<w:style w:type="paragraph" w:customStyle="1" w:styleId="Est-${x.id}"><w:name w:val="${esc(x.nome)}"/><w:basedOn w:val="Normal"/><w:qFormat/>${rPrDoEstilo(x)}</w:style>`).join('');
     return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:styles ${NS}><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="${fonte}" w:hAnsi="${fonte}" w:eastAsia="${fonte}" w:cs="${fonte}"/><w:sz w:val="${tamanho * 2}"/><w:szCs w:val="${tamanho * 2}"/><w:lang w:val="pt-BR"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="120" w:line="276" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>
-<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>
+<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/>${rPrDoEstilo({ ...est('normal'), fonte: undefined, tamanho: undefined })}</w:style>
 ${[1, 2, 3, 4].map(titulo).join('')}
 <w:style w:type="paragraph" w:styleId="PargrafodaLista"><w:name w:val="List Paragraph"/><w:basedOn w:val="Normal"/><w:qFormat/><w:pPr><w:contextualSpacing/></w:pPr></w:style>
-<w:style w:type="paragraph" w:styleId="Citao"><w:name w:val="Quote"/><w:basedOn w:val="Normal"/><w:qFormat/><w:pPr><w:pBdr><w:left w:val="single" w:sz="12" w:space="8" w:color="94A3B8"/></w:pBdr><w:ind w:left="567"/></w:pPr></w:style>
+<w:style w:type="paragraph" w:styleId="Citao"><w:name w:val="Quote"/><w:basedOn w:val="Normal"/><w:qFormat/><w:pPr><w:pBdr><w:left w:val="single" w:sz="12" w:space="8" w:color="94A3B8"/></w:pBdr><w:ind w:left="567"/></w:pPr>${rPrDoEstilo(est('citacao'))}</w:style>${proprios}
 <w:style w:type="character" w:styleId="Hyperlink"><w:name w:val="Hyperlink"/><w:rPr><w:color w:val="1D4ED8"/><w:u w:val="single"/></w:rPr></w:style>
 <w:style w:type="table" w:default="1" w:styleId="TabelaSemBordas"><w:name w:val="Normal Table"/><w:tblPr><w:tblCellMar><w:top w:w="40" w:type="dxa"/><w:left w:w="100" w:type="dxa"/><w:bottom w:w="40" w:type="dxa"/><w:right w:w="100" w:type="dxa"/></w:tblCellMar></w:tblPr></w:style>
 <w:style w:type="table" w:styleId="TabeladeGrade"><w:name w:val="Table Grid"/><w:basedOn w:val="TabelaSemBordas"/><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:tblPr><w:tblBorders>${borda('single')}</w:tblBorders></w:tblPr></w:style>
 </w:styles>`;
 }
 
-function numeracao(nums: string[]): string {
-    const marcadores = ['•', '◦', '▪'];
-    const nivel = (l: number, bullet: boolean) => `<w:lvl w:ilvl="${l}"><w:start w:val="1"/><w:numFmt w:val="${bullet ? 'bullet' : 'decimal'}"/><w:lvlText w:val="${bullet ? marcadores[l % 3] : `%${l + 1}.`}"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="${720 * (l + 1)}" w:hanging="360"/></w:pPr></w:lvl>`;
-    const abs = (id: number, bullet: boolean) => `<w:abstractNum w:abstractNumId="${id}"><w:multiLevelType w:val="hybridMultilevel"/>${Array.from({ length: 9 }, (_, l) => nivel(l, bullet)).join('')}</w:abstractNum>`;
-    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:numbering ${NS}>${abs(1, true)}${abs(2, false)}${nums.join('')}</w:numbering>`;
+function numeracao(e: Escritor): string {
+    // No Word, as definições (abstractNum) vêm antes das numerações (num).
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:numbering ${NS}>${[...e.abstratos.values()].map((a) => a.xml).join('')}${e.nums.join('')}</w:numbering>`;
 }
+
+const TW = 1440 / 2.54; // twips por cm
 
 /** Documento do editor → bytes de um .docx. */
 export async function docParaDocx(doc: No, cfg: ConfigDocumento = {}, meta: { titulo?: string } = {}): Promise<Buffer> {
-    const fonte = NOME_FONTE[String(cfg.fonte_padrao || 'serif')] || 'Times New Roman';
-    const tamanho = Number(cfg.tamanho_padrao) || 12;
-    const e = new Escritor();
+    const layout = layoutDe(doc);
+    const normal = estiloDoBloco(layout, { type: 'paragraph' });
+    const fonte = NOME_FONTE[String(normal.fonte || cfg.fonte_padrao || 'serif')] || 'Times New Roman';
+    const tamanho = normal.tamanho || Number(cfg.tamanho_padrao) || 12;
+    const pg = folha(layout);
+    const mg = margens(layout);
+    const LARGURA_UTIL_TW = Math.round((pg.w - mg.esq - mg.dir) * TW);
+    const e = new Escritor(layout, LARGURA_UTIL_TW, doc);
     const corpo = (doc.content || []).map((b) => e.bloco(b)).join('') || '<w:p/>';
 
     // Cabeçalho (timbrado da unidade) e rodapé com a página.
@@ -292,10 +380,11 @@ export async function docParaDocx(doc: No, cfg: ConfigDocumento = {}, meta: { ti
     const temCab = !!cabecalho;
     const ridCab = temCab ? e.rel('header', 'header1.xml') : '';
     const ridRod = e.rel('footer', 'footer1.xml');
-    const sect = `<w:sectPr>${temCab ? `<w:headerReference w:type="default" r:id="${ridCab}"/>` : ''}<w:footerReference w:type="default" r:id="${ridRod}"/><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="${temCab ? 2268 : 1418}" w:right="1134" w:bottom="1247" w:left="1701" w:header="567" w:footer="510" w:gutter="0"/></w:sectPr>`;
+    const pgSz = `<w:pgSz w:w="${Math.round(pg.w * TW)}" w:h="${Math.round(pg.h * TW)}"${layout.orientacao === 'paisagem' ? ' w:orient="landscape"' : ''}/>`;
+    const sect = `<w:sectPr>${temCab ? `<w:headerReference w:type="default" r:id="${ridCab}"/>` : ''}<w:footerReference w:type="default" r:id="${ridRod}"/>${pgSz}<w:pgMar w:top="${temCab ? Math.max(2268, Math.round(mg.sup * 567)) : Math.round(mg.sup * 567)}" w:right="${Math.round(mg.dir * 567)}" w:bottom="${Math.round(mg.inf * 567)}" w:left="${Math.round(mg.esq * 567)}" w:header="567" w:footer="510" w:gutter="0"/></w:sectPr>`;
     zip.file('word/document.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:document ${NS}><w:body>${corpo}${sect}</w:body></w:document>`);
-    zip.file('word/styles.xml', estilos(fonte, tamanho));
-    zip.file('word/numbering.xml', numeracao(e.nums));
+    zip.file('word/styles.xml', estilos(fonte, tamanho, layout));
+    zip.file('word/numbering.xml', numeracao(e));
     zip.file('word/settings.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:settings ${NS}><w:defaultTabStop w:val="709"/><w:characterSpacingControl w:val="doNotCompress"/><w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat></w:settings>`);
     if (temCab) {
         zip.file('word/header1.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:hdr ${NS}>${cabecalho}</w:hdr>`);

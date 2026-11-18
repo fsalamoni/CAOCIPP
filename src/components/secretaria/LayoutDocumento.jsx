@@ -1,0 +1,296 @@
+import React, { useEffect, useId, useState } from 'react';
+import { AlignCenter, AlignJustify, AlignLeft, AlignRight, Bold, CaseUpper, Italic, Plus, RotateCcw, Trash2, Underline, Wand2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+    CHAVES_ESTILO, ESTILOS_PADRAO, FORMATOS_PARAGRAFO, FORMATOS_TITULO, MARGENS_PADRAO, MARGENS_PRONTAS, PAPEIS,
+    cssDoEstilo, estiloEfetivo, folhaCm, idDeEstilo, limparLayout, margensDe,
+} from '@/lib/layoutDocumento';
+
+/**
+ * "Página e estilos" do documento, como Configurar página, Estilos e
+ * Numeração do Word: papel, orientação e margens; Normal, Títulos, Citação e
+ * estilos próprios; numeração automática de títulos e de parágrafos. Muda o
+ * documento na hora (Ctrl+Z desfaz) e vale no PDF dos autos e no .docx.
+ */
+
+const ESPACAMENTOS = [1, 1.15, 1.5, 2, 2.5, 3];
+const virgula = (n) => String(n).replace('.', ',');
+const numOuVazio = (v) => (v === '' || v === null || v === undefined ? undefined : Number(v));
+const campo = 'h-9 w-full rounded-md border border-input bg-transparent dark:bg-slate-900 px-2 text-sm';
+
+/** Número com unidade; vale ao sair do campo ou com Enter (digitar "0,8" não passa por "0"). */
+function Medida({ id, rotulo, valor, onChange, unidade = 'cm', min = 0, max = 10, passo = 0.1, placeholder }) {
+    const [txt, setTxt] = useState(valor ?? '');
+    useEffect(() => { setTxt(valor ?? ''); }, [valor]);
+    const confirmar = () => {
+        const v = numOuVazio(String(txt).replace(',', '.'));
+        if (v !== undefined && (!Number.isFinite(v) || v < min || v > max)) { setTxt(valor ?? ''); return; }
+        if (v !== valor) onChange(v);
+    };
+    return (
+        <div className="min-w-0">
+            <Label htmlFor={id} className="text-xs">{rotulo}</Label>
+            <div className="mt-1 flex items-center gap-1">
+                <Input id={id} type="number" inputMode="decimal" min={min} max={max} step={passo} value={txt} placeholder={placeholder}
+                    onChange={(e) => setTxt(e.target.value)} onBlur={confirmar} onKeyDown={(e) => e.key === 'Enter' && confirmar()} className="h-9" />
+                <span className="text-xs text-slate-600 dark:text-slate-400 shrink-0">{unidade}</span>
+            </div>
+        </div>
+    );
+}
+
+function Alternar({ titulo, ativo, onClick, children }) {
+    return (
+        <button type="button" title={titulo} aria-label={titulo} aria-pressed={!!ativo} onClick={onClick}
+            className={`h-9 w-9 inline-flex items-center justify-center rounded-md border focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 ${ativo ? 'bg-indigo-100 border-indigo-400 text-indigo-900 dark:bg-indigo-900 dark:text-indigo-100' : 'border-input text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+            {children}
+        </button>
+    );
+}
+
+/** Folha em miniatura com a área do texto, para ver papel, orientação e margens. */
+function MiniFolha({ layout }) {
+    const { w, h } = folhaCm(layout);
+    const m = margensDe(layout);
+    const escala = 150 / Math.max(w, h);
+    return (
+        <div className="flex items-center justify-center rounded-md bg-slate-200 dark:bg-slate-800 p-4 min-h-[190px]" aria-hidden>
+            <div className="relative bg-white shadow" style={{ width: w * escala, height: h * escala }}>
+                <div className="absolute border border-dashed border-indigo-400 bg-indigo-50/60"
+                    style={{ top: m.sup * escala, bottom: m.inf * escala, left: m.esq * escala, right: m.dir * escala }}>
+                    <div className="m-1 space-y-1">{[100, 92, 100, 70].map((p, i) => <div key={i} className="h-1 bg-slate-300 rounded" style={{ width: `${p}%` }} />)}</div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function FormEstilo({ estilo, setEstilo, fontes, prefixo }) {
+    const e = estilo;
+    const mudar = (k, v) => setEstilo({ ...e, [k]: v });
+    return (
+        <div className="space-y-3">
+            <div className="grid grid-cols-[1fr_auto] gap-2">
+                <div>
+                    <Label htmlFor={`${prefixo}-fonte`} className="text-xs">Fonte</Label>
+                    <select id={`${prefixo}-fonte`} className={`mt-1 ${campo}`} value={e.fonte || ''} onChange={(x) => mudar('fonte', x.target.value || undefined)}>
+                        {fontes.map(([v, l]) => <option key={v} value={v}>{v ? l : 'A do documento'}</option>)}
+                    </select>
+                </div>
+                <div className="w-24"><Medida id={`${prefixo}-tam`} rotulo="Tamanho" unidade="pt" min={6} max={96} passo={0.5} valor={e.tamanho} placeholder="padrão" onChange={(v) => mudar('tamanho', v)} /></div>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Efeitos do texto">
+                <Alternar titulo="Negrito" ativo={e.negrito} onClick={() => mudar('negrito', e.negrito ? false : true)}><Bold className="w-4 h-4" /></Alternar>
+                <Alternar titulo="Itálico" ativo={e.italico} onClick={() => mudar('italico', !e.italico || undefined)}><Italic className="w-4 h-4" /></Alternar>
+                <Alternar titulo="Sublinhado" ativo={e.sublinhado} onClick={() => mudar('sublinhado', !e.sublinhado || undefined)}><Underline className="w-4 h-4" /></Alternar>
+                <Alternar titulo="Tudo em maiúsculas" ativo={e.maiusculas} onClick={() => mudar('maiusculas', !e.maiusculas || undefined)}><CaseUpper className="w-4 h-4" /></Alternar>
+                <span className="w-px h-6 bg-slate-300 dark:bg-slate-600 mx-1" aria-hidden />
+                {[['left', 'À esquerda', AlignLeft], ['center', 'Centralizado', AlignCenter], ['right', 'À direita', AlignRight], ['justify', 'Justificado', AlignJustify]].map(([v, t, I]) => (
+                    <Alternar key={v} titulo={t} ativo={e.alinhamento === v} onClick={() => mudar('alinhamento', e.alinhamento === v ? undefined : v)}><I className="w-4 h-4" /></Alternar>
+                ))}
+                <span className="w-px h-6 bg-slate-300 dark:bg-slate-600 mx-1" aria-hidden />
+                <label className="flex items-center gap-1 text-xs">Cor
+                    <input type="color" aria-label="Cor do texto do estilo" value={e.cor || '#000000'} onChange={(x) => mudar('cor', x.target.value)} className="h-8 w-9 p-0 border-0 bg-transparent" />
+                </label>
+                {e.cor && <button type="button" className="text-xs text-indigo-700 dark:text-indigo-300 hover:underline" onClick={() => mudar('cor', undefined)}>Automática</button>}
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+                <Medida id={`${prefixo}-recuo`} rotulo="1ª linha" valor={e.recuo} max={5} placeholder="0" onChange={(v) => mudar('recuo', v)} />
+                <Medida id={`${prefixo}-esq`} rotulo="Recuo à esquerda" valor={e.margemEsq} placeholder="0" onChange={(v) => mudar('margemEsq', v)} />
+                <Medida id={`${prefixo}-dir`} rotulo="Recuo à direita" valor={e.margemDir} placeholder="0" onChange={(v) => mudar('margemDir', v)} />
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+                <div>
+                    <Label htmlFor={`${prefixo}-esp`} className="text-xs">Entre linhas</Label>
+                    <select id={`${prefixo}-esp`} className={`mt-1 ${campo}`} value={String(e.espacamento ?? '')} onChange={(x) => mudar('espacamento', numOuVazio(x.target.value))}>
+                        <option value="">1,15 (padrão)</option>
+                        {ESPACAMENTOS.filter((v) => v !== 1.15).map((v) => <option key={v} value={String(v)}>{virgula(v)}</option>)}
+                    </select>
+                </div>
+                <Medida id={`${prefixo}-antes`} rotulo="Antes" unidade="pt" max={72} passo={1} valor={e.antes} onChange={(v) => mudar('antes', v)} />
+                <Medida id={`${prefixo}-depois`} rotulo="Depois" unidade="pt" max={72} passo={1} valor={e.depois} onChange={(v) => mudar('depois', v)} />
+            </div>
+        </div>
+    );
+}
+
+/** Formatação do parágrafo onde está o cursor, para "atualizar o estilo" (como no Word). */
+export function formatoDoParagrafo(editor) {
+    if (!editor) return {};
+    const b = editor.isActive('heading') ? editor.getAttributes('heading') : editor.getAttributes('paragraph');
+    const ts = editor.getAttributes('textStyle');
+    const e = {
+        fonte: ts.fontFamily || undefined,
+        tamanho: ts.fontSize ? parseFloat(ts.fontSize) : undefined,
+        negrito: editor.isActive('bold') || undefined,
+        italico: editor.isActive('italic') || undefined,
+        sublinhado: editor.isActive('underline') || undefined,
+        cor: /^#[0-9a-f]{6}$/i.test(ts.color || '') ? ts.color : undefined,
+        alinhamento: b.textAlign && b.textAlign !== 'left' ? b.textAlign : undefined,
+        recuo: b.recuo ?? undefined, margemEsq: b.margemEsq ?? undefined, margemDir: b.margemDir ?? undefined,
+        espacamento: b.espacamento ?? undefined, antes: b.antes ?? undefined, depois: b.depois ?? undefined,
+    };
+    return Object.fromEntries(Object.entries(e).filter(([, v]) => v !== undefined));
+}
+
+export default function ConfigurarPagina({ aberto, aba = 'pagina', onAba, layout, onMudar, onFechar, fontes, cssFonte, editor }) {
+    const uid = useId().replace(/[^a-z0-9]/gi, '');
+    const [sel, setSel] = useState('normal');
+    const [novoNome, setNovoNome] = useState('');
+    const l = layout || {};
+    const mudar = (parcial) => onMudar(limparLayout({ ...l, ...parcial }));
+    const m = margensDe(l);
+    const proprios = l.proprios || [];
+    const proprio = sel.startsWith('p:') ? proprios.find((p) => p.id === sel.slice(2)) : null;
+    const estiloSel = proprio || estiloEfetivo(l, sel);
+    const setEstilo = (e) => {
+        if (proprio) return mudar({ proprios: proprios.map((p) => (p.id === proprio.id ? { ...e, id: p.id, nome: p.nome } : p)) });
+        // Guarda só o que difere do padrão do SIGO.
+        const padrao = ESTILOS_PADRAO[sel] || {};
+        const dif = Object.fromEntries(Object.entries(e).filter(([k, v]) => v !== undefined && v !== padrao[k]));
+        for (const k of Object.keys(padrao)) if (e[k] === undefined) dif[k] = undefined;
+        return mudar({ estilos: { ...(l.estilos || {}), [sel]: dif } });
+    };
+    const criar = () => {
+        const nome = novoNome.trim().slice(0, 40);
+        if (!nome) return;
+        const id = idDeEstilo(nome, proprios.map((p) => p.id));
+        mudar({ proprios: [...proprios, { id, nome, ...formatoDoParagrafo(editor) }] });
+        setSel(`p:${id}`);
+        setNovoNome('');
+    };
+    const nomeSel = proprio ? proprio.nome : (CHAVES_ESTILO.find(([k]) => k === sel) || [])[1];
+    const cssPrevia = cssDoEstilo(proprio ? { ...estiloEfetivo(l, 'normal'), ...proprio } : estiloSel, cssFonte);
+
+    return (
+        <Dialog open={aberto} onOpenChange={(o) => !o && onFechar()}>
+            <DialogContent className="max-w-3xl w-[96vw] max-h-[92dvh] overflow-y-auto p-4 sm:p-6">
+                <DialogTitle>Página e estilos do documento</DialogTitle>
+                <DialogDescription>Vale para este documento: na tela, no PDF que entra nos autos e no Word (.docx). As mudanças aparecem na hora; Ctrl+Z desfaz.</DialogDescription>
+                <Tabs value={aba} onValueChange={onAba} className="mt-2">
+                    <TabsList className="w-full grid grid-cols-3 h-auto">
+                        <TabsTrigger value="pagina" className="text-xs sm:text-sm">Papel e margens</TabsTrigger>
+                        <TabsTrigger value="estilos" className="text-xs sm:text-sm">Estilos</TabsTrigger>
+                        <TabsTrigger value="numeracao" className="text-xs sm:text-sm">Numeração</TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="pagina" className="grid sm:grid-cols-[1fr_200px] gap-4">
+                        <div className="space-y-4 min-w-0">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <Label htmlFor={`${uid}-papel`}>Tamanho do papel</Label>
+                                    <select id={`${uid}-papel`} className={`mt-1 ${campo}`} value={l.papel || 'A4'} onChange={(e) => mudar({ papel: e.target.value })}>
+                                        {Object.entries(PAPEIS).map(([k, p]) => <option key={k} value={k}>{p.nome}</option>)}
+                                    </select>
+                                </div>
+                                <fieldset>
+                                    <legend className="text-sm font-medium">Orientação</legend>
+                                    <div className="mt-1 grid grid-cols-2 gap-1" role="radiogroup" aria-label="Orientação">
+                                        {[['retrato', 'Retrato'], ['paisagem', 'Paisagem']].map(([v, r]) => (
+                                            <button key={v} type="button" role="radio" aria-checked={(l.orientacao || 'retrato') === v} onClick={() => mudar({ orientacao: v })}
+                                                className={`h-9 rounded-md border text-sm flex items-center justify-center gap-1.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 ${(l.orientacao || 'retrato') === v ? 'bg-indigo-100 border-indigo-400 text-indigo-900 dark:bg-indigo-900 dark:text-indigo-100' : 'border-input hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+                                                <span aria-hidden className={`inline-block border border-current ${v === 'retrato' ? 'w-2.5 h-3.5' : 'w-3.5 h-2.5'}`} />{r}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </fieldset>
+                            </div>
+                            <fieldset>
+                                <legend className="text-sm font-medium">Margens</legend>
+                                <div className="mt-1 flex flex-wrap gap-1.5">
+                                    {MARGENS_PRONTAS.map(([nome, mm]) => {
+                                        const ativo = Object.keys(MARGENS_PADRAO).every((k) => m[k] === mm[k]);
+                                        return <Button key={nome} type="button" size="sm" variant={ativo ? 'default' : 'outline'} aria-pressed={ativo} onClick={() => mudar({ margens: mm })}>{nome}</Button>;
+                                    })}
+                                </div>
+                                <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                    {[['sup', 'Superior'], ['inf', 'Inferior'], ['esq', 'Esquerda'], ['dir', 'Direita']].map(([k, r]) => (
+                                        <Medida key={k} id={`${uid}-m-${k}`} rotulo={r} min={0.5} max={8} valor={m[k]}
+                                            onChange={(v) => v !== undefined && mudar({ margens: { ...m, [k]: v } })} />
+                                    ))}
+                                </div>
+                                <p className="text-xs text-slate-600 dark:text-slate-400 mt-2">Com papel timbrado, o texto começa abaixo do cabeçalho; a margem superior só vale se for maior que ele.</p>
+                            </fieldset>
+                        </div>
+                        <div><p className="text-sm font-medium mb-1">Prévia</p><MiniFolha layout={l} /></div>
+                    </TabsContent>
+
+                    <TabsContent value="estilos" className="grid sm:grid-cols-[190px_1fr] gap-4">
+                        <div className="min-w-0 space-y-2">
+                            <div role="listbox" aria-label="Estilos do documento" className="rounded-md border border-input divide-y divide-slate-200 dark:divide-slate-700 overflow-hidden">
+                                {[...CHAVES_ESTILO, ...proprios.map((p) => [`p:${p.id}`, p.nome])].map(([k, nome]) => (
+                                    <button key={k} type="button" role="option" aria-selected={sel === k} onClick={() => setSel(k)}
+                                        className={`w-full text-left px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-indigo-500 ${sel === k ? 'bg-indigo-50 text-indigo-900 font-medium dark:bg-indigo-950 dark:text-indigo-100' : 'hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
+                                        {nome}{k.startsWith('p:') && <span className="block text-[11px] text-slate-500">estilo próprio</span>}
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="flex gap-1">
+                                <Input aria-label="Nome do novo estilo" placeholder="Novo estilo (ex.: Ementa)" value={novoNome} maxLength={40}
+                                    onChange={(e) => setNovoNome(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && criar()} className="h-9" />
+                                <Button type="button" size="sm" variant="outline" className="h-9 px-2" disabled={!novoNome.trim() || proprios.length >= 30} onClick={criar} aria-label="Criar estilo"><Plus className="w-4 h-4" /></Button>
+                            </div>
+                            <p className="text-[11px] text-slate-600 dark:text-slate-400">O estilo novo nasce com a formatação do parágrafo onde está o cursor.</p>
+                        </div>
+                        <div className="min-w-0 space-y-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <p className="font-medium text-sm flex-1">{nomeSel}</p>
+                                <Button type="button" size="sm" variant="outline" className="gap-1" title="Copia fonte, tamanho, efeitos, alinhamento, recuos e espaços do parágrafo onde está o cursor"
+                                    onClick={() => setEstilo({ ...(proprio ? {} : ESTILOS_PADRAO[sel]), ...formatoDoParagrafo(editor) })}>
+                                    <Wand2 className="w-4 h-4" /> Usar o parágrafo atual
+                                </Button>
+                                {proprio
+                                    ? <Button type="button" size="sm" variant="ghost" className="gap-1 text-red-700" onClick={() => { mudar({ proprios: proprios.filter((p) => p.id !== proprio.id) }); setSel('normal'); }}><Trash2 className="w-4 h-4" /> Excluir</Button>
+                                    : <Button type="button" size="sm" variant="ghost" className="gap-1" onClick={() => mudar({ estilos: { ...(l.estilos || {}), [sel]: {} } })}><RotateCcw className="w-4 h-4" /> Padrão</Button>}
+                            </div>
+                            {proprio && (
+                                <div>
+                                    <Label htmlFor={`${uid}-nome`} className="text-xs">Nome do estilo</Label>
+                                    <Input id={`${uid}-nome`} className="h-9 mt-1" maxLength={40} value={proprio.nome}
+                                        onChange={(e) => e.target.value.trim() && mudar({ proprios: proprios.map((p) => (p.id === proprio.id ? { ...p, nome: e.target.value } : p)) })} />
+                                </div>
+                            )}
+                            <FormEstilo key={sel} estilo={estiloSel} setEstilo={setEstilo} fontes={fontes} prefixo={`${uid}-${sel.replace(/[^a-z0-9]/g, '')}`} />
+                            <div className="rounded-md border border-dashed border-slate-300 dark:border-slate-600 bg-white text-slate-900 p-3" aria-label="Prévia do estilo">
+                                <style>{`#prev-${uid} p { margin: 0; ${cssPrevia} }`}</style>
+                                <div id={`prev-${uid}`}><p>{sel.startsWith('h') ? 'Fundamentação jurídica' : 'Trata-se de procedimento instaurado para apurar os fatos narrados na representação, com a observância do contraditório.'}</p></div>
+                            </div>
+                            <p className="text-xs text-slate-600 dark:text-slate-400">O que for marcado direto num parágrafo (pela barra do editor) vale mais que o estilo, como no Word.</p>
+                        </div>
+                    </TabsContent>
+
+                    <TabsContent value="numeracao" className="space-y-5">
+                        <fieldset>
+                            <legend className="text-sm font-medium">Numerar os títulos sozinho</legend>
+                            <div className="mt-2 grid sm:grid-cols-3 gap-2" role="radiogroup" aria-label="Numeração dos títulos">
+                                {FORMATOS_TITULO.map(([v, r]) => (
+                                    <button key={v || 'sem'} type="button" role="radio" aria-checked={(l.numeracao_titulos || '') === v} onClick={() => mudar({ numeracao_titulos: v })}
+                                        className={`rounded-md border p-3 text-left text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 ${(l.numeracao_titulos || '') === v ? 'bg-indigo-50 border-indigo-400 dark:bg-indigo-950' : 'border-input hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
+                                        <span className="font-medium block">{r}</span>
+                                        {v && <span className="block text-xs text-slate-600 dark:text-slate-400 mt-1">{v === 'romano' ? 'Título 1 em romanos; Título 2 a 4 em 1., 1.1., 1.1.1.' : 'Título 1 em 1., Título 2 em 1.1., e assim por diante.'}</span>}
+                                    </button>
+                                ))}
+                            </div>
+                        </fieldset>
+                        <fieldset>
+                            <legend className="text-sm font-medium">Parágrafos numerados</legend>
+                            <p className="text-xs text-slate-600 dark:text-slate-400">Marque cada parágrafo com o botão <span className="font-semibold">Parágrafo numerado</span> (#) da barra; a numeração segue sozinha pelo documento, como em pareceres e decisões.</p>
+                            <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2" role="radiogroup" aria-label="Formato do número do parágrafo">
+                                {FORMATOS_PARAGRAFO.map(([v, r]) => (
+                                    <button key={v} type="button" role="radio" aria-checked={(l.numeracao_paragrafos || '1.') === v} onClick={() => mudar({ numeracao_paragrafos: v })}
+                                        className={`h-10 rounded-md border text-sm font-mono focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 ${(l.numeracao_paragrafos || '1.') === v ? 'bg-indigo-50 border-indigo-400 dark:bg-indigo-950' : 'border-input hover:bg-slate-50 dark:hover:bg-slate-800'}`}>{r}</button>
+                                ))}
+                            </div>
+                        </fieldset>
+                        <p className="text-xs text-slate-600 dark:text-slate-400">Listas com marcadores (•, ◦, ▪, –) e numeradas (1, a, A, i, I) se ajustam na barra que aparece quando o cursor está numa lista.</p>
+                    </TabsContent>
+                </Tabs>
+                <div className="flex justify-end mt-4"><Button onClick={onFechar}>Pronto</Button></div>
+            </DialogContent>
+        </Dialog>
+    );
+}

@@ -385,6 +385,7 @@ export default function GuiaRito({ variante = 'outline', className = '', inicial
                                 </tbody>
                             </table>
                             <p>Processos antigos seguem como estavam: sem essas opções, nada muda.</p>
+                            <p><strong>Formatação do modelo.</strong> No editor do modelo, o botão <strong>Página</strong> define papel, orientação e margens, os estilos (Texto normal, Títulos, Citação e estilos próprios, como "Ementa") e a numeração automática de títulos e de parágrafos. Isso fica gravado no próprio modelo: a minuta criada a partir dele já nasce assim, e o PDF dos autos e o Word saem com a mesma formatação. O papel timbrado continua sendo o da unidade.</p>
                             <p><strong>Documento que chega como arquivo.</strong> No "Novo processo" e em "Novo documento", ao escolher o arquivo a pessoa já diz o tipo, do que se trata, a data do documento e se ele é juntado aos autos, guardado fora deles ou fica como minuta, além de assinar, abrir pendência e marcar o que o rito exige e ele cumpre. Cada arquivo entra na ordem da lista, com a data e a hora do ato. Os tipos oferecidos são os de "Documentos e modelos" da unidade.</p>
                         </Parte>
                         <Parte titulo="18. Listas do órgão: espécies e origens a mais">

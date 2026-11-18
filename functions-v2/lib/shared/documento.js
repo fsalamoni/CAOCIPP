@@ -1,10 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ESPACAMENTOS = exports.FONTES_LEGADO = exports.FONTES = exports.MAX_TEXTO_DOC = exports.MAX_IMAGEM_BYTES = exports.MAX_DOC_BYTES = void 0;
+exports.ESPACAMENTOS = exports.FORMATOS_LISTA = exports.MARCADORES = exports.FONTES_LEGADO = exports.FONTES = exports.MAX_TEXTO_DOC = exports.MAX_IMAGEM_BYTES = exports.MAX_DOC_BYTES = void 0;
 exports.fonteEquivalente = fonteEquivalente;
 exports.sanitizeDoc = sanitizeDoc;
 exports.docParaTexto = docParaTexto;
 exports.deltaParaDoc = deltaParaDoc;
+const layoutDocumento_1 = require("./layoutDocumento");
 exports.MAX_DOC_BYTES = 4 * 1024 * 1024;
 exports.MAX_IMAGEM_BYTES = 1.5 * 1024 * 1024;
 exports.MAX_TEXTO_DOC = 600000;
@@ -15,9 +16,19 @@ const MAX_PROFUNDIDADE = 40;
  * Calibri, Caladea = Cambria, Cousine = Courier New): a linha quebra no mesmo
  * lugar na tela, no PDF e no Word.
  */
-exports.FONTES = { serif: 'Tinos', 'sans-serif': 'Arimo', calibri: 'Carlito', cambria: 'Caladea', monospace: 'Cousine' };
+exports.FONTES = {
+    serif: 'Tinos', 'sans-serif': 'Arimo', calibri: 'Carlito', cambria: 'Caladea', monospace: 'Cousine',
+    // Desde 18/11/2026: Gelasio tem as medidas da Georgia; as outras são as próprias fontes livres.
+    georgia: 'Gelasio', garamond: 'EBGaramond', 'open-sans': 'OpenSans', lato: 'Lato',
+};
 /** Mapeamento anterior a 16/11/2026: refaz o PDF de documento antigo sem mudar a paginação. */
-exports.FONTES_LEGADO = { serif: 'Times', 'sans-serif': 'Roboto', calibri: 'Roboto', cambria: 'Times', monospace: 'Courier' };
+exports.FONTES_LEGADO = {
+    serif: 'Times', 'sans-serif': 'Roboto', calibri: 'Roboto', cambria: 'Times', monospace: 'Courier',
+    georgia: 'Times', garamond: 'Times', 'open-sans': 'Roboto', lato: 'Roboto',
+};
+/** Marcadores e formatos de lista (como em "Marcadores" e "Numeração" do Word). */
+exports.MARCADORES = ['disc', 'circle', 'square', 'dash'];
+exports.FORMATOS_LISTA = ['decimal', 'lower-alpha', 'upper-alpha', 'lower-roman', 'upper-roman'];
 exports.ESPACAMENTOS = [1, 1.15, 1.5, 2, 2.5, 3];
 /** Nome de fonte do Word ou do LibreOffice → fonte do editor (ou null: a padrão). */
 function fonteEquivalente(nome) {
@@ -30,6 +41,14 @@ function fonteEquivalente(nome) {
         return 'calibri';
     if (/cambria|caladea/.test(n))
         return 'cambria';
+    if (/georgia|gelasio/.test(n))
+        return 'georgia';
+    if (/garamond/.test(n))
+        return 'garamond';
+    if (/open sans|opensans/.test(n))
+        return 'open-sans';
+    if (/\blato\b/.test(n))
+        return 'lato';
     if (/arial|helvetica|roboto|verdana|segoe|tahoma|open sans|liberation sans|arimo|trebuchet|century gothic|gill sans|franklin|lato|noto sans|dejavu sans|source sans|ubuntu|sans/.test(n))
         return 'sans-serif';
     if (/times|georgia|garamond|antiqua|palatino|liberation serif|tinos|bookman|schoolbook|noto serif|dejavu serif|serif/.test(n))
@@ -52,6 +71,10 @@ const ATTRS_BLOCO = {
     // Espaço antes e depois do parágrafo, em pontos (como no Word).
     antes: entre(0, 72),
     depois: entre(0, 72),
+    // Desde 18/11/2026: recuo à direita, estilo próprio do documento e parágrafo numerado.
+    margemDir: entre(0, 10),
+    estilo: (v) => typeof v === 'string' && /^[a-z0-9-]{1,30}$/.test(v),
+    numerado: (v) => v === true,
 };
 /** Nó → atributos permitidos (validador por atributo). */
 const NOS = {
@@ -60,8 +83,8 @@ const NOS = {
     heading: Object.assign(Object.assign({}, ATTRS_BLOCO), { level: inteiro(1, 4) }),
     text: {},
     hardBreak: {},
-    bulletList: {},
-    orderedList: { start: inteiro(1, 9999) },
+    bulletList: { marcador: umDe(...exports.MARCADORES) },
+    orderedList: { start: inteiro(1, 9999), formato: umDe(...exports.FORMATOS_LISTA), separador: umDe('.', ')') },
     listItem: {},
     blockquote: {},
     horizontalRule: {},
@@ -103,6 +126,7 @@ function filtrarAttrs(src, regras) {
 function sanitizeDoc(input) {
     let chars = 0;
     const limpar = (n, prof) => {
+        var _a;
         if (prof > MAX_PROFUNDIDADE)
             throw new Error('Documento com estrutura aninhada demais');
         if (!n || typeof n !== 'object')
@@ -136,6 +160,12 @@ function sanitizeDoc(input) {
         }
         const out = { type: tipo };
         const attrs = filtrarAttrs(o.attrs, regras);
+        if (tipo === 'doc') {
+            // Página e estilos do documento (shared/layoutDocumento.ts).
+            const layout = (0, layoutDocumento_1.sanitizeLayout)((_a = o.attrs) === null || _a === void 0 ? void 0 : _a.layout);
+            if (layout)
+                out.attrs = { layout };
+        }
         if (tipo === 'image' && !(attrs === null || attrs === void 0 ? void 0 : attrs.src))
             return null;
         if (attrs)

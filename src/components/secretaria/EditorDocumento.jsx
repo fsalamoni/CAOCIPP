@@ -13,8 +13,10 @@ import {
     AlignCenter, AlignJustify, AlignLeft, AlignRight, ArrowUpDown, Baseline, Bold, Braces, Code, Columns3, FolderOpen, Highlighter, ImagePlus, IndentDecrease,
     IndentIncrease, Italic, Link as LinkIcon, List, ListOrdered, Loader2, Minus, Omega, Pilcrow, Redo2, RemoveFormatting, Rows3, Search,
     SeparatorHorizontal, Square, Strikethrough, Subscript as SubIcon, Superscript as SupIcon, Table as TableIcon, TableCellsMerge, TableCellsSplit,
-    Trash2, Underline as UnderlineIcon, Undo2,
+    Trash2, Underline as UnderlineIcon, Undo2, Hash, Ruler,
 } from 'lucide-react';
+import ConfigurarPagina from './LayoutDocumento';
+import { FORMATOS_LISTA, MARCADORES, cssDoLayout, estiloEfetivo, folhaCm, margensDe, resumoPagina } from '@/lib/layoutDocumento';
 import { toast } from 'sonner';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
@@ -32,12 +34,19 @@ import './editorDocumento.css';
 
 // Fontes livres com as mesmas medidas das do Office: a linha quebra no mesmo
 // lugar no editor, no PDF dos autos e no Word/LibreOffice.
-export const FONTES = [['', 'Fonte padrão'], ['serif', 'Times New Roman'], ['sans-serif', 'Arial'], ['calibri', 'Calibri'], ['cambria', 'Cambria'], ['monospace', 'Courier New']];
+export const FONTES = [
+    ['', 'Fonte padrão'], ['serif', 'Times New Roman'], ['sans-serif', 'Arial'], ['calibri', 'Calibri'], ['cambria', 'Cambria'],
+    ['georgia', 'Georgia'], ['garamond', 'Garamond'], ['open-sans', 'Open Sans'], ['lato', 'Lato'], ['monospace', 'Courier New'],
+];
 export const CSS_FONTE = {
     serif: 'Tinos, "Times New Roman", Times, serif',
     'sans-serif': 'Arimo, Arial, Helvetica, sans-serif',
     calibri: 'Carlito, Calibri, sans-serif',
     cambria: 'Caladea, Cambria, serif',
+    georgia: 'Gelasio, Georgia, serif',
+    garamond: '"EB Garamond", Garamond, serif',
+    'open-sans': '"Open Sans", sans-serif',
+    lato: 'Lato, sans-serif',
     monospace: 'Cousine, "Courier New", Courier, monospace',
 };
 /** Nome de fonte (do Word, LibreOffice ou de uma página colada) → chave do editor. */
@@ -47,6 +56,10 @@ export function chaveFonte(css) {
     if (CSS_FONTE[s.trim()]) return s.trim();
     if (/calibri|carlito/.test(s)) return 'calibri';
     if (/cambria|caladea/.test(s)) return 'cambria';
+    if (/georgia|gelasio/.test(s)) return 'georgia';
+    if (/garamond/.test(s)) return 'garamond';
+    if (/open sans/.test(s)) return 'open-sans';
+    if (/\blato\b/.test(s)) return 'lato';
     if (/courier|cousine|consolas|mono/.test(s)) return 'monospace';
     if (/times|tinos|georgia|garamond|book antiqua|palatino|liberation serif|\bserif/.test(s) && !/sans/.test(s)) return 'serif';
     if (/arial|arimo|helvetica|verdana|tahoma|segoe|liberation sans|open sans|roboto|sans/.test(s)) return 'sans-serif';
@@ -108,7 +121,33 @@ const ParagrafoFormato = Extension.create({
                 espacamento: attr('espacamento', (el) => espacamentoDoCss(el.style.lineHeight), (v) => `line-height: ${alturaLinha(v)}`),
                 antes: attr('antes', (el) => limitar(pt(emCm(el.style.marginTop)), 0, 72, 1), (v) => `margin-top: ${v}pt`),
                 depois: attr('depois', (el) => limitar(pt(emCm(el.style.marginBottom)), 0, 72, 1), (v) => `margin-bottom: ${v}pt`),
+                margemDir: attr('margemDir', (el) => limitar(emCm(el.style.marginRight), 0, 10) || null, (v) => `margin-right: ${v}cm`),
+                // Estilo próprio do documento e parágrafo numerado (layout do documento).
+                estilo: {
+                    default: null,
+                    parseHTML: (el) => (/^[a-z0-9-]{1,30}$/.test(el.dataset.estilo || '') ? el.dataset.estilo : null),
+                    renderHTML: (a) => (a.estilo ? { 'data-estilo': a.estilo } : {}),
+                },
+                numerado: {
+                    default: null,
+                    parseHTML: (el) => (el.hasAttribute('data-numerado') ? true : null),
+                    renderHTML: (a) => (a.numerado ? { 'data-numerado': '' } : {}),
+                },
             },
+        }, {
+            // Marcador e formato da lista (•, ◦, ▪, –; 1, a, A, i, I; "." ou ")").
+            types: ['bulletList'],
+            attributes: { marcador: { default: null, parseHTML: (el) => el.dataset.marcador || null, renderHTML: (a) => (a.marcador ? { 'data-marcador': a.marcador } : {}) } },
+        }, {
+            types: ['orderedList'],
+            attributes: {
+                formato: { default: null, parseHTML: (el) => el.dataset.formato || null, renderHTML: (a) => (a.formato ? { 'data-formato': a.formato } : {}) },
+                separador: { default: null, parseHTML: (el) => el.dataset.separador || null, renderHTML: (a) => (a.separador ? { 'data-separador': a.separador } : {}) },
+            },
+        }, {
+            // Papel, margens, estilos e numeração do documento inteiro (src/lib/layoutDocumento.js).
+            types: ['doc'],
+            attributes: { layout: { default: null, parseHTML: () => null, renderHTML: () => ({}) } },
         }];
     },
 });
@@ -216,6 +255,26 @@ function Botao({ titulo, ativo, onClick, children, disabled }) {
     );
 }
 const Sep = () => <span className="w-px h-6 bg-slate-300 dark:bg-slate-600 mx-1 shrink-0" aria-hidden />;
+/** Medida exata (cm) do parágrafo; vale ao sair do campo ou com Enter. */
+function CampoCm({ rotulo, valor, max, onMudar }) {
+    const [txt, setTxt] = useState(valor ?? '');
+    useEffect(() => { setTxt(valor ?? ''); }, [valor]);
+    const ok = () => {
+        const v = txt === '' ? null : Number(String(txt).replace(',', '.'));
+        if (v !== null && (!Number.isFinite(v) || v < 0 || v > max)) return setTxt(valor ?? '');
+        if ((v || null) !== (valor ?? null)) onMudar(v || null);
+    };
+    return (
+        <label className="flex items-center justify-between gap-2 text-sm">{rotulo}
+            <span className="flex items-center gap-1">
+                <input type="number" min={0} max={max} step={0.1} value={txt} placeholder="0" aria-label={`${rotulo} (cm)`}
+                    onChange={(e) => setTxt(e.target.value)} onBlur={ok} onKeyDown={(e) => e.key === 'Enter' && ok()}
+                    className="h-8 w-20 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm px-1" />
+                <span className="text-xs text-slate-600">cm</span>
+            </span>
+        </label>
+    );
+}
 function Lista({ titulo, value, onChange, options, className = '' }) {
     return (
         <select aria-label={titulo} title={titulo} value={value} onChange={(e) => onChange(e.target.value)}
@@ -265,6 +324,8 @@ export default function EditorDocumento({
     const [busca, setBusca] = useState({ termo: '', subst: '', caso: false });
     const [link, setLink] = useState('');
     const [grade, setGrade] = useState({ l: 0, c: 0 });
+    const [pagina, setPagina] = useState(null); // aba aberta de "Página e estilos"
+    const escopo = `dl-${React.useId().replace(/[^a-z0-9]/gi, '')}`;
     const arquivoRef = useRef(null);
     const pronto = useRef(false);
 
@@ -300,13 +361,16 @@ export default function EditorDocumento({
 
     useEffect(() => { editor?.setEditable(!somenteLeitura); }, [editor, somenteLeitura]);
     const temCab = (config.cabecalho_linhas || []).some(Boolean) || !!config.brasao;
-    // Páginas estimadas pela altura do texto (folha A4 no computador); o PDF tem a paginação exata.
+    const layout = editor?.state.doc.attrs.layout || {};
+    const dimFolha = folhaCm(layout);
+    const mFolha = margensDe(layout);
+    // Páginas estimadas pela altura do texto (folha no computador); o PDF tem a paginação exata.
     useEffect(() => {
         const folha = folhaRef.current;
         const pm = folha?.querySelector('.ProseMirror');
         if (!pm || !window.matchMedia?.('(min-width: 861px)').matches) return;
-        const cm = 21 / folha.offsetWidth;
-        const util = 24.7 - (temCab ? 2.2 : 0);
+        const cm = dimFolha.w / folha.offsetWidth;
+        const util = Math.max(3, dimFolha.h - mFolha.sup - mFolha.inf - (temCab ? 2.2 : 0));
         let ini = 0;
         let total = 0;
         for (const y of [...[...pm.querySelectorAll('div[data-quebra-pagina]')].map((e) => e.offsetTop), pm.scrollHeight]) {
@@ -318,15 +382,24 @@ export default function EditorDocumento({
     if (!editor) return null;
 
     const ch = () => editor.chain().focus();
+    const proprios = layout.proprios || [];
     const estilo = (() => {
         for (let n = 1; n <= 4; n++) if (editor.isActive('heading', { level: n })) return `h${n}`;
-        return editor.isActive('blockquote') ? 'citacao' : 'p';
+        if (editor.isActive('blockquote')) return 'citacao';
+        const e = editor.getAttributes('paragraph').estilo;
+        return e && proprios.some((p) => p.id === e) ? `c:${e}` : 'p';
     })();
+    const setLayout = (novo) => editor.view.dispatch(editor.state.tr.setDocAttribute('layout', novo));
     const setEstilo = (v) => {
-        if (v === 'citacao') return ch().setParagraph().toggleBlockquote().run();
+        if (v === '__estilos') return setPagina('estilos');
+        if (v === 'citacao') return ch().setParagraph().updateAttributes('paragraph', { estilo: null }).toggleBlockquote().run();
         const c = editor.isActive('blockquote') ? ch().lift('blockquote') : ch();
-        return v === 'p' ? c.setParagraph().run() : c.setHeading({ level: Number(v[1]) }).run();
+        if (v.startsWith('c:')) return c.setParagraph().updateAttributes('paragraph', { estilo: v.slice(2) }).run();
+        return v === 'p' ? c.setParagraph().updateAttributes('paragraph', { estilo: null }).run() : c.setHeading({ level: Number(v[1]) }).updateAttributes('heading', { estilo: null }).run();
     };
+    const naLista = editor.isActive('bulletList') || editor.isActive('orderedList');
+    const listaOrdenada = editor.isActive('orderedList');
+    const attrLista = listaOrdenada ? editor.getAttributes('orderedList') : editor.getAttributes('bulletList');
     const ts = editor.getAttributes('textStyle');
     const bloco = editor.isActive('heading') ? editor.getAttributes('heading') : editor.getAttributes('paragraph');
     const attrBloco = (a) => ch().updateAttributes('paragraph', a).updateAttributes('heading', a).run();
@@ -394,6 +467,7 @@ export default function EditorDocumento({
     const naTabela = editor.isActive('table');
     const imagemSel = editor.isActive('image');
     const fontePadrao = config.fonte_padrao || 'serif';
+    const normal = estiloEfetivo(layout, 'normal');
     const linhasCab = (config.cabecalho_linhas || []).filter(Boolean);
     const palavras = editor.storage.characterCount.words();
     const caracteres = editor.storage.characterCount.characters();
@@ -414,8 +488,12 @@ export default function EditorDocumento({
                         </>
                     )}
                     <Sep />
+                    <Botao titulo="Página e estilos: papel, margens, estilos e numeração automática" onClick={() => setPagina('pagina')}>
+                        <Ruler className="w-4 h-4" /><span className="text-xs ml-1 hidden lg:inline">Página</span>
+                    </Botao>
                     <Lista titulo="Estilo do parágrafo" value={estilo} onChange={setEstilo} className="w-32"
-                        options={[['p', 'Texto normal'], ['h1', 'Título 1'], ['h2', 'Título 2'], ['h3', 'Título 3'], ['h4', 'Título 4'], ['citacao', 'Citação']]} />
+                        options={[['p', 'Texto normal'], ['h1', 'Título 1'], ['h2', 'Título 2'], ['h3', 'Título 3'], ['h4', 'Título 4'], ['citacao', 'Citação'],
+                            ...proprios.map((p) => [`c:${p.id}`, p.nome]), ['__estilos', 'Modificar estilos…']]} />
                     <Lista titulo="Fonte" value={ts.fontFamily || ''} className="w-36"
                         onChange={(v) => (v ? ch().setFontFamily(v).run() : ch().unsetFontFamily().run())} options={FONTES} />
                     <Lista titulo="Tamanho da fonte" value={ts.fontSize ? String(parseFloat(ts.fontSize)) : ''} className="w-16"
@@ -462,6 +540,10 @@ export default function EditorDocumento({
                                     onChange={(v) => attrBloco({ depois: v === '' ? null : Number(v) })}
                                     options={[['', 'Padrão (6 pt)'], ...[...new Set([...ESPACOS_PT, ...(bloco.depois != null ? [bloco.depois] : [])])].sort((a, b) => a - b).map((e) => [String(e), `${virgula(e)} pt`])]} />
                             </label>
+                            <p className="text-xs font-medium pt-1 text-slate-700 dark:text-slate-200">Recuos</p>
+                            <CampoCm rotulo="Primeira linha" valor={bloco.recuo} max={5} onMudar={(v) => attrBloco({ recuo: v })} />
+                            <CampoCm rotulo="À esquerda" valor={bloco.margemEsq} max={10} onMudar={(v) => attrBloco({ margemEsq: v })} />
+                            <CampoCm rotulo="À direita" valor={bloco.margemDir} max={10} onMudar={(v) => attrBloco({ margemDir: v })} />
                         </PopoverContent>
                     </Popover>
                     <Botao titulo="Recuo de primeira linha (1,25 cm)" ativo={!!bloco.recuo} onClick={() => attrBloco({ recuo: bloco.recuo ? null : 1.25 })}><Pilcrow className="w-4 h-4" /></Botao>
@@ -470,6 +552,8 @@ export default function EditorDocumento({
                     <Sep />
                     <Botao titulo="Lista com marcadores" ativo={editor.isActive('bulletList')} onClick={() => ch().toggleBulletList().run()}><List className="w-4 h-4" /></Botao>
                     <Botao titulo="Lista numerada" ativo={editor.isActive('orderedList')} onClick={() => ch().toggleOrderedList().run()}><ListOrdered className="w-4 h-4" /></Botao>
+                    <Botao titulo="Parágrafo numerado (numeração automática dos parágrafos)" ativo={!!bloco.numerado && !editor.isActive('heading')} disabled={editor.isActive('heading')}
+                        onClick={() => ch().updateAttributes('paragraph', { numerado: bloco.numerado ? null : true }).run()}><Hash className="w-4 h-4" /></Botao>
                     <Sep />
                     <Popover onOpenChange={() => setGrade({ l: 0, c: 0 })}>
                         <PopoverTrigger asChild>
@@ -557,6 +641,34 @@ export default function EditorDocumento({
                     <Botao titulo="Limpar formatação" onClick={() => ch().unsetAllMarks().clearNodes().run()}><RemoveFormatting className="w-4 h-4" /></Botao>
                 </div>
             )}
+            {!somenteLeitura && naLista && !naTabela && !imagemSel && (
+                <div role="toolbar" aria-label="Lista" className="bg-indigo-50 dark:bg-indigo-950 border-b border-slate-300 dark:border-slate-700 px-1 py-1 flex flex-nowrap sm:flex-wrap items-center gap-0.5 overflow-x-auto text-sm">
+                    <span className="px-2 text-xs font-medium text-indigo-900 dark:text-indigo-100 shrink-0">{listaOrdenada ? 'Lista numerada' : 'Marcadores'}</span>
+                    {!listaOrdenada && MARCADORES.map(([v, s, t]) => (
+                        <Botao key={v} titulo={`Marcador: ${t}`} ativo={(attrLista.marcador || 'disc') === v}
+                            onClick={() => ch().updateAttributes('bulletList', { marcador: v === 'disc' ? null : v }).run()}><span className="text-base leading-none">{s}</span></Botao>
+                    ))}
+                    {listaOrdenada && (
+                        <>
+                            <Lista titulo="Formato da numeração" value={attrLista.formato || 'decimal'} className="w-28"
+                                onChange={(v) => ch().updateAttributes('orderedList', { formato: v === 'decimal' ? null : v }).run()} options={FORMATOS_LISTA} />
+                            <Lista titulo="Separador" value={attrLista.separador || '.'} className="w-16"
+                                onChange={(v) => ch().updateAttributes('orderedList', { separador: v === '.' ? null : v }).run()} options={[['.', '1.'], [')', '1)']]} />
+                            <label className="flex items-center gap-1 text-xs shrink-0 px-1">Começar em
+                                <input type="number" min={1} max={9999} aria-label="Começar a numeração em" value={attrLista.start || 1}
+                                    onChange={(e) => { const n = Math.round(Number(e.target.value)); if (n >= 1 && n <= 9999) ch().updateAttributes('orderedList', { start: n }).run(); }}
+                                    className="h-7 w-16 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-1" />
+                            </label>
+                        </>
+                    )}
+                    <Sep />
+                    <Botao titulo="Diminuir nível" onClick={() => ch().liftListItem('listItem').run()}><IndentDecrease className="w-4 h-4" /></Botao>
+                    <Botao titulo="Aumentar nível" onClick={() => ch().sinkListItem('listItem').run()}><IndentIncrease className="w-4 h-4" /></Botao>
+                    <Botao titulo={listaOrdenada ? 'Trocar para marcadores' : 'Trocar para numerada'} onClick={() => ch().toggleList(listaOrdenada ? 'bulletList' : 'orderedList', 'listItem').run()}>
+                        {listaOrdenada ? <List className="w-4 h-4" /> : <ListOrdered className="w-4 h-4" />}
+                    </Botao>
+                </div>
+            )}
             {!somenteLeitura && (naTabela || imagemSel) && (
                 <div role="toolbar" aria-label={naTabela ? 'Tabela' : 'Imagem'} className="bg-indigo-50 dark:bg-indigo-950 border-b border-slate-300 dark:border-slate-700 px-1 py-1 flex flex-nowrap sm:flex-wrap items-center gap-0.5 overflow-x-auto text-sm">
                     {naTabela && (
@@ -593,7 +705,12 @@ export default function EditorDocumento({
                 </div>
             )}
             <div className="doc-mesa flex-1 min-h-0 overflow-auto py-4 sm:py-6 px-0 sm:px-4">
-                <div ref={folhaRef} className="doc-folha" style={{ zoom: Number(zoom), fontFamily: CSS_FONTE[fontePadrao] || CSS_FONTE.serif, fontSize: `${config.tamanho_padrao || 12}pt`, lineHeight: alturaLinha(1.15) }}>
+                <style>{cssDoLayout(layout, `.${escopo}`, CSS_FONTE)}</style>
+                <div ref={folhaRef} className={`doc-folha ${escopo}`} style={{
+                    zoom: Number(zoom), fontFamily: CSS_FONTE[normal.fonte || fontePadrao] || CSS_FONTE.serif, fontSize: `${normal.tamanho || config.tamanho_padrao || 12}pt`, lineHeight: alturaLinha(1.15),
+                    '--folha-w': `${dimFolha.w}cm`, '--folha-h': `${dimFolha.h}cm`,
+                    '--m-sup': `${mFolha.sup}cm`, '--m-inf': `${mFolha.inf}cm`, '--m-esq': `${mFolha.esq}cm`, '--m-dir': `${mFolha.dir}cm`,
+                }}>
                     {(linhasCab.length > 0 || config.brasao) && (
                         <div className="text-center mb-6 select-none" aria-hidden style={{ fontFamily: CSS_FONTE[fontePadrao] }}>
                             {config.brasao && <img src={config.brasao} alt="" className="mx-auto h-12 w-auto mb-1" />}
@@ -606,13 +723,19 @@ export default function EditorDocumento({
             <div className="bg-slate-50 dark:bg-slate-900 border-t border-slate-300 dark:border-slate-700 px-3 py-1 flex items-center gap-3 text-xs text-slate-600 dark:text-slate-400">
                 <span aria-live="polite">{palavras} palavra{palavras === 1 ? '' : 's'} · {caracteres} caractere{caracteres === 1 ? '' : 's'}</span>
                 <span className="hidden md:inline" title="Estimativa pela altura do texto; o PDF mostra a paginação exata">≈ {paginas} página{paginas === 1 ? '' : 's'}</span>
-                <span className="ml-auto hidden sm:inline">A4 · margens de 3 cm e 2 cm</span>
+                {somenteLeitura
+                    ? <span className="ml-auto hidden sm:inline">{resumoPagina(layout)}</span>
+                    : <button type="button" className="ml-auto hidden sm:inline hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 rounded" title="Mudar papel, margens e estilos" onClick={() => setPagina('pagina')}>{resumoPagina(layout)}</button>}
                 <label className="flex items-center gap-1">Zoom
                     <select aria-label="Zoom" value={zoom} onChange={(e) => setZoom(e.target.value)} className="h-6 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800">
                         {['0.75', '1', '1.25', '1.5'].map((z) => <option key={z} value={z}>{Math.round(Number(z) * 100)}%</option>)}
                     </select>
                 </label>
             </div>
+            {!somenteLeitura && (
+                <ConfigurarPagina aberto={!!pagina} aba={pagina || 'pagina'} onAba={setPagina} layout={layout} onMudar={setLayout}
+                    onFechar={() => setPagina(null)} fontes={FONTES} cssFonte={CSS_FONTE} editor={editor} />
+            )}
         </div>
     );
 }
