@@ -1,4 +1,5 @@
 import * as admin from 'firebase-admin';
+import { polosEscolhidos } from '../shared/autos';
 import { FieldValue } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import {
@@ -77,6 +78,8 @@ interface DocRequest {
     pendencia?: string;
     /** Juntada: false deixa o documento fora do portal das partes. */
     visivel_partes?: boolean;
+    /** Juntada: polos que veem o documento no portal (ausente = todos). */
+    visivel_polos?: unknown;
     /** Juntada: chaves das exigências do rito que o documento cumpre (sem isso, reconhece pelo modelo ou tipo). */
     atende?: string[];
     /** criarMinuta/upload: modelo de onde a minuta nasceu. */
@@ -508,14 +511,17 @@ export const secretariaDocumento = onCall<DocRequest>(
                 // Documento interno (ex.: informação da secretaria) pode ficar fora do portal das partes;
                 // o rito também pode pedir isso para o documento exigido (só esconde, nunca mostra).
                 const visivel = p.visivel_partes !== false && !cumpridas.some((e) => e.partes === false);
+                // Visível só a alguns polos (ex.: a proposta do acordo, que o ente lesado não vê).
+                const soPolos = visivel ? polosEscolhidos(p.visivel_polos, ((atual.partes || []) as Array<{ polo?: string; retirada?: unknown }>).filter((x) => !x.retirada).map((x) => String(x.polo || ''))) : null;
+                const marcaPolos = soPolos ? { visivel_polos: soPolos } : {};
                 const mov = registrarMovimento(tx, c, pr, atual, 'juntada',
                     `Juntado o documento nº ${ordem}: ${doc.titulo} (${doc.tipo}), ${textoFolhas(folha, paginas)}.${textoDescritivo(doc)}${assin ? ` Assinado por ${assin}.` : ''}${pend.length ? ` Pendência aberta para o decisor${pend[0].interrompe ? ', com interrupção da fase' : ''}.` : ''}${resolvida ? ` Decide a pendência${resolvida.tipo === 'manual' ? '' : `: ${resolvida.descricao}`}.` : ''}`
                     + `${cumpridas.length ? ` Cumpre o exigido pelo rito: ${cumpridas.map((e) => e.descricao).join('; ')}.` : ''}`,
-                    { documento_id: ref.id, ordem, sha256: doc.sha256, visivel_partes: visivel, folha_inicial: folha, paginas, ...(pdf ? { pdf_sha256: pdf.sha256 } : {}), ...(resolvida ? { pendencia_id: resolvida.id } : {}),
+                    { documento_id: ref.id, ordem, sha256: doc.sha256, visivel_partes: visivel, ...marcaPolos, folha_inicial: folha, paginas, ...(pdf ? { pdf_sha256: pdf.sha256 } : {}), ...(resolvida ? { pendencia_id: resolvida.id } : {}),
                         ...(cumpridas.length ? { exigencias: cumpridas.map((e) => e.chave) } : {}) });
                 const exig = fase ? camposDoCumprimento(atual, fase.id, cumpridas, ref.id, ordem) : {};
                 const juntado = {
-                    status: 'juntado', ordem, visivel_partes: visivel, juntado_em: agoraIso, juntado_por: auth.uid, juntado_por_nome: c.userName,
+                    status: 'juntado', ordem, visivel_partes: visivel, ...marcaPolos, juntado_em: agoraIso, juntado_por: auth.uid, juntado_por_nome: c.userName,
                     // PDF feito agora, com as fontes atuais; se um dia precisar ser refeito, sai igual.
                     ...(antes.origem === 'editor' || !ehLegado(antes) ? { fontes: FONTES_ATUAIS } : {}),
                     paginas, folha_inicial: folha, folha_final: folha + paginas - 1,

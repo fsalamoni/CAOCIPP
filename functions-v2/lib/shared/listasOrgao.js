@@ -8,7 +8,8 @@
  * "ao edital"). Lógica pura, sem importar outros módulos (evita ciclo).
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MAX_ITENS_PROPOSTA = exports.artigos = exports.ehDoOrgao = exports.MAX_NOME_ITEM = exports.MAX_ITENS_LISTA = exports.LISTAS = void 0;
+exports.MAX_ITENS_PROPOSTA = exports.artigos = exports.ehDoOrgao = exports.MAX_NOME_ITEM = exports.MAX_ITENS_LISTA = exports.TIPOS_PETICAO = exports.LISTAS = void 0;
+exports.tiposDePeticao = tiposDePeticao;
 exports.sanitizeLista = sanitizeLista;
 exports.itemDoRegistro = itemDoRegistro;
 exports.sanitizeListas = sanitizeListas;
@@ -18,7 +19,15 @@ exports.pareceMasculino = pareceMasculino;
 exports.propostaDeBlocos = propostaDeBlocos;
 exports.tabelaDoCsv = tabelaDoCsv;
 exports.blocosDoJson = blocosDoJson;
-exports.LISTAS = ['comunicacao', 'audiencia', 'origem'];
+exports.LISTAS = ['comunicacao', 'audiencia', 'origem', 'peticao'];
+/** Tipos de petição que o portal das partes sempre oferece ("Outro" fica por último, depois dos do órgão). */
+exports.TIPOS_PETICAO = ['Manifestação', 'Juntada de documento', 'Pedido de prazo', 'Pedido de urgência', 'Pedido de vista', 'Recurso', 'Outro'];
+/** Os tipos de petição que a parte escolhe: os do sistema, os do órgão e "Outro" no fim. */
+function tiposDePeticao(listas) {
+    const l = (listas && typeof listas === 'object' ? listas.peticao : null) || [];
+    const doOrgao = (Array.isArray(l) ? l : []).map((x) => (typeof (x === null || x === void 0 ? void 0 : x.nome) === 'string' ? x.nome : '')).filter((n) => n && !exports.TIPOS_PETICAO.includes(n));
+    return [...exports.TIPOS_PETICAO.slice(0, -1), ...doOrgao, 'Outro'];
+}
 exports.MAX_ITENS_LISTA = 30;
 exports.MAX_NOME_ITEM = 40;
 const sem = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
@@ -69,13 +78,13 @@ function itemDoRegistro(id, nome, m, onde) {
 /** Artigos do nome: "a"/"o", "da"/"do", "à"/"ao". */
 const artigos = (m) => (m ? { o: 'o', de: 'do', a: 'ao' } : { o: 'a', de: 'da', a: 'à' });
 exports.artigos = artigos;
-const ROTULO_LISTA = { comunicacao: 'Espécies de comunicação', audiencia: 'Espécies de audiência', origem: 'Origens do processo' };
-/** As três listas saneadas; `sistema` traz os nomes que o sistema já tem em cada uma. Lança Error com mensagem. */
+const ROTULO_LISTA = { comunicacao: 'Espécies de comunicação', audiencia: 'Espécies de audiência', origem: 'Origens do processo', peticao: 'Tipos de petição' };
+/** As listas saneadas; `sistema` traz os nomes que o sistema já tem em cada uma. Lança Error com mensagem. */
 function sanitizeListas(raw, sistema) {
     const o = (raw && typeof raw === 'object' ? raw : {});
     const out = {};
     for (const k of exports.LISTAS) {
-        const l = sanitizeLista(o[k], sistema[k], k !== 'origem', ROTULO_LISTA[k]);
+        const l = sanitizeLista(o[k], sistema[k] || [], k === 'comunicacao' || k === 'audiencia', ROTULO_LISTA[k]);
         if (l.length)
             out[k] = l;
     }
@@ -103,6 +112,8 @@ function listaDoTitulo(s) {
         return 'audiencia';
     if (/^orige(m|ns)$/.test(r))
         return 'origem';
+    if (/^(peticao|peticoes|peticionamento)$/.test(r))
+        return 'peticao';
     return null;
 }
 const MASC = /\((m|masc\.?|masculino|o)\)\s*$/i;

@@ -3,7 +3,9 @@
 
 /** Espelho de MAX_ITENS_LISTA em functions-v2/src/shared/listasOrgao.ts. */
 export const MAX_ITENS = 30;
-export const ROTULO_LISTA = { comunicacao: 'Espécies de comunicação', audiencia: 'Espécies de audiência', origem: 'Origens do processo' };
+export const ROTULO_LISTA = { comunicacao: 'Espécies de comunicação', audiencia: 'Espécies de audiência', origem: 'Origens do processo', peticao: 'Tipos de petição' };
+/** Tipos de petição que o portal sempre oferece (espelho de shared/listasOrgao.ts). */
+export const TIPOS_PETICAO = ['Manifestação', 'Juntada de documento', 'Pedido de prazo', 'Pedido de urgência', 'Pedido de vista', 'Recurso', 'Outro'];
 
 const sem = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
 
@@ -27,7 +29,7 @@ export function situacoes(itens, listas, sistema) {
 /** Itens marcados que entram, por lista, e as listas que passariam do limite. */
 export function resumo(itens, listas, sistema) {
     const sit = situacoes(itens, listas, sistema);
-    const entram = { comunicacao: [], audiencia: [], origem: [] };
+    const entram = { comunicacao: [], audiencia: [], origem: [], peticao: [] };
     itens.forEach((it, i) => { if (it.incluir && sit[i] === 'ok') entram[it.lista].push(it); });
     const estouro = Object.keys(entram).filter((k) => entram[k].length && (listas[k] || []).length + entram[k].length > MAX_ITENS);
     return { sit, entram, total: Object.values(entram).reduce((n, l) => n + l.length, 0), estouro };
@@ -38,7 +40,7 @@ export function mesclar(listas, entram) {
     const out = { ...listas };
     for (const [k, novos] of Object.entries(entram)) {
         if (!novos.length) continue;
-        out[k] = [...(listas[k] || []), ...novos.map((it) => ({ nome: it.nome.trim(), ...(k !== 'origem' && it.m ? { m: true } : {}) }))];
+        out[k] = [...(listas[k] || []), ...novos.map((it) => ({ nome: it.nome.trim(), ...((k === 'comunicacao' || k === 'audiencia') && it.m ? { m: true } : {}) }))];
     }
     return out;
 }

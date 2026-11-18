@@ -389,6 +389,8 @@ function fasesAcompanhamento() {
 }
 
 const POLOS_ACORDO = { polos: ['requerido', 'interessado'], nomes_polos: { requerido: 'Celebrante', interessado: 'Ente lesado' } };
+// Na negociação, o que um polo apresenta não vai ao outro: a equipe decide o que cada um vê.
+const POLOS_NEGOCIACAO = { ...POLOS_ACORDO, peticoes_por_polo: true };
 const BASE_ACORDO = `${PROV} (MPRS), que revogou o Provimento 68/2022-PGJ; Resolução CNMP 306/2025; Lei 8.429/1992, arts. 17, § 4º-A, e 17-B; Provimento 71/2017-PGJ, arts. 47, V e VI, e 70 (prazos em dias corridos); Resolução CNMP 174/2017, art. 8º, V e VI.`;
 
 /** 1. Tratativas e celebração (procedimento de negociação). */
@@ -398,7 +400,7 @@ export function anpcTratativas() {
         descricao: 'O procedimento de negociação do acordo de não persecução civil (também chamado de não persecução cível) em caso de improbidade administrativa, da primeira sinalização à homologação judicial. Começa em sigilo, porque as tratativas são confidenciais para terceiros. O membro avalia se o acordo cabe e pode recusar, com pedido de revisão ao Conselho Superior em 10 dias. Na negociação, as reuniões vão para ata, o dano é apurado sem desconto e o celebrante participa sempre com advogado ou defensor público. Fechados os termos, a pessoa jurídica lesada é ouvida, o acordo é assinado e, se for anterior à ação, vai ao Conselho Superior em 3 dias, que decide em até 60: aprova, pede ajustes, converte em diligência ou reprova. Por fim vem a homologação judicial. Homologado, o inteiro teor é publicado, o acordo entra no cadastro e o cumprimento passa ao processo de acompanhamento.',
         quando: 'Quando o investigado ou demandado por improbidade sinaliza interesse em acordo, ou o Ministério Público o propõe, em inquérito civil, procedimento preparatório, ação em curso ou cumprimento de sentença. Abra como processo derivado do procedimento de origem. Para acompanhar um acordo já homologado, use o modelo de acompanhamento; para tudo num processo só, o modelo "das tratativas ao cumprimento".',
         base: BASE_ACORDO,
-        tipo: { polos: ['requerido'], nomes_polos: { requerido: 'Celebrante' } },
+        tipo: POLOS_NEGOCIACAO,
     }, [
         ...fasesTratativas({ depois: 'Arquivamento das tratativas', derivado: true }),
         SEM_ACORDO,
@@ -447,7 +449,7 @@ export function anpcCompleto() {
         descricao: 'O acordo de não persecução civil (ou cível) inteiro num único processo: sinalização das tratativas, análise de cabimento, negociação com o celebrante e seu advogado ou defensor, oitiva da pessoa jurídica lesada, assinatura, aprovação pelo Conselho Superior, homologação judicial e, em seguida, o acompanhamento de cada vencimento até o cumprimento integral ou até o vencimento antecipado, com execução, ação de improbidade ou remessa ao órgão de execução responsável. Reúne as fases dos modelos de tratativas e de acompanhamento. O provimento do Ministério Público do RS prevê dois procedimentos; este modelo serve ao órgão que prefere controlar tudo num lugar só.',
         quando: 'Quando o órgão quer um processo único por acordo, sem abrir outro depois da homologação. Como as tratativas são confidenciais, a pessoa jurídica lesada só deve ser cadastrada como parte depois da homologação judicial. Se o órgão segue à risca a divisão do provimento, use os dois modelos separados.',
         base: BASE_ACORDO,
-        tipo: POLOS_ACORDO,
+        tipo: POLOS_NEGOCIACAO,
     }, [
         ...fasesTratativas({ depois: 'Início do acompanhamento', derivado: false }),
         SEM_ACORDO,

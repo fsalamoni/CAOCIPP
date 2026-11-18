@@ -26,7 +26,7 @@ const comunicacoes_1 = require("../shared/comunicacoes");
 const audiencias_1 = require("../shared/audiencias");
 const listasOrgao_1 = require("../shared/listasOrgao");
 /** Nomes que o sistema já tem em cada lista do órgão (não se repetem). */
-const SISTEMA_LISTAS = { comunicacao: Object.values(comunicacoes_1.ESPECIES), audiencia: Object.values(audiencias_1.ESPECIES_AUDIENCIA), origem: Object.values(secretaria_1.ROTULO_ORIGEM) };
+const SISTEMA_LISTAS = { comunicacao: Object.values(comunicacoes_1.ESPECIES), audiencia: Object.values(audiencias_1.ESPECIES_AUDIENCIA), origem: Object.values(secretaria_1.ROTULO_ORIGEM), peticao: listasOrgao_1.TIPOS_PETICAO };
 const orgaos_1 = require("../shared/orgaos");
 const orgaos_2 = require("./orgaos");
 const documentoConfig_1 = require("./documentoConfig");
@@ -201,7 +201,7 @@ async function exigirIntegracoes(c, usados, antes) {
     }
 }
 exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, async (request) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u;
     const auth = (0, context_1.exigirAuth)(request);
     const p = request.data || {};
     // Convite de equipe: quem aceita pode ainda não ser membro do órgão.
@@ -793,7 +793,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         }
         await db.collection(context_1.COL.config).doc(orgId).set({ organization_id: orgId, listas, updated_at: agora, updated_by: auth.uid }, { merge: true });
         const importado = (0, secretaria_1.texto)(p.arquivo_nome, 160);
-        await audit('SECRETARIA_LISTAS', Object.assign({ comunicacao: ((_m = listas.comunicacao) === null || _m === void 0 ? void 0 : _m.length) || 0, audiencia: ((_o = listas.audiencia) === null || _o === void 0 ? void 0 : _o.length) || 0, origem: ((_p = listas.origem) === null || _p === void 0 ? void 0 : _p.length) || 0 }, (importado ? { importado_de: importado, itens_importados: Math.max(0, Math.min(listasOrgao_1.MAX_ITENS_PROPOSTA, Number(p.itens_importados) || 0)) } : {})));
+        await audit('SECRETARIA_LISTAS', Object.assign({ comunicacao: ((_m = listas.comunicacao) === null || _m === void 0 ? void 0 : _m.length) || 0, audiencia: ((_o = listas.audiencia) === null || _o === void 0 ? void 0 : _o.length) || 0, origem: ((_p = listas.origem) === null || _p === void 0 ? void 0 : _p.length) || 0, peticao: ((_q = listas.peticao) === null || _q === void 0 ? void 0 : _q.length) || 0 }, (importado ? { importado_de: importado, itens_importados: Math.max(0, Math.min(listasOrgao_1.MAX_ITENS_PROPOSTA, Number(p.itens_importados) || 0)) } : {})));
         return { success: true };
     }
     if (p.action === 'lerListas') {
@@ -962,7 +962,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             }
             const ref = db.collection(context_1.COL.tipos).doc();
             tipoId = ref.id;
-            batch.set(ref, Object.assign(Object.assign(Object.assign({}, (formulario ? { formulario } : {})), (criaRegistro ? { cria_registro: criaRegistro } : {})), { nome: (0, secretaria_1.texto)(tp.nome), sigla: (0, secretaria_1.texto)(tp.sigla, 12), descricao: (0, secretaria_1.texto)(tp.descricao, secretaria_1.MAX_TEXTO_LONGO), rito_id: ritoRef.id, sigilo_padrao: tp.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', unidade_inicial: ((_q = rito.fases[0]) === null || _q === void 0 ? void 0 : _q.unidade_id) || null, ativo: true, organization_id: orgId, created_at: agora, created_by: auth.uid, updated_at: agora, updated_by: auth.uid }));
+            batch.set(ref, Object.assign(Object.assign(Object.assign({}, (formulario ? { formulario } : {})), (criaRegistro ? { cria_registro: criaRegistro } : {})), { nome: (0, secretaria_1.texto)(tp.nome), sigla: (0, secretaria_1.texto)(tp.sigla, 12), descricao: (0, secretaria_1.texto)(tp.descricao, secretaria_1.MAX_TEXTO_LONGO), rito_id: ritoRef.id, sigilo_padrao: tp.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', unidade_inicial: ((_r = rito.fases[0]) === null || _r === void 0 ? void 0 : _r.unidade_id) || null, ativo: true, organization_id: orgId, created_at: agora, created_by: auth.uid, updated_at: agora, updated_by: auth.uid }));
         }
         await batch.commit();
         await audit(editarId ? 'SECRETARIA_RITO_SALVO' : 'SECRETARIA_RITO_IMPLANTADO', {
@@ -985,13 +985,13 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         if (p.id) {
             const ref = col.doc(p.id);
             const snap = await ref.get();
-            if (!snap.exists || ((_r = snap.data()) === null || _r === void 0 ? void 0 : _r.organization_id) !== orgId || ((_s = snap.data()) === null || _s === void 0 ? void 0 : _s.excluido) === true)
+            if (!snap.exists || ((_s = snap.data()) === null || _s === void 0 ? void 0 : _s.organization_id) !== orgId || ((_t = snap.data()) === null || _t === void 0 ? void 0 : _t.excluido) === true)
                 throw new https_1.HttpsError('not-found', 'Rito não encontrado');
             await exigirIntegracoes(c, modulosDoRito(rito), modulosDoRito(snap.data()));
             // Processos guardam a cópia das fases com que foram autuados; mudar
             // o rito só vale para os próximos. A versão anterior fica guardada.
             await guardarVersao(ref, snap.data(), CAMPOS_RITO);
-            await ref.update(Object.assign(Object.assign({}, rito), { ativo: p.ativo !== false, versao: (Number((_t = snap.data()) === null || _t === void 0 ? void 0 : _t.versao) || 1) + 1, updated_at: agora, updated_by: auth.uid }));
+            await ref.update(Object.assign(Object.assign({}, rito), { ativo: p.ativo !== false, versao: (Number((_u = snap.data()) === null || _u === void 0 ? void 0 : _u.versao) || 1) + 1, updated_at: agora, updated_by: auth.uid }));
         }
         else {
             const qtd = (await col.where('organization_id', '==', orgId).select('excluido').get()).docs.filter((d) => d.data().excluido !== true).length;

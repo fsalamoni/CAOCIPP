@@ -124,7 +124,7 @@ export default function ImportarListas({ aberto, onFechar, orgId, listas, sistem
                                                     <option value="">Escolha a lista…</option>
                                                     {Object.entries(ROTULO_LISTA).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                                                 </select>
-                                                {it.lista && it.lista !== 'origem' && (
+                                                {(it.lista === 'comunicacao' || it.lista === 'audiencia') && (
                                                     <label className="flex items-center gap-1.5 text-xs" htmlFor={`imp-${i}-m`}>
                                                         <Checkbox id={`imp-${i}-m`} checked={it.m === true} onCheckedChange={(v) => muda(i, 'm', v === true ? true : undefined)} />
                                                         Masculino{it.m_suposto && <span className="text-slate-500"> (estimado)</span>}

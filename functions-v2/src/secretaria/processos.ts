@@ -1,4 +1,5 @@
 import * as admin from 'firebase-admin';
+import { Representacao, nomeQualificado, sanitizeRepresentacao } from '../shared/representacao';
 import { randomBytes } from 'crypto';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
@@ -1031,7 +1032,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, comSin
             // Sem o conteúdo (pode ter imagens): só o que a lista mostra.
             ref.collection('documentos').select(
                 'titulo', 'tipo', 'origem', 'status', 'mime', 'nome_arquivo', 'tamanho', 'sha256', 'ordem', 'unidade_origem',
-                'autor_nome', 'criado_em', 'juntado_em', 'assinaturas', 'peticao', 'visivel_partes', 'paginas', 'folha_inicial', 'folha_final', 'codigo_verificacao',
+                'autor_nome', 'criado_em', 'juntado_em', 'assinaturas', 'peticao', 'visivel_partes', 'visivel_polos', 'paginas', 'folha_inicial', 'folha_final', 'codigo_verificacao',
                 'assinaturas_pedidas', 'peticao_tipo', 'modelo_id', 'unidades_acesso', 'guardado_em', 'guardado_por_nome', 'versoes_qtd',
             ).get(),
             // Quem leu pela pauta: para a unidade que tem o processo e a administração.
@@ -1054,7 +1055,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, comSin
                 sha256: d.sha256, ordem: d.ordem || null, unidade_origem: d.unidade_origem,
                 autor_nome: d.autor_nome, criado_em: d.criado_em, juntado_em: d.juntado_em || null,
                 assinaturas: d.assinaturas || [], assinaturas_pedidas: d.assinaturas_pedidas || [],
-                peticao: d.peticao === true, peticao_tipo: d.peticao_tipo || null, visivel_partes: d.visivel_partes !== false,
+                peticao: d.peticao === true, peticao_tipo: d.peticao_tipo || null, visivel_partes: d.visivel_partes !== false, ...(Array.isArray(d.visivel_polos) && d.visivel_polos.length ? { visivel_polos: d.visivel_polos } : {}),
                 paginas: d.paginas || null, folha_inicial: d.folha_inicial || null, folha_final: d.folha_final || null, codigo_verificacao: d.codigo_verificacao || null, modelo_id: d.modelo_id || null, unidades_acesso: d.unidades_acesso || [],
                 guardado_em: d.guardado_em || null, guardado_por: d.guardado_por_nome || null, versoes: Number(d.versoes_qtd) || 0,
             }))
@@ -1075,8 +1076,9 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, comSin
                 campos: camposLidos.map((x) => (fechada(x.ref) ? { ...x, ref: { ...x.ref, restrito: true } } : x)),
                 partes: (data.partes || []).map(({ convite_hash, uid, representantes, ...x }: Record<string, unknown>) => ({
                     ...x, portal: uid ? 'ativo' : convite_hash ? 'convidado' : null,
-                    representantes: ((representantes || []) as Array<Record<string, unknown>>).map(({ convite_hash: ch, uid: u, nome, email }) => ({
+                    representantes: ((representantes || []) as Array<Record<string, unknown>>).map(({ convite_hash: ch, uid: u, nome, email, qualidade, inscricao, poderes }) => ({
                         nome, email: email || null, portal: u ? 'ativo' : ch ? 'convidado' : null,
+                        ...(qualidade ? { qualidade } : {}), ...(inscricao ? { inscricao } : {}), ...(poderes === true ? { poderes: true } : {}),
                     })),
                 })),
                 fases: data.fases || [],
@@ -1093,6 +1095,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, comSin
                 // Disputa de preços da ação do rito (S11): só o resumo; o aviso e as propostas ficam em secCertames.
                 certame: data.certame || null,
                 nomes_polos: data.nomes_polos || {},
+                ...(data.peticoes_por_polo === true ? { peticoes_por_polo: true } : {}),
                 acoes_feitas: data.acoes_feitas || {},
                 acoes_respostas: data.acoes_respostas || {},
                 // Ações cumpridas sozinhas pelo dado do processo (a tela diz que foi assim).
@@ -1261,6 +1264,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, comSin
                 ...(tipo ? { tipo_id: String(p.tipo_id), tipo_nome: tipo.nome, tipo_versao: Number(tipo.versao) || 1 } : {}),
                 // Nomes dos polos do tipo, como na autuação (o tipo pode mudar depois).
                 ...(tipo && Object.keys(formularioDe(tipo).nomes_polos).length ? { nomes_polos: formularioDe(tipo).nomes_polos } : {}),
+                ...(tipo && formularioDe(tipo).peticoes_por_polo ? { peticoes_por_polo: true } : {}),
                 status: 'em_tramitacao',
                 rito_id: ritoSnap.id,
                 rito_nome: rito.nome,
@@ -2189,7 +2193,7 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             if (parte.retirada) throw new HttpsError('failed-precondition', `${parte.nome} foi retirada do processo`);
             // Alvo: a própria parte, um representante já listado (representante_idx)
             // ou um representante novo ({ nome, email }). Cada um tem a própria conta.
-            type Rep = { nome: string; email?: string; uid?: string; convite_hash?: string };
+            type Rep = { nome: string; email?: string; uid?: string; convite_hash?: string } & Representacao;
             const reps: Rep[] = [...((parte.representantes || []) as Rep[])];
             let ridx = p.representante_idx === undefined || p.representante_idx === null ? -1 : Number(p.representante_idx);
             const novoRep = p.action === 'convidarParte' && p.representante && typeof p.representante === 'object' ? p.representante as Record<string, unknown> : null;
@@ -2198,13 +2202,16 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
                 if (!nome) throw new HttpsError('invalid-argument', 'Informe o nome do representante');
                 if (reps.length >= MAX_REPRESENTANTES) throw new HttpsError('invalid-argument', `Até ${MAX_REPRESENTANTES} representantes por parte`);
                 const emailRep = texto(novoRep.email, 120);
-                reps.push({ nome, ...(emailRep ? { email: emailRep } : {}) });
+                // Qualidade (advogado, defensor…), inscrição e a conferência da procuração.
+                let rep: Representacao = {};
+                try { rep = sanitizeRepresentacao(novoRep); } catch (e) { erroUsuario(e); }
+                reps.push({ nome, ...(emailRep ? { email: emailRep } : {}), ...rep });
                 ridx = reps.length - 1;
             }
             const alvo: Rep = ridx >= 0 ? reps[ridx] : parte;
             if (!alvo) throw new HttpsError('invalid-argument', 'Representante inválido');
             const np = nomeDoPolo(data.nomes_polos, parte.polo);
-            const rotulo = ridx >= 0 ? `${alvo.nome}, representante de ${parte.nome} (${np})` : `${parte.nome} (${np})`;
+            const rotulo = ridx >= 0 ? `${nomeQualificado(alvo)}, representante de ${parte.nome} (${np})` : `${parte.nome} (${np})`;
             const dadosMov = { parte_idx: idx, ...(ridx >= 0 ? { representante: alvo.nome } : {}) };
             // Convite anterior ainda não usado deixa de valer em qualquer dos dois casos.
             if (alvo.convite_hash) tx.set(db.collection(COL.convites).doc(alvo.convite_hash), { revogado: true }, { merge: true });
@@ -2242,7 +2249,7 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             const atualizado = { ...alvo, convite_hash: hash, ...(email ? { email } : {}) };
             if (ridx >= 0) { reps[ridx] = atualizado; partes[idx] = { ...parte, representantes: reps }; } else partes[idx] = atualizado;
             const mov = registrarMovimento(tx, c, ref, data, 'convite',
-                `${rotulo} convidado a acompanhar o processo pelo portal das partes${email ? ' (convite por e-mail)' : ''}.`, dadosMov);
+                `${rotulo} convidado a acompanhar o processo pelo portal das partes${email ? ' (convite por e-mail)' : ''}${novoRep && (alvo as Rep).poderes ? '. Procuração ou ato de representação conferido' : ''}.`, dadosMov);
             tx.update(ref, { ...mov, partes });
             return mov;
         }

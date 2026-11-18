@@ -159,6 +159,12 @@ function LinhaPadrao({ p, form, onChange }) {
                             )}
                         </div>
                     ))}
+                    {form.polos.length > 1 && (
+                        <label className="flex items-start gap-2 pt-1 text-sm">
+                            <Checkbox className="mt-0.5" checked={form.peticoes_por_polo === true} onCheckedChange={(c) => onChange({ ...form, peticoes_por_polo: c === true ? true : undefined })} />
+                            <span>Cada polo vê só as próprias petições no portal <span className="text-xs text-slate-600 dark:text-slate-400">(a equipe vê todas; use em negociação ou quando um polo não deve ver o que o outro apresenta)</span></span>
+                        </label>
+                    )}
                 </fieldset>
             )}
         </li>
