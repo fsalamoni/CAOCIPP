@@ -11,7 +11,7 @@ import { extrasDoEvento, urgentesPrimeiro } from '../shared/autos';
 import {
     Consolidacao, Cumpridas, ItemCertidao, MAX_ITEM_CERTIDAO, RegraAcao, cabeNaCertidao, textoDoItem, acoesObrigatoriasPendentes, camposAoEntrarNaFase, destinoDaAcao,
     destinoDoMovimento, deveEmitir, grupoDe, marcasDoDestino, marcasNaFase, mudancaNaCertidao, partesVeem, pedidoDaAcao, documentosQueFaltam, textoCertidao,
-    aberturaCertidao, tituloCertidao, visivelCertidao, acaoAtiva, condicaoAtendida, respondeNaRodada, respostaDaAcao, respostasDaAcao, respostasDaFase, textoDaCondicao, Condicao,
+    aberturaCertidao, tituloCertidao, visivelCertidao, acaoAtiva, derivadoPendente, condicaoAtendida, respondeNaRodada, respostaDaAcao, respostasDaAcao, respostasDaFase, textoDaCondicao, Condicao,
 } from '../shared/exigencias';
 import { podeQuem, podeReserva, textoQuem, textoReserva } from '../shared/permissoesFase';
 import { RESULTADOS_DISPUTA } from '../shared/certames';
@@ -625,7 +625,7 @@ const itensDepois = (proc: admin.firestore.DocumentData, grupo: string, item: It
 const textoDispensa = (d: string[]) => (d.length ? ` Dispensado o que o rito exigia na fase: ${d.join('; ')}.` : '');
 
 /** Valor informado ao cumprir a ação, conferido contra o que o rito pede. Lança HttpsError. */
-async function valorDaAcao(c: Awaited<ReturnType<typeof carregarContexto>>, regra: RegraAcao | null | undefined, acao: string, bruto: unknown) {
+async function valorDaAcao(c: Awaited<ReturnType<typeof carregarContexto>>, regra: RegraAcao | null | undefined, acao: string, bruto: unknown, procId = '') {
     const pede = pedidoDaAcao(regra);
     if (pede === 'confirmar' || pede === 'documento' || pede === 'orientacao' || pede === 'comunicacao') return null;
     const rotulo = regra?.rotulo || acao;
@@ -658,6 +658,17 @@ async function valorDaAcao(c: Awaited<ReturnType<typeof carregarContexto>>, regr
         try { campos = validarCampos(form, bruto, [], await refsDoFormulario(c.db, c.orgId, c.org, form, bruto)); } catch (e) { erroUsuario(e); }
         if (!campos.length) throw new HttpsError('invalid-argument', `Preencha "${rotulo}"`);
         return dadoDoFormulario(rotulo, campos);
+    }
+    if (pede === 'derivado') {
+        // Processo derivado: o servidor confere que ele nasceu deste (ou está ligado a este) e guarda só o número.
+        const id = idEscolhido(bruto);
+        if (!id) throw new HttpsError('invalid-argument', `"${acao}" se cumpre com o processo aberto a partir deste: abra-o pela própria ação ou escolha o que já existe.`);
+        const d = (await c.db.collection(COL.processos).doc(id).get()).data();
+        if (!d || d.organization_id !== c.orgId || d.status === 'excluido' || !((d.vinculos || []) as string[]).includes(`pe:${procId}`)) {
+            throw new HttpsError('invalid-argument', `"${rotulo}": o processo escolhido não nasceu deste nem está ligado a ele`);
+        }
+        const numero = String(d.numero || '');
+        return { rotulo: regra?.rotulo || 'Processo derivado', tipo: 'texto' as TipoCampo, valor: numero, valor_texto: numero, ref: undefined, refs: [] as Ref[], restrito: false };
     }
     if (pede === 'registro') {
         // Registro de outro módulo: o servidor lê e guarda só número e título; a parte vê só o número.
@@ -1278,6 +1289,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, comSin
         avisarArquivado(orgId, registroArquivado);
         // O que veio na autuação já cumpre as ações ligadas da primeira fase (ex.: número do PGEA informado na entrada).
         if (temLigacoes([(rito.fases as Fase[])[0]])) await cumprirPeloProcesso(c, procRef.id);
+        // Nasceu de outro processo: a ação "Abrir processo derivado" pendente na fase atual dele se cumpre sozinha.
+        if (refOrigem?.modulo === 'pe') await registrarDerivado(c, refOrigem.id, procRef.id, [String(tipo?.nome || ''), String(rito.nome || '')]);
         return { success: true, id: procRef.id, numero };
     }
 
@@ -1360,6 +1373,28 @@ export async function cumprirPeloProcesso(c: Ctx, id: string): Promise<Record<st
         }
     }
     return ultimo;
+}
+
+/**
+ * Processo derivado aberto: cumpre, no processo de origem, a ação "Abrir
+ * processo derivado" pendente na fase atual (a que sugere o tipo ou o rito do
+ * novo processo; na falta, a que não sugere nada), pelo mesmo caminho da caixa de
+ * marcar e com as permissões de quem abriu. Nunca desfaz a autuação: o que
+ * não couber (sem a posse do processo de origem, ação reservada) fica para a
+ * equipe, que registra o processo pela própria ação.
+ */
+async function registrarDerivado(c: Ctx, origemId: string, novoId: string, nomes: string[]): Promise<void> {
+    try {
+        const d = (await c.db.collection(COL.processos).doc(origemId).get()).data();
+        if (!d || d.organization_id !== c.orgId || d.status !== 'em_tramitacao') return;
+        const fase = ((d.fases || []) as Fase[]).find((f) => f.id === d.fase_atual);
+        const idx = derivadoPendente(fase, (d.acoes_feitas || {})[String(d.fase_atual)] || [], nomes, (i) => acaoAtiva(fase, i, respostasDaFase(d)));
+        if (idx < 0) return;
+        // Com as permissões de quem abriu: ação reservada a outra pessoa não se cumpre por aqui.
+        await movimentar(c, { organizationId: c.orgId, action: 'marcarAcao', id: origemId, version: d.version, acao_idx: idx, feita: true, valor: novoId } as unknown as ProcRequest);
+    } catch (e) {
+        console.warn('[secretaria] ação de processo derivado não cumprida', origemId, novoId, (e as Error)?.message);
+    }
 }
 
 /**
@@ -1682,7 +1717,7 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             const proclamado = regra?.pede === 'julgamento' ? data.sessao?.proclamado : null;
             // Disputa de preços: vale o resultado registrado na disputa (S13), não o que vier na tela.
             const disputa = regra?.pede === 'disputa' ? data.certame : null;
-            const dado = feita ? await valorDaAcao(c, regra, acao, proclamado ? { data: proclamado.data, votos: proclamado.votos } : disputa ? { resultado: disputa.resultado, resumo: disputa.resumo } : p.valor) : null;
+            const dado = feita ? await valorDaAcao(c, regra, acao, proclamado ? { data: proclamado.data, votos: proclamado.votos } : disputa ? { resultado: disputa.resultado, resumo: disputa.resumo } : p.valor, String(p.id)) : null;
             // "Leva ao painel": o registro ligado é lido aqui, antes de qualquer escrita da transação.
             const leva = dado && regra?.ao_registro && !regra.ve ? regra.ao_registro : null;
             const registroLeva = leva ? await lerRegistroDaAcao(tx, c, data, leva) : null;

@@ -85,6 +85,7 @@ export const PEDIDOS = [
     ['lista', 'Uma escolha numa lista'],
     ['sim_nao', 'Sim ou não'],
     ['registro', 'Um registro de outro módulo'],
+    ['derivado', 'Abrir um processo derivado'],
     ['formulario', 'Um formulário (vários campos)'],
     ['documento', 'Um documento'],
     ['comunicacao', 'Comunicar as partes (intimação, citação…)'],
@@ -649,6 +650,7 @@ function regraComPedidoBase(r, pede, acao) {
         ...(r?.rotulo && pede !== 'confirmar' ? { rotulo: r.rotulo } : {}),
         ...(pede === 'lista' ? { opcoes: r?.opcoes || [] } : {}),
         ...(pede === 'registro' ? { modulo: r?.modulo || 'consultas' } : {}),
+        ...(pede === 'derivado' && r?.derivado?.tipo ? { derivado: { tipo: r.derivado.tipo } } : {}),
         ...(pede === 'formulario' ? { campos: r?.campos?.length ? r.campos : [novoCampo()] } : {}),
         ...(dest !== 'evento' ? { destino: dest } : {}),
         ...(partesVeem(r) ? { partes: true } : {}),
@@ -684,6 +686,7 @@ export function resumoDaAcao(r) {
         return dest === 'autos' ? 'documento juntado aos autos' : `documento guardado fora dos autos (${dest === 'evento' ? 'evento no extrato' : 'só no sistema'})`;
     }
     const oque = pede === 'confirmar' ? 'confirmação'
+        : pede === 'derivado' ? `abre um processo derivado${r?.derivado?.tipo ? ` (sugestão: ${r.derivado.tipo})` : ''}; cumpre-se sozinha quando ele é aberto`
         : pede === 'formulario' ? `formulário de ${r?.campos?.length || 0} ${r?.campos?.length === 1 ? 'campo' : 'campos'}`
             : ROTULO_PEDIDO[pede].replace(/^Uma? /, '').toLowerCase();
     const onde = dest === 'autos' ? 'certidão nos autos' : ROTULO_DESTINO[dest];

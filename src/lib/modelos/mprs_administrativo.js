@@ -65,7 +65,7 @@ export function gestaoContratualMprs() {
             acoes: [
                 A.documento('Juntar a certidão da recusa ou do decurso do prazo', 'Certidão', { forma: 'redigir' }),
                 A.fazer('Pedir o estorno do empenho à Assessoria de Planejamento e Orçamento', { obrigatoria: true }),
-                A.fazer('Abrir o processo derivado de descumprimento contratual ("Novo processo derivado deste")', { obrigatoria: true, ajuda: 'Use o tipo de processo com o modelo "Descumprimento contratual no MPRS".' }),
+                A.derivado('Abrir o processo derivado de descumprimento contratual', 'Descumprimento contratual no MPRS: apuração e sanção', { obrigatoria: true, ajuda: 'O botão da ação abre o novo processo já ligado a este; criado, a ação se cumpre sozinha.' }),
                 A.escolha('Providência', ['Convocar o próximo classificado', 'Encerrar a contratação'], { obrigatoria: true, destino: 'autos' }),
             ],
             saidas: { 'Formalização e assinatura': quando('Providência', 'Convocar o próximo classificado'), Arquivamento: quando('Providência', 'Encerrar a contratação') },
@@ -137,7 +137,7 @@ export function gestaoContratualMprs() {
             orientacao: 'A sanção não se aplica neste processo. O fiscal instaura no SIM o procedimento "Descumprimento Contratual" (ou "Descumprimento Contratual e Rescisão") com a gravidade da infração, as peculiaridades do caso, agravantes e atenuantes, os danos, a cláusula descumprida e o inciso do art. 155 da Lei 14.133 (Prov. 104, art. 89). Havendo garantia, verifique a necessidade de acionar o garantidor. Antes do julgamento, o gestor pode reter provisoriamente créditos no valor da multa em tese, devolvidos se a sanção não vier ou vier menor (art. 97). Aqui você só diz por onde o contrato segue: ateste do período com as glosas cabíveis, volta à fiscalização (quando a falha não é de um período a pagar, como a habilitação irregular) ou extinção.',
             acoes: [
                 A.escolha('Infração apontada (art. 155 da Lei 14.133)', ['Inexecução parcial', 'Inexecução parcial com grave dano', 'Inexecução total', 'Atraso injustificado', 'Documento ou declaração falsa', 'Fraude ou ato lesivo', 'Outra'], { obrigatoria: true }),
-                A.fazer('Abrir o processo derivado de descumprimento contratual ("Novo processo derivado deste")', { obrigatoria: true, ajuda: 'Use o tipo de processo com o modelo "Descumprimento contratual no MPRS".' }),
+                A.derivado('Abrir o processo derivado de descumprimento contratual', 'Descumprimento contratual no MPRS: apuração e sanção', { obrigatoria: true, ajuda: 'O botão da ação abre o novo processo já ligado a este; criado, a ação se cumpre sozinha.' }),
                 A.texto('Número do procedimento de descumprimento', { obrigatoria: true }),
                 A.simNao('Reter créditos provisoriamente (art. 97)?', { obrigatoria: true }),
                 A.numero('Valor retido (R$)', { se: quando('Reter créditos provisoriamente (art. 97)?', 'sim') }),
