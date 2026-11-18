@@ -4,8 +4,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import {
-    ESTILOS_PADRAO, FORMATOS_LISTA, FORMATOS_PARAGRAFO, FORMATOS_TITULO, MARCADORES, MARGENS_PADRAO, PAPEIS,
-    cssDoLayout, folhaCm, idDeEstilo, limparLayout, resumoPagina,
+    ESTILOS_PADRAO, FORMATOS_LISTA, FORMATOS_NUMERO, FORMATOS_PARAGRAFO, FORMATOS_TITULO, MARCADORES, MARGENS_PADRAO, MODOS_FAIXA, PAGINAS_FAIXA, PAPEIS, POSICOES_NUMERO, TAMANHO_NUMERO,
+    cssDoLayout, faixaDoTimbrado, folhaCm, idDeEstilo, limparLayout, resumoPagina, textoNumero, trocarPagina,
 } from './layoutDocumento.js';
 
 const require = createRequire(import.meta.url);
@@ -20,6 +20,16 @@ test('espelho do servidor: papéis, margens, estilos e formatos', { skip: !servi
     assert.deepEqual(FORMATOS_TITULO.map(([v]) => v), servidor.FORMATOS_TITULO);
     assert.deepEqual(MARCADORES.map(([v]) => v), servidor.MARCADORES);
     assert.deepEqual(FORMATOS_LISTA.map(([v]) => v), servidor.FORMATOS_LISTA);
+    assert.deepEqual(MODOS_FAIXA.map(([v]) => v), servidor.MODOS_FAIXA);
+    assert.deepEqual(PAGINAS_FAIXA.map(([v]) => v), servidor.PAGINAS_FAIXA);
+    assert.deepEqual(POSICOES_NUMERO.map(([v]) => v), servidor.POSICOES_NUMERO);
+    assert.deepEqual(FORMATOS_NUMERO.map(([v]) => v), servidor.FORMATOS_NUMERO);
+    assert.equal(TAMANHO_NUMERO, servidor.TAMANHO_NUMERO);
+    for (const f of FORMATOS_NUMERO.map(([v]) => v)) assert.equal(textoNumero(f, 3, 8), servidor.textoNumero(f, 3, 8));
+    assert.deepEqual(trocarPagina([{ type: 'paragraph', content: [{ type: 'text', text: '{{pagina}}/{{paginas}}' }] }], 2, 4), servidor.trocarPagina([{ type: 'paragraph', content: [{ type: 'text', text: '{{pagina}}/{{paginas}}' }] }], 2, 4));
+    // O cabeçalho que nasce do timbrado passa pela validação do servidor sem perder nada.
+    const ini = faixaDoTimbrado({ cabecalho_linhas: ['MP', 'Promotoria'] });
+    assert.deepEqual(servidor.sanitizeLayout({ cabecalho: { modo: 'proprio', conteudo: ini } }).cabecalho.conteudo, ini);
 });
 
 test('limparLayout guarda só o que mudou', () => {

@@ -1,7 +1,9 @@
 const jszip = () => require('jszip') as typeof import('jszip');
 import { Marca, No } from '../shared/documento';
 import type { ConfigDocumento } from './pdfDocumento';
-import { ChaveEstilo, ESTILOS_PADRAO, Estilo, Layout, estiloDoBloco, folha, layoutDe, margens, numerosAutomaticos } from '../shared/layoutDocumento';
+import {
+    ChaveEstilo, DISTANCIA_FAIXA, ESTILOS_PADRAO, Estilo, Layout, TAMANHO_NUMERO, estiloDoBloco, faixaNaPagina, folha, layoutDe, margens, numerosAutomaticos,
+} from '../shared/layoutDocumento';
 
 /**
  * Documento do editor → Word (.docx), para quem quer abrir a minuta no Word
@@ -61,6 +63,9 @@ class Escritor {
     numParagrafos: number | null = null;
     numTitulos: number | null = null;
     numeros: Map<No, string>;
+    /** Cabeçalho/rodapé: {{pagina}} e {{paginas}} viram os campos PAGE e NUMPAGES do Word. */
+    campos = false;
+    prefixoMidia = '';
 
     constructor(public layout: Layout = {}, public larguraTw = LARGURA_UTIL_TW, doc?: No) {
         this.numeros = doc ? numerosAutomaticos(doc) : new Map();
@@ -141,7 +146,12 @@ class Escritor {
         for (const n of nos) {
             if (n.type === 'hardBreak') { out += '<w:r><w:br/></w:r>'; continue; }
             if (n.type !== 'text' || !n.text) continue;
-            const r = `<w:r>${this.rPr(n.marks)}<w:t xml:space="preserve">${esc(n.text)}</w:t></w:r>`;
+            const rpr = this.rPr(n.marks);
+            const t = (s: string) => (s ? `<w:r>${rpr}<w:t xml:space="preserve">${esc(s)}</w:t></w:r>` : '');
+            const campo = (instr: string) => `<w:r>${rpr}<w:fldChar w:fldCharType="begin"/></w:r><w:r>${rpr}<w:instrText xml:space="preserve"> ${instr} </w:instrText></w:r><w:r>${rpr}<w:fldChar w:fldCharType="separate"/></w:r>${t('1')}<w:r>${rpr}<w:fldChar w:fldCharType="end"/></w:r>`;
+            const r = this.campos
+                ? n.text.split(/(\{\{\s*(?:pagina|paginas)\s*\}\})/).map((s) => (/^\{\{\s*paginas\s*\}\}$/.test(s) ? campo('NUMPAGES') : /^\{\{\s*pagina\s*\}\}$/.test(s) ? campo('PAGE') : t(s))).join('')
+                : t(n.text);
             const link = n.marks?.find((m) => m.type === 'link')?.attrs?.href;
             out += link ? `<w:hyperlink r:id="${this.rel('hyperlink', String(link), true)}" w:history="1">${r}</w:hyperlink>` : r;
         }
@@ -186,7 +196,7 @@ class Escritor {
         const dim = dimensoesImagem(buf) || { w: 600, h: 400 };
         const w = Math.min(Number(n.attrs?.width) || dim.w, Math.round(this.larguraTw / 15));
         const h = Math.round((w * dim.h) / Math.max(1, dim.w));
-        const nome = `imagem${this.midias.length + 1}.${m[1] === 'png' ? 'png' : 'jpeg'}`;
+        const nome = `${this.prefixoMidia}imagem${this.midias.length + 1}.${m[1] === 'png' ? 'png' : 'jpeg'}`;
         this.midias.push({ nome, buf });
         const rid = this.rel('image', `media/${nome}`);
         const id = this.proximoDesenho++;
@@ -259,7 +269,10 @@ class Escritor {
         }
         const conhecidas = px.filter((w): w is number => w !== null);
         const media = conhecidas.length ? conhecidas.reduce((s, w) => s + w, 0) / conhecidas.length : 1;
-        const brutas = px.map((w) => w ?? media);
+        // No cabeçalho/rodapé, coluna sem largura ocupa o resto (como na tela e no PDF).
+        const soma = conhecidas.reduce((s, w) => s + w, 0);
+        const resto = this.campos && conhecidas.length && conhecidas.length < px.length ? Math.max(30, (this.larguraTw / 15 - soma) / (px.length - conhecidas.length)) : media;
+        const brutas = px.map((w) => w ?? resto);
         const total = brutas.reduce((s, w) => s + w, 0) || 1;
         const escala = Math.min(15, this.larguraTw / total);
         const grade = brutas.map((w) => Math.max(200, Math.round(w * escala)));
@@ -365,43 +378,95 @@ export async function docParaDocx(doc: No, cfg: ConfigDocumento = {}, meta: { ti
     const e = new Escritor(layout, LARGURA_UTIL_TW, doc);
     const corpo = (doc.content || []).map((b) => e.bloco(b)).join('') || '<w:p/>';
 
-    // Cabeçalho (timbrado da unidade) e rodapé com a página.
-    const cab = new Escritor();
+    // Cabeçalho e rodapé: timbrado/rodapé da unidade, os próprios do documento ou nenhum,
+    // com número de página (campos PAGE e NUMPAGES) e primeira página diferente.
+    const fCab = layout.cabecalho || {};
+    const fRod = layout.rodape || {};
+    const np = layout.numero_pagina || {};
+    const posNum = np.posicao || 'rodape-direita';
     const linhas = (cfg.cabecalho_linhas || []).filter(Boolean);
-    let cabecalho = '';
-    if (cfg.brasao) cabecalho += cab.imagem({ type: 'image', attrs: { src: cfg.brasao, width: 61, align: 'center' } });
-    cabecalho += linhas.map((l, i) => `<w:p><w:pPr><w:spacing w:before="0" w:after="0"/><w:jc w:val="center"/></w:pPr><w:r><w:rPr>${i === 0 ? '<w:b/>' : ''}<w:sz w:val="${i === 0 ? 22 : 18}"/></w:rPr><w:t xml:space="preserve">${esc(l)}</w:t></w:r></w:p>`).join('');
-    const rodapeTexto = esc(String(cfg.rodape || ''));
-    const r = '<w:r><w:rPr><w:sz w:val="15"/></w:rPr>';
+    const timbrado = (fCab.modo || 'unidade') === 'unidade' && (linhas.length > 0 || !!cfg.brasao);
+    const rodUnidade = (fRod.modo || 'unidade') === 'unidade';
+    const rodapeClassico = rodUnidade && posNum === 'rodape-direita' && !np.formato && !np.tamanho;
+    const sz = Math.round((np.tamanho || TAMANHO_NUMERO) * 2);
+    const r = `<w:r><w:rPr><w:sz w:val="${rodapeClassico ? 15 : sz}"/></w:rPr>`;
     const campo = (instr: string) => `${r}<w:fldChar w:fldCharType="begin"/></w:r>${r}<w:instrText xml:space="preserve"> ${instr} </w:instrText></w:r>${r}<w:fldChar w:fldCharType="separate"/></w:r>${r}<w:t>1</w:t></w:r>${r}<w:fldChar w:fldCharType="end"/></w:r>`;
-    const rodape = `<w:p><w:pPr><w:tabs><w:tab w:val="right" w:pos="${LARGURA_UTIL_TW}"/></w:tabs><w:spacing w:before="0" w:after="0"/><w:rPr><w:sz w:val="15"/></w:rPr></w:pPr><w:r><w:rPr><w:color w:val="64748B"/><w:sz w:val="15"/></w:rPr><w:t xml:space="preserve">${rodapeTexto}</w:t></w:r><w:r><w:rPr><w:sz w:val="15"/></w:rPr><w:tab/><w:t xml:space="preserve">Página </w:t></w:r>${campo('PAGE')}${r}<w:t xml:space="preserve"> de </w:t></w:r>${campo('NUMPAGES')}</w:p>`;
+    const txt = (t: string) => (t ? `${r}<w:t xml:space="preserve">${esc(t)}</w:t></w:r>` : '');
+    // "Página X de Y" e os outros formatos, com os campos do Word no lugar dos números.
+    const numeroRuns = () => {
+        const [a, b, c] = ({ pagina: ['Página ', '', ''], n: ['', '', ''], 'n-de': ['', '/', ''], traco: ['– ', '', ' –'] } as Record<string, string[]>)[String(np.formato)] || ['Página ', ' de ', ''];
+        return `${txt(a)}${campo('PAGE')}${b ? `${txt(b)}${campo('NUMPAGES')}` : ''}${txt(c)}`;
+    };
+    const comNumero = (primeira: boolean) => posNum !== 'nenhum' && !(primeira && np.primeira === false);
+    const jcNum = posNum.endsWith('centro') ? 'center' : posNum.endsWith('esquerda') ? 'left' : 'right';
+    const pNumero = `<w:p><w:pPr><w:spacing w:before="0" w:after="0"/><w:jc w:val="${jcNum}"/></w:pPr>${numeroRuns()}</w:p>`;
+    const rodapeTexto = esc(String(cfg.rodape || ''));
+
+    // Cada parte (cabeçalho/rodapé, primeira página ou demais) tem as suas imagens e links.
+    const partes: Array<{ tipo: 'header' | 'footer'; nome: string; xml: string; w: Escritor; primeira: boolean }> = [];
+    const novaParte = (k: number) => {
+        const w = new Escritor(layout, LARGURA_UTIL_TW);
+        w.campos = true;
+        w.prefixoMidia = `p${k}-`;
+        // ponytail: numeração e desenhos das partes em faixas próprias de ids, para não colidir com o corpo.
+        w.abstratos = e.abstratos; w.nums = e.nums; w.proximoNum = 1000 * k; w.proximoDesenho = 1000 * k;
+        return w;
+    };
+    const conteudoCab = (w: Escritor, primeira: boolean) => {
+        let x = '';
+        if (faixaNaPagina(fCab, primeira)) {
+            if (timbrado) {
+                if (cfg.brasao) x += w.imagem({ type: 'image', attrs: { src: cfg.brasao, width: 61, align: 'center' } });
+                x += linhas.map((l, i) => `<w:p><w:pPr><w:spacing w:before="0" w:after="0"/><w:jc w:val="center"/></w:pPr><w:r><w:rPr>${i === 0 ? '<w:b/>' : ''}<w:sz w:val="${i === 0 ? 22 : 18}"/></w:rPr><w:t xml:space="preserve">${esc(l)}</w:t></w:r></w:p>`).join('');
+            } else if (fCab.modo === 'proprio') x += (fCab.conteudo || []).map((b) => w.bloco(b)).join('');
+        }
+        if (posNum.startsWith('cabecalho') && comNumero(primeira)) x += pNumero;
+        return x;
+    };
+    const conteudoRod = (w: Escritor, primeira: boolean) => {
+        const naPagina = faixaNaPagina(fRod, primeira);
+        if (rodapeClassico) {
+            const unidade = naPagina ? rodapeTexto : '';
+            const numero = comNumero(primeira) ? `<w:r><w:rPr><w:sz w:val="15"/></w:rPr><w:tab/><w:t xml:space="preserve">Página </w:t></w:r>${campo('PAGE')}${r}<w:t xml:space="preserve"> de </w:t></w:r>${campo('NUMPAGES')}` : '';
+            return `<w:p><w:pPr><w:tabs><w:tab w:val="right" w:pos="${LARGURA_UTIL_TW}"/></w:tabs><w:spacing w:before="0" w:after="0"/><w:rPr><w:sz w:val="15"/></w:rPr></w:pPr><w:r><w:rPr><w:color w:val="64748B"/><w:sz w:val="15"/></w:rPr><w:t xml:space="preserve">${unidade}</w:t></w:r>${numero}</w:p>`;
+        }
+        let x = '';
+        if (naPagina && fRod.modo === 'proprio') x += (fRod.conteudo || []).map((b) => w.bloco(b)).join('');
+        else if (naPagina && rodUnidade && rodapeTexto) x += `<w:p><w:pPr><w:spacing w:before="0" w:after="0"/></w:pPr><w:r><w:rPr><w:color w:val="64748B"/><w:sz w:val="15"/></w:rPr><w:t xml:space="preserve">${rodapeTexto}</w:t></w:r></w:p>`;
+        if (posNum.startsWith('rodape') && comNumero(primeira)) x += pNumero;
+        return x;
+    };
+    // Primeira página diferente (Word: "Primeira página diferente") só quando alguma coisa muda nela.
+    const primeiraDiferente = (fCab.paginas || 'todas') !== 'todas' || (fRod.paginas || 'todas') !== 'todas' || np.primeira === false;
+    for (const [tipo, gerar] of [['header', conteudoCab], ['footer', conteudoRod]] as const) {
+        for (const primeira of primeiraDiferente ? [false, true] : [false]) {
+            const w = novaParte(partes.length + 1);
+            const xml = gerar(w, primeira);
+            partes.push({ tipo, nome: `${tipo}${partes.filter((p) => p.tipo === tipo).length + 1}.xml`, xml, w, primeira });
+        }
+    }
+    // Parte vazia só existe se a outra variante (primeira ou demais) tiver algo, para apagar o que herdaria.
+    const usadas = partes.filter((p) => p.xml || partes.some((o) => o.tipo === p.tipo && o.xml));
 
     const zip = new (jszip())();
-    const temCab = !!cabecalho;
-    const ridCab = temCab ? e.rel('header', 'header1.xml') : '';
-    const ridRod = e.rel('footer', 'footer1.xml');
+    const refs = usadas.map((p) => `<w:${p.tipo}Reference w:type="${p.primeira ? 'first' : 'default'}" r:id="${e.rel(p.tipo, p.nome)}"/>`);
     const pgSz = `<w:pgSz w:w="${Math.round(pg.w * TW)}" w:h="${Math.round(pg.h * TW)}"${layout.orientacao === 'paisagem' ? ' w:orient="landscape"' : ''}/>`;
-    const sect = `<w:sectPr>${temCab ? `<w:headerReference w:type="default" r:id="${ridCab}"/>` : ''}<w:footerReference w:type="default" r:id="${ridRod}"/>${pgSz}<w:pgMar w:top="${temCab ? Math.max(2268, Math.round(mg.sup * 567)) : Math.round(mg.sup * 567)}" w:right="${Math.round(mg.dir * 567)}" w:bottom="${Math.round(mg.inf * 567)}" w:left="${Math.round(mg.esq * 567)}" w:header="567" w:footer="510" w:gutter="0"/></w:sectPr>`;
+    const topo = timbrado && usadas.some((p) => p.tipo === 'header' && p.xml) ? Math.max(2268, Math.round(mg.sup * 567)) : Math.round(mg.sup * 567);
+    const sect = `<w:sectPr>${refs.filter((x) => x.startsWith('<w:header')).join('')}${refs.filter((x) => x.startsWith('<w:footer')).join('')}${pgSz}<w:pgMar w:top="${topo}" w:right="${Math.round(mg.dir * 567)}" w:bottom="${Math.round(mg.inf * 567)}" w:left="${Math.round(mg.esq * 567)}" w:header="${timbrado ? 567 : Math.round(DISTANCIA_FAIXA * 567)}" w:footer="${rodapeClassico ? 510 : Math.round(DISTANCIA_FAIXA * 567)}" w:gutter="0"/>${primeiraDiferente ? '<w:titlePg/>' : ''}</w:sectPr>`;
     zip.file('word/document.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:document ${NS}><w:body>${corpo}${sect}</w:body></w:document>`);
     zip.file('word/styles.xml', estilos(fonte, tamanho, layout));
     zip.file('word/numbering.xml', numeracao(e));
     zip.file('word/settings.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:settings ${NS}><w:defaultTabStop w:val="709"/><w:characterSpacingControl w:val="doNotCompress"/><w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat></w:settings>`);
-    if (temCab) {
-        zip.file('word/header1.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:hdr ${NS}>${cabecalho}</w:hdr>`);
-        zip.file('word/_rels/header1.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${cab.rels.join('')}</Relationships>`);
+    for (const p of usadas) {
+        const raiz = p.tipo === 'header' ? 'w:hdr' : 'w:ftr';
+        zip.file(`word/${p.nome}`, `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<${raiz} ${NS}>${p.xml || '<w:p/>'}</${raiz}>`);
+        if (p.w.rels.length) zip.file(`word/_rels/${p.nome}.rels`, `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${p.w.rels.join('')}</Relationships>`);
     }
-    zip.file('word/footer1.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:ftr ${NS}>${rodape}</w:ftr>`);
-    for (const m of [...e.midias, ...cab.midias]) zip.file(`word/media/${m.nome}`, m.buf);
-    // Nomes das imagens do cabeçalho não podem colidir com as do corpo.
-    if (cab.midias.length) {
-        for (const m of cab.midias) { zip.remove(`word/media/${m.nome}`); zip.file(`word/media/cab-${m.nome}`, m.buf); }
-        zip.file('word/_rels/header1.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${cab.rels.join('').replace(/Target="media\//g, 'Target="media/cab-')}</Relationships>`);
-        for (const m of e.midias) zip.file(`word/media/${m.nome}`, m.buf);
-    }
+    for (const m of [...e.midias, ...usadas.flatMap((p) => p.w.midias)]) zip.file(`word/media/${m.nome}`, m.buf);
     zip.file('word/_rels/document.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>${e.rels.join('')}</Relationships>`);
     zip.file('_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/></Relationships>');
     const agora = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
     zip.file('docProps/core.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>${esc(meta.titulo || '')}</dc:title><dc:creator>SIGO</dc:creator><dcterms:created xsi:type="dcterms:W3CDTF">${agora}</dcterms:created></cp:coreProperties>`);
-    zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpeg" ContentType="image/jpeg"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/><Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>${temCab ? '<Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' : ''}<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>`);
+    zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpeg" ContentType="image/jpeg"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/><Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>${usadas.map((p) => `<Override PartName="/word/${p.nome}" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.${p.tipo}+xml"/>`).join('')}<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>`);
     return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
 }

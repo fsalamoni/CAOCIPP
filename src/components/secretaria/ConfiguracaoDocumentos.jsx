@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Copy, Download, FileText, FileUp, ImagePlus, Loader2, Paperclip, Plus, Save, Trash2, X } from 'lucide-react';
+import { Copy, Download, Eye, FileDown, FileText, FileUp, ImagePlus, Loader2, Paperclip, Plus, Save, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,7 +10,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
-import { secConfig } from '@/services/secretariaService';
+import { baixarResposta, secConfig } from '@/services/secretariaService';
+import { VisualizadorPdf } from './RedacaoDocumento';
 import { baixarPacote, nomeArquivoPacote, pacoteDeDocumento } from '@/lib/pacoteModelos';
 import { NativeSelect, documentoDaUnidade } from './comum';
 import EditorDocumento, { CAMPOS_MODELO, CSS_FONTE, FONTES, prepararImagem } from './EditorDocumento';
@@ -306,6 +307,8 @@ export function ListaModelos({ orgId, estado, unidadeId, orgaoId = null, semCart
 
 function EditorModelo({ modelo, setModelo, orgId, estado, onSalvo }) {
     const [salvando, setSalvando] = useState(false);
+    const [previa, setPrevia] = useState(null); // 'pdf' | 'docx' em andamento
+    const [pdf, setPdf] = useState(null);
     const camposModelo = useMemo(() => [...CAMPOS_MODELO, ...variaveisDisponiveis(estado, CAMPOS_MODELO.map(([k]) => k))], [estado]);
     const conteudo = useRef(null);
     const sujo = useRef(false);
@@ -327,6 +330,16 @@ function EditorModelo({ modelo, setModelo, orgId, estado, onSalvo }) {
             onSalvo();
         } catch (e) { toast.error(e?.message || 'Não foi possível salvar'); } finally { setSalvando(false); }
     };
+    // Como o modelo sai nos autos (timbrado, cabeçalho, rodapé, número de página) ou no Word, sem salvar.
+    const verPrevia = async (formato) => {
+        setPrevia(formato);
+        try {
+            const texto = conteudo.current || modelo.conteudo || { type: 'doc', content: [{ type: 'paragraph' }] };
+            const r = await secConfig(orgId, 'previaModelo', { formato, modelo: { nome: modelo.nome, unidade_id: modelo.unidade_id || null, orgao_id: modelo.orgao_id || null, conteudo: texto } });
+            if (formato === 'pdf') setPdf({ ...r, titulo: `Prévia: ${modelo.nome || 'modelo'}` });
+            else baixarResposta(r);
+        } catch (e) { toast.error(e?.message || 'Não foi possível gerar a prévia'); } finally { setPrevia(null); }
+    };
     return (
         <Dialog open onOpenChange={(o) => !o && fechar()}>
             <DialogContent className="max-w-none w-screen h-[100dvh] sm:w-[96vw] sm:h-[96vh] sm:max-w-[1240px] p-0 gap-0 flex flex-col overflow-hidden sm:rounded-lg [&>button:last-child]:hidden">
@@ -340,7 +353,13 @@ function EditorModelo({ modelo, setModelo, orgId, estado, onSalvo }) {
                     </select>
                     <Input aria-label="Descrição" placeholder="Para que serve (opcional)" value={modelo.descricao || ''} onChange={(e) => setModelo({ ...modelo, descricao: e.target.value })} className="h-9 flex-1 min-w-[12rem]" />
                     <label className="flex items-center gap-2 text-sm"><Checkbox checked={modelo.ativo !== false} onCheckedChange={(c) => setModelo({ ...modelo, ativo: c === true })} /> Ativo</label>
-                    <div className="flex gap-2 ml-auto">
+                    <div className="flex flex-wrap gap-2 ml-auto">
+                        <Button size="sm" variant="outline" className="gap-1" disabled={!!previa} title="Como o modelo sai no PDF dos autos, com timbrado, cabeçalho, rodapé e número de página" onClick={() => verPrevia('pdf')}>
+                            {previa === 'pdf' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" aria-hidden />} Prévia em PDF
+                        </Button>
+                        <Button size="sm" variant="ghost" className="gap-1" disabled={!!previa} title="Baixa o modelo em Word (.docx), para conferir no Word ou no LibreOffice" onClick={() => verPrevia('docx')}>
+                            {previa === 'docx' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" aria-hidden />} Word
+                        </Button>
                         {modelo.id && <VersoesDialog orgId={orgId} colecao="modelo" id={modelo.id} nome={modelo.nome} estado={estado} onRestaurado={() => { onSalvo(); setModelo(null); }} />}
                         {modelo.id && (
                             <Button size="sm" variant="ghost" className="gap-1" title="Cria uma cópia deste modelo, para ajustar e salvar"
@@ -356,6 +375,7 @@ function EditorModelo({ modelo, setModelo, orgId, estado, onSalvo }) {
                     <EditorDocumento key={modelo._k} conteudo={modelo.conteudo} config={docCfg} campos={camposModelo}
                         onChange={(j) => { conteudo.current = j; sujo.current = true; }} onSalvar={salvar} autoFocus rotulo="Texto do modelo" />
                 </div>
+                <VisualizadorPdf pdf={pdf} onFechar={() => setPdf(null)} />
             </DialogContent>
         </Dialog>
     );

@@ -193,7 +193,7 @@ function tabela(n, fonte, largura, ctx) {
     const cabecalhos = linhas.findIndex((tr) => !(tr.content || []).every((c) => c.type === 'tableHeader'));
     const linha = ((_a = n.attrs) === null || _a === void 0 ? void 0 : _a.semBordas) ? 0 : 0.6;
     return {
-        table: { widths: largurasColunas(larguras, colunas, largura), body: grade.length ? grade : [[' ']], headerRows: cabecalhos > 0 ? cabecalhos : 0, dontBreakRows: false },
+        table: { widths: largurasColunas(larguras, colunas, largura, ctx.faixa), body: grade.length ? grade : [[' ']], headerRows: cabecalhos > 0 ? cabecalhos : 0, dontBreakRows: false },
         layout: { hLineColor: () => '#94a3b8', vLineColor: () => '#94a3b8', hLineWidth: () => linha, vLineWidth: () => linha, paddingLeft: () => 5, paddingRight: () => 5, paddingTop: () => 3, paddingBottom: () => 3 },
         margin: [0, 2, 0, 8],
     };
@@ -202,11 +202,15 @@ function tabela(n, fonte, largura, ctx) {
  * Larguras das colunas no PDF: as que o editor guardou (arrastadas na tela ou
  * vindas do Word), na mesma proporção; sem nenhuma, colunas iguais.
  */
-function largurasColunas(px, colunas, largura) {
+function largurasColunas(px, colunas, largura, livres = false) {
     const lista = Array.from({ length: colunas }, (_, i) => { var _a; return (_a = px[i]) !== null && _a !== void 0 ? _a : null; });
     const conhecidas = lista.filter((w) => w !== null);
     if (!conhecidas.length)
         return Array(colunas).fill('*');
+    // Cabeçalho/rodapé: coluna sem largura ocupa o resto, como na tela (logotipo fixo, texto ao lado).
+    // ponytail: o corpo segue com a média, para não mudar a paginação de documentos já juntados.
+    if (livres && conhecidas.length < colunas)
+        return lista.map((w) => (w === null ? '*' : Math.round(w * 75) / 100));
     const media = conhecidas.reduce((s, w) => s + w, 0) / conhecidas.length;
     const todas = lista.map((w) => w !== null && w !== void 0 ? w : media);
     const total = todas.reduce((s, w) => s + w, 0);
@@ -217,6 +221,7 @@ function largurasColunas(px, colunas, largura) {
 }
 /** Documento do editor → PDF. Devolve os bytes e o número de páginas. */
 async function renderizarDocumento(doc, cfg = {}, meta = {}) {
+    var _a, _b;
     const mapa = meta.legado ? documento_1.FONTES_LEGADO : documento_1.FONTES;
     // Papel, margens e estilos do documento (doc.attrs.layout); sem eles, A4 com 3/2/2,5/2,2 cm.
     const layout = (0, layoutDocumento_1.layoutDe)(doc);
@@ -228,10 +233,39 @@ async function renderizarDocumento(doc, cfg = {}, meta = {}) {
     const areaUtil = w * CM - MARGENS[0] - MARGENS[2];
     const linhas = meta.semCabecalho ? [] : (cfg.cabecalho_linhas || []).filter(Boolean);
     const brasao = meta.semCabecalho ? null : cfg.brasao || null;
-    const temCabecalho = linhas.length > 0 || !!brasao;
+    // Cabeçalho, rodapé e número de página (layout.cabecalho/rodape/numero_pagina); sem eles, o de sempre.
+    const fCab = layout.cabecalho || {};
+    const fRod = layout.rodape || {};
+    const np = layout.numero_pagina || {};
+    const posNum = np.posicao || 'rodape-direita';
+    const timbrado = (fCab.modo || 'unidade') === 'unidade' && (linhas.length > 0 || !!brasao);
+    const cabProprio = fCab.modo === 'proprio' && !!((_a = fCab.conteudo) === null || _a === void 0 ? void 0 : _a.length);
+    const rodProprio = fRod.modo === 'proprio' && !!((_b = fRod.conteudo) === null || _b === void 0 ? void 0 : _b.length);
+    const rodUnidade = (fRod.modo || 'unidade') === 'unidade';
+    const numCab = posNum.startsWith('cabecalho');
+    const numRod = posNum.startsWith('rodape');
+    // O de sempre: rodapé da unidade e "Página X de Y" à direita na mesma linha.
+    const rodapeClassico = rodUnidade && posNum === 'rodape-direita' && !np.formato && !np.tamanho;
+    const DIST = layoutDocumento_1.DISTANCIA_FAIXA * CM;
+    const tamNum = np.tamanho || layoutDocumento_1.TAMANHO_NUMERO;
+    const altNum = tamNum * 1.3;
+    const comNumero = (n) => posNum !== 'nenhum' && !(n === 1 && np.primeira === false);
+    const numero = (n, total) => ({
+        text: (0, layoutDocumento_1.textoNumero)(np.formato, n, total), fontSize: tamNum, color: '#64748b', font: fonte,
+        alignment: posNum.endsWith('centro') ? 'center' : posNum.endsWith('esquerda') ? 'left' : 'right',
+    });
+    const ctxFaixa = { mapa, layout, numeros: new Map(), faixa: true };
+    const desenhar = (nos, n, total) => (0, layoutDocumento_1.trocarPagina)(nos, n, total).map((b) => bloco(b, fonte, areaUtil, ctxFaixa)).filter(Boolean);
+    const base = { defaultStyle: { font: fonte, fontSize: normal.tamanho || Number(cfg.tamanho_padrao) || 12, lineHeight: 1.15 } };
+    // Altura real do cabeçalho/rodapé próprio: o texto do corpo começa abaixo dele, como no Word.
+    const altCabProprio = cabProprio ? alturaDe(desenhar(fCab.conteudo, 999, 999), areaUtil, base) : 0;
+    const altRodProprio = rodProprio ? alturaDe(desenhar(fRod.conteudo, 999, 999), areaUtil, base) : 0;
+    const temCabecalho = timbrado || cabProprio || numCab;
     // Com timbrado, o texto começa abaixo dele (como sempre); margem superior própria só se for maior.
     const altCab = 40 + (brasao ? 50 : 0) + linhas.length * 13;
-    const topo = temCabecalho ? Math.max(altCab, layout.margens ? mg.sup * CM : 0) : mg.sup * CM;
+    const topo = timbrado ? Math.max(altCab, layout.margens ? mg.sup * CM : 0)
+        : temCabecalho ? Math.max(mg.sup * CM, DIST + altCabProprio + (numCab ? altNum : 0) + 8) : mg.sup * CM;
+    const inferior = rodProprio ? Math.max(mg.inf * CM, DIST + altRodProprio + (numRod ? altNum : 0) + 6) : mg.inf * CM;
     const ctx = { mapa, layout, numeros: (0, layoutDocumento_1.numerosAutomaticos)(doc) };
     const corpo = (doc.content || []).map((b) => bloco(b, fonte, areaUtil, ctx)).filter(Boolean);
     const assinaturas = meta.assinaturas || [];
@@ -255,28 +289,39 @@ async function renderizarDocumento(doc, cfg = {}, meta = {}) {
             layout: { hLineColor: () => '#cbd5e1', vLineColor: () => '#cbd5e1', hLineWidth: () => 0.6, vLineWidth: () => 0.6, paddingLeft: () => 8, paddingRight: () => 8, paddingTop: () => 6, paddingBottom: () => 6 },
         });
     }
-    const def = {
-        pageSize: { width: Math.round(w * CM * 100) / 100, height: Math.round(h * CM * 100) / 100 },
-        pageMargins: [MARGENS[0], topo, MARGENS[2], mg.inf * CM],
-        defaultStyle: { font: fonte, fontSize: normal.tamanho || Number(cfg.tamanho_padrao) || 12, lineHeight: 1.15 },
-        info: { creator: 'SIGO — Processo Eletrônico', producer: 'SIGO' },
-        content: corpo.length ? corpo : [{ text: ' ' }],
-        header: temCabecalho ? () => ({
-            margin: [MARGENS[0], 24, MARGENS[2], 0],
-            stack: [
-                ...(brasao ? [{ image: brasao, fit: [46, 46], alignment: 'center', margin: [0, 0, 0, 4] }] : []),
-                ...linhas.map((l, i) => ({ text: winAnsiSe(fonte, l), alignment: 'center', fontSize: i === 0 ? 11 : 9, bold: i === 0, font: fonte })),
-            ],
-        }) : undefined,
-        footer: (atual, total) => ({
-            margin: [MARGENS[0], 18, MARGENS[2], 0],
-            columns: [
-                { text: winAnsiSe(fonte, cfg.rodape || ''), fontSize: 7.5, color: '#64748b', font: fonte },
-                { text: `Página ${atual} de ${total}`, alignment: 'right', fontSize: 7.5, color: '#64748b', width: 90, font: fonte },
-            ],
-        }),
-        watermark: meta.marcaDagua ? { text: meta.marcaDagua, opacity: 0.08, bold: true, angle: -45 } : undefined,
-    };
+    const def = Object.assign(Object.assign({ pageSize: { width: Math.round(w * CM * 100) / 100, height: Math.round(h * CM * 100) / 100 }, pageMargins: [MARGENS[0], topo, MARGENS[2], inferior] }, base), { info: { creator: 'SIGO — Processo Eletrônico', producer: 'SIGO' }, content: corpo.length ? corpo : [{ text: ' ' }], header: temCabecalho ? (atual, total) => {
+            const partes = [];
+            if ((0, layoutDocumento_1.faixaNaPagina)(fCab, atual === 1)) {
+                if (timbrado) {
+                    if (brasao)
+                        partes.push({ image: brasao, fit: [46, 46], alignment: 'center', margin: [0, 0, 0, 4] });
+                    linhas.forEach((l, i) => partes.push({ text: winAnsiSe(fonte, l), alignment: 'center', fontSize: i === 0 ? 11 : 9, bold: i === 0, font: fonte }));
+                }
+                else if (cabProprio)
+                    partes.push(...desenhar(fCab.conteudo, atual, total));
+            }
+            if (numCab && comNumero(atual))
+                partes.push(numero(atual, total));
+            return { margin: [MARGENS[0], timbrado ? 24 : DIST, MARGENS[2], 0], stack: partes.length ? partes : [{ text: '' }] };
+        } : undefined, footer: (atual, total) => {
+            const naPagina = (0, layoutDocumento_1.faixaNaPagina)(fRod, atual === 1);
+            const textoUnidade = { text: winAnsiSe(fonte, naPagina && rodUnidade ? cfg.rodape || '' : ''), fontSize: 7.5, color: '#64748b', font: fonte };
+            if (rodapeClassico) {
+                return {
+                    margin: [MARGENS[0], 18, MARGENS[2], 0],
+                    columns: [textoUnidade, { text: comNumero(atual) ? `Página ${atual} de ${total}` : '', alignment: 'right', fontSize: 7.5, color: '#64748b', width: 90, font: fonte }],
+                };
+            }
+            const partes = [];
+            if (naPagina && rodProprio)
+                partes.push(...desenhar(fRod.conteudo, atual, total));
+            else if (naPagina && rodUnidade && cfg.rodape)
+                partes.push(textoUnidade);
+            if (numRod && comNumero(atual))
+                partes.push(numero(atual, total));
+            const alt = (rodProprio ? altRodProprio : 10) + (numRod ? altNum : 0);
+            return { margin: [MARGENS[0], Math.max(4, inferior - DIST - alt), MARGENS[2], 0], stack: partes.length ? partes : [{ text: '' }] };
+        }, watermark: meta.marcaDagua ? { text: meta.marcaDagua, opacity: 0.08, bold: true, angle: -45 } : undefined });
     const pdf = printer().createPdfKitDocument(def);
     const partes = [];
     const buffer = await new Promise((ok, erro) => {
@@ -287,6 +332,14 @@ async function renderizarDocumento(doc, cfg = {}, meta = {}) {
     });
     const paginas = (await pdfLib().PDFDocument.load(buffer)).getPageCount();
     return { buffer, paginas };
+}
+/** Altura (pt) que um conteúdo ocupa na largura dada: o pdfmake diagrama e conta onde acaba. */
+function alturaDe(conteudo, largura, base) {
+    let fim = 0;
+    const pdf = printer().createPdfKitDocument(Object.assign(Object.assign({}, base), { pageSize: { width: largura, height: 14400 }, pageMargins: [0, 0, 0, 0], content: [...conteudo, { text: ' ', id: '__fim' }], pageBreakBefore: (n) => { if (n.id === '__fim')
+            fim = n.startPosition.top; return false; } }));
+    pdf.end();
+    return fim;
 }
 function winAnsiSe(fonte, t) {
     return SO_WINANSI.has(fonte) ? winAnsi(t) : t;

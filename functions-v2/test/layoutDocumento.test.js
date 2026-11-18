@@ -127,3 +127,80 @@ test('Word sem layout: a página de sempre (A4, 3/2 cm, timbrado)', async () => 
     const num = await z.file('word/numbering.xml').async('string');
     assert.match(num, /<w:numFmt w:val="decimal"\/><w:lvlText w:val="%1."\/>/);
 });
+
+// Cabeçalho, rodapé e número de página (etapa 2).
+const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+test('sanitizeLayout: cabeçalho, rodapé e número de página', () => {
+    assert.equal(L.sanitizeLayout({ cabecalho: { modo: 'unidade', paginas: 'todas' }, numero_pagina: { posicao: 'rodape-direita', formato: 'pagina-de', tamanho: 7.5 } }), undefined, 'o de sempre: nada');
+    const l = L.sanitizeLayout({
+        cabecalho: { modo: 'proprio', paginas: 'primeira', conteudo: [p('{{orgao}} · {{pagina}}'), { type: 'script' }, { type: 'image', attrs: { src: PNG, width: 80 } }] },
+        rodape: { modo: 'xpto', paginas: 'nunca' },
+        numero_pagina: { posicao: 'cabecalho-centro', formato: 'traco', tamanho: 50, primeira: false },
+    });
+    assert.equal(l.cabecalho.modo, 'proprio');
+    assert.equal(l.cabecalho.paginas, 'primeira');
+    assert.deepEqual(l.cabecalho.conteudo.map((b) => b.type), ['paragraph', 'image'], 'nó estranho cai fora');
+    assert.equal(l.rodape, undefined);
+    assert.deepEqual(l.numero_pagina, { posicao: 'cabecalho-centro', formato: 'traco', primeira: false });
+    // O texto próprio fica guardado mesmo voltando ao timbrado da unidade.
+    assert.equal(L.sanitizeLayout({ cabecalho: { modo: 'unidade', conteudo: [p('x')] } }).cabecalho.conteudo.length, 1);
+    assert.equal(L.textoNumero(undefined, 2, 5), 'Página 2 de 5');
+    assert.equal(L.textoNumero('n-de', 2, 5), '2/5');
+    assert.equal(L.trocarPagina([p('fl. {{pagina}} de {{ paginas }}')], 3, 9)[0].content[0].text, 'fl. 3 de 9');
+    assert.equal(L.faixaNaPagina({ paginas: 'demais' }, true), false);
+    assert.equal(L.faixaNaPagina(undefined, true), true);
+});
+
+test('PDF: cabeçalho próprio alto empurra o texto, como no Word', async () => {
+    const corpo = Array.from({ length: 60 }, (_, i) => p(`Linha ${i + 1} do texto do documento.`));
+    const paginas = async (layout) => (await renderizarDocumento({ type: 'doc', ...(layout ? { attrs: { layout } } : {}), content: corpo }, { cabecalho_linhas: ['MP'], rodape: 'Rua X' })).paginas;
+    const sempre = await paginas(null);
+    const alto = await paginas(L.sanitizeLayout({ cabecalho: { modo: 'proprio', conteudo: Array.from({ length: 12 }, (_, i) => p(`Cabeçalho ${i} · {{pagina}}/{{paginas}}`)) } }));
+    assert.ok(alto > sempre, `cabeçalho de 12 linhas deve tomar espaço (${alto} > ${sempre})`);
+    const nenhum = await paginas(L.sanitizeLayout({ cabecalho: { modo: 'nenhum' }, rodape: { modo: 'nenhum' }, numero_pagina: { posicao: 'nenhum' } }));
+    assert.ok(nenhum <= sempre, 'sem cabeçalho cabe no mesmo ou menos');
+    const layout = L.sanitizeLayout({ rodape: { modo: 'proprio', paginas: 'demais', conteudo: [p('Folha {{pagina}}'), { type: 'image', attrs: { src: PNG, width: 40 } }] }, numero_pagina: { posicao: 'rodape-centro', primeira: false } });
+    const r = await renderizarDocumento({ type: 'doc', attrs: { layout }, content: corpo }, {});
+    assert.ok(r.paginas >= 2);
+});
+
+test('Word: cabeçalho próprio com campos de página, primeira página diferente e imagens', async () => {
+    const layout = L.sanitizeLayout({
+        cabecalho: { modo: 'proprio', paginas: 'primeira', conteudo: [{ type: 'image', attrs: { src: PNG, width: 80, align: 'center' } }, p('Página {{pagina}} de {{paginas}}')] },
+        numero_pagina: { posicao: 'rodape-centro', formato: 'n-de', primeira: false },
+    });
+    const z = await JSZip.loadAsync(await docParaDocx({ type: 'doc', attrs: { layout }, content: [{ type: 'image', attrs: { src: PNG, width: 50 } }, p('x')] }, { cabecalho_linhas: ['MP'], rodape: 'Rua X' }));
+    const corpo = await z.file('word/document.xml').async('string');
+    assert.match(corpo, /<w:titlePg\/>/);
+    const rels = await z.file('word/_rels/document.xml.rels').async('string');
+    const parte = async (tag, tipo) => {
+        const id = corpo.match(new RegExp(`<w:${tag}Reference w:type="${tipo}" r:id="(rId\\d+)"`))[1];
+        return z.file(`word/${rels.match(new RegExp(`Id="${id}"[^>]*Target="([^"]+)"`))[1]}`).async('string');
+    };
+    const primeira = await parte('header', 'first');
+    const demais = await parte('header', 'default');
+    assert.match(primeira, /<w:instrText xml:space="preserve"> PAGE <\/w:instrText>/);
+    assert.match(primeira, /NUMPAGES/);
+    assert.match(primeira, /<a:blip r:embed=/);
+    assert.doesNotMatch(primeira, />MP</, 'timbrado da unidade não entra');
+    assert.doesNotMatch(demais, /PAGE|blip/, 'só na primeira');
+    assert.doesNotMatch(await parte('footer', 'first'), /PAGE/, 'sem número na primeira');
+    const rodDemais = await parte('footer', 'default');
+    assert.match(rodDemais, /<w:jc w:val="center"\/>/);
+    assert.match(rodDemais, /PAGE.*>\/<.*NUMPAGES/s, 'formato 1/5');
+    const midias = Object.keys(z.files).filter((f) => f.startsWith('word/media/') && !f.endsWith('/'));
+    assert.equal(midias.length, 2, 'imagem do corpo e do cabeçalho em arquivos distintos');
+    const ct = await z.file('[Content_Types].xml').async('string');
+    for (const f of Object.keys(z.files).filter((x) => /^word\/(header|footer)\d+\.xml$/.test(x))) assert.match(ct, new RegExp(`/${f}"`));
+});
+
+test('Word sem layout: cabeçalho e rodapé de sempre (header1 e footer1)', async () => {
+    const z = await JSZip.loadAsync(await docParaDocx({ type: 'doc', content: [p('x')] }, { cabecalho_linhas: ['MP'], rodape: 'Rua X', brasao: PNG }));
+    const corpo = await z.file('word/document.xml').async('string');
+    assert.doesNotMatch(corpo, /titlePg|w:type="first"/);
+    assert.match(await z.file('word/header1.xml').async('string'), />MP</);
+    const rod = await z.file('word/footer1.xml').async('string');
+    assert.match(rod, /Rua X<\/w:t><\/w:r><w:r><w:rPr><w:sz w:val="15"\/><\/w:rPr><w:tab\/><w:t xml:space="preserve">Página /);
+    assert.ok(z.file('word/_rels/header1.xml.rels'), 'brasão no cabeçalho');
+});

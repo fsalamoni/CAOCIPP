@@ -11,7 +11,9 @@ var __rest = (this && this.__rest) || function (s, e) {
     return t;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.numeroParagrafo = exports.margens = exports.layoutDe = exports.FORMATOS_LISTA = exports.MARCADORES = exports.FORMATOS_TITULO = exports.FORMATOS_PARAGRAFO = exports.ESTILOS_PADRAO = exports.CHAVES_ESTILO = exports.MARGENS_PADRAO = exports.PAPEIS = void 0;
+exports.numeroParagrafo = exports.margens = exports.layoutDe = exports.FORMATOS_LISTA = exports.MARCADORES = exports.FORMATOS_TITULO = exports.FORMATOS_PARAGRAFO = exports.ESTILOS_PADRAO = exports.CHAVES_ESTILO = exports.TOKEN_PAGINA = exports.faixaNaPagina = exports.DISTANCIA_FAIXA = exports.TAMANHO_NUMERO = exports.FORMATOS_NUMERO = exports.POSICOES_NUMERO = exports.PAGINAS_FAIXA = exports.MODOS_FAIXA = exports.MARGENS_PADRAO = exports.PAPEIS = void 0;
+exports.textoNumero = textoNumero;
+exports.trocarPagina = trocarPagina;
 exports.sanitizeLayout = sanitizeLayout;
 exports.folha = folha;
 exports.estiloDoBloco = estiloDoBloco;
@@ -33,6 +35,75 @@ exports.PAPEIS = {
 };
 /** Margens de sempre do SIGO: as do PDF dos autos desde o início. */
 exports.MARGENS_PADRAO = { sup: 2.5, inf: 2.2, esq: 3, dir: 2 };
+exports.MODOS_FAIXA = ['unidade', 'proprio', 'nenhum'];
+exports.PAGINAS_FAIXA = ['todas', 'primeira', 'demais'];
+exports.POSICOES_NUMERO = ['rodape-direita', 'rodape-centro', 'rodape-esquerda', 'cabecalho-direita', 'cabecalho-centro', 'cabecalho-esquerda', 'nenhum'];
+exports.FORMATOS_NUMERO = ['pagina-de', 'pagina', 'n', 'n-de', 'traco'];
+/** Tamanho do número de página de sempre (pt). */
+exports.TAMANHO_NUMERO = 7.5;
+/** Distância do cabeçalho à borda de cima e do rodapé à de baixo (cm), como no Word. */
+exports.DISTANCIA_FAIXA = 1.25;
+/** Texto do número da página no formato escolhido. */
+function textoNumero(formato, n, total) {
+    if (formato === 'pagina')
+        return `Página ${n}`;
+    if (formato === 'n')
+        return String(n);
+    if (formato === 'n-de')
+        return `${n}/${total}`;
+    if (formato === 'traco')
+        return `– ${n} –`;
+    return `Página ${n} de ${total}`;
+}
+/** A faixa aparece nesta página? */
+const faixaNaPagina = (f, primeira) => !(f === null || f === void 0 ? void 0 : f.paginas) || f.paginas === 'todas' || (f.paginas === 'primeira') === primeira;
+exports.faixaNaPagina = faixaNaPagina;
+/** {{pagina}} e {{paginas}} nos textos do cabeçalho/rodapé próprio. */
+exports.TOKEN_PAGINA = /\{\{\s*(pagina|paginas)\s*\}\}/g;
+function trocarPagina(nos, n, total) {
+    const andar = (x) => (x.type === 'text' && x.text
+        ? Object.assign(Object.assign({}, x), { text: x.text.replace(exports.TOKEN_PAGINA, (_m, k) => String(k === 'paginas' ? total : n)) }) : x.content ? Object.assign(Object.assign({}, x), { content: x.content.map(andar) }) : x);
+    return (nos || []).map(andar);
+}
+/** Conteúdo próprio passa pela mesma lista fechada do documento. */
+function limparConteudo(v) {
+    if (!Array.isArray(v) || !v.length)
+        return undefined;
+    const d = (0, documento_1.sanitizeDoc)({ type: 'doc', content: v.slice(0, 60) });
+    const vazio = (d.content || []).every((b) => b.type === 'paragraph' && !b.content);
+    return vazio ? undefined : d.content;
+}
+function sanitizeFaixa(v) {
+    if (!v || typeof v !== 'object')
+        return undefined;
+    const o = v;
+    const f = {};
+    if (exports.MODOS_FAIXA.includes(String(o.modo)) && o.modo !== 'unidade')
+        f.modo = o.modo;
+    // O texto próprio fica guardado mesmo com outro modo: voltar a ele não perde nada.
+    const c = limparConteudo(o.conteudo);
+    if (c)
+        f.conteudo = c;
+    if (exports.PAGINAS_FAIXA.includes(String(o.paginas)) && o.paginas !== 'todas')
+        f.paginas = o.paginas;
+    return Object.keys(f).length ? f : undefined;
+}
+function sanitizeNumero(v) {
+    if (!v || typeof v !== 'object')
+        return undefined;
+    const o = v;
+    const n = {};
+    if (exports.POSICOES_NUMERO.includes(String(o.posicao)) && o.posicao !== 'rodape-direita')
+        n.posicao = String(o.posicao);
+    if (exports.FORMATOS_NUMERO.includes(String(o.formato)) && o.formato !== 'pagina-de')
+        n.formato = String(o.formato);
+    const t = num(o.tamanho, 6, 16, 1);
+    if (t !== undefined && t !== exports.TAMANHO_NUMERO)
+        n.tamanho = t;
+    if (o.primeira === false)
+        n.primeira = false;
+    return Object.keys(n).length ? n : undefined;
+}
 exports.CHAVES_ESTILO = ['normal', 'h1', 'h2', 'h3', 'h4', 'citacao'];
 /** Como os estilos saem quando o documento não muda nada (o de sempre). */
 exports.ESTILOS_PADRAO = {
@@ -127,6 +198,15 @@ function sanitizeLayout(v) {
         l.numeracao_titulos = String(o.numeracao_titulos);
     if (exports.FORMATOS_PARAGRAFO.includes(String(o.numeracao_paragrafos)) && o.numeracao_paragrafos !== '1.')
         l.numeracao_paragrafos = String(o.numeracao_paragrafos);
+    const cab = sanitizeFaixa(o.cabecalho);
+    if (cab)
+        l.cabecalho = cab;
+    const rod = sanitizeFaixa(o.rodape);
+    if (rod)
+        l.rodape = rod;
+    const np = sanitizeNumero(o.numero_pagina);
+    if (np)
+        l.numero_pagina = np;
     return Object.keys(l).length ? l : undefined;
 }
 const layoutDe = (doc) => { var _a; return (((_a = doc === null || doc === void 0 ? void 0 : doc.attrs) === null || _a === void 0 ? void 0 : _a.layout) || {}); };

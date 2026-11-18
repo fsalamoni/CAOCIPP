@@ -5,6 +5,21 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 18/11/2026 — Cabeçalho, rodapé, número de página e imagens nos modelos (etapa 2 de 2)
+- Nova aba **Cabeçalho e rodapé** em Página: cada um pode ser o timbrado da
+  unidade, um **próprio do documento** (texto, logotipo, tabela, com fonte,
+  tamanho e alinhamento livres) ou nenhum, e aparecer em todas as páginas, só
+  na primeira ou em todas menos a primeira. "Número da página" e "Total de
+  páginas" entram como campos ({{pagina}}, {{paginas}}).
+- **Número de página** no rodapé ou no cabeçalho, à esquerda, ao centro ou à
+  direita, em "Página 1 de 5", "Página 1", "1", "1/5" ou "– 1 –", com tamanho
+  e a opção de não numerar a primeira página.
+- **Imagens**: arrastar os cantos redimensiona; largura exata em cm.
+- **Prévia em PDF** e **Word** do modelo, direto do editor de modelo, sem
+  salvar.
+- PDF dos autos e Word saem como a tela; no Word, cabeçalho e rodapé são os
+  nativos, com "Primeira página diferente". Documento sem essas opções não muda.
+
 ### 18/11/2026 — Página e estilos nos modelos de documento (etapa 1 de 2)
 - O editor de modelos e minutas ganhou o botão **Página**: papel (A4, Ofício,
   Carta, A5), retrato ou paisagem e margens em cm, com margens prontas (SIGO,

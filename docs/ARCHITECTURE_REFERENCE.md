@@ -163,8 +163,8 @@ Word e LibreOffice convertidos no servidor por leitores próprios do XML
 (`docx.ts`, `odt.ts`; `mammoth` só para refazer folhas antigas), Word antigo
 com `word-extractor` e Excel com `xlsx`, todo pacote ZIP conferido antes por
 `abrirZip` (limite de descompressão); editor no
-navegador com TipTap. Papel, margens, estilos e numeração automática do
-documento ficam em `doc.attrs.layout` (`shared/layoutDocumento.ts`, espelho em
+navegador com TipTap. Papel, margens, estilos, numeração automática,
+cabeçalho, rodapé e número de página do documento ficam em `doc.attrs.layout` (`shared/layoutDocumento.ts`, espelho em
 `src/lib/layoutDocumento.js`) e valem no editor, no PDF e no .docx. Página pública `/Conferir` e alerta diário de prazos
 (`secretariaAlertaPrazos`, Cloud Scheduler). Modelo completo em
 [PROCESSO_ELETRONICO.md](./PROCESSO_ELETRONICO.md).

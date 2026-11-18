@@ -485,6 +485,32 @@ Regras comuns:
   - Servidor: `shared/layoutDocumento.ts` (`sanitizeLayout`, lista fechada e só
     o que difere do padrão; `estiloDoBloco`; `numerosAutomaticos`). Tela:
     `src/lib/layoutDocumento.js` (espelho conferido em teste; `cssDoLayout`).
+  - *Cabeçalho e rodapé (etapa 2, 18/11/2026):* quarta aba da janela. Cada
+    um pode ser o da unidade (timbrado e rodapé de sempre), **próprio do
+    documento** (`layout.cabecalho/rodape.modo = 'proprio'`, `conteudo` com
+    os mesmos blocos do texto: parágrafos, imagens, tabelas, sem bordas para
+    logotipo ao lado do texto) ou nenhum; e aparecer em todas as páginas, só
+    na primeira ou em todas menos a primeira (`paginas`). O próprio nasce do
+    timbrado ("Recomeçar do timbrado") e é editado num editor compacto
+    (`EditorDocumento` com `faixa`). `{{pagina}}` e `{{paginas}}` (em Campos)
+    saem com o número de cada folha; os outros campos do modelo se preenchem
+    na minuta como no texto. O texto próprio fica guardado mesmo voltando ao
+    timbrado. No PDF, o corpo começa abaixo do cabeçalho próprio (altura
+    medida pelo pdfmake, `alturaDe`), como no Word; a margem de cima é a mesma
+    em todas as folhas. No Word, viram cabeçalhos/rodapés nativos com campos
+    PAGE e NUMPAGES e "Primeira página diferente" (`titlePg`).
+  - *Número de página:* posição (rodapé ou cabeçalho, à esquerda, ao centro
+    ou à direita, ou sem número), formato (Página 1 de 5, Página 1, 1, 1/5,
+    – 1 –), tamanho e "mostrar na primeira página" (`layout.numero_pagina`).
+    Sem nada, "Página X de Y" à direita do rodapé, como sempre.
+  - *Imagens:* arrastar os cantos redimensiona (proporção mantida); largura
+    exata em cm na barra "Imagem", além de 25/50/75/100% da área útil da
+    página escolhida; posição à esquerda, ao centro ou à direita.
+  - *Prévia do modelo:* no editor de modelo, **Prévia em PDF** (como sai nos
+    autos, com marca d'água MODELO) e **Word** (.docx), sem salvar (ação
+    `previaModelo` de `secretariaConfig`, mesma permissão de salvar o modelo).
+  - Limites: texto contornando imagem (imagem flutuante) não existe; a
+    importação de .docx não traz o layout, o cabeçalho nem o rodapé do Word.
 - **Revisar no editor qualquer minuta:** a minuta enviada como arquivo tem
   "Abrir no editor" (ação `paraEditor`). A conversão é feita no servidor, sem
   programa externo: Word .docx (`docx.ts`: estilos e herança, fontes do tema,

@@ -4,7 +4,7 @@
  * (modelo → minuta → PDF dos autos → .docx) e é opcional: documento sem layout
  * sai exatamente como antes. Sem dependência do Firebase, para testar direto.
  */
-import { FONTES, No } from './documento';
+import { FONTES, No, sanitizeDoc } from './documento';
 
 /** Papel em cm (largura × altura, em retrato). */
 export const PAPEIS: Record<string, { nome: string; w: number; h: number }> = {
@@ -43,6 +43,82 @@ export interface Layout {
     numeracao_titulos?: string;
     /** Formato do número dos parágrafos marcados como numerados. */
     numeracao_paragrafos?: string;
+    /** Sem: timbrado da unidade em todas as páginas (o de sempre). */
+    cabecalho?: Faixa;
+    /** Sem: rodapé da unidade em todas as páginas (o de sempre). */
+    rodape?: Faixa;
+    /** Sem: "Página X de Y" à direita do rodapé (o de sempre). */
+    numero_pagina?: NumeroPagina;
+}
+
+/**
+ * Cabeçalho ou rodapé: o da unidade (timbrado), um próprio do documento
+ * (texto, imagens, tabelas, com {{pagina}} e {{paginas}}) ou nenhum; e em
+ * quais páginas aparece (todas, só a primeira, todas menos a primeira).
+ */
+export interface Faixa { modo?: 'unidade' | 'proprio' | 'nenhum'; conteudo?: No[]; paginas?: 'todas' | 'primeira' | 'demais' }
+export interface NumeroPagina { posicao?: string; formato?: string; tamanho?: number; primeira?: boolean }
+
+export const MODOS_FAIXA = ['unidade', 'proprio', 'nenhum'];
+export const PAGINAS_FAIXA = ['todas', 'primeira', 'demais'];
+export const POSICOES_NUMERO = ['rodape-direita', 'rodape-centro', 'rodape-esquerda', 'cabecalho-direita', 'cabecalho-centro', 'cabecalho-esquerda', 'nenhum'];
+export const FORMATOS_NUMERO = ['pagina-de', 'pagina', 'n', 'n-de', 'traco'];
+/** Tamanho do número de página de sempre (pt). */
+export const TAMANHO_NUMERO = 7.5;
+/** Distância do cabeçalho à borda de cima e do rodapé à de baixo (cm), como no Word. */
+export const DISTANCIA_FAIXA = 1.25;
+
+/** Texto do número da página no formato escolhido. */
+export function textoNumero(formato: string | undefined, n: number, total: number): string {
+    if (formato === 'pagina') return `Página ${n}`;
+    if (formato === 'n') return String(n);
+    if (formato === 'n-de') return `${n}/${total}`;
+    if (formato === 'traco') return `– ${n} –`;
+    return `Página ${n} de ${total}`;
+}
+
+/** A faixa aparece nesta página? */
+export const faixaNaPagina = (f: Faixa | undefined, primeira: boolean) => !f?.paginas || f.paginas === 'todas' || (f.paginas === 'primeira') === primeira;
+
+/** {{pagina}} e {{paginas}} nos textos do cabeçalho/rodapé próprio. */
+export const TOKEN_PAGINA = /\{\{\s*(pagina|paginas)\s*\}\}/g;
+export function trocarPagina(nos: No[] | undefined, n: number, total: number): No[] {
+    const andar = (x: No): No => (x.type === 'text' && x.text
+        ? { ...x, text: x.text.replace(TOKEN_PAGINA, (_m, k) => String(k === 'paginas' ? total : n)) }
+        : x.content ? { ...x, content: x.content.map(andar) } : x);
+    return (nos || []).map(andar);
+}
+
+/** Conteúdo próprio passa pela mesma lista fechada do documento. */
+function limparConteudo(v: unknown): No[] | undefined {
+    if (!Array.isArray(v) || !v.length) return undefined;
+    const d = sanitizeDoc({ type: 'doc', content: v.slice(0, 60) });
+    const vazio = (d.content || []).every((b) => b.type === 'paragraph' && !b.content);
+    return vazio ? undefined : d.content;
+}
+
+function sanitizeFaixa(v: unknown): Faixa | undefined {
+    if (!v || typeof v !== 'object') return undefined;
+    const o = v as Record<string, unknown>;
+    const f: Faixa = {};
+    if (MODOS_FAIXA.includes(String(o.modo)) && o.modo !== 'unidade') f.modo = o.modo as Faixa['modo'];
+    // O texto próprio fica guardado mesmo com outro modo: voltar a ele não perde nada.
+    const c = limparConteudo(o.conteudo);
+    if (c) f.conteudo = c;
+    if (PAGINAS_FAIXA.includes(String(o.paginas)) && o.paginas !== 'todas') f.paginas = o.paginas as Faixa['paginas'];
+    return Object.keys(f).length ? f : undefined;
+}
+
+function sanitizeNumero(v: unknown): NumeroPagina | undefined {
+    if (!v || typeof v !== 'object') return undefined;
+    const o = v as Record<string, unknown>;
+    const n: NumeroPagina = {};
+    if (POSICOES_NUMERO.includes(String(o.posicao)) && o.posicao !== 'rodape-direita') n.posicao = String(o.posicao);
+    if (FORMATOS_NUMERO.includes(String(o.formato)) && o.formato !== 'pagina-de') n.formato = String(o.formato);
+    const t = num(o.tamanho, 6, 16, 1);
+    if (t !== undefined && t !== TAMANHO_NUMERO) n.tamanho = t;
+    if (o.primeira === false) n.primeira = false;
+    return Object.keys(n).length ? n : undefined;
 }
 
 export const CHAVES_ESTILO = ['normal', 'h1', 'h2', 'h3', 'h4', 'citacao'] as const;
@@ -126,6 +202,12 @@ export function sanitizeLayout(v: unknown): Layout | undefined {
     }
     if (FORMATOS_TITULO.includes(String(o.numeracao_titulos)) && o.numeracao_titulos) l.numeracao_titulos = String(o.numeracao_titulos);
     if (FORMATOS_PARAGRAFO.includes(String(o.numeracao_paragrafos)) && o.numeracao_paragrafos !== '1.') l.numeracao_paragrafos = String(o.numeracao_paragrafos);
+    const cab = sanitizeFaixa(o.cabecalho);
+    if (cab) l.cabecalho = cab;
+    const rod = sanitizeFaixa(o.rodape);
+    if (rod) l.rodape = rod;
+    const np = sanitizeNumero(o.numero_pagina);
+    if (np) l.numero_pagina = np;
     return Object.keys(l).length ? l : undefined;
 }
 
