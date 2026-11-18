@@ -1,11 +1,15 @@
 import React, { useContext, useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, ChevronDown, CircleDashed, LayoutGrid, Wand2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { AlertTriangle, CheckCircle2, ChevronDown, CircleDashed, LayoutGrid, Sparkles, Wand2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { NativeSelect } from './comum';
 import { RegistroContexto } from './SeletorRegistro';
+import { upsertEntityType } from '@/services/customEntitiesService';
 import {
-    alvoDe, alvoDoRito, aplicarIntegracao, camposParaLevar, paineisDisponiveis, relatorioIntegracao, sugestoesDeIntegracao, valorDoAlvo,
+    alvoDe, alvoDoRito, aplicarIntegracao, camposParaLevar, ligarAoPainelGerado, paineisDisponiveis, painelDoRito, relatorioIntegracao, sugestoesDeIntegracao, valorDoAlvo,
 } from '@/lib/painelModulos';
 
 // Integração do rito com o painel do órgão (Consultas, Expedientes, Parcerias
@@ -26,9 +30,9 @@ function EstadoInfo({ info }) {
 /**
  * Painel "Integração com o painel" no editor do rito. `fases`: as do rito em
  * edição; `onAplicar(fases, n)`: grava as fases com as sugestões aplicadas;
- * `irParaFase(id)`: abre a fase no editor.
+ * `irParaFase(id)`: abre a fase no editor; `nomeRito`: sugere o nome do painel gerado.
  */
-export default function IntegracaoPainel({ fases, onAplicar, irParaFase }) {
+export default function IntegracaoPainel({ fases, onAplicar, irParaFase, nomeRito }) {
     const { ligadas, paginas } = useContext(RegistroContexto);
     const opcoes = paineisDisponiveis(ligadas, paginas);
     const doRito = alvoDoRito(fases);
@@ -58,6 +62,7 @@ export default function IntegracaoPainel({ fases, onAplicar, irParaFase }) {
                     <p className="text-xs text-slate-700 dark:text-slate-300">
                         Cada fase pode mover o cartão do processo no painel (a coluna dele no quadro) e cada ação pode levar o dado que pede para a ficha do registro. Aqui você vê, coluna por coluna, se o rito cobre o que o painel precisa e aplica de uma vez o que o SIGO reconheceu pelos nomes. Para funcionar, o processo precisa estar ligado ao registro: nascer dele, ou o tipo de processo criá-lo na autuação.
                     </p>
+                    <GerarPainel fases={fases} nomeRito={nomeRito} onGerado={(novas, id, nome) => { setEscolhido(`paginas:${id}`); setFora(new Set()); onAplicar(novas, novas.filter((f, i) => f !== fases[i]).length, `Painel ${nome} criado e ligado ao rito. Salve o rito e, no tipo de processo, marque "Criar registro na autuação" com ${nome}.`); }} />
                     {!opcoes.length ? (
                         <p className="text-sm text-amber-900 dark:text-amber-100">Nenhuma integração ligada. Ligue Consultas, Expedientes, Parcerias ou Páginas próprias em "Integrações com outros módulos", na configuração do Processo Eletrônico.</p>
                     ) : (
@@ -162,6 +167,69 @@ export function LevaAoPainel({ id, r, set }) {
             <NativeSelect id={`${id}-ap`} label="Leva ao painel" value={atual} onChange={(v) => set({ ao_registro: v ? { ...comAlvo(v), campo: v.split('|')[1] } : undefined })}
                 options={[['', 'Não leva'], ...opcoes(r.pede)]} />
             <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">{atual ? explica : 'Para o dado aparecer também no painel (ex.: a pasta na rede ou o destinatário da diligência), escolha o campo da ficha.'}</p>
+        </div>
+    );
+}
+
+/**
+ * "Gerar painel e planilha": cria uma página própria com uma coluna por fase
+ * do rito e um campo por dado que as ações pedem, e liga o rito a ela. A
+ * página é gravada na hora (upsertEntityType confere no servidor); o rito,
+ * ao salvar.
+ */
+function GerarPainel({ fases, nomeRito, onGerado }) {
+    const { orgId, ligadas } = useContext(RegistroContexto);
+    const [abrir, setAbrir] = useState(false);
+    const base = String(nomeRito || '').replace(/^Rito\s+(d[aeo]s?\s+)?/i, '').trim() || 'Registro';
+    const [singular, setSingular] = useState(base);
+    const [nomePlural, setNomePlural] = useState(base);
+    const [gravando, setGravando] = useState(false);
+    const g = useMemo(() => painelDoRito(fases, [singular || base, nomePlural || base]), [fases, singular, nomePlural, base]);
+    if (!ligadas?.paginas) {
+        return <p className="text-xs text-slate-600 dark:text-slate-400">Para gerar um painel próprio a partir do rito (colunas das fases, campos dos dados das ações), ligue Páginas próprias em "Integrações com outros módulos".</p>;
+    }
+    const gerar = async () => {
+        setGravando(true);
+        try {
+            const r = await upsertEntityType(orgId, g.def);
+            onGerado(ligarAoPainelGerado(fases, g, r.entityTypeId), r.entityTypeId, g.def.label_plural);
+            setAbrir(false);
+        } catch (e) {
+            toast.error(e?.message || 'Não foi possível criar o painel');
+        } finally { setGravando(false); }
+    };
+    if (!abrir) {
+        return (
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
+                <span>Nenhum painel serve? O SIGO monta um a partir do rito.</span>
+                <Button size="sm" variant="outline" className="h-11 sm:h-8 gap-1" onClick={() => setAbrir(true)}><Sparkles className="w-4 h-4" aria-hidden /> Gerar painel e planilha</Button>
+            </div>
+        );
+    }
+    const livres = fases.filter((f) => !f.situacao_registro?.modulo).length;
+    return (
+        <div className="rounded-md border border-indigo-200 dark:border-indigo-800 p-3 space-y-3">
+            <p className="text-sm font-semibold">Gerar painel e planilha do rito</p>
+            <p className="text-xs text-slate-700 dark:text-slate-300">Cria uma página própria do órgão, com quadro (uma coluna por fase) e planilha (um campo por dado que as ações pedem, mais o número do processo e o assunto). O rito passa a mover o cartão e a levar os dados para a ficha. Depois, ajuste a página à vontade em Páginas personalizadas.</p>
+            <div className="grid sm:grid-cols-2 gap-2 sm:max-w-lg">
+                <div><Label htmlFor="gp-s">Nome de um registro</Label><Input id="gp-s" className="mt-1" value={singular} onChange={(e) => setSingular(e.target.value)} placeholder="Contrato" /></div>
+                <div><Label htmlFor="gp-p">Nome do painel (plural)</Label><Input id="gp-p" className="mt-1" value={nomePlural} onChange={(e) => setNomePlural(e.target.value)} placeholder="Contratos" /></div>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-3 text-xs">
+                <div>
+                    <p className="font-medium mb-1">{plural(g.def.phases.length, 'coluna', 'colunas')}</p>
+                    <ol className="list-decimal pl-5 space-y-0.5">{g.def.phases.map((p) => <li key={p.key}>{p.label}{p.is_initial ? ' (onde nasce)' : ''}{p.is_final ? ' (final)' : ''}</li>)}</ol>
+                </div>
+                <div>
+                    <p className="font-medium mb-1">{plural(g.def.fields.length, 'campo', 'campos')}</p>
+                    <ul className="list-disc pl-5 space-y-0.5">{g.def.fields.map((c) => <li key={c.key}>{c.label}{c.phase ? ` · ${g.def.phases.find((p) => p.key === c.phase)?.label}` : ''}</li>)}</ul>
+                </div>
+            </div>
+            {livres < fases.length && <p className="text-xs text-amber-900 dark:text-amber-100">{plural(fases.length - livres, 'fase já conduz', 'fases já conduzem')} outro painel: {fases.length - livres === 1 ? 'vira' : 'viram'} coluna, mas continua{fases.length - livres === 1 ? '' : 'm'} movendo o outro.</p>}
+            <div className="flex flex-wrap gap-2">
+                <Button size="sm" disabled={gravando || !singular.trim() || !nomePlural.trim()} onClick={gerar}>{gravando ? 'Criando…' : 'Criar painel e ligar ao rito'}</Button>
+                <Button size="sm" variant="ghost" onClick={() => setAbrir(false)}>Cancelar</Button>
+            </div>
         </div>
     );
 }

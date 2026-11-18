@@ -357,3 +357,88 @@ export function alvoDoRito(fases) {
     const s = (fases || []).map((f) => f.situacao_registro || (f.acoes_regras || []).find((r) => r?.ao_registro)?.ao_registro).find((x) => x?.modulo);
     return s ? { modulo: s.modulo, ...(s.pagina ? { pagina: s.pagina } : {}) } : null;
 }
+
+// ---------------------------------------------------------------------------
+// Gerar o painel e a planilha do rito: uma página própria com uma coluna por
+// fase e um campo por dado que as ações pedem. A página é gravada pelo
+// upsertEntityType (que valida tudo no servidor) e o rito passa a conduzi-la.
+// ---------------------------------------------------------------------------
+
+const semAcentos = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+/** Chave de campo ou de fase: minúsculas, números e _ (começa por letra), até 40, sem repetir. */
+function chaveUnica(nome, usadas, prefixo) {
+    let base = semAcentos(nome).replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 34) || prefixo;
+    if (!/^[a-z]/.test(base)) base = `${prefixo}_${base}`.slice(0, 34);
+    let k = base;
+    for (let n = 2; usadas.has(k); n += 1) k = `${base}_${n}`;
+    usadas.add(k);
+    return k;
+}
+const opcoesDe = (lista) => [...new Set((lista || []).map((o) => String(o).trim()).filter(Boolean))].map((o) => ({ value: o, label: o }));
+/** Tipo do campo da página para o que a ação pede. */
+function tipoDoCampo(tipo, opcoes) {
+    if (tipo === 'data') return { type: 'date' };
+    if (tipo === 'numero') return { type: 'number' };
+    if (tipo === 'sim_nao') return { type: 'boolean' };
+    if (tipo === 'texto_longo') return { type: 'textarea' };
+    if (tipo === 'lista') return opcoesDe(opcoes).length ? { type: 'select', options: opcoesDe(opcoes) } : { type: 'text' };
+    return { type: 'text' };
+}
+
+/**
+ * O painel que o rito gera. `nome`: [singular, plural]. Devolve a definição
+ * da página (`def`) e onde cada fase e cada dado do rito foram parar, para
+ * `ligarAoPainelGerado`. Fase que já conduz outro painel entra como coluna,
+ * mas não é religada (uma fase conduz um painel só).
+ */
+export function painelDoRito(fases, [singular, plural]) {
+    const lista = (fases || []).filter((f) => f?.nome?.trim());
+    const chavesFase = new Set();
+    const colunas = lista.map((f, i) => ({ fase: f.id, key: chaveUnica(f.nome, chavesFase, 'fase'), label: f.nome.trim().slice(0, 60), order: i }));
+    const faseKey = Object.fromEntries(colunas.map((c) => [c.fase, c.key]));
+    const chavesCampo = new Set(['processo', 'assunto']);
+    const campos = [
+        { key: 'processo', label: 'Processo eletrônico', type: 'text', table: { show: true, order: 0 } },
+        { key: 'assunto', label: 'Assunto', type: 'textarea', table: { show: true, order: 1 } },
+    ];
+    const dados = [];
+    for (const d of dadosDoRito(lista)) {
+        const r = d.fase.acoes_regras?.[d.idx];
+        if (r?.ao_registro) continue; // já leva a outro painel
+        const opcoes = d.campoForm ? (r.campos || []).find((c) => c.id === d.campoForm)?.opcoes : r.opcoes;
+        const key = chaveUnica(d.rotulo, chavesCampo, 'campo');
+        campos.push({ key, label: String(d.rotulo).slice(0, 80), ...tipoDoCampo(d.tipo, opcoes), phase: faseKey[d.fase.id], table: { show: campos.length < 8, order: campos.length } });
+        dados.push({ fase: d.fase.id, idx: d.idx, campoForm: d.campoForm, key });
+    }
+    const def = {
+        label_singular: singular.trim().slice(0, 60), label_plural: plural.trim().slice(0, 60), enabled: true,
+        fields: campos,
+        phases: colunas.map((c, i) => ({ key: c.key, label: c.label, order: c.order, ...(i === 0 ? { is_initial: true } : {}), ...(lista[i].final ? { is_final: true } : {}) })),
+        table_layout: { columns: campos.filter((c) => c.table.show).map((c) => ({ field_key: c.key, order: c.table.order })) },
+    };
+    return { def, colunas, dados };
+}
+
+/** As fases do rito ligadas à página gerada (`pagina`: o id que o servidor devolveu). */
+export function ligarAoPainelGerado(fases, gerado, pagina) {
+    const coluna = Object.fromEntries(gerado.colunas.map((c) => [c.fase, c.key]));
+    const primeira = gerado.colunas[0]?.fase;
+    return fases.map((f) => {
+        const dados = gerado.dados.filter((d) => d.fase === f.id);
+        const livre = !f.situacao_registro?.modulo;
+        if (!coluna[f.id] || (!livre && !dados.length)) return f;
+        const regras = [...(f.acoes_regras || [])];
+        for (const d of dados) {
+            const r = regras[d.idx] || {};
+            const ao = d.campoForm
+                ? { modulo: 'paginas', pagina, campos: { ...(r.ao_registro?.pagina === pagina ? r.ao_registro.campos : {}), [d.campoForm]: d.key } }
+                : { modulo: 'paginas', pagina, campo: d.key };
+            regras[d.idx] = { ...r, ao_registro: ao };
+        }
+        return {
+            ...f,
+            ...(dados.length ? { acoes_regras: regras } : {}),
+            ...(livre ? { situacao_registro: { modulo: 'paginas', pagina, ao_entrar: coluna[f.id], ...(f.id === primeira ? { na_autuacao: true } : {}) } } : {}),
+        };
+    });
+}

@@ -1334,6 +1334,21 @@ opcionais; rito sem elas funciona como antes.
   o que falta), aplicadas por `aplicarIntegracao`. O pacote de rito leva a
   página de `ao_registro` pelo nome. Testes: `functions-v2/test/painelModulos.test.js`
   e `src/lib/painelModulos.test.js` (com o Rito Consultas CAOCIPP).
+- **Gerar painel e planilha do rito** (18/11/2026, etapa 2; "Integração com
+  o painel" → Gerar). `painelDoRito(fases, [singular, plural])` monta a
+  definição da página própria: uma fase da página por fase do rito (chaves
+  sem acento, únicas; a primeira inicial, as finais finais), os campos
+  `processo` e `assunto` e um campo por dado de ação (`dadosDoRito`; tipo
+  pelo que a ação pede: data, número, sim ou não, texto longo, lista com as
+  opções da ação ou texto), com `phase` na coluna da fase e `table_layout`
+  com os primeiros. A tela grava pela `upsertEntityType` de sempre
+  (`sanitizeEntityTypeDefinition`, permissão de gerenciar páginas, auditLogs
+  `CREATE_ENTITY_TYPE`) e aplica `ligarAoPainelGerado`: cada fase livre
+  ganha `situacao_registro` da página (a primeira com `na_autuacao`) e cada
+  ação, `ao_registro` para o seu campo. Fase que já conduz outro painel e
+  ação que já leva a outro ficam como estão. O rito só muda ao salvar
+  (`salvarRito` confere de novo). O tipo de processo cria o registro com
+  "Criar registro na autuação".
 - **Assumir.** Na tela do processo, quem está lotado na unidade que tem o
   processo vê o botão **Assumir** enquanto ele não tem responsável (é a ação
   `atribuir` para si mesmo; o destino do registro continua sendo o da linha
