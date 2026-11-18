@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { CheckCircle2, Circle, Send, Undo2 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { CheckCircle2, Circle, Plus, Send, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -15,6 +16,7 @@ import { RESPOSTAS } from '@/lib/comunicacaoRito';
 import { MAX_PARTICIPANTES, MODOS_AUDIENCIA, QUALIDADES } from '@/lib/audiencias';
 import { FUNCOES, MAX_MEMBROS, SITUACOES, apurar, problemasDosVotos, textoDaApuracao } from '@/lib/julgamento';
 import { quandoBr } from '@/lib/certames';
+import { secProcesso } from '@/services/secretariaService';
 
 const br = (iso) => (iso || '').slice(0, 10).split('-').reverse().join('/');
 
@@ -43,7 +45,7 @@ export function SelosAcao({ r }) {
  * Uma ação da fase. `info`: a informação registrada nesta rodada da fase (se a ação pede um dado).
  * `onMarcar(feita, valor)` chama o servidor.
  */
-export function AcaoDaFase({ acao, r, feita, info, podeMexer, reservada, ocupado, nota, onMarcar, onRegistrar, onDesfazer, partes = [], comunicacao, espera, onExpedir, certame }) {
+export function AcaoDaFase({ acao, r, feita, info, podeMexer, reservada, ocupado, nota, onMarcar, onRegistrar, onDesfazer, partes = [], comunicacao, espera, onExpedir, certame, onAbrirDerivado }) {
     const pede = pedidoDaAcao(r);
     // Reservada pelo rito a outra pessoa: quem tem o processo vê por quê não pode cumprir.
     // `nota`: recado sobre a ação pendente (ex.: a alternativa já foi cumprida).
@@ -104,6 +106,11 @@ export function AcaoDaFase({ acao, r, feita, info, podeMexer, reservada, ocupado
                 <span className={feita ? 'line-through text-slate-600' : ''}>{acao}</span><SelosAcao r={r} />
                 {r?.ajuda && !feita && <span className="block text-xs text-slate-600 dark:text-slate-400">{r.ajuda}</span>}
                 {aviso}{situacaoEspera}
+                {pede === 'derivado' && !feita && (
+                    <span className="block text-xs text-slate-600 dark:text-slate-400">
+                        O processo nasce ligado a este{r?.derivado?.tipo ? `. Sugestão de tipo: ${r.derivado.tipo}` : ''}. Criado, a ação se cumpre sozinha.
+                    </span>
+                )}
                 {pede === 'disputa' && !feita && (
                     <span className="block text-xs text-slate-600 dark:text-slate-400">
                         {!certame ? 'Monte o aviso e publique; a ação se cumpre com o resultado da disputa.'
@@ -129,7 +136,8 @@ export function AcaoDaFase({ acao, r, feita, info, podeMexer, reservada, ocupado
                 )}
             </span>
             {pede === 'disputa' && !feita && (podeMexer || certame) && <Button size="sm" variant="outline" disabled={ocupado} onClick={onRegistrar}>{!certame ? 'Montar a disputa' : 'Abrir a disputa'}</Button>}
-            {podeMexer && !feita && pede !== 'disputa' && <Button size="sm" variant="outline" disabled={ocupado} onClick={onRegistrar}>{pede === 'audiencia' ? 'Designar' : pede === 'julgamento' ? 'Registrar julgamento' : 'Registrar'}</Button>}
+            {pede === 'derivado' && podeMexer && !feita && onAbrirDerivado && <Button size="sm" className="gap-1" disabled={ocupado} onClick={onAbrirDerivado}><Plus className="w-4 h-4" aria-hidden /> Abrir processo</Button>}
+            {podeMexer && !feita && pede !== 'disputa' && <Button size="sm" variant={pede === 'derivado' ? 'ghost' : 'outline'} disabled={ocupado} onClick={onRegistrar}>{pede === 'audiencia' ? 'Designar' : pede === 'julgamento' ? 'Registrar julgamento' : pede === 'derivado' ? 'Já existe' : 'Registrar'}</Button>}
             {podeMexer && feita && pede !== 'disputa' && <Button size="sm" variant="ghost" className="gap-1" disabled={ocupado} onClick={onDesfazer}><Undo2 className="w-4 h-4" /> Desfazer</Button>}
         </div>
     );
@@ -228,6 +236,22 @@ function CamposJulgamento({ cfg, j, onChange }) {
     );
 }
 
+/** Processos já ligados a este (nascidos dele ou que o citam): a ação "Abrir processo derivado" aceita um deles. */
+function SeletorDerivado({ orgId, procId, value, onChange }) {
+    // Mesma chave do painel "Processos ligados": a lista já costuma estar carregada.
+    const q = useQuery({ queryKey: ['sec-vinculados', orgId, 'pe', procId], queryFn: () => secProcesso(orgId, 'vinculados', { modulo: 'pe', id: procId }), enabled: !!orgId && !!procId, retry: false });
+    const lista = q.data?.processos || [];
+    if (q.isLoading) return <p role="status" className="text-sm text-slate-600 dark:text-slate-400">Procurando processos ligados…</p>;
+    if (!lista.length) return <p className="text-sm text-slate-700 dark:text-slate-300">Nenhum processo ligado a este que você possa ver. Feche e use &quot;Abrir processo&quot; na ação.</p>;
+    return (
+        <select id="acao-valor" value={value} onChange={(e) => onChange(e.target.value)} autoFocus
+            className="mt-1 h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900">
+            <option value="">Escolha…</option>
+            {lista.map((x) => <option key={x.id} value={x.id}>{x.numero} · {x.assunto}</option>)}
+        </select>
+    );
+}
+
 /** Diálogo para informar o dado que a ação pede. */
 export function RegistrarAcao({ alvo, ocupado, onFechar, onEnviar }) {
     const [valor, setValor] = useState('');
@@ -283,6 +307,7 @@ export function RegistrarAcao({ alvo, ocupado, onFechar, onEnviar }) {
     else if (pede === 'texto_longo') campo = <Textarea id="acao-valor" rows={4} maxLength={4000} value={valor} onChange={(e) => setValor(e.target.value)} autoFocus />;
     else if (pede === 'numero') campo = <Input id="acao-valor" inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="Ex.: 12345" autoFocus />;
     else if (pede === 'data') campo = <Input id="acao-valor" type="date" value={valor} onChange={(e) => setValor(e.target.value)} autoFocus />;
+    else if (pede === 'derivado') campo = <SeletorDerivado orgId={alvo.orgId} procId={alvo.procId} value={valor} onChange={setValor} />;
     else if (pede === 'registro') campo = <SeletorRegistro id="acao-valor" aria-describedby={r?.ajuda ? 'acao-ajuda' : undefined} modulo={r.modulo} pagina={r.pagina} value={valor} onChange={setValor} autoFocus />;
     else if (pede === 'lista' || pede === 'sim_nao' || pede === 'resposta') {
         const opcoes = pede === 'lista' ? (r.opcoes || []).map((o) => [o, o]) : pede === 'resposta' ? RESPOSTAS.map((o) => [o, o]) : [['sim', 'Sim'], ['nao', 'Não']];
@@ -306,7 +331,7 @@ export function RegistrarAcao({ alvo, ocupado, onFechar, onEnviar }) {
                     if (falta.length) { setTentou(true); return; }
                     if (!vazio) onEnviar(form ? valores : jul ? { data: jul.data, votos: jul.votos.filter((x) => x.nome.trim()) } : aud ? { ...aud, participantes: aud.participantes.filter((x) => x.nome.trim()) } : valor).then((ok) => ok && (setValor(''), setTentou(false)));
                 }}>
-                    {form || aud || jul ? <p className="text-sm font-medium">{aud ? 'Quando e onde' : jul ? 'Sessão de julgamento' : rotulo}</p> : <Label htmlFor="acao-valor">{rotulo}</Label>}
+                    {form || aud || jul ? <p className="text-sm font-medium">{aud ? 'Quando e onde' : jul ? 'Sessão de julgamento' : rotulo}</p> : <Label htmlFor="acao-valor">{pede === 'derivado' ? 'Processo já aberto' : rotulo}</Label>}
                     {r?.ajuda && form && <p id="acao-ajuda" className="text-xs text-slate-600 dark:text-slate-400">{r.ajuda}</p>}
                     {jul && !procl && doColegiado && <p className="text-xs text-slate-600 dark:text-slate-400">Os membros vieram da composição de hoje do colegiado. Indique o relator e ajuste quem faltou, foi substituído pelo suplente ou se declarou impedido.</p>}
                     {campo}

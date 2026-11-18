@@ -690,7 +690,8 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                             nota={alternativaCumprida(faseAtual, i, feitas, respostas) ? 'Dispensada: a alternativa a esta ação já foi cumprida.' : notaDoProcesso(i, r) || notaDoPrazo(prazoAbertoDaAcao(p.prazos, faseAtual.id, i), hoje)}
                                             onMarcar={(feita) => mov('marcarAcao', { acao_idx: i, feita })}
                                             certame={r?.pede === 'disputa' && p.certame?.fase_id === faseAtual.id && p.certame?.acao_idx === i ? p.certame : null}
-                                            onRegistrar={() => (r?.pede === 'disputa' ? setDisputa(true) : setRegistrar({ idx: i, acao: a, r, fase: p.fase_nome, version: p.version,
+                                            onAbrirDerivado={estado.minhasUnidades.length > 0 ? () => navigate(`/ProcessoEletronico?org=${orgId}&de=pe:${procId}`, { state: { semente: { modulo: 'pe', id: procId, numero: p.numero, tipo_nome: r?.derivado?.tipo || '' } } }) : undefined}
+                                            onRegistrar={() => (r?.pede === 'disputa' ? setDisputa(true) : setRegistrar({ idx: i, acao: a, r, fase: p.fase_nome, version: p.version, orgId, procId,
                                                 proclamado: r?.pede === 'julgamento' ? p.sessao?.proclamado || null : null,
                                                 membros: r?.pede === 'julgamento' ? membrosDoJulgamento(estado, p.unidade_atual, new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })) : [] }))}
                                             onDesfazer={desfazer} />

@@ -5,6 +5,22 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 18/11/2026 — Ação "Abrir um processo derivado" no rito
+- **Nova opção em "O que pede"**, para qualquer rito: **Abrir um processo
+  derivado**. Na tela do processo, a ação mostra o botão "Abrir processo",
+  que leva ao "Novo processo" com o processo atual como origem e, se o rito
+  sugerir, o tipo já escolhido (pelo nome do tipo ou do rito que ele usa).
+- **Cumpre-se sozinha.** Criado o processo, a ação fica cumprida no
+  processo de origem, com o número do derivado. Com duas ações destas na
+  fase, a sugestão diz qual delas o processo novo cumpre. "Já existe"
+  registra um processo que já estava ligado; processo sem ligação é
+  recusado.
+- **Modelos atualizados** para usar a ação: Inquérito Civil, inquérito de
+  improbidade e tratativas do acordo (MPRS), gestão contratual e contrato
+  do MPRS (apuração de infração e descumprimento contratual).
+- Guia do rito (parte 3), tutorial e filtro "Processo derivado" na
+  biblioteca de modelos.
+
 ### 18/11/2026 — Acordo de não persecução civil e inquérito de improbidade (MPRS)
 - **Quatro modelos novos na biblioteca (agora 62)**, pelo Provimento
   27/2026-PGJ e pela Resolução CNMP 306/2025, lidos na íntegra: "tratativas
@@ -24,7 +40,7 @@ cada mudança está nas mensagens de commit (`git log`).
 - **Partes externas.** O celebrante é parte, o advogado ou defensor é
   representante dele, e o ente lesado é interessado só no acompanhamento:
   as tratativas são confidenciais até a homologação.
-- **Próximas etapas do plano:** ação "Abrir processo derivado", cronograma
+- **Próximas etapas do plano:** cronograma
   de obrigações com comprovação pelo portal e visibilidade por polo.
 
 ### 18/11/2026 — Cabeçalho, rodapé, número de página e imagens nos modelos (etapa 2 de 2)

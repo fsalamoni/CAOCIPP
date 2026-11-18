@@ -28,3 +28,12 @@ test('registros escolhidos num formulário aparecem nos vínculos', () => {
     assert.equal(l.length, 1);
     assert.deepEqual(l[0].de, ['Sessão (F)']);
 });
+
+test('abrir um processo derivado: a regra guarda a sugestão e o resumo diz que se cumpre sozinha', () => {
+    assert.ok(PEDIDOS.some(([p]) => p === 'derivado'));
+    const r = regraComPedido({ pede: 'derivado', derivado: { tipo: 'Tratativas de acordo' }, obrigatoria: true }, 'derivado', 'Abrir as tratativas');
+    assert.deepEqual(r, { pede: 'derivado', derivado: { tipo: 'Tratativas de acordo' }, obrigatoria: true });
+    assert.match(resumoDaAcao(r), /abre um processo derivado \(sugestão: Tratativas de acordo\); cumpre-se sozinha/);
+    // Trocar o pedido leva embora a sugestão.
+    assert.equal(regraComPedido(r, 'texto', 'Abrir as tratativas').derivado, undefined);
+});

@@ -24,6 +24,7 @@ exports.destinoDaAcao = destinoDaAcao;
 exports.niveisDaFase = niveisDaFase;
 exports.sanitizeExigencia = sanitizeExigencia;
 exports.opcoesDaResposta = opcoesDaResposta;
+exports.derivadoPendente = derivadoPendente;
 exports.respostasDaAcao = respostasDaAcao;
 exports.sanitizeCondicao = sanitizeCondicao;
 exports.condicaoAmpla = condicaoAmpla;
@@ -115,7 +116,7 @@ exports.FORMAS = ['redigir', 'juntar', 'qualquer'];
 exports.MAX_ASSINATURAS_EXIGIDAS = 5;
 exports.NIVEIS = ['recomendado', 'opcional'];
 /** O que a ação pede a quem a cumpre. */
-exports.PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'formulario', 'documento', 'orientacao', 'comunicacao', 'resposta', 'audiencia', 'julgamento', 'disputa'];
+exports.PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'derivado', 'formulario', 'documento', 'orientacao', 'comunicacao', 'resposta', 'audiencia', 'julgamento', 'disputa'];
 exports.MAX_OPCOES_ACAO = 30;
 /** Campos de uma ação que pede um formulário. */
 exports.MAX_CAMPOS_ACAO = 10;
@@ -198,7 +199,7 @@ function sanitizeExigencia(raw, descricaoPadrao = '') {
     return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ descricao, forma }, (tipo ? { tipo } : {})), (modelo ? { modelo_id: modelo } : {})), (dest !== 'autos' ? { destino: dest } : {})), (nivel ? { nivel } : {})), (o.partes === false && dest === 'autos' ? { partes: false } : {})), (nAss ? { assinaturas: nAss } : {})), (atrib ? { assinatura_atribuicao: atrib } : {}));
 }
 function sanitizeRegra(raw, acao) {
-    var _b;
+    var _b, _c;
     const r = (raw && typeof raw === 'object' ? raw : {});
     const pedeBruto = exports.PEDIDOS.includes(r.pede) ? r.pede : (r.documento ? 'documento' : 'confirmar');
     // Orientação a quem cumpre: vale para qualquer ação.
@@ -258,6 +259,11 @@ function sanitizeRegra(raw, acao) {
             if (out.modulo === 'paginas')
                 out.pagina = (0, camposProcesso_1.paginaDe)(r.pagina, acao);
         }
+        if (pedeBruto === 'derivado') {
+            const tipo = texto((_b = r.derivado) === null || _b === void 0 ? void 0 : _b.tipo, 80);
+            if (tipo)
+                out.derivado = { tipo };
+        }
         if (pedeBruto === 'formulario') {
             const lista = Array.isArray(r.campos) ? r.campos : [];
             if (lista.length > exports.MAX_CAMPOS_ACAO)
@@ -298,7 +304,7 @@ function sanitizeRegra(raw, acao) {
         if (!out.pede || !exports.PEDIDOS_RESERVAVEIS.includes(out.pede)) {
             throw new Error(`A ação "${acao}": só texto, número, data ou formulário pode ficar reservado a quem gere a unidade`);
         }
-        if ((_b = out.campos) === null || _b === void 0 ? void 0 : _b.some((c) => c.tipo === 'registro')) {
+        if ((_c = out.campos) === null || _c === void 0 ? void 0 : _c.some((c) => c.tipo === 'registro')) {
             throw new Error(`A ação "${acao}": formulário com registro de outro módulo não pode ficar reservado`);
         }
         if (dest === 'autos' || dest === 'consolidar') {
@@ -340,6 +346,22 @@ function opcoesDaResposta(r, campo) {
     if (r.pede === 'disputa')
         return [...certames_1.RESULTADOS_DISPUTA];
     return null;
+}
+const semAcento = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+/**
+ * A ação "Abrir processo derivado" que o processo recém-aberto cumpre na fase
+ * de origem: a pendente que sugere o tipo (ou o rito) dele; na falta, a que
+ * não sugere nada; na falta, a única pendente (a sugestão não obriga). Duas
+ * pendentes sem nome que case ficam para a equipe escolher. -1 quando nenhuma.
+ * `nomes`: o nome do tipo e o do rito do processo novo.
+ */
+function derivadoPendente(fase, feitas, nomes, ativa) {
+    const pend = ((fase === null || fase === void 0 ? void 0 : fase.acoes_regras) || []).map((r, i) => ({ r, i })).filter(({ r, i }) => (r === null || r === void 0 ? void 0 : r.pede) === 'derivado' && !feitas.includes(i) && ativa(i));
+    const dados = nomes.map((n) => semAcento(n || '')).filter(Boolean);
+    const achada = pend.find(({ r }) => { var _b; return dados.includes(semAcento(((_b = r === null || r === void 0 ? void 0 : r.derivado) === null || _b === void 0 ? void 0 : _b.tipo) || '')); })
+        || pend.find(({ r }) => { var _b; return !((_b = r === null || r === void 0 ? void 0 : r.derivado) === null || _b === void 0 ? void 0 : _b.tipo); })
+        || (pend.length === 1 ? pend[0] : undefined);
+    return achada ? achada.i : -1;
 }
 /** Valor gravado como chave da resposta: a opção escolhida, ou 'sim'/'nao'. */
 const chaveDaResposta = (v) => (typeof v === 'boolean' ? (v ? 'sim' : 'nao') : String(v !== null && v !== void 0 ? v : ''));

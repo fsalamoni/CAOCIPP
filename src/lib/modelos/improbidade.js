@@ -9,7 +9,6 @@ import { A, montar, quando } from './dsl.js';
 
 const corridos = 'corridos';
 const PROV = 'Provimento 27/2026-PGJ';
-const DERIVADO = '"Novo processo derivado deste", na capa';
 
 /** O que o acordo prevê, em números e datas: é a base do acompanhamento. */
 const CAMPOS_ACORDO = [
@@ -241,7 +240,7 @@ function fasesTratativas({ depois, derivado }) {
                 A.fazer('Registrar o resultado no procedimento de origem', { obrigatoria: true }),
                 ...(derivado ? [
                     A.escolha('Onde o cumprimento será acompanhado', ['Em processo de acompanhamento', 'Nos autos do processo judicial'], { obrigatoria: true, destino: 'autos' }),
-                    A.fazer('Abrir o processo derivado de acompanhamento', { obrigatoria: true, se: quando('Onde o cumprimento será acompanhado', 'Em processo de acompanhamento'), ajuda: `Use ${DERIVADO}, com o tipo do modelo "Acordo de não persecução civil no MPRS: acompanhamento do cumprimento".` }),
+                    A.derivado('Abrir o processo derivado de acompanhamento', 'Acordo de não persecução civil no MPRS: acompanhamento do cumprimento', { obrigatoria: true, se: quando('Onde o cumprimento será acompanhado', 'Em processo de acompanhamento'), ajuda: 'O botão da ação abre o novo processo já ligado a este; criado, a ação se cumpre sozinha.' }),
                 ] : []),
             ],
         },
@@ -566,9 +565,9 @@ export function inqueritoCivilImprobidade() {
         },
         {
             nome: 'Tratativas de acordo', unidade: 'Gabinete', nome_publico: 'Tratativas de acordo em andamento', vai: ['Instrução', 'Acordo homologado'],
-            orientacao: `As tratativas do acordo de não persecução civil não correm nestes autos: abrem-se em procedimento próprio e confidencial (${PROV}, art. 11, §§ 1º e 2º). Use ${DERIVADO}, com o tipo do modelo de tratativas; ele fica vinculado a este inquérito. Enquanto se negocia, a investigação pode seguir. Acordo que esgota o objeto: os autos deste inquérito sobem ao Conselho Superior junto com os da negociação (art. 14). Acordo parcial: extraia peças e siga aqui quanto ao resto.`,
+            orientacao: `As tratativas do acordo de não persecução civil não correm nestes autos: abrem-se em procedimento próprio e confidencial (${PROV}, art. 11, §§ 1º e 2º). O botão da ação abaixo abre o processo de tratativas já vinculado a este inquérito. Enquanto se negocia, a investigação pode seguir. Acordo que esgota o objeto: os autos deste inquérito sobem ao Conselho Superior junto com os da negociação (art. 14). Acordo parcial: extraia peças e siga aqui quanto ao resto.`,
             acoes: [
-                A.fazer('Abrir o processo derivado de tratativas', { obrigatoria: true, ajuda: `Use ${DERIVADO}, com o tipo do modelo "Acordo de não persecução civil no MPRS: tratativas e celebração".` }),
+                A.derivado('Abrir o processo derivado de tratativas', 'Acordo de não persecução civil no MPRS: tratativas e celebração', { obrigatoria: true, ajuda: 'O botão da ação abre o novo processo já ligado a este; criado, a ação se cumpre sozinha.' }),
                 A.texto('Número do processo de tratativas', { destino: 'informacao', folha_dados: true }),
                 A.escolha('Resultado das tratativas', ['Acordo homologado que esgota o objeto', 'Acordo parcial: a investigação segue', 'Sem acordo: a investigação segue', 'Ainda em negociação: seguir investigando'], { obrigatoria: true, destino: 'autos' }),
             ],
@@ -583,7 +582,7 @@ export function inqueritoCivilImprobidade() {
             acoes: [
                 A.texto('Número do processo judicial da homologação', { obrigatoria: true, destino: 'autos' }),
                 A.data('Data da homologação', { obrigatoria: true, destino: 'informacao' }),
-                A.fazer('Abrir o processo derivado de acompanhamento do acordo', { ajuda: `Use ${DERIVADO}, com o tipo do modelo "Acordo de não persecução civil no MPRS: acompanhamento do cumprimento".` }),
+                A.derivado('Abrir o processo derivado de acompanhamento do acordo', 'Acordo de não persecução civil no MPRS: acompanhamento do cumprimento', { ajuda: 'O botão da ação abre o novo processo já ligado a este; criado, a ação se cumpre sozinha.' }),
                 A.texto('Número do processo de acompanhamento', { destino: 'informacao', folha_dados: true }),
             ],
         },
@@ -631,7 +630,7 @@ export function inqueritoCivilImprobidade() {
             orientacao: `Só quando a improbidade foi afastada ou as sanções prescreveram, por decisão motivada (${PROV}, art. 23). O compromisso corre no rito próprio, em processo derivado deste. Firmado, promova o arquivamento do inquérito.`,
             acoes: [
                 A.documento('Decisão que afasta a improbidade ou reconhece a prescrição', 'Despacho', { forma: 'redigir' }),
-                A.fazer('Abrir o processo derivado de ajustamento de conduta', { ajuda: `Use ${DERIVADO}, com o tipo do modelo "Compromisso de ajustamento de conduta (TAC)".` }),
+                A.derivado('Abrir o processo derivado de ajustamento de conduta', 'Compromisso de ajustamento de conduta (TAC)', { ajuda: 'O botão da ação abre o novo processo já ligado a este; criado, a ação se cumpre sozinha.' }),
                 A.simNao('Ajustamento firmado?', { obrigatoria: true, destino: 'autos' }),
                 A.documento('Promoção de arquivamento', 'Promoção de arquivamento', { forma: 'redigir', se: quando('Ajustamento firmado?', 'sim') }),
             ],

@@ -109,7 +109,7 @@ export const NIVEIS = ['recomendado', 'opcional'] as const;
 export type NivelExigencia = typeof NIVEIS[number];
 
 /** O que a ação pede a quem a cumpre. */
-export const PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'formulario', 'documento', 'orientacao', 'comunicacao', 'resposta', 'audiencia', 'julgamento', 'disputa'] as const;
+export const PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'derivado', 'formulario', 'documento', 'orientacao', 'comunicacao', 'resposta', 'audiencia', 'julgamento', 'disputa'] as const;
 export type Pedido = typeof PEDIDOS[number];
 export const MAX_OPCOES_ACAO = 30;
 /** Campos de uma ação que pede um formulário. */
@@ -221,6 +221,8 @@ export interface RegraAcao {
     julgamento?: JulgamentoDaAcao;
     /** Pede 'disputa': o tipo de disputa de preços (ver shared/certames.ts). Cumpre-se com o resultado do certame, nos autos. */
     disputa?: DisputaDaAcao;
+    /** Pede 'derivado': abrir um processo que nasce deste. `tipo`: nome do tipo de processo, ou do rito, sugerido (texto: o rito serve a vários órgãos). */
+    derivado?: { tipo?: string };
     /** "Vem do processo": id do campo do tipo de processo que, preenchido, cumpre a ação (ver shared/doProcesso.ts). */
     do_processo?: string;
     /** Na ação que pede um formulário: { id do campo da ação: id do campo do processo }. */
@@ -352,6 +354,10 @@ function sanitizeRegra(raw: unknown, acao: string): RegraAcao | null {
             out.modulo = r.modulo as Modulo;
             if (out.modulo === 'paginas') out.pagina = paginaDe(r.pagina, acao);
         }
+        if (pedeBruto === 'derivado') {
+            const tipo = texto((r.derivado as { tipo?: unknown } | undefined)?.tipo, 80);
+            if (tipo) out.derivado = { tipo };
+        }
         if (pedeBruto === 'formulario') {
             const lista = Array.isArray(r.campos) ? r.campos : [];
             if (lista.length > MAX_CAMPOS_ACAO) throw new Error(`A ação "${acao}" aceita até ${MAX_CAMPOS_ACAO} campos`);
@@ -418,6 +424,24 @@ export function opcoesDaResposta(r: RegraAcao | null | undefined, campo?: string
     if (r.pede === 'julgamento') return [...(r.julgamento?.resultados || [])];
     if (r.pede === 'disputa') return [...RESULTADOS_DISPUTA];
     return null;
+}
+
+const semAcento = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+
+/**
+ * A ação "Abrir processo derivado" que o processo recém-aberto cumpre na fase
+ * de origem: a pendente que sugere o tipo (ou o rito) dele; na falta, a que
+ * não sugere nada; na falta, a única pendente (a sugestão não obriga). Duas
+ * pendentes sem nome que case ficam para a equipe escolher. -1 quando nenhuma.
+ * `nomes`: o nome do tipo e o do rito do processo novo.
+ */
+export function derivadoPendente(fase: { acoes_regras?: Array<RegraAcao | null> } | null | undefined, feitas: number[], nomes: string[], ativa: (i: number) => boolean): number {
+    const pend = (fase?.acoes_regras || []).map((r, i) => ({ r, i })).filter(({ r, i }) => r?.pede === 'derivado' && !feitas.includes(i) && ativa(i));
+    const dados = nomes.map((n) => semAcento(n || '')).filter(Boolean);
+    const achada = pend.find(({ r }) => dados.includes(semAcento(r?.derivado?.tipo || '')))
+        || pend.find(({ r }) => !r?.derivado?.tipo)
+        || (pend.length === 1 ? pend[0] : undefined);
+    return achada ? achada.i : -1;
 }
 
 /** Valor gravado como chave da resposta: a opção escolhida, ou 'sim'/'nao'. */

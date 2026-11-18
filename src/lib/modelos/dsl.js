@@ -52,6 +52,8 @@ export const A = {
     numero: (texto, extra) => com(texto, { pede: 'numero' }, extra),
     texto: (texto, extra) => com(texto, { pede: 'texto' }, extra),
     textoLongo: (texto, extra) => com(texto, { pede: 'texto_longo' }, extra),
+    /** Abrir um processo que nasce deste: `tipo` é o nome do tipo de processo sugerido (opcional). Cumpre-se sozinha quando o processo é aberto. */
+    derivado: (texto, tipo, extra) => com(texto, { pede: 'derivado', ...(tipo ? { derivado: { tipo } } : {}) }, extra),
     /** campos: [{ id, rotulo, tipo, obrigatorio, opcoes? }] */
     formulario: (texto, campos, extra) => com(texto, { pede: 'formulario', campos }, extra),
     /** Documento: tipo (ex.: "Despacho"), forma redigir | juntar | qualquer, nivel recomendado | opcional (ausente = obrigatório). */

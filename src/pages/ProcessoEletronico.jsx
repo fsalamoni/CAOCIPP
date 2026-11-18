@@ -42,6 +42,7 @@ import GuiaRito from '@/components/secretaria/GuiaRito';
 const Sessoes = lazy(() => import('@/components/secretaria/Sessoes'));
 import { DisputasEmQueAtuo } from '@/components/secretaria/DisputaPrecos';
 import { veSessoes } from '@/lib/sessoes';
+import { semAcento } from '@/lib/bibliotecaFiltro';
 
 const Carregando = () => <div role="status" className="py-6 flex items-center gap-2 text-slate-600 dark:text-slate-300"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> Carregando…</div>;
 
@@ -559,7 +560,11 @@ function NovoProcesso({ orgId, estado, onCriado, semente = null, onSementeUsada 
         // O título vira o assunto só se as partes podem vê-lo: não de outro processo (pode ser sigiloso), de registro restrito ou do júri (é a comarca).
         const assunto = ['consultas', 'expedientes', 'parcerias'].includes(semente.modulo) && !semente.restrito ? semente.titulo || '' : '';
         setF({ ...vazio, assunto, origem: { tipo: semente.modulo === 'pe' ? 'outro_processo' : '', descricao: '', ref: semente } });
-        if (sugeridos.length === 1) escolherTipo(sugeridos[0].id);
+        // Aberto pela ação "Abrir processo derivado": o tipo que o rito sugere, pelo nome dele ou pelo nome do rito que ele usa.
+        const igual = (n) => semAcento(n).trim() === semAcento(semente.tipo_nome).trim();
+        const pedido = semente.tipo_nome ? tiposAtivos.filter((t) => igual(t.nome) || igual(ritosAtivos.find((r) => r.id === t.rito_id)?.nome)) : [];
+        if (pedido.length === 1) escolherTipo(pedido[0].id);
+        else if (sugeridos.length === 1) escolherTipo(sugeridos[0].id);
         setAberto(true);
         onSementeUsada?.();
     }, [semente?.modulo, semente?.id]);

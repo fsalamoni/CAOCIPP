@@ -50,7 +50,7 @@ export function gestaoContratualCompleta() {
             acoes: [
                 A.documento('Juntar a certidão da recusa ou do decurso do prazo', 'Certidão', { forma: 'redigir' }),
                 A.escolha('Providência', ['Convocar o próximo classificado', 'Revogar a licitação ou encerrar a contratação'], { obrigatoria: true, destino: 'autos' }),
-                A.fazer('Abrir processo derivado de apuração de infração ("Novo processo derivado deste")', { obrigatoria: true, ajuda: 'Use o tipo de processo com o modelo "Infração contratual e sanção a fornecedor".' }),
+                A.derivado('Abrir processo derivado de apuração de infração', 'Infração contratual e sanção a fornecedor', { obrigatoria: true, ajuda: 'O botão da ação abre o novo processo já ligado a este; criado, a ação se cumpre sozinha.' }),
                 A.texto('Número do processo de apuração', { obrigatoria: true }),
             ],
             saidas: { 'Formalização e assinatura': quando('Providência', 'Convocar o próximo classificado'), Arquivamento: quando('Providência', 'Revogar a licitação ou encerrar a contratação') },
@@ -141,7 +141,7 @@ export function gestaoContratualCompleta() {
             acoes: [
                 A.documento('Juntar o relatório do descumprimento', 'Relatório', { forma: 'redigir' }),
                 A.escolha('Infração apontada (art. 155)', ['Inexecução parcial', 'Inexecução parcial com grave dano', 'Inexecução total', 'Atraso injustificado', 'Documento ou declaração falsa', 'Fraude ou ato lesivo', 'Outra'], { obrigatoria: true }),
-                A.fazer('Abrir o processo derivado de apuração ("Novo processo derivado deste")', { obrigatoria: true }),
+                A.derivado('Abrir o processo derivado de apuração', 'Infração contratual e sanção a fornecedor', { obrigatoria: true, ajuda: 'O botão da ação abre o novo processo já ligado a este; criado, a ação se cumpre sozinha.' }),
                 A.texto('Número do processo de apuração', { obrigatoria: true }),
             ],
         },

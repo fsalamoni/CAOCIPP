@@ -317,10 +317,24 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase, f, i }) {
                             {r?.modulo === 'paginas' && <div className="mt-2"><EscolhaPagina id={`${id}-pag`} paginas={paginas} value={r?.pagina} onChange={(v) => set({ pagina: v })} /></div>}
                             {!ligadas?.[r?.modulo || 'consultas'] && <p className="mt-1 text-xs text-amber-800 dark:text-amber-200">A integração com este módulo está desligada: ligue em "Integrações com outros módulos", na configuração do Processo Eletrônico, para salvar o rito.</p>}
                         </div>
+                    ) : pede === 'derivado' ? (
+                        <div>
+                            <Label htmlFor={`${id}-der`}>Tipo de processo ou rito sugerido</Label>
+                            <Input id={`${id}-der`} className="mt-1" value={r?.derivado?.tipo || ''} maxLength={80} placeholder="Opcional: o nome do tipo ou do rito"
+                                onChange={(e) => set({ derivado: e.target.value ? { tipo: e.target.value } : undefined })} />
+                        </div>
                     ) : pede === 'lista' ? (
                         <OpcoesDaLista id={`${id}-op`} opcoes={r?.opcoes || []} onChange={(opcoes) => set({ opcoes })} />
                     ) : null}
                 </div>
+            )}
+            {pede === 'derivado' && (
+                <p className="text-xs text-slate-600 dark:text-slate-400">
+                    Na tela do processo, a ação mostra o botão &quot;Abrir processo&quot;, que leva ao &quot;Novo processo&quot; com este processo como origem.
+                    Se o órgão tem um só tipo de processo com o nome sugerido, ou que usa o rito com esse nome, ele já vem escolhido; quem abre pode trocar.
+                    Criado o processo, a ação se cumpre sozinha, com o número dele. Se o processo já existia, &quot;Já existe&quot; deixa escolher entre os ligados a este.
+                    Com duas ações destas pendentes na fase, a sugestão diz qual delas o processo novo cumpre.
+                </p>
             )}
             {pede === 'formulario' && (
                 <EditorCampos campos={r?.campos || []} onChange={(campos) => set({ campos })} max={MAX_CAMPOS_ACAO} paraAcao prefixo={`${id}-fc`} />

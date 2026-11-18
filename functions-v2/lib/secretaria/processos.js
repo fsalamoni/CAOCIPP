@@ -527,7 +527,7 @@ const antesDeJuntar = (data, grupo, item) => {
 const itensDepois = (proc, grupo, item) => { var _a; return ({ grupo, itens: [...(((_a = proc.consolidacao) === null || _a === void 0 ? void 0 : _a.itens) || []), item] }); };
 const textoDispensa = (d) => (d.length ? ` Dispensado o que o rito exigia na fase: ${d.join('; ')}.` : '');
 /** Valor informado ao cumprir a ação, conferido contra o que o rito pede. Lança HttpsError. */
-async function valorDaAcao(c, regra, acao, bruto) {
+async function valorDaAcao(c, regra, acao, bruto, procId = '') {
     const pede = (0, exigencias_1.pedidoDaAcao)(regra);
     if (pede === 'confirmar' || pede === 'documento' || pede === 'orientacao' || pede === 'comunicacao')
         return null;
@@ -578,6 +578,18 @@ async function valorDaAcao(c, regra, acao, bruto) {
         if (!campos.length)
             throw new https_1.HttpsError('invalid-argument', `Preencha "${rotulo}"`);
         return (0, camposProcesso_1.dadoDoFormulario)(rotulo, campos);
+    }
+    if (pede === 'derivado') {
+        // Processo derivado: o servidor confere que ele nasceu deste (ou está ligado a este) e guarda só o número.
+        const id = (0, modulos_1.idEscolhido)(bruto);
+        if (!id)
+            throw new https_1.HttpsError('invalid-argument', `"${acao}" se cumpre com o processo aberto a partir deste: abra-o pela própria ação ou escolha o que já existe.`);
+        const d = (await c.db.collection(context_1.COL.processos).doc(id).get()).data();
+        if (!d || d.organization_id !== c.orgId || d.status === 'excluido' || !(d.vinculos || []).includes(`pe:${procId}`)) {
+            throw new https_1.HttpsError('invalid-argument', `"${rotulo}": o processo escolhido não nasceu deste nem está ligado a ele`);
+        }
+        const numero = String(d.numero || '');
+        return { rotulo: (regra === null || regra === void 0 ? void 0 : regra.rotulo) || 'Processo derivado', tipo: 'texto', valor: numero, valor_texto: numero, ref: undefined, refs: [], restrito: false };
     }
     if (pede === 'registro') {
         // Registro de outro módulo: o servidor lê e guarda só número e título; a parte vê só o número.
@@ -1176,6 +1188,9 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, (
         // O que veio na autuação já cumpre as ações ligadas da primeira fase (ex.: número do PGEA informado na entrada).
         if (temLigacoes([rito.fases[0]]))
             await cumprirPeloProcesso(c, procRef.id);
+        // Nasceu de outro processo: a ação "Abrir processo derivado" pendente na fase atual dele se cumpre sozinha.
+        if ((refOrigem === null || refOrigem === void 0 ? void 0 : refOrigem.modulo) === 'pe')
+            await registrarDerivado(c, refOrigem.id, procRef.id, [String((tipo === null || tipo === void 0 ? void 0 : tipo.nome) || ''), String(rito.nome || '')]);
         return { success: true, id: procRef.id, numero };
     }
     return movimentar(c, p);
@@ -1253,6 +1268,30 @@ async function cumprirPeloProcesso(c, id) {
         }
     }
     return ultimo;
+}
+/**
+ * Processo derivado aberto: cumpre, no processo de origem, a ação "Abrir
+ * processo derivado" pendente na fase atual (a que sugere o tipo ou o rito do
+ * novo processo; na falta, a que não sugere nada), pelo mesmo caminho da caixa de
+ * marcar e com as permissões de quem abriu. Nunca desfaz a autuação: o que
+ * não couber (sem a posse do processo de origem, ação reservada) fica para a
+ * equipe, que registra o processo pela própria ação.
+ */
+async function registrarDerivado(c, origemId, novoId, nomes) {
+    try {
+        const d = (await c.db.collection(context_1.COL.processos).doc(origemId).get()).data();
+        if (!d || d.organization_id !== c.orgId || d.status !== 'em_tramitacao')
+            return;
+        const fase = (d.fases || []).find((f) => f.id === d.fase_atual);
+        const idx = (0, exigencias_1.derivadoPendente)(fase, (d.acoes_feitas || {})[String(d.fase_atual)] || [], nomes, (i) => (0, exigencias_1.acaoAtiva)(fase, i, (0, exigencias_1.respostasDaFase)(d)));
+        if (idx < 0)
+            return;
+        // Com as permissões de quem abriu: ação reservada a outra pessoa não se cumpre por aqui.
+        await movimentar(c, { organizationId: c.orgId, action: 'marcarAcao', id: origemId, version: d.version, acao_idx: idx, feita: true, valor: novoId });
+    }
+    catch (e) {
+        console.warn('[secretaria] ação de processo derivado não cumprida', origemId, novoId, e === null || e === void 0 ? void 0 : e.message);
+    }
 }
 /**
  * Julgamento proclamado na sessão (S4): o sistema registra o resultado na ação
@@ -1591,7 +1630,7 @@ async function movimentar(c, p, opcoes = {}) {
             const proclamado = (regra === null || regra === void 0 ? void 0 : regra.pede) === 'julgamento' ? (_k = data.sessao) === null || _k === void 0 ? void 0 : _k.proclamado : null;
             // Disputa de preços: vale o resultado registrado na disputa (S13), não o que vier na tela.
             const disputa = (regra === null || regra === void 0 ? void 0 : regra.pede) === 'disputa' ? data.certame : null;
-            const dado = feita ? await valorDaAcao(c, regra, acao, proclamado ? { data: proclamado.data, votos: proclamado.votos } : disputa ? { resultado: disputa.resultado, resumo: disputa.resumo } : p.valor) : null;
+            const dado = feita ? await valorDaAcao(c, regra, acao, proclamado ? { data: proclamado.data, votos: proclamado.votos } : disputa ? { resultado: disputa.resultado, resumo: disputa.resumo } : p.valor, String(p.id)) : null;
             // "Leva ao painel": o registro ligado é lido aqui, antes de qualquer escrita da transação.
             const leva = dado && (regra === null || regra === void 0 ? void 0 : regra.ao_registro) && !regra.ve ? regra.ao_registro : null;
             const registroLeva = leva ? await lerRegistroDaAcao(tx, c, data, leva) : null;

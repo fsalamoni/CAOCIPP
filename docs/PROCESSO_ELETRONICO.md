@@ -3648,7 +3648,17 @@ admin define, em cada tipo, o que quem autua preenche:
   sugere esse módulo ("Sugerir este tipo ao criar um processo a partir de",
   aba Dados do tipo, `pode_nascer_de`). Na Capa de um processo, "Processos
   derivados" e "Novo processo derivado" fazem o mesmo a partir dele (também
-  no menu Mais do Andamento). A origem (`origem.ref {modulo, id, numero,
+  no menu Mais do Andamento). A ação do rito que pede **um processo
+  derivado** (`pede: 'derivado'`, com `derivado.tipo` opcional: o nome do
+  tipo ou do rito sugerido) mostra o botão "Abrir processo", que leva ao
+  mesmo "Novo processo" com o tipo sugerido já escolhido quando um só tipo
+  do órgão tem esse nome ou usa o rito com esse nome. Criado o processo, o
+  servidor cumpre a ação no processo de origem (`registrarDerivado`, com as
+  permissões de quem abriu): a pendente que sugere o tipo ou o rito do novo
+  processo; na falta, a que não sugere nada; na falta, a única pendente
+  (`derivadoPendente`). "Já existe" registra à mão um processo já ligado;
+  o servidor só aceita processo cujo `vinculos` cite o de origem. O dado
+  guardado é o número do processo derivado. A origem (`origem.ref {modulo, id, numero,
   titulo}`) é relida no servidor (`refDaOrigem`): de outro módulo, pede a
   integração ligada e confere o órgão; de outro processo (`'pe'`), passa por
   `lerProcesso` (quem não vê o processo não deriva dele) e guarda só o
