@@ -2,6 +2,7 @@ import type { Content, ContentText, TDocumentDefinitions, TableCell } from 'pdfm
 // pdfmake e pdf-lib carregados só quando usados (partida a frio das functions).
 const pdfLib = () => require('pdf-lib') as typeof import('pdf-lib');
 import { FONTES, FONTES_LEGADO, No } from '../shared/documento';
+import { Layout, estiloDoBloco, folha, layoutDe, margens, numerosAutomaticos } from '../shared/layoutDocumento';
 
 /**
  * Converte o documento do editor em PDF (A4), com cabeçalho do órgão, rodapé
@@ -15,12 +16,13 @@ function printer() {
     const vfs = require('pdfmake/build/vfs_fonts') as Record<string, string>;
     const ttf = (n: string) => Buffer.from(vfs[n], 'base64');
     // Arquivos TTF dos pacotes de fonte (o pdfkit embute só os caracteres usados).
-    const familia = (nome: string, pesoNegrito = '700Bold') => {
-        const arq = (estilo: string) => require.resolve(`@expo-google-fonts/${nome.toLowerCase()}/${estilo}/${nome}_${estilo}.ttf`);
-        return { normal: arq('400Regular'), bold: arq(pesoNegrito), italics: arq('400Regular_Italic'), bolditalics: arq(`${pesoNegrito}_Italic`) };
+    const familia = (nome: string, pacote = nome.toLowerCase()) => {
+        const arq = (estilo: string) => require.resolve(`@expo-google-fonts/${pacote}/${estilo}/${nome}_${estilo}.ttf`);
+        return { normal: arq('400Regular'), bold: arq('700Bold'), italics: arq('400Regular_Italic'), bolditalics: arq('700Bold_Italic') };
     };
     return (impressora = new PdfPrinter({
         Tinos: familia('Tinos'), Arimo: familia('Arimo'), Carlito: familia('Carlito'), Caladea: familia('Caladea'), Cousine: familia('Cousine'),
+        Gelasio: familia('Gelasio'), EBGaramond: familia('EBGaramond', 'eb-garamond'), OpenSans: familia('OpenSans', 'open-sans'), Lato: familia('Lato'),
         Roboto: { normal: ttf('Roboto-Regular.ttf'), bold: ttf('Roboto-Medium.ttf'), italics: ttf('Roboto-Italic.ttf'), bolditalics: ttf('Roboto-MediumItalic.ttf') },
         Times: { normal: 'Times-Roman', bold: 'Times-Bold', italics: 'Times-Italic', bolditalics: 'Times-BoldItalic' },
         Courier: { normal: 'Courier', bold: 'Courier-Bold', italics: 'Courier-Oblique', bolditalics: 'Courier-BoldOblique' },
@@ -44,10 +46,6 @@ export interface MetaDocumento {
 }
 
 const CM = 28.3465;
-const A4_LARGURA = 595.28;
-const MARGENS: [number, number, number, number] = [3 * CM, 0, 2 * CM, 0];
-const AREA_UTIL = A4_LARGURA - MARGENS[0] - MARGENS[2];
-const TITULOS: Record<number, number> = { 1: 18, 2: 15, 3: 13, 4: 12 };
 
 /** Fontes padrão do PDF só codificam WinAnsi; Roboto cobre o resto. */
 const EXTRAS_WINANSI = '€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ';
@@ -60,12 +58,15 @@ export const dataHora = (iso: string) => new Date(iso).toLocaleString('pt-BR', {
 const SO_WINANSI = new Set(['Times', 'Courier']);
 type Mapa = Record<string, string>;
 
-function inline(nos: No[] | undefined, fonte: string, mapa: Mapa): ContentText[] {
+/** O que o desenho de cada bloco precisa saber do documento inteiro. */
+interface Ctx { mapa: Mapa; layout: Layout; numeros: Map<No, string>; citacao?: boolean; semRecuo?: boolean }
+
+function inline(nos: No[] | undefined, fonte: string, mapa: Mapa, maiusculas = false): ContentText[] {
     const out: ContentText[] = [];
     for (const n of nos || []) {
         if (n.type === 'hardBreak') { out.push({ text: '\n' }); continue; }
         if (n.type !== 'text' || !n.text) continue;
-        const t: ContentText & Record<string, unknown> = { text: n.text };
+        const t: ContentText & Record<string, unknown> = { text: maiusculas ? n.text.toLocaleUpperCase('pt-BR') : n.text };
         const deco: Array<'underline' | 'lineThrough'> = [];
         let f = fonte;
         for (const m of n.marks || []) {
@@ -96,33 +97,55 @@ function inline(nos: No[] | undefined, fonte: string, mapa: Mapa): ContentText[]
 
 const num = (v: unknown) => (v === null || v === undefined || v === '' ? null : Number(v));
 
-function bloco(n: No, fonte: string, largura: number, mapa: Mapa): Content | null {
+function bloco(n: No, fonte: string, largura: number, ctx: Ctx): Content | null {
     const a = n.attrs || {};
-    const filhos = (nos?: No[], l = largura) => (nos || []).map((c) => bloco(c, fonte, l, mapa)).filter(Boolean) as Content[];
+    const { mapa } = ctx;
+    const liCtx = { ...ctx, semRecuo: true };
+    const filhos = (nos?: No[], l = largura, c = ctx) => (nos || []).map((x) => bloco(x, fonte, l, c)).filter(Boolean) as Content[];
     switch (n.type) {
         case 'paragraph':
         case 'heading': {
-            const textos = inline(n.content, fonte, mapa);
-            const titulo = n.type === 'heading';
-            // Espaço antes/depois do parágrafo: o do documento (Word) ou o padrão do editor.
-            const antes = num(a.antes) ?? (titulo ? 8 : 0);
-            const depois = num(a.depois) ?? 6;
+            // Estilo do documento (Normal, Título, Citação ou próprio); o que está no parágrafo vale mais.
+            const e = estiloDoBloco(ctx.layout, n, ctx.citacao);
+            const f = (e.fonte && mapa[e.fonte]) || fonte;
+            const textos = inline(n.content, f, mapa, e.maiusculas);
+            const numero = ctx.numeros.get(n);
+            if (numero) textos.unshift({ text: winAnsiSe(f, `${numero} `) });
+            const antes = num(a.antes) ?? e.antes ?? 0;
+            const depois = num(a.depois) ?? e.depois ?? 6;
+            const recuo = num(a.recuo) ?? (ctx.semRecuo ? 0 : e.recuo) ?? 0;
+            const esq = num(a.margemEsq) ?? e.margemEsq ?? 0;
+            const dir = num(a.margemDir) ?? e.margemDir ?? 0;
             return {
                 text: textos.length ? textos : ' ',
-                alignment: (a.textAlign as 'left' | 'center' | 'right' | 'justify') || 'left',
-                leadingIndent: a.recuo ? Number(a.recuo) * CM : 0,
-                lineHeight: Number(a.espacamento) || 1.15,
-                margin: [a.margemEsq ? Number(a.margemEsq) * CM : 0, antes, 0, depois],
-                ...(titulo ? { bold: true, fontSize: TITULOS[Number(a.level)] || 13 } : {}),
+                alignment: (a.textAlign as 'left' | 'center' | 'right' | 'justify') || e.alinhamento || 'left',
+                leadingIndent: recuo * CM,
+                lineHeight: num(a.espacamento) || e.espacamento || 1.15,
+                margin: [esq * CM, antes, dir * CM, depois],
+                ...(f !== fonte ? { font: f } : {}),
+                ...(e.tamanho ? { fontSize: e.tamanho } : {}),
+                ...(e.negrito ? { bold: true } : {}),
+                ...(e.italico ? { italics: true } : {}),
+                ...(e.sublinhado ? { decoration: 'underline' } : {}),
+                ...(e.cor ? { color: e.cor } : {}),
             } as Content;
         }
-        case 'bulletList':
-            return { ul: (n.content || []).map((li) => ({ stack: filhos(li.content, largura - 20) })), margin: [0, 0, 0, 6] } as Content;
+        case 'bulletList': {
+            // Marcador escolhido: •, ◦, ▪ ou travessão (desenhado à parte, como no Word).
+            const travessao = a.marcador === 'dash';
+            const itens = (n.content || []).map((li) => (travessao
+                ? { columns: [{ text: '–', width: 12 }, { stack: filhos(li.content, largura - 32, liCtx), width: '*' }] }
+                : { stack: filhos(li.content, largura - 20, liCtx) }));
+            return { ul: itens, ...(travessao ? { type: 'none' } : a.marcador && a.marcador !== 'disc' ? { type: a.marcador } : {}), margin: [0, 0, 0, 6] } as Content;
+        }
         case 'orderedList':
-            return { ol: (n.content || []).map((li) => ({ stack: filhos(li.content, largura - 20) })), start: Number(a.start) || 1, margin: [0, 0, 0, 6] } as Content;
+            return {
+                ol: (n.content || []).map((li) => ({ stack: filhos(li.content, largura - 20, liCtx) })), start: Number(a.start) || 1, margin: [0, 0, 0, 6],
+                ...(a.formato && a.formato !== 'decimal' ? { type: a.formato } : {}), ...(a.separador === ')' ? { separator: ')' } : {}),
+            } as Content;
         case 'blockquote':
             return {
-                table: { widths: ['*'], body: [[{ stack: filhos(n.content, largura - 24) }]] },
+                table: { widths: ['*'], body: [[{ stack: filhos(n.content, largura - 24, { ...ctx, citacao: true }) }]] },
                 layout: { hLineWidth: () => 0, vLineWidth: (i: number) => (i === 0 ? 2 : 0), vLineColor: () => '#94a3b8', paddingLeft: () => 12, paddingRight: () => 0 },
                 margin: [12, 0, 0, 8],
             } as Content;
@@ -136,14 +159,14 @@ function bloco(n: No, fonte: string, largura: number, mapa: Mapa): Content | nul
             return { image: String(a.src), width: w, margin: [0, 4, 0, 8], alignment: (a.align as 'left' | 'center' | 'right') || 'left' } as Content;
         }
         case 'table':
-            return tabela(n, fonte, largura, mapa);
+            return tabela(n, fonte, largura, ctx);
         default:
             return n.content ? { stack: filhos(n.content) } as Content : null;
     }
 }
 
 /** Tabela do editor → pdfmake, respeitando células mescladas. */
-function tabela(n: No, fonte: string, largura: number, mapa: Mapa): Content {
+function tabela(n: No, fonte: string, largura: number, ctx: Ctx): Content {
     const linhas = n.content || [];
     const grade: TableCell[][] = linhas.map(() => []);
     const larguras: Array<number | null> = []; // px de tela por coluna, das células (colwidth)
@@ -157,7 +180,7 @@ function tabela(n: No, fonte: string, largura: number, mapa: Mapa): Content {
             const cabec = cel.type === 'tableHeader';
             const cw = cel.attrs?.colwidth as number[] | null | undefined;
             if (Array.isArray(cw)) cw.forEach((w, j) => { if (larguras[c + j] == null && Number(w) > 0) larguras[c + j] = Number(w); });
-            const conteudo = (cel.content || []).map((b) => bloco(b, fonte, largura / 2, mapa)).filter(Boolean) as Content[];
+            const conteudo = (cel.content || []).map((b) => bloco(b, fonte, largura / 2, { ...ctx, semRecuo: true })).filter(Boolean) as Content[];
             grade[r][c] = { stack: conteudo.length ? conteudo : [' '], colSpan: cs, rowSpan: rs, ...(cabec ? { bold: true, fillColor: '#f1f5f9' } : {}) } as TableCell;
             for (let i = 0; i < rs; i++) {
                 for (let j = 0; j < cs; j++) {
@@ -198,13 +221,23 @@ export function largurasColunas(px: Array<number | null>, colunas: number, largu
 /** Documento do editor → PDF. Devolve os bytes e o número de páginas. */
 export async function renderizarDocumento(doc: No, cfg: ConfigDocumento = {}, meta: MetaDocumento = {}): Promise<{ buffer: Buffer; paginas: number }> {
     const mapa = meta.legado ? FONTES_LEGADO : FONTES;
-    const fonte = mapa[String(cfg.fonte_padrao || 'serif')] || mapa.serif;
+    // Papel, margens e estilos do documento (doc.attrs.layout); sem eles, A4 com 3/2/2,5/2,2 cm.
+    const layout = layoutDe(doc);
+    const normal = estiloDoBloco(layout, { type: 'paragraph' });
+    const fonte = mapa[String(normal.fonte || cfg.fonte_padrao || 'serif')] || mapa.serif;
+    const { w, h } = folha(layout);
+    const mg = margens(layout);
+    const MARGENS: [number, number, number, number] = [mg.esq * CM, 0, mg.dir * CM, 0];
+    const areaUtil = w * CM - MARGENS[0] - MARGENS[2];
     const linhas = meta.semCabecalho ? [] : (cfg.cabecalho_linhas || []).filter(Boolean);
     const brasao = meta.semCabecalho ? null : cfg.brasao || null;
     const temCabecalho = linhas.length > 0 || !!brasao;
-    const topo = temCabecalho ? 40 + (brasao ? 50 : 0) + linhas.length * 13 : 2.5 * CM;
+    // Com timbrado, o texto começa abaixo dele (como sempre); margem superior própria só se for maior.
+    const altCab = 40 + (brasao ? 50 : 0) + linhas.length * 13;
+    const topo = temCabecalho ? Math.max(altCab, layout.margens ? mg.sup * CM : 0) : mg.sup * CM;
 
-    const corpo = (doc.content || []).map((b) => bloco(b, fonte, AREA_UTIL, mapa)).filter(Boolean) as Content[];
+    const ctx: Ctx = { mapa, layout, numeros: numerosAutomaticos(doc) };
+    const corpo = (doc.content || []).map((b) => bloco(b, fonte, areaUtil, ctx)).filter(Boolean) as Content[];
     const assinaturas = meta.assinaturas || [];
     if (assinaturas.length || meta.sha256) {
         corpo.push({
@@ -228,9 +261,9 @@ export async function renderizarDocumento(doc: No, cfg: ConfigDocumento = {}, me
     }
 
     const def: TDocumentDefinitions = {
-        pageSize: 'A4',
-        pageMargins: [MARGENS[0], topo, MARGENS[2], 2.2 * CM],
-        defaultStyle: { font: fonte, fontSize: Number(cfg.tamanho_padrao) || 12, lineHeight: 1.15 },
+        pageSize: { width: Math.round(w * CM * 100) / 100, height: Math.round(h * CM * 100) / 100 },
+        pageMargins: [MARGENS[0], topo, MARGENS[2], mg.inf * CM],
+        defaultStyle: { font: fonte, fontSize: normal.tamanho || Number(cfg.tamanho_padrao) || 12, lineHeight: 1.15 },
         info: { creator: 'SIGO — Processo Eletrônico', producer: 'SIGO' },
         content: corpo.length ? corpo : [{ text: ' ' }],
         header: temCabecalho ? () => ({

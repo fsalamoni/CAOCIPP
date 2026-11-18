@@ -160,6 +160,19 @@ export default function Help() {
               ]}
             />
             <FeatureCard
+              icon={FileText}
+              title="Formatar documentos e modelos como no Word"
+              items={[
+                "Botão Página (régua) no editor: papel A4, Ofício, Carta ou A5, retrato ou paisagem, e margens em cm (prontas: SIGO, ABNT, Word, estreitas)",
+                "Estilos: mude Texto normal, Títulos 1 a 4 e Citação (fonte, tamanho, negrito, maiúsculas, cor, alinhamento, recuos, espaços) e crie os seus, como Ementa ou Assinatura",
+                "Usar o parágrafo atual: formate um parágrafo na barra e copie para o estilo; Modificar estilos… fica na lista de estilos",
+                "Numeração automática: títulos em 1., 1.1. ou I., 1.; parágrafos numerados (botão #) em 1., 1), 1 – ou 1º",
+                "Listas: marcador •, ◦, ▪ ou travessão; numeração 1, a, A, i ou I com ponto ou parêntese, começando onde quiser",
+                "Recuos exatos em cm (primeira linha, esquerda e direita) no menu de espaçamento ↕; fontes Georgia, Garamond, Open Sans e Lato além das do Office",
+                "Tudo vai junto com o modelo para a minuta e sai igual no PDF dos autos e no Word (.docx)",
+              ]}
+            />
+            <FeatureCard
               icon={Gavel}
               title="Quem decide (gabinete)"
               items={[

@@ -5,6 +5,7 @@
  * Firebase, para testar direto.
  */
 import { DeltaOp } from './secretaria';
+import { sanitizeLayout } from './layoutDocumento';
 
 export interface Marca { type: string; attrs?: Record<string, unknown> }
 export interface No {
@@ -26,9 +27,19 @@ const MAX_PROFUNDIDADE = 40;
  * Calibri, Caladea = Cambria, Cousine = Courier New): a linha quebra no mesmo
  * lugar na tela, no PDF e no Word.
  */
-export const FONTES: Record<string, string> = { serif: 'Tinos', 'sans-serif': 'Arimo', calibri: 'Carlito', cambria: 'Caladea', monospace: 'Cousine' };
+export const FONTES: Record<string, string> = {
+    serif: 'Tinos', 'sans-serif': 'Arimo', calibri: 'Carlito', cambria: 'Caladea', monospace: 'Cousine',
+    // Desde 18/11/2026: Gelasio tem as medidas da Georgia; as outras são as próprias fontes livres.
+    georgia: 'Gelasio', garamond: 'EBGaramond', 'open-sans': 'OpenSans', lato: 'Lato',
+};
 /** Mapeamento anterior a 16/11/2026: refaz o PDF de documento antigo sem mudar a paginação. */
-export const FONTES_LEGADO: Record<string, string> = { serif: 'Times', 'sans-serif': 'Roboto', calibri: 'Roboto', cambria: 'Times', monospace: 'Courier' };
+export const FONTES_LEGADO: Record<string, string> = {
+    serif: 'Times', 'sans-serif': 'Roboto', calibri: 'Roboto', cambria: 'Times', monospace: 'Courier',
+    georgia: 'Times', garamond: 'Times', 'open-sans': 'Roboto', lato: 'Roboto',
+};
+/** Marcadores e formatos de lista (como em "Marcadores" e "Numeração" do Word). */
+export const MARCADORES = ['disc', 'circle', 'square', 'dash'];
+export const FORMATOS_LISTA = ['decimal', 'lower-alpha', 'upper-alpha', 'lower-roman', 'upper-roman'];
 export const ESPACAMENTOS = [1, 1.15, 1.5, 2, 2.5, 3];
 
 /** Nome de fonte do Word ou do LibreOffice → fonte do editor (ou null: a padrão). */
@@ -38,6 +49,10 @@ export function fonteEquivalente(nome: unknown): string | null {
     if (/courier|mono|consol|lucida console|cousine/.test(n)) return 'monospace';
     if (/calibri|carlito|aptos/.test(n)) return 'calibri';
     if (/cambria|caladea/.test(n)) return 'cambria';
+    if (/georgia|gelasio/.test(n)) return 'georgia';
+    if (/garamond/.test(n)) return 'garamond';
+    if (/open sans|opensans/.test(n)) return 'open-sans';
+    if (/\blato\b/.test(n)) return 'lato';
     if (/arial|helvetica|roboto|verdana|segoe|tahoma|open sans|liberation sans|arimo|trebuchet|century gothic|gill sans|franklin|lato|noto sans|dejavu sans|source sans|ubuntu|sans/.test(n)) return 'sans-serif';
     if (/times|georgia|garamond|antiqua|palatino|liberation serif|tinos|bookman|schoolbook|noto serif|dejavu serif|serif/.test(n)) return 'serif';
     return null;
@@ -60,6 +75,10 @@ const ATTRS_BLOCO = {
     // Espaço antes e depois do parágrafo, em pontos (como no Word).
     antes: entre(0, 72),
     depois: entre(0, 72),
+    // Desde 18/11/2026: recuo à direita, estilo próprio do documento e parágrafo numerado.
+    margemDir: entre(0, 10),
+    estilo: (v: unknown) => typeof v === 'string' && /^[a-z0-9-]{1,30}$/.test(v),
+    numerado: (v: unknown) => v === true,
 };
 
 /** Nó → atributos permitidos (validador por atributo). */
@@ -69,8 +88,8 @@ const NOS: Record<string, Record<string, (v: unknown) => boolean>> = {
     heading: { ...ATTRS_BLOCO, level: inteiro(1, 4) },
     text: {},
     hardBreak: {},
-    bulletList: {},
-    orderedList: { start: inteiro(1, 9999) },
+    bulletList: { marcador: umDe(...MARCADORES) },
+    orderedList: { start: inteiro(1, 9999), formato: umDe(...FORMATOS_LISTA), separador: umDe('.', ')') },
     listItem: {},
     blockquote: {},
     horizontalRule: {},
@@ -138,6 +157,11 @@ export function sanitizeDoc(input: unknown): No {
         }
         const out: No = { type: tipo };
         const attrs = filtrarAttrs(o.attrs, regras);
+        if (tipo === 'doc') {
+            // Página e estilos do documento (shared/layoutDocumento.ts).
+            const layout = sanitizeLayout((o.attrs as Record<string, unknown> | undefined)?.layout);
+            if (layout) out.attrs = { layout };
+        }
         if (tipo === 'image' && !attrs?.src) return null;
         if (attrs) out.attrs = attrs;
         if (Array.isArray(o.content)) {
