@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import ConfigurarPagina from './LayoutDocumento';
 import {
-    FORMATOS_LISTA, MARCADORES, cssDoLayout, estiloEfetivo, faixaNaPagina, folhaCm, margensDe, resumoPagina, textoNumero, trocarPagina,
+    FORMATOS_LISTA, MARCADORES, comTimbrado, cssDoLayout, estiloEfetivo, faixaNaPagina, folhaCm, margensDe, resumoPagina, textoNumero, trocarPagina,
 } from '@/lib/layoutDocumento';
 import { toast } from 'sonner';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -343,8 +343,9 @@ function Paleta({ titulo, icone, cor, aoEscolher, rotuloLimpar }) {
 
 export default function EditorDocumento({
     conteudo, onChange, somenteLeitura = false, config = {}, campos = null, onSalvar, autoFocus = false, rotulo = 'Texto do documento',
-    converterArquivo = null, faixa = null,
+    converterArquivo = null, faixa = null, previa = false,
 }) {
+    // previa: folha só para ver (tela do papel timbrado), sem a barra de status.
     // faixa = { largura } (cm): editor compacto do cabeçalho ou rodapé próprio, sem folha nem "Página".
     const salvarRef = useRef(onSalvar);
     salvarRef.current = onSalvar;
@@ -395,7 +396,10 @@ export default function EditorDocumento({
     });
 
     useEffect(() => { editor?.setEditable(!somenteLeitura); }, [editor, somenteLeitura]);
-    const layout = editor?.state.doc.attrs.layout || {};
+    // O que vale na folha: o layout do documento por cima do layout do papel timbrado.
+    const layoutDoc = editor?.state.doc.attrs.layout || {};
+    const herdado = faixa ? null : config.layout || null;
+    const layout = useMemo(() => comTimbrado(layoutDoc, herdado), [layoutDoc, herdado]);
     const fCab = layout.cabecalho || {};
     const fRod = layout.rodape || {};
     const temTimbrado = (config.cabecalho_linhas || []).some(Boolean) || !!config.brasao;
@@ -790,7 +794,7 @@ export default function EditorDocumento({
                     })()}
                 </div>
             </div>
-            {!faixa && <div className="bg-slate-50 dark:bg-slate-900 border-t border-slate-300 dark:border-slate-700 px-3 py-1 flex items-center gap-3 text-xs text-slate-600 dark:text-slate-400">
+            {!faixa && !previa && <div className="bg-slate-50 dark:bg-slate-900 border-t border-slate-300 dark:border-slate-700 px-3 py-1 flex items-center gap-3 text-xs text-slate-600 dark:text-slate-400">
                 <span aria-live="polite">{palavras} palavra{palavras === 1 ? '' : 's'} · {caracteres} caractere{caracteres === 1 ? '' : 's'}</span>
                 <span className="hidden md:inline" title="Estimativa pela altura do texto; o PDF mostra a paginação exata">≈ {paginas} página{paginas === 1 ? '' : 's'}</span>
                 {somenteLeitura
@@ -803,7 +807,7 @@ export default function EditorDocumento({
                 </label>
             </div>}
             {!somenteLeitura && !faixa && (
-                <ConfigurarPagina aberto={!!pagina} aba={pagina || 'pagina'} onAba={setPagina} layout={layout} onMudar={setLayout}
+                <ConfigurarPagina aberto={!!pagina} aba={pagina || 'pagina'} onAba={setPagina} layout={layoutDoc} herdado={herdado} onMudar={setLayout}
                     onFechar={() => setPagina(null)} fontes={FONTES} cssFonte={CSS_FONTE} editor={editor}
                     config={config} campos={campos} EditorFaixa={EditorDocumento} larguraUtil={dimFolha.w - mFolha.esq - mFolha.dir} />
             )}

@@ -2,7 +2,7 @@ const jszip = () => require('jszip') as typeof import('jszip');
 import { Marca, No } from '../shared/documento';
 import type { ConfigDocumento } from './pdfDocumento';
 import {
-    ChaveEstilo, DISTANCIA_FAIXA, ESTILOS_PADRAO, Estilo, Layout, TAMANHO_NUMERO, estiloDoBloco, faixaNaPagina, folha, layoutDe, margens, numerosAutomaticos,
+    ChaveEstilo, DISTANCIA_FAIXA, ESTILOS_PADRAO, Estilo, Layout, TAMANHO_NUMERO, docComTimbrado, estiloDoBloco, faixaNaPagina, folha, layoutDe, margens, numerosAutomaticos,
 } from '../shared/layoutDocumento';
 
 /**
@@ -368,6 +368,7 @@ const TW = 1440 / 2.54; // twips por cm
 
 /** Documento do editor → bytes de um .docx. */
 export async function docParaDocx(doc: No, cfg: ConfigDocumento = {}, meta: { titulo?: string } = {}): Promise<Buffer> {
+    doc = docComTimbrado(doc, cfg.layout);
     const layout = layoutDe(doc);
     const normal = estiloDoBloco(layout, { type: 'paragraph' });
     const fonte = NOME_FONTE[String(normal.fonte || cfg.fonte_padrao || 'serif')] || 'Times New Roman';
@@ -387,7 +388,7 @@ export async function docParaDocx(doc: No, cfg: ConfigDocumento = {}, meta: { ti
     const linhas = (cfg.cabecalho_linhas || []).filter(Boolean);
     const timbrado = (fCab.modo || 'unidade') === 'unidade' && (linhas.length > 0 || !!cfg.brasao);
     const rodUnidade = (fRod.modo || 'unidade') === 'unidade';
-    const rodapeClassico = rodUnidade && posNum === 'rodape-direita' && !np.formato && !np.tamanho;
+    const rodapeClassico = rodUnidade && posNum === 'rodape-direita' && (np.formato || 'pagina-de') === 'pagina-de' && (np.tamanho || TAMANHO_NUMERO) === TAMANHO_NUMERO;
     const sz = Math.round((np.tamanho || TAMANHO_NUMERO) * 2);
     const r = `<w:r><w:rPr><w:sz w:val="${rodapeClassico ? 15 : sz}"/></w:rPr>`;
     const campo = (instr: string) => `${r}<w:fldChar w:fldCharType="begin"/></w:r>${r}<w:instrText xml:space="preserve"> ${instr} </w:instrText></w:r>${r}<w:fldChar w:fldCharType="separate"/></w:r>${r}<w:t>1</w:t></w:r>${r}<w:fldChar w:fldCharType="end"/></w:r>`;

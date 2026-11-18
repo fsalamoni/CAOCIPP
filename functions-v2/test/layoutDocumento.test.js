@@ -19,7 +19,9 @@ const LAYOUT = {
 
 test('sanitizeLayout guarda só o permitido e o que difere do padrão', () => {
     assert.equal(L.sanitizeLayout(null), undefined);
-    assert.equal(L.sanitizeLayout({ papel: 'A4', orientacao: 'retrato', margens: L.MARGENS_PADRAO, numeracao_paragrafos: '1.' }), undefined, 'igual ao padrão: nada');
+    // Explícito, mesmo igual ao padrão, fica: vale por cima do papel timbrado.
+    assert.deepEqual(L.sanitizeLayout({ papel: 'A4', orientacao: 'retrato', margens: L.MARGENS_PADRAO, numeracao_paragrafos: '1.' }),
+        { papel: 'A4', orientacao: 'retrato', margens: L.MARGENS_PADRAO, numeracao_paragrafos: '1.' });
     const l = L.sanitizeLayout({
         ...LAYOUT, papel: 'oficio', extra: 'x',
         margens: { sup: 3, inf: 2, esq: 3, dir: 99 }, // fora do limite: margens inteiras descartadas
@@ -132,7 +134,8 @@ test('Word sem layout: a página de sempre (A4, 3/2 cm, timbrado)', async () => 
 const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
 test('sanitizeLayout: cabeçalho, rodapé e número de página', () => {
-    assert.equal(L.sanitizeLayout({ cabecalho: { modo: 'unidade', paginas: 'todas' }, numero_pagina: { posicao: 'rodape-direita', formato: 'pagina-de', tamanho: 7.5 } }), undefined, 'o de sempre: nada');
+    assert.deepEqual(L.sanitizeLayout({ cabecalho: { modo: 'unidade', paginas: 'todas' }, numero_pagina: { posicao: 'rodape-direita', formato: 'pagina-de', tamanho: 7.5 } }),
+        { cabecalho: { paginas: 'todas' }, numero_pagina: { posicao: 'rodape-direita', formato: 'pagina-de', tamanho: 7.5 } }, 'modo "unidade" = segue o timbrado');
     const l = L.sanitizeLayout({
         cabecalho: { modo: 'proprio', paginas: 'primeira', conteudo: [p('{{orgao}} · {{pagina}}'), { type: 'script' }, { type: 'image', attrs: { src: PNG, width: 80 } }] },
         rodape: { modo: 'xpto', paginas: 'nunca' },
@@ -203,4 +206,45 @@ test('Word sem layout: cabeçalho e rodapé de sempre (header1 e footer1)', asyn
     const rod = await z.file('word/footer1.xml').async('string');
     assert.match(rod, /Rua X<\/w:t><\/w:r><w:r><w:rPr><w:sz w:val="15"\/><\/w:rPr><w:tab\/><w:t xml:space="preserve">Página /);
     assert.ok(z.file('word/_rels/header1.xml.rels'), 'brasão no cabeçalho');
+});
+
+// Papel timbrado do órgão/unidade com layout: vale por baixo de todo documento.
+test('timbrado com layout: documento herda papel, margens, cabeçalho, número e estilos', async () => {
+    const { sanitizeDocumentoConfig } = require('../lib/secretaria/documentoConfig');
+    const { documentoEfetivo } = require('../lib/shared/secretaria');
+    const cfg = sanitizeDocumentoConfig({
+        cabecalho_linhas: ['MP'], rodape: 'Rua X',
+        layout: {
+            papel: 'oficio', margens: { sup: 3, inf: 2, esq: 3, dir: 2 }, estilos: { normal: { tamanho: 13, alinhamento: 'justify' } },
+            cabecalho: { modo: 'proprio', conteudo: [p('ÓRGÃO RICO · fl. {{pagina}}')] }, numero_pagina: { posicao: 'cabecalho-direita', formato: 'n-de' },
+        },
+    });
+    assert.equal(cfg.layout.papel, 'oficio');
+    assert.equal(sanitizeDocumentoConfig({}).layout, null, 'sem layout: null');
+    // O documento manda no que define; o resto vem do timbrado.
+    const doc = { type: 'doc', attrs: { layout: { estilos: { normal: { tamanho: 11 } }, rodape: { modo: 'nenhum' } } }, content: [p('x')] };
+    const l = L.layoutDe(L.docComTimbrado(doc, cfg.layout));
+    assert.equal(l.papel, 'oficio');
+    assert.deepEqual(l.estilos.normal, { tamanho: 11, alinhamento: 'justify' });
+    assert.equal(l.cabecalho.modo, 'proprio');
+    assert.equal(l.rodape.modo, 'nenhum');
+    assert.equal(L.comTimbrado({ cabecalho: { modo: 'nenhum' } }, cfg.layout).cabecalho.modo, 'nenhum');
+    assert.equal(L.comTimbrado({ cabecalho: { paginas: 'primeira' } }, cfg.layout).cabecalho.paginas, 'primeira');
+    // Word: ofício (21,6 × 33 cm), margens e estilo do timbrado, cabeçalho próprio dele, sem as linhas simples.
+    const z = await JSZip.loadAsync(await docParaDocx({ type: 'doc', content: [p('x')] }, cfg));
+    const corpo = await z.file('word/document.xml').async('string');
+    assert.match(corpo, /<w:pgSz w:w="12246" w:h="18709"\/><w:pgMar w:top="1701"/);
+    assert.match(corpo, /<w:jc w:val="both"\/>/);
+    const cab = await z.file('word/header1.xml').async('string');
+    assert.match(cab, /ÓRGÃO RICO/);
+    assert.doesNotMatch(cab, />MP</);
+    // PDF: tamanho do ofício.
+    const r = await renderizarDocumento({ type: 'doc', content: [p('x')] }, cfg);
+    assert.equal(Math.round((await PDFDocument.load(r.buffer)).getPage(0).getSize().height), Math.round(33 * 28.3465));
+    // Petição da parte (sem cabeçalho) não herda nada.
+    const sem = await renderizarDocumento({ type: 'doc', content: [p('x')] }, cfg, { semCabecalho: true });
+    assert.equal(Math.round((await PDFDocument.load(sem.buffer)).getPage(0).getSize().height), Math.round(29.7 * 28.3465));
+    // Unidade com timbrado próprio não leva o layout do órgão.
+    assert.equal(documentoEfetivo(cfg, { timbrado_proprio: true, documento: { cabecalho_linhas: ['Unidade'] } }).layout, null);
+    assert.equal(documentoEfetivo(cfg, null).layout.papel, 'oficio');
 });

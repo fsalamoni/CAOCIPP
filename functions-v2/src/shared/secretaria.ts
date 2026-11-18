@@ -812,7 +812,8 @@ export function documentoEfetivo<T extends object>(
     orgao: T,
     unidade?: { timbrado_proprio?: boolean; documento?: object | null; tipos_documento?: string[] } | null
 ): T & { tipos_documento: string[] } {
-    const base = unidade?.timbrado_proprio && unidade.documento ? { ...orgao, ...unidade.documento } : { ...orgao };
+    // Timbrado próprio da unidade: nada do layout do órgão (página, cabeçalho, rodapé) passa para ela.
+    const base = unidade?.timbrado_proprio && unidade.documento ? { ...orgao, layout: null, ...unidade.documento } : { ...orgao };
     const doOrgao = (orgao as { tipos_documento?: string[] }).tipos_documento || [];
     const tipos = [...new Set([...doOrgao, ...(unidade?.tipos_documento || [])])];
     return { ...base, tipos_documento: tipos } as T & { tipos_documento: string[] };

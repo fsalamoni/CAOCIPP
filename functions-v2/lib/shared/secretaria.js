@@ -670,7 +670,8 @@ function lotacoesDe(u) {
  * órgão. Tipos de documento da unidade somam-se aos do órgão.
  */
 function documentoEfetivo(orgao, unidade) {
-    const base = (unidade === null || unidade === void 0 ? void 0 : unidade.timbrado_proprio) && unidade.documento ? Object.assign(Object.assign({}, orgao), unidade.documento) : Object.assign({}, orgao);
+    // Timbrado próprio da unidade: nada do layout do órgão (página, cabeçalho, rodapé) passa para ela.
+    const base = (unidade === null || unidade === void 0 ? void 0 : unidade.timbrado_proprio) && unidade.documento ? Object.assign(Object.assign(Object.assign({}, orgao), { layout: null }), unidade.documento) : Object.assign({}, orgao);
     const doOrgao = orgao.tipos_documento || [];
     const tipos = [...new Set([...doOrgao, ...((unidade === null || unidade === void 0 ? void 0 : unidade.tipos_documento) || [])])];
     return Object.assign(Object.assign({}, base), { tipos_documento: tipos });

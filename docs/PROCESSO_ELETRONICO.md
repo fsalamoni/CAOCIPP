@@ -311,7 +311,7 @@ e escrita passam pelas functions, que aplicam posse, lotação, sigilo e minutas
 | `secProcessos/{id}` | `numero, assunto, descricao, partes[], campos[{id, rotulo, tipo, valor (lista de textos na múltipla; número no registro), visivel_partes, formato?, ref?{modulo, id, numero, titulo?, restrito?} (registro)}], campos_exigidos?{fase_id: [{id, rotulo, condicao?}]}, origem{tipo, descricao}?, sigilo, status, tipo_id?, tipo_nome?, rito_id, rito_versao, fases[]` (cópia), `fase_atual, unidade_atual, unidades_historico[], responsavel_uid, mov_seq, doc_seq, folhas_seq, ultimo_hash, version, recebido_em, acoes_feitas{faseId: [idx]}, exigencias_cumpridas{faseId: {chave: {documento_id, ordem}}}?, orientacao{texto, por, em, de}?, assinaturas_pendentes[{docId, uid, titulo}]` |
 | `secProcessos/{id}/movimentos/{seq}` | `seq, tipo, descricao, autor_uid, autor_nome, unidade_id, em, dados, hash_anterior, hash` |
 | `secProcessos/{id}/documentos/{id}` | `titulo, tipo, origem (editor\|upload), status (minuta\|juntado), unidade_origem, conteudo` (ou `delta` legado) ou `storage_path, mime, tamanho`, `sha256, assinaturas[], assinaturas_pedidas[{uid, nome, por, em}]?, ordem, juntado_em, visivel_partes, peticao?, peticao_tipo?, modelo_id?, unidades_acesso?[], paginas, folha_inicial, folha_final, pdf_path?, pdf_sha256?, codigo_verificacao?` |
-| `secConfig/{org}` | `documento: {cabecalho_linhas[], brasao, rodape, fonte_padrao, tamanho_padrao, tipos_documento[]}` (papel timbrado), `calendario: {feriados[{data, descricao}], recessos[{inicio, fim, descricao}], recesso_forense}`, `alerta_prazos` |
+| `secConfig/{org}` | `documento: {cabecalho_linhas[], brasao, rodape, fonte_padrao, tamanho_padrao, layout, tipos_documento[]}` (papel timbrado; `layout` como o `doc.attrs.layout`, ou null), `calendario: {feriados[{data, descricao}], recessos[{inicio, fim, descricao}], recesso_forense}`, `alerta_prazos` |
 | `secVerificacao/{código}` | cópia pública da juntada: `organization_id, processo_id, documento_id, orgao, numero, ordem, titulo, tipo, origem, nome_arquivo, juntado_em, juntado_por, folha_inicial, folha_final, paginas, assinaturas[{nome, em, nivel}], sha256, pdf_sha256, peticao` |
 | `secModelos/{id}` | `organization_id, unidade_id?` (vazio = modelo do órgão), `nome, tipo_documento, descricao, ativo, versao, formato (editor\|original)`, `conteudo` (editor) ou `storage_path, arquivo_nome, arquivo_mime, tamanho` (original) |
 | `secConvites/{sha256 do token}` | `organization_id, processo_id, parte_idx, parte_nome, email, expira_em, usado_por, revogado` |
@@ -509,6 +509,21 @@ Regras comuns:
   - *Prévia do modelo:* no editor de modelo, **Prévia em PDF** (como sai nos
     autos, com marca d'água MODELO) e **Word** (.docx), sem salvar (ação
     `previaModelo` de `secretariaConfig`, mesma permissão de salvar o modelo).
+  - *Papel timbrado com as mesmas ferramentas:* o timbrado do órgão e o da
+    unidade (Configurações › Documentos) têm, além das linhas simples, o
+    botão para papel e margens, cabeçalho e rodapé completos (modos Simples,
+    Editor completo ou Nenhum), número de página, estilos e numeração
+    (`documento.layout`, validado por `sanitizeLayout`, até 600 KB). Esse
+    layout fica **por baixo** de todo documento com o timbrado
+    (`comTimbrado`, igual no servidor e no cliente): o documento muda só o
+    que define; cabeçalho/rodapé "da unidade" seguem o do timbrado. A janela
+    Página do documento mostra o que vale e guarda só o que difere do
+    timbrado (`limparLayout(l, herdado)`); por isso o layout aceita valores
+    explícitos iguais ao padrão (A4, "todas as páginas"). Unidade com
+    timbrado próprio não herda o layout do órgão (`documentoEfetivo`).
+    Petição da parte (`semCabecalho`) não leva nada do timbrado. A tela tem
+    prévia da folha com texto de exemplo e **Ver em PDF** antes de salvar
+    (`previaModelo` com `timbrado`).
   - Limites: texto contornando imagem (imagem flutuante) não existe; a
     importação de .docx não traz o layout, o cabeçalho nem o rodapé do Word.
 - **Revisar no editor qualquer minuta:** a minuta enviada como arquivo tem

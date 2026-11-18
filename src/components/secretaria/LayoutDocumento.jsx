@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
     CAMPOS_PAGINA, CHAVES_ESTILO, ESTILOS_PADRAO, FORMATOS_NUMERO, FORMATOS_PARAGRAFO, FORMATOS_TITULO, MARGENS_PADRAO, MARGENS_PRONTAS, MODOS_FAIXA, PAGINAS_FAIXA, PAPEIS,
-    POSICOES_NUMERO, TAMANHO_NUMERO, cssDoEstilo, estiloEfetivo, faixaDoTimbrado, folhaCm, idDeEstilo, limparLayout, margensDe,
+    POSICOES_NUMERO, TAMANHO_NUMERO, comTimbrado, cssDoEstilo, estiloEfetivo, faixaDoTimbrado, folhaCm, idDeEstilo, limparLayout, margensDe,
 } from '@/lib/layoutDocumento';
 
 /**
@@ -153,28 +153,32 @@ function Opcoes({ rotulo, valor, opcoes, onChange, colunas = 'sm:grid-cols-3' })
 }
 
 /** Cabeçalho ou rodapé: o da unidade, um próprio (editado como o texto) ou nenhum; e em quais páginas. */
-function EditarFaixa({ tipo, rotulo, faixa, onFaixa, config = {}, campos, EditorFaixa, larguraUtil, uid }) {
+function EditarFaixa({ tipo, rotulo, faixa, herdada, onFaixa, config = {}, campos, EditorFaixa, larguraUtil, uid, modoTimbrado = false }) {
     const f = faixa || {};
     const ultima = useRef(f);
     ultima.current = f;
     const modo = f.modo || 'unidade';
     const [versao, setVersao] = useState(0); // recria o editor quando o texto é trocado por fora
-    const daUnidade = tipo === 'cabecalho' ? (config.cabecalho_linhas || []).filter(Boolean)[0] || (config.brasao ? 'Brasão da unidade' : '') : config.rodape || '';
-    const recomecar = () => { onFaixa({ ...f, modo: 'proprio', conteudo: faixaDoTimbrado(config, tipo) }); setVersao((v) => v + 1); };
+    const simples = tipo === 'cabecalho' ? (config.cabecalho_linhas || []).filter(Boolean)[0] || (config.brasao ? 'Brasão' : '') : config.rodape || '';
+    // No documento, "da unidade" segue o papel timbrado, que pode ter cabeçalho/rodapé completo.
+    const daUnidade = modoTimbrado ? simples || 'Preencha as linhas do formulário'
+        : herdada?.modo === 'proprio' ? `O do papel timbrado (editor completo)` : herdada?.modo === 'nenhum' ? `O papel timbrado não tem ${rotulo.toLowerCase()}` : simples || 'A unidade não definiu';
+    const recomecar = () => { onFaixa({ ...f, modo: 'proprio', conteudo: herdada?.modo === 'proprio' && herdada.conteudo?.length ? herdada.conteudo : faixaDoTimbrado(config, tipo) }); setVersao((v) => v + 1); };
     const escolher = (m) => (m === 'proprio' && !f.conteudo?.length ? recomecar() : onFaixa({ ...f, modo: m }));
+    const rotulos = modoTimbrado ? { unidade: tipo === 'cabecalho' ? 'Simples (linhas e brasão)' : 'Simples (uma linha)', proprio: 'Editor completo', nenhum: 'Nenhum' } : {};
     return (
         <fieldset className="space-y-2 min-w-0">
             <legend className="text-sm font-semibold">{rotulo}</legend>
-            <Opcoes rotulo={rotulo} valor={modo} onChange={escolher} opcoes={MODOS_FAIXA.map(([v, r]) => [v, r,
-                v === 'unidade' ? daUnidade || 'A unidade não definiu' : v === 'proprio' ? 'Texto, imagens e tabelas à vontade' : `Sem ${rotulo.toLowerCase()}`])} />
+            <Opcoes rotulo={rotulo} valor={modo} onChange={escolher} opcoes={MODOS_FAIXA.map(([v, r]) => [v, rotulos[v] || r,
+                v === 'unidade' ? daUnidade : v === 'proprio' ? 'Texto, imagens e tabelas à vontade' : `Sem ${rotulo.toLowerCase()}`])} />
             <div className="flex flex-wrap items-end gap-2">
                 <div className="min-w-[13rem]">
                     <Label htmlFor={`${uid}-${tipo}-pag`} className="text-xs">Aparece em</Label>
-                    <select id={`${uid}-${tipo}-pag`} className={`mt-1 ${campo}`} value={f.paginas || 'todas'} disabled={modo === 'nenhum'} onChange={(e) => onFaixa({ ...f, paginas: e.target.value })}>
+                    <select id={`${uid}-${tipo}-pag`} className={`mt-1 ${campo}`} value={f.paginas || herdada?.paginas || 'todas'} disabled={modo === 'nenhum'} onChange={(e) => onFaixa({ ...f, paginas: e.target.value })}>
                         {PAGINAS_FAIXA.map(([v, r]) => <option key={v} value={v}>{r}</option>)}
                     </select>
                 </div>
-                {modo === 'proprio' && <Button type="button" size="sm" variant="ghost" className="gap-1" onClick={recomecar}><RotateCcw className="w-4 h-4" /> Recomeçar do timbrado</Button>}
+                {modo === 'proprio' && <Button type="button" size="sm" variant="ghost" className="gap-1" onClick={recomecar}><RotateCcw className="w-4 h-4" /> {modoTimbrado ? 'Partir das linhas simples' : 'Recomeçar do timbrado'}</Button>}
             </div>
             {modo === 'proprio' && EditorFaixa && (
                 <>
@@ -192,7 +196,14 @@ function EditarFaixa({ tipo, rotulo, faixa, onFaixa, config = {}, campos, Editor
     );
 }
 
-export default function ConfigurarPagina({ aberto, aba = 'pagina', onAba, layout, onMudar, onFechar, fontes, cssFonte, editor, config, campos, EditorFaixa, larguraUtil = 16 }) {
+/**
+ * `herdado`: layout do papel timbrado por baixo deste documento (mostra o que
+ * vale e guarda só o que o documento muda). `modoTimbrado`: a janela edita o
+ * próprio papel timbrado do órgão ou da unidade.
+ */
+export default function ConfigurarPagina({
+    aberto, aba = 'pagina', onAba, layout, onMudar, onFechar, fontes, cssFonte, editor, config, campos, EditorFaixa, larguraUtil = 16, herdado = null, modoTimbrado = false,
+}) {
     const uid = useId().replace(/[^a-z0-9]/gi, '');
     const [sel, setSel] = useState('normal');
     const [novoNome, setNovoNome] = useState('');
@@ -200,16 +211,21 @@ export default function ConfigurarPagina({ aberto, aba = 'pagina', onAba, layout
     // O editor do cabeçalho/rodapé pode chamar com o fechamento antigo: parte sempre do layout atual.
     const atual = useRef(l);
     atual.current = l;
-    const mudar = (parcial) => onMudar(limparLayout({ ...atual.current, ...parcial }));
-    const m = margensDe(l);
-    const np = l.numero_pagina || {};
-    const proprios = l.proprios || [];
+    const mudar = (parcial) => onMudar(limparLayout({ ...atual.current, ...parcial }, herdado));
+    const vale = comTimbrado(l, herdado); // o que vale: o do documento por cima do timbrado
+    const m = margensDe(vale);
+    const np = vale.numero_pagina || {};
+    const doDoc = l.proprios || [];
+    const proprios = vale.proprios || [];
     const proprio = sel.startsWith('p:') ? proprios.find((p) => p.id === sel.slice(2)) : null;
-    const estiloSel = proprio || estiloEfetivo(l, sel);
+    const estiloSel = proprio || estiloEfetivo(vale, sel);
     const setEstilo = (e) => {
-        if (proprio) return mudar({ proprios: proprios.map((p) => (p.id === proprio.id ? { ...e, id: p.id, nome: p.nome } : p)) });
-        // Guarda só o que difere do padrão do SIGO.
-        const padrao = ESTILOS_PADRAO[sel] || {};
+        if (proprio) {
+            const novo = { ...e, id: proprio.id, nome: proprio.nome };
+            return mudar({ proprios: doDoc.some((p) => p.id === proprio.id) ? doDoc.map((p) => (p.id === proprio.id ? novo : p)) : [...doDoc, novo] });
+        }
+        // Guarda só o que difere do herdado (padrão do SIGO ou papel timbrado).
+        const padrao = estiloEfetivo(herdado || {}, sel);
         const dif = Object.fromEntries(Object.entries(e).filter(([k, v]) => v !== undefined && v !== padrao[k]));
         for (const k of Object.keys(padrao)) if (e[k] === undefined) dif[k] = undefined;
         return mudar({ estilos: { ...(l.estilos || {}), [sel]: dif } });
@@ -218,18 +234,22 @@ export default function ConfigurarPagina({ aberto, aba = 'pagina', onAba, layout
         const nome = novoNome.trim().slice(0, 40);
         if (!nome) return;
         const id = idDeEstilo(nome, proprios.map((p) => p.id));
-        mudar({ proprios: [...proprios, { id, nome, ...formatoDoParagrafo(editor) }] });
+        mudar({ proprios: [...doDoc, { id, nome, ...formatoDoParagrafo(editor) }] });
         setSel(`p:${id}`);
         setNovoNome('');
     };
     const nomeSel = proprio ? proprio.nome : (CHAVES_ESTILO.find(([k]) => k === sel) || [])[1];
-    const cssPrevia = cssDoEstilo(proprio ? { ...estiloEfetivo(l, 'normal'), ...proprio } : estiloSel, cssFonte);
+    const cssPrevia = cssDoEstilo(proprio ? { ...estiloEfetivo(vale, 'normal'), ...proprio } : estiloSel, cssFonte);
 
     return (
         <Dialog open={aberto} onOpenChange={(o) => !o && onFechar()}>
             <DialogContent className={`${aba === 'faixas' ? 'max-w-5xl' : 'max-w-3xl'} w-[96vw] max-h-[92dvh] overflow-y-auto grid-cols-[minmax(0,1fr)] p-4 sm:p-6`}>
-                <DialogTitle>Página e estilos do documento</DialogTitle>
-                <DialogDescription>Vale para este documento: na tela, no PDF que entra nos autos e no Word (.docx). As mudanças aparecem na hora; Ctrl+Z desfaz.</DialogDescription>
+                <DialogTitle>{modoTimbrado ? 'Página, cabeçalho e estilos do papel timbrado' : 'Página e estilos do documento'}</DialogTitle>
+                <DialogDescription>
+                    {modoTimbrado
+                        ? 'Vale para todos os documentos que usam este papel timbrado, na tela, no PDF dos autos e no Word. Cada modelo ou documento pode mudar por cima. Salve a tela para valer.'
+                        : `Vale para este documento: na tela, no PDF que entra nos autos e no Word (.docx). As mudanças aparecem na hora; Ctrl+Z desfaz.${herdado ? ' O que não mudar aqui segue o papel timbrado.' : ''}`}
+                </DialogDescription>
                 <Tabs value={aba} onValueChange={onAba} className="mt-2">
                     <TabsList className="w-full grid grid-cols-2 sm:grid-cols-4 h-auto">
                         <TabsTrigger value="pagina" className="text-xs sm:text-sm">Papel e margens</TabsTrigger>
@@ -243,7 +263,7 @@ export default function ConfigurarPagina({ aberto, aba = 'pagina', onAba, layout
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <Label htmlFor={`${uid}-papel`}>Tamanho do papel</Label>
-                                    <select id={`${uid}-papel`} className={`mt-1 ${campo}`} value={l.papel || 'A4'} onChange={(e) => mudar({ papel: e.target.value })}>
+                                    <select id={`${uid}-papel`} className={`mt-1 ${campo}`} value={vale.papel || 'A4'} onChange={(e) => mudar({ papel: e.target.value })}>
                                         {Object.entries(PAPEIS).map(([k, p]) => <option key={k} value={k}>{p.nome}</option>)}
                                     </select>
                                 </div>
@@ -251,8 +271,8 @@ export default function ConfigurarPagina({ aberto, aba = 'pagina', onAba, layout
                                     <legend className="text-sm font-medium">Orientação</legend>
                                     <div className="mt-1 grid grid-cols-2 gap-1" role="radiogroup" aria-label="Orientação">
                                         {[['retrato', 'Retrato'], ['paisagem', 'Paisagem']].map(([v, r]) => (
-                                            <button key={v} type="button" role="radio" aria-checked={(l.orientacao || 'retrato') === v} onClick={() => mudar({ orientacao: v })}
-                                                className={`h-9 rounded-md border text-sm flex items-center justify-center gap-1.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 ${(l.orientacao || 'retrato') === v ? 'bg-indigo-100 border-indigo-400 text-indigo-900 dark:bg-indigo-900 dark:text-indigo-100' : 'border-input hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+                                            <button key={v} type="button" role="radio" aria-checked={(vale.orientacao || 'retrato') === v} onClick={() => mudar({ orientacao: v })}
+                                                className={`h-9 rounded-md border text-sm flex items-center justify-center gap-1.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 ${(vale.orientacao || 'retrato') === v ? 'bg-indigo-100 border-indigo-400 text-indigo-900 dark:bg-indigo-900 dark:text-indigo-100' : 'border-input hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
                                                 <span aria-hidden className={`inline-block border border-current ${v === 'retrato' ? 'w-2.5 h-3.5' : 'w-3.5 h-2.5'}`} />{r}
                                             </button>
                                         ))}
@@ -276,13 +296,13 @@ export default function ConfigurarPagina({ aberto, aba = 'pagina', onAba, layout
                                 <p className="text-xs text-slate-600 dark:text-slate-400 mt-2">Com papel timbrado, o texto começa abaixo do cabeçalho; a margem superior só vale se for maior que ele.</p>
                             </fieldset>
                         </div>
-                        <div><p className="text-sm font-medium mb-1">Prévia</p><MiniFolha layout={l} /></div>
+                        <div><p className="text-sm font-medium mb-1">Prévia</p><MiniFolha layout={vale} /></div>
                     </TabsContent>
 
                     <TabsContent value="faixas" className="space-y-6">
-                        <EditarFaixa tipo="cabecalho" rotulo="Cabeçalho" faixa={l.cabecalho} onFaixa={(f) => mudar({ cabecalho: f })}
+                        <EditarFaixa tipo="cabecalho" rotulo="Cabeçalho" faixa={l.cabecalho} herdada={herdado?.cabecalho} onFaixa={(f) => mudar({ cabecalho: f })} modoTimbrado={modoTimbrado}
                             config={config} campos={campos} EditorFaixa={EditorFaixa} larguraUtil={larguraUtil} uid={uid} />
-                        <EditarFaixa tipo="rodape" rotulo="Rodapé" faixa={l.rodape} onFaixa={(f) => mudar({ rodape: f })}
+                        <EditarFaixa tipo="rodape" rotulo="Rodapé" faixa={l.rodape} herdada={herdado?.rodape} onFaixa={(f) => mudar({ rodape: f })} modoTimbrado={modoTimbrado}
                             config={config} campos={campos} EditorFaixa={EditorFaixa} larguraUtil={larguraUtil} uid={uid} />
                         <fieldset className="space-y-2">
                             <legend className="text-sm font-semibold">Número de página</legend>
@@ -325,24 +345,28 @@ export default function ConfigurarPagina({ aberto, aba = 'pagina', onAba, layout
                                     onChange={(e) => setNovoNome(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && criar()} className="h-9" />
                                 <Button type="button" size="sm" variant="outline" className="h-9 px-2" disabled={!novoNome.trim() || proprios.length >= 30} onClick={criar} aria-label="Criar estilo"><Plus className="w-4 h-4" /></Button>
                             </div>
-                            <p className="text-[11px] text-slate-600 dark:text-slate-400">O estilo novo nasce com a formatação do parágrafo onde está o cursor.</p>
+                            <p className="text-[11px] text-slate-600 dark:text-slate-400">{editor ? 'O estilo novo nasce com a formatação do parágrafo onde está o cursor.' : 'O estilo novo aparece na lista de estilos de todos os documentos.'}</p>
                         </div>
                         <div className="min-w-0 space-y-3">
                             <div className="flex flex-wrap items-center gap-2">
                                 <p className="font-medium text-sm flex-1">{nomeSel}</p>
-                                <Button type="button" size="sm" variant="outline" className="gap-1" title="Copia fonte, tamanho, efeitos, alinhamento, recuos e espaços do parágrafo onde está o cursor"
-                                    onClick={() => setEstilo({ ...(proprio ? {} : ESTILOS_PADRAO[sel]), ...formatoDoParagrafo(editor) })}>
-                                    <Wand2 className="w-4 h-4" /> Usar o parágrafo atual
-                                </Button>
-                                {proprio
-                                    ? <Button type="button" size="sm" variant="ghost" className="gap-1 text-red-700" onClick={() => { mudar({ proprios: proprios.filter((p) => p.id !== proprio.id) }); setSel('normal'); }}><Trash2 className="w-4 h-4" /> Excluir</Button>
+                                {editor && (
+                                    <Button type="button" size="sm" variant="outline" className="gap-1" title="Copia fonte, tamanho, efeitos, alinhamento, recuos e espaços do parágrafo onde está o cursor"
+                                        onClick={() => setEstilo({ ...(proprio ? {} : ESTILOS_PADRAO[sel]), ...formatoDoParagrafo(editor) })}>
+                                        <Wand2 className="w-4 h-4" /> Usar o parágrafo atual
+                                    </Button>
+                                )}
+                                {proprio && !doDoc.some((p) => p.id === proprio.id)
+                                    ? <span className="text-xs text-slate-600 dark:text-slate-400">Do papel timbrado</span>
+                                    : proprio
+                                    ? <Button type="button" size="sm" variant="ghost" className="gap-1 text-red-700" onClick={() => { mudar({ proprios: doDoc.filter((p) => p.id !== proprio.id) }); setSel('normal'); }}><Trash2 className="w-4 h-4" /> Excluir</Button>
                                     : <Button type="button" size="sm" variant="ghost" className="gap-1" onClick={() => mudar({ estilos: { ...(l.estilos || {}), [sel]: {} } })}><RotateCcw className="w-4 h-4" /> Padrão</Button>}
                             </div>
-                            {proprio && (
+                            {proprio && doDoc.some((p) => p.id === proprio.id) && (
                                 <div>
                                     <Label htmlFor={`${uid}-nome`} className="text-xs">Nome do estilo</Label>
                                     <Input id={`${uid}-nome`} className="h-9 mt-1" maxLength={40} value={proprio.nome}
-                                        onChange={(e) => e.target.value.trim() && mudar({ proprios: proprios.map((p) => (p.id === proprio.id ? { ...p, nome: e.target.value } : p)) })} />
+                                        onChange={(e) => e.target.value.trim() && mudar({ proprios: doDoc.map((p) => (p.id === proprio.id ? { ...p, nome: e.target.value } : p)) })} />
                                 </div>
                             )}
                             <FormEstilo key={sel} estilo={estiloSel} setEstilo={setEstilo} fontes={fontes} prefixo={`${uid}-${sel.replace(/[^a-z0-9]/g, '')}`} />
@@ -359,8 +383,8 @@ export default function ConfigurarPagina({ aberto, aba = 'pagina', onAba, layout
                             <legend className="text-sm font-medium">Numerar os títulos sozinho</legend>
                             <div className="mt-2 grid sm:grid-cols-3 gap-2" role="radiogroup" aria-label="Numeração dos títulos">
                                 {FORMATOS_TITULO.map(([v, r]) => (
-                                    <button key={v || 'sem'} type="button" role="radio" aria-checked={(l.numeracao_titulos || '') === v} onClick={() => mudar({ numeracao_titulos: v })}
-                                        className={`rounded-md border p-3 text-left text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 ${(l.numeracao_titulos || '') === v ? 'bg-indigo-50 border-indigo-400 dark:bg-indigo-950' : 'border-input hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
+                                    <button key={v || 'sem'} type="button" role="radio" aria-checked={(vale.numeracao_titulos || '') === v} onClick={() => mudar({ numeracao_titulos: v })}
+                                        className={`rounded-md border p-3 text-left text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 ${(vale.numeracao_titulos || '') === v ? 'bg-indigo-50 border-indigo-400 dark:bg-indigo-950' : 'border-input hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
                                         <span className="font-medium block">{r}</span>
                                         {v && <span className="block text-xs text-slate-600 dark:text-slate-400 mt-1">{v === 'romano' ? 'Título 1 em romanos; Título 2 a 4 em 1., 1.1., 1.1.1.' : 'Título 1 em 1., Título 2 em 1.1., e assim por diante.'}</span>}
                                     </button>
@@ -372,8 +396,8 @@ export default function ConfigurarPagina({ aberto, aba = 'pagina', onAba, layout
                             <p className="text-xs text-slate-600 dark:text-slate-400">Marque cada parágrafo com o botão <span className="font-semibold">Parágrafo numerado</span> (#) da barra; a numeração segue sozinha pelo documento, como em pareceres e decisões.</p>
                             <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2" role="radiogroup" aria-label="Formato do número do parágrafo">
                                 {FORMATOS_PARAGRAFO.map(([v, r]) => (
-                                    <button key={v} type="button" role="radio" aria-checked={(l.numeracao_paragrafos || '1.') === v} onClick={() => mudar({ numeracao_paragrafos: v })}
-                                        className={`h-10 rounded-md border text-sm font-mono focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 ${(l.numeracao_paragrafos || '1.') === v ? 'bg-indigo-50 border-indigo-400 dark:bg-indigo-950' : 'border-input hover:bg-slate-50 dark:hover:bg-slate-800'}`}>{r}</button>
+                                    <button key={v} type="button" role="radio" aria-checked={(vale.numeracao_paragrafos || '1.') === v} onClick={() => mudar({ numeracao_paragrafos: v })}
+                                        className={`h-10 rounded-md border text-sm font-mono focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 ${(vale.numeracao_paragrafos || '1.') === v ? 'bg-indigo-50 border-indigo-400 dark:bg-indigo-950' : 'border-input hover:bg-slate-50 dark:hover:bg-slate-800'}`}>{r}</button>
                                 ))}
                             </div>
                         </fieldset>

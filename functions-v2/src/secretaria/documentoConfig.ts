@@ -1,7 +1,10 @@
 import { texto } from '../shared/secretaria';
 import { FONTES } from '../shared/documento';
+import { sanitizeLayout } from '../shared/layoutDocumento';
 
 export const MAX_BRASAO = 300 * 1024;
+/** Página, cabeçalho/rodapé (com imagens) e estilos do timbrado: o registro do Firestore tem limite de 1 MB. */
+export const MAX_LAYOUT = 600 * 1024;
 export const TIPOS_DOCUMENTO_PADRAO = [
     'Despacho', 'Decisão', 'Informação', 'Certidão', 'Ofício', 'Memorando', 'Parecer', 'Termo', 'Ata', 'Relatório', 'Notificação', 'Documento',
 ];
@@ -14,7 +17,11 @@ export function sanitizeDocumentoConfig(v: unknown, opts: { semTiposPadrao?: boo
     const linhas = (Array.isArray(o.cabecalho_linhas) ? o.cabecalho_linhas : []).map((l) => texto(l, 120)).filter(Boolean).slice(0, 4);
     const tipos = [...new Set((Array.isArray(o.tipos_documento) ? o.tipos_documento : []).map((t) => texto(t, 60)).filter(Boolean))].slice(0, 60);
     const tamanho = Number(o.tamanho_padrao);
+    // null (e não ausente): a unidade com timbrado próprio não herda o layout do órgão.
+    const layout = sanitizeLayout(o.layout) || null;
+    if (layout && JSON.stringify(layout).length > MAX_LAYOUT) throw new Error('O cabeçalho e o rodapé passam de 600 KB; use imagens menores');
     return {
+        layout,
         cabecalho_linhas: linhas,
         brasao,
         rodape: texto(o.rodape, 200),

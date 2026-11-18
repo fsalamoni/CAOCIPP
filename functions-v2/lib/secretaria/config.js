@@ -433,7 +433,17 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             (0, context_1.erroUsuario)(e);
         }
         const { lerConfigDocumento } = await Promise.resolve().then(() => require('./autos'));
-        const cfg = await lerConfigDocumento(db, orgId, unidadeId || undefined);
+        let cfg = await lerConfigDocumento(db, orgId, unidadeId || undefined);
+        // Prévia do papel timbrado ainda não salvo (tela do timbrado do órgão ou da unidade).
+        const timbrado = p.timbrado;
+        if (timbrado) {
+            try {
+                cfg = Object.assign(Object.assign({}, cfg), (0, documentoConfig_1.sanitizeDocumentoConfig)(timbrado));
+            }
+            catch (e) {
+                (0, context_1.erroUsuario)(e);
+            }
+        }
         const nome = (0, secretaria_1.texto)(m.nome, 60).replace(/[^\p{L}\p{N} _-]+/gu, '') || 'modelo';
         if (p.formato === 'docx') {
             const { docParaDocx } = await Promise.resolve().then(() => require('./docxExportar'));
