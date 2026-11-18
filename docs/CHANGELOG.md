@@ -5,6 +5,24 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 18/11/2026 — Versões federal e do Estado do RS dos ritos de sanção e de bens
+- **Três modelos novos na biblioteca (agora 58).** "Sanção a fornecedor no
+  Estado do RS: apuração e registro no CFIL/RS" (Lei 14.133 com a Lei
+  estadual 11.389/1999, o Decreto 42.250/2003 e a IN CAGE 2/2003); "Bens
+  móveis inservíveis no Estado do RS" (Decretos 57.408/2023 e 58.685/2026,
+  com o Programa Sustentare); e "Bens móveis inservíveis na administração
+  federal" (Decreto 12.785/2025, que revogou o 9.373/2018).
+- **Modelos gerais revistos.** A sanção a fornecedor explica o registro no
+  CEIS e no CNEP pelo Decreto 11.129/2022 (quem registra, quando e o quê).
+  Os modelos de gestão de contrato dizem que o Decreto 11.246/2022 e as
+  instruções da SEGES são do Executivo federal e servem de referência aos
+  outros entes. O de bens patrimoniais aponta os modelos por esfera.
+- **O que não foi criado, e por quê.** Gestão de contrato estadual: o
+  Executivo do RS não tem regulamento de gestor e fiscal, só os decretos de
+  licitação e de contratação direta. Gestão de contrato e sanção federais:
+  os modelos gerais já seguem as normas federais. O Decreto estadual
+  57.916/2024 (leilão) não pôde ser lido e está marcado para conferir.
+
 ### 18/11/2026 — Data de entrada própria do aditivo
 - A data de entrada do aditivo é a dele (dia em que chegou a informação que
   o originou, ou hoje), nunca a do original. O servidor recusa data anterior

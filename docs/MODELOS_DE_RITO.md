@@ -98,7 +98,7 @@ Os modelos ficam em `src/lib/modelos/<área>.js` e são escritos com a linguagem
 
 ## Fontes
 
-A pesquisa normativa que embasou os modelos está nos arquivos do projeto, em `/mnt/project-files/modelos-rito/`: `pesquisa-modelos.md` (os primeiros 28 modelos), `pesquisa-conselhos.md` (OAB/RS e CAU), `pesquisa-mprs.md` (CNMP e MPRS) e `pesquisa-agu-cgu.md` (AGU e CGU) `pesquisa-contratos-patrimonio.md` (gestão contratual completa e gestão de bens patrimoniais) e `pesquisa-mprs-contratos-patrimonio.md` (contratos, descumprimento contratual e bens móveis no MPRS, pelos Provimentos 104/2023, 05/2023, 55/2022 e 02/2009 da PGJ, e o que vale do Estado do RS), cada um com as URLs consultadas. Em cada modelo, a **Base** cita as normas e os artigos. Onde a pesquisa não confirmou um ponto, a orientação da fase avisa e pede que o órgão confira.
+A pesquisa normativa que embasou os modelos está nos arquivos do projeto, em `/mnt/project-files/modelos-rito/`: `pesquisa-modelos.md` (os primeiros 28 modelos), `pesquisa-conselhos.md` (OAB/RS e CAU), `pesquisa-mprs.md` (CNMP e MPRS) e `pesquisa-agu-cgu.md` (AGU e CGU) `pesquisa-contratos-patrimonio.md` (gestão contratual completa e gestão de bens patrimoniais), `pesquisa-esferas-federal-estadual.md` (versões federal e do Estado do RS de sanção a fornecedor e de bens inservíveis, e por que não há versão própria de gestão de contrato) e `pesquisa-mprs-contratos-patrimonio.md` (contratos, descumprimento contratual e bens móveis no MPRS, pelos Provimentos 104/2023, 05/2023, 55/2022 e 02/2009 da PGJ, e o que vale do Estado do RS), cada um com as URLs consultadas. Em cada modelo, a **Base** cita as normas e os artigos. Onde a pesquisa não confirmou um ponto, a orientação da fase avisa e pede que o órgão confira.
 
 ## Catálogo
 
@@ -107,11 +107,11 @@ A pesquisa normativa que embasou os modelos está nos arquivos do projeto, em `/
 | Administrativo geral | Processo administrativo com interessado (médio); Recurso administrativo julgado por colegiado (médio) |
 | Correcional e disciplinar | Sindicância investigativa e investigação preliminar sumária (curto); Processo administrativo disciplinar, rito ordinário (longo); Processo administrativo disciplinar, rito sumário (médio); Termo de ajustamento de conduta disciplinar (curto); Correição e inspeção em Promotoria de Justiça (MPRS) (médio); Sindicância patrimonial (médio); Juízo de admissibilidade correcional (curto); Processo disciplinar de empregado público (médio) |
 | Ética e conselhos profissionais | Processo ético-profissional (conselho profissional) (longo); Processo disciplinar (entidade de classe) (longo); Apuração ética por comissão de ética pública (médio); Processo disciplinar no TED da OAB/RS (longo); Revisão de processo disciplinar (OAB) (curto); Reabilitação de inscrito punido (OAB) (curto); Processo ético-disciplinar do CAU (longo) |
-| Sancionador e fiscalização | Responsabilização de pessoa jurídica (PAR) (longo); Infração contratual e sanção a fornecedor (médio); Descumprimento contratual no MPRS: apuração e sanção (longo); Fiscalização com auto de infração e defesa (médio); Processo administrativo fiscal (lançamento e impugnação) (longo); Multa de trânsito (defesa prévia e recursos) (médio); Fiscalização do exercício profissional no CAU (médio); Acordo de leniência (Lei Anticorrupção) (longo) |
+| Sancionador e fiscalização | Responsabilização de pessoa jurídica (PAR) (longo); Infração contratual e sanção a fornecedor (médio); Descumprimento contratual no MPRS: apuração e sanção (longo); Sanção a fornecedor no Estado do RS: apuração e registro no CFIL/RS (longo); Fiscalização com auto de infração e defesa (médio); Processo administrativo fiscal (lançamento e impugnação) (longo); Multa de trânsito (defesa prévia e recursos) (médio); Fiscalização do exercício profissional no CAU (médio); Acordo de leniência (Lei Anticorrupção) (longo) |
 | Contratações e contratos | Contratação pública por licitação (longo); Contratação direta: dispensa e inexigibilidade (médio); Compra ou contratação privada (médio); Gestão contratual completa: da assinatura à extinção (longo); Gestão de contrato no MPRS: do empenho ao encerramento (longo); Gestão e fiscalização de contrato de serviço continuado (longo); Recebimento de bens ou serviços, liquidação e pagamento (curto); Parceria com organização da sociedade civil (longo) |
 | Atendimento, ouvidoria e transparência | Manifestação de ouvidoria (curto); Pedido de acesso à informação (curto) |
 | Ministério Público (não penal) | Notícia de Fato (curto); Procedimento Administrativo do Ministério Público (médio); Procedimento Preparatório (médio); Inquérito Civil (longo); Compromisso de ajustamento de conduta (TAC) (longo); Recomendação do Ministério Público (curto); Audiência pública do Ministério Público (curto); Revisão de arquivamento pelo Conselho Superior (MPRS) (médio); Destinação de bens e valores de tutela coletiva (MPRS) (médio); Cadastramento de entidade para destinação de recursos (MPRS) (curto); Triagem de representação sobre patrimônio público (MPRS) (curto) |
-| Gestão interna e pessoas | Consulta ou parecer interno (curto); Concessão de benefício ou licença a servidor (curto); Proposta de ato normativo ao conselho (curto); Gestão de bens patrimoniais: do tombamento à baixa (longo); Bens móveis no MPRS: do tombamento à baixa (longo) |
+| Gestão interna e pessoas | Consulta ou parecer interno (curto); Concessão de benefício ou licença a servidor (curto); Proposta de ato normativo ao conselho (curto); Gestão de bens patrimoniais: do tombamento à baixa (longo); Bens móveis no MPRS: do tombamento à baixa (longo); Bens móveis inservíveis no Estado do RS: avaliação, destinação e baixa (médio); Bens móveis inservíveis na administração federal: circularidade e desfazimento (médio) |
 | Controle e contas | Tomada de contas especial (fase interna) (longo) |
 | Advocacia pública e consultoria | Mediação e conciliação na câmara da advocacia pública (CCAF) (médio); Acordo para prevenir ou encerrar litígio com a União (médio); Cobrança administrativa e inscrição em dívida ativa (crédito não tributário) (médio) |
 
@@ -417,9 +417,9 @@ Apura a responsabilidade objetiva de pessoa jurídica por ato lesivo à Administ
 
 Apura infração de licitante ou contratada, como inexecução, atraso injustificado, não manter a proposta ou apresentar documento falso, e aplica advertência, multa, impedimento de licitar e contratar ou declaração de inidoneidade. O juízo de admissibilidade define a sanção cabível em tese, e com ela o rito: o simples, conduzido pelo setor de contratos, para advertência e multa; ou o com comissão de dois ou mais servidores estáveis, obrigatório para impedimento e inidoneidade. O contraditório está na defesa em 15 dias úteis, nas alegações finais em 15 dias úteis quando há prova nova e no recurso ou pedido de reconsideração, ambos com efeito suspensivo. Termina com a execução da sanção, a cobrança da multa e o registro no CEIS e no CNEP.
 
-**Quando usar:** Ocorrência registrada pelo fiscal ou gestor do contrato, ou pelo agente de contratação na licitação, que possa configurar infração do art. 155 da Lei 14.133. No Ministério Público do RS, prefira "Descumprimento contratual no MPRS", com as autoridades e os prazos do Provimento 104/2023-PGJ.
+**Quando usar:** Ocorrência registrada pelo fiscal ou gestor do contrato, ou pelo agente de contratação na licitação, que possa configurar infração do art. 155 da Lei 14.133. No Ministério Público do RS, prefira "Descumprimento contratual no MPRS", com as autoridades e os prazos do Provimento 104/2023-PGJ. No Executivo do RS, use "Sanção a fornecedor no Estado do RS", com o CFIL/RS.
 
-**Base:** Lei 14.133/2021, arts. 117, § 1º, 155 a 163, 166 a 168 e 183.
+**Base:** Lei 14.133/2021, arts. 117, § 1º, 155 a 163, 166 a 168 e 183; Decreto 11.129/2022, arts. 58 a 63 (registro no CEIS e no CNEP, por todos os Poderes e esferas).
 
 **Partes:** Contratada ou licitante (requerido).
 
@@ -442,6 +442,22 @@ O procedimento "Descumprimento Contratual" do Ministério Público do RS: o fisc
 **Recursos do motor usados:** 6 comunicações às partes; 5 esperas de resposta; audiência (audiência de instrução); 10 documentos; 1 formulário de dados; 6 fases com saída decidida pela resposta.
 
 **Fases:** 1. Instauração pelo fiscal, Fiscalização do contrato; 2. Análise do gestor, Gestão do contrato; 3. Multa sobrestada, Unidade de Assessoramento Jurídico; 4. Defesa prévia, Gestão do contrato; 5. Manifestação do gestor, Gestão do contrato; 6. Comissão processante, Comissão processante; 7. Manifestação jurídica, Unidade de Assessoramento Jurídico; 8. Decisão, Direção-Geral; 9. Intimação e recurso, Unidade de Assessoramento Jurídico; 10. Reconsideração e decisão final, Subprocuradoria-Geral de Justiça para Assuntos Administrativos; 11. Publicação e registros, Unidade de Contratos; 12. Cobrança da multa, Unidade de Contratos; 13. Arquivamento, Unidade de Contratos.
+
+### Sanção a fornecedor no Estado do RS: apuração e registro no CFIL/RS
+
+**Porte:** Longo, 16 fases. **Inspirado em:** Estado do RS. **Identificador:** `sancao-fornecedor-rs`.
+
+Apura o descumprimento de contrato ou o ato ilícito em licitação nos órgãos, autarquias e fundações do Executivo do Rio Grande do Sul. Começa pelo parecer técnico de quem atesta a execução, enviado ao ordenador de despesa, como manda a lei do CFIL/RS. Daí em diante segue o procedimento da Lei 14.133: defesa em 15 dias úteis no rito simples, para advertência e multa, ou comissão de dois ou mais servidores estáveis, para impedimento e inidoneidade; análise jurídica; decisão do ordenador de despesa ou, na inidoneidade, do Secretário de Estado; recurso ou reconsideração com efeito suspensivo. No fim, a decisão sai no Diário Oficial do Estado, a sanção é cadastrada no CFIL/RS, pelo sistema FPE, a multa é cobrada e o registro é acompanhado até o saneamento e a baixa.
+
+**Quando usar:** Órgãos, autarquias e fundações do Executivo do RS, quando o fiscal ou o gestor aponta descumprimento de contrato ou a comissão de licitação registra ato ilícito de licitante. No Ministério Público do RS, use "Descumprimento contratual no MPRS". Fora do RS, use "Infração contratual e sanção a fornecedor".
+
+**Base:** Lei 14.133/2021, arts. 117, § 1º, 137, 155 a 163, 166 a 168 e 183; Lei estadual 11.389/1999 (com a Lei 14.657/2014), arts. 2º a 4º, 7º, 9º e 12; Decreto estadual 42.250/2003 (com os Decretos 45.680/2008 e 54.434/2018), arts. 2º, 3º, 7º a 11, 14 e 16; Instrução Normativa CAGE 2/2003, arts. 3º, 13 e 16; manual do módulo CFIL/RS do FPE, versão 2025.1; Decreto federal 11.129/2022, arts. 58 a 63 (CEIS); Lei estadual 15.612/2021 (processo administrativo, subsidiária). O Estado não editou regulamento próprio do processo de sanção da Lei 14.133: os prazos de defesa de 5 dias úteis e as suspensões de 3 a 6 meses da lei e do decreto do CFIL são do tempo da Lei 8.666 e cedem aos 15 dias úteis e às sanções dos arts. 156 a 158 da lei federal.
+
+**Partes:** Fornecedor (requerido).
+
+**Recursos do motor usados:** 13 documentos; 2 formulários de dados; 7 comunicações às partes; 7 fases com saída decidida pela resposta.
+
+**Fases:** 1. Parecer técnico da fiscalização, Fiscalização do contrato; 2. Admissibilidade, Ordenador de despesa; 3. Defesa no rito simples, Setor de contratos; 4. Instauração da comissão, Ordenador de despesa; 5. Defesa perante a comissão, Comissão processante; 6. Instrução, Comissão processante; 7. Alegações finais, Comissão processante; 8. Relatório da comissão, Comissão processante; 9. Análise jurídica, Assessoria jurídica; 10. Decisão, Ordenador de despesa; 11. Recurso ou reconsideração, Ordenador de despesa; 12. Autoridade superior, Autoridade superior; 13. Publicação e CFIL/RS, Setor de contratos; 14. Cobrança da multa, Setor de contratos; 15. Saneamento e baixa do registro, Setor de contratos; 16. Arquivamento, Setor de contratos.
 
 ### Fiscalização com auto de infração e defesa
 
@@ -579,7 +595,7 @@ Fluxo de aquisição de bens e serviços em empresa ou entidade privada, da requ
 
 Um processo por contrato administrativo, do começo ao fim: convocação e assinatura, garantia, publicação no PNCP (condição de eficácia), designação de gestor e fiscais, início da execução, fiscalização a cada período, recebimento, liquidação e pagamento em ordem cronológica. De cada pagamento o contrato segue para o período seguinte ou para um evento: termo aditivo, apostila, prorrogação da vigência, reequilíbrio, subcontratação ou mudança societária, solução consensual de controvérsia e extinção antecipada. Falha não corrigida é remetida a processo derivado de apuração de infração ("Novo processo derivado deste", com o modelo "Infração contratual e sanção a fornecedor"); o contrato continua sendo acompanhado aqui. No fim, recebimento definitivo, avaliação de desempenho da contratada para o cadastro de fornecedores, liberação da garantia e encerramento.
 
-**Quando usar:** No Ministério Público do RS, prefira o modelo "Gestão de contrato no MPRS", que já traz as unidades e os prazos dos provimentos. Qualquer contrato administrativo (serviço contínuo ou por escopo, fornecimento, obra ou serviço de engenharia), de licitação ou de contratação direta. Um processo por contrato. Para o quadro de todos os contratos, use "Gerar painel e planilha" na Integração com o painel (Guia do rito, parte 21).
+**Quando usar:** No Ministério Público do RS, prefira o modelo "Gestão de contrato no MPRS", que já traz as unidades e os prazos dos provimentos. Qualquer contrato administrativo (serviço contínuo ou por escopo, fornecimento, obra ou serviço de engenharia), de licitação ou de contratação direta. Um processo por contrato. Para o quadro de todos os contratos, use "Gerar painel e planilha" na Integração com o painel (Guia do rito, parte 21). Os regulamentos citados (Decreto 11.246/2022 e instruções da SEGES) são do Executivo federal: nos outros entes servem de referência. O Executivo do RS não tem regulamento próprio de gestor e fiscal: use este modelo, com a consulta ao CFIL/RS e ao CADIN/RS antes de assinar e de pagar.
 
 **Base:** Lei 14.133/2021, arts. 53, § 4º, 88, §§ 3º e 4º, 89 a 103, 104, 105 a 114, 115 a 123, 124 a 136, 137 a 139, 140 a 146, 151 a 154, 155 a 163 e 165 a 168; Decreto 11.246/2022; IN SEGES 5/2017; IN SEGES 77/2022; Lei 4.320/1964, arts. 58 a 65.
 
@@ -611,7 +627,7 @@ O contrato do Ministério Público do RS como os provimentos internos mandam: a 
 
 Acompanha a execução de um contrato de serviço que se repete mês a mês (limpeza, vigilância, manutenção, suporte de TI), da designação do gestor e dos fiscais até o termo de recebimento definitivo e o encerramento. O processo é cíclico: a cada período os fiscais medem e recebem provisoriamente, o gestor atesta e o setor financeiro paga, e o ciclo volta para a medição seguinte. Repactuação, reajuste, prorrogação, alteração e reequilíbrio são tratados como eventos que saem do ciclo e voltam a ele; o descumprimento que persiste é remetido a processo próprio de apuração. A contratada é notificada para corrigir falhas, pode contestar glosas, é ouvida antes de qualquer alteração e tem defesa e recurso antes da extinção unilateral.
 
-**Quando usar:** Contratos de serviço contínuo, com ou sem dedicação exclusiva de mão de obra, durante toda a vigência. Abra um processo por contrato. No Ministério Público do RS, prefira "Gestão de contrato no MPRS".
+**Quando usar:** Contratos de serviço contínuo, com ou sem dedicação exclusiva de mão de obra, durante toda a vigência. Abra um processo por contrato. No Ministério Público do RS, prefira "Gestão de contrato no MPRS". O Decreto 11.246/2022 e as instruções da SEGES são do Executivo federal: nos outros entes servem de referência.
 
 **Base:** Lei 14.133/2021, arts. 92, §§ 4º e 6º, 94, 106, 107, 117, 123 a 125, 135, 136, 137 a 141 e 165; Decreto 11.246/2022, arts. 8º e 21 a 25; IN SEGES 5/2017, arts. 39 a 50 e 54 a 57; IN SEGES 77/2022, arts. 7º e 8º.
 
@@ -921,7 +937,7 @@ Para conselhos e colegiados que editam resoluções, enunciados, instruções e 
 
 Acompanha a vida de um bem do órgão (ou de um lote de bens iguais) do ingresso à baixa: conferência e classificação (permanente ou consumo), tombamento com plaqueta e registro patrimonial e contábil (vida útil e valor residual), carga ao responsável por termo de responsabilidade. Em uso, o processo fica em "Bem em uso" e dela saem os eventos: inventário anual, movimentação ou troca de responsável, manutenção, reavaliação e depreciação, cessão ou empréstimo, apuração de extravio, dano ou furto (termo circunstanciado para pequeno valor sem dolo, ou processo disciplinar derivado) e bem sem uso ou com defeito. O inservível é classificado por comissão (ocioso, recuperável, antieconômico, irrecuperável) e segue para reaproveitamento, alienação (leilão, doação de interesse social, permuta) ou descarte ambientalmente adequado. Tudo termina na baixa patrimonial e contábil. Não trata de patrimônio histórico ou cultural.
 
-**Quando usar:** No Ministério Público do RS, prefira o modelo "Bens móveis no MPRS", pelo Provimento 55/2022-PGJ. Bens permanentes de uso do órgão (mobiliário, equipamentos, veículos, informática, imóveis, softwares e licenças). Um processo por bem ou por lote do mesmo ingresso. Para o quadro e a planilha dos bens, use "Gerar painel e planilha".
+**Quando usar:** No Ministério Público do RS, prefira o modelo "Bens móveis no MPRS", pelo Provimento 55/2022-PGJ. Só para dar destino ao que não serve mais, há modelos por esfera: "Bens móveis inservíveis na administração federal" e "Bens móveis inservíveis no Estado do RS". Bens permanentes de uso do órgão (mobiliário, equipamentos, veículos, informática, imóveis, softwares e licenças). Um processo por bem ou por lote do mesmo ingresso. Para o quadro e a planilha dos bens, use "Gerar painel e planilha".
 
 **Base:** Lei 4.320/1964, arts. 15, § 2º, 94 a 96 e 106; Lei 14.133/2021, arts. 76 e 140; NBC TSP 07 e 09; MCASP, Parte II; Portaria STN 448/2002; Lei 12.305/2010; na União, Decreto 12.785/2025 (que substituiu o Decreto 9.373/2018) e IN CGU 4/2009. Estados e municípios: conferir o regulamento próprio de bens e de desfazimento.
 
@@ -946,6 +962,38 @@ A vida do bem móvel permanente do Ministério Público do RS, pelo Provimento 5
 **Recursos do motor usados:** 20 documentos; 5 formulários de dados; 10 fases com saída decidida pela resposta.
 
 **Fases:** 1. Entrada e classificação, Unidade de Patrimônio e Almoxarifado; 2. Tombamento e cadastro, Unidade de Patrimônio e Almoxarifado; 3. Carga e Termo de Responsabilidade, Unidade de Patrimônio e Almoxarifado; 4. Bem em uso, Unidade detentora da carga; 5. Inventário anual, Unidade detentora da carga; 6. Inconsistência do inventário, Unidade de Patrimônio e Almoxarifado; 7. Conferência do novo titular, Unidade detentora da carga; 8. Movimentação, Unidade detentora da carga; 9. Perda, furto ou dano: termo circunstanciado, Unidade detentora da carga; 10. Instrução do termo circunstanciado, Unidade de Patrimônio e Almoxarifado; 11. Decisão do Subprocurador-Geral, Subprocuradoria-Geral de Justiça para Assuntos Administrativos; 12. Reposição ou indenização, Direção-Geral; 13. Triagem, Unidade de Patrimônio e Almoxarifado; 14. Cessão de uso, Subprocuradoria-Geral de Justiça para Assuntos Administrativos; 15. Avaliação para baixa, Comissão Permanente de Avaliação de Patrimônio; 16. Autorização da baixa, Direção-Geral; 17. Destinação, Unidade de Patrimônio e Almoxarifado; 18. Baixa patrimonial, Unidade de Patrimônio e Almoxarifado; 19. Arquivamento, Unidade de Patrimônio e Almoxarifado.
+
+### Bens móveis inservíveis no Estado do RS: avaliação, destinação e baixa
+
+**Porte:** Médio, 11 fases. **Inspirado em:** Estado do RS. **Identificador:** `bens-inserviveis-rs`.
+
+O caminho do bem móvel que não serve mais ao órgão, nos órgãos, autarquias e fundações do Executivo do Rio Grande do Sul. Primeiro o bem é oferecido a outro órgão estadual, por transferência patrimonial, que dispensa parecer da comissão e baixa. Sem interessado, a Comissão Especial de Avaliação de Inservíveis faz o relatório e classifica o bem (obsoleto, ocioso, antieconômico ou irrecuperável) e o ordenador de despesa decide a baixa e o destino: Programa Sustentare, para o eletroeletrônico; leilão pela Central de Licitações; doação; ou eliminação, com ata. A baixa no sistema de patrimônio do Estado sai junto com a alienação ou a doação.
+
+**Quando usar:** Órgãos, autarquias e fundações do Executivo do RS, para mobiliário, equipamentos e eletroeletrônicos sem uso. Não vale para veículos. Abra um processo por lote. No Ministério Público do RS, use "Bens móveis no MPRS"; na administração federal, "Bens móveis inservíveis na administração federal".
+
+**Base:** Decreto estadual 57.408/2023, arts. 1º a 7º, com o § 3º do art. 3º incluído pelo Decreto 58.684/2026; Decreto estadual 58.685/2026 (Programa Sustentare), arts. 1º, 2º, 6º e 8º; Decreto estadual 57.916/2024 (leilão de bens móveis inservíveis: texto não lido, conferir antes de usar); Lei 14.133/2021, arts. 6º, XL, 31 e 76, II; Lei 12.305/2010 (resíduos); Lei 4.320/1964, arts. 94 a 96.
+
+**Partes:** sem partes (processo interno).
+
+**Recursos do motor usados:** 8 documentos; 1 formulário de dados; 5 fases com saída decidida pela resposta.
+
+**Fases:** 1. Levantamento dos bens, Setor de patrimônio; 2. Oferta a outros órgãos, Setor de patrimônio; 3. Transferência patrimonial, Ordenador de despesa; 4. Avaliação pela comissão, Comissão Especial de Avaliação de Inservíveis; 5. Deliberação do ordenador, Ordenador de despesa; 6. Programa Sustentare, Setor de patrimônio; 7. Alienação por leilão, Setor de patrimônio; 8. Doação, Ordenador de despesa; 9. Eliminação, Comissão Especial de Avaliação de Inservíveis; 10. Baixa no patrimônio, Setor de patrimônio; 11. Arquivamento, Setor de patrimônio.
+
+### Bens móveis inservíveis na administração federal: circularidade e desfazimento
+
+**Porte:** Médio, 11 fases. **Inspirado em:** Governo federal. **Identificador:** `bens-inserviveis-federal`.
+
+O caminho do bem móvel que não serve mais ao órgão, na administração federal direta, nas autarquias e nas fundações, pelo decreto de circularidade de 2025. A comissão de avaliação enquadra o bem como ocioso, recuperável, antieconômico ou irrecuperável. A autoridade escolhe o destino, na ordem que o decreto sugere: transferência dentro do órgão, transferência ou cessão a outro órgão, doação para uso de interesse social, permuta, leilão do que ninguém quis e, por último, tratamento como resíduo. Informática e eletroeletrônicos passam antes pelo Programa Computadores para Inclusão. Cessão, transferência, doação e permuta são divulgadas no sistema do governo federal.
+
+**Quando usar:** Órgãos, autarquias e fundações federais, para bens móveis sem uso. Não vale para os Comandos da Marinha, do Exército e da Aeronáutica nem para bens com legislação própria. Abra um processo por lote. No Executivo do RS, use "Bens móveis inservíveis no Estado do RS"; no Ministério Público do RS, "Bens móveis no MPRS".
+
+**Base:** Decreto 12.785/2025 (que revogou os Decretos 9.373/2018 e 10.340/2020), arts. 2º a 21; Lei 14.133/2021, arts. 6º, XL, 7º, 31 e 76, II; Lei 14.479/2022 (Política Nacional de Desfazimento e Recondicionamento de Equipamentos Eletroeletrônicos); Lei 12.305/2010, art. 38 (resíduos); Código Civil, art. 533 (permuta); Lei 4.320/1964, arts. 94 a 96. O decreto não trata da baixa nem fixa prazo de divulgação: valem as normas complementares da Secretaria de Gestão e Inovação (art. 22) e o sistema patrimonial do órgão.
+
+**Partes:** sem partes (processo interno).
+
+**Recursos do motor usados:** 10 documentos; 2 formulários de dados; 5 fases com saída decidida pela resposta.
+
+**Fases:** 1. Levantamento dos bens, Setor de patrimônio; 2. Classificação pela comissão, Comissão de avaliação de bens; 3. Escolha da destinação, Autoridade competente; 4. Transferência ou cessão, Setor de patrimônio; 5. Computadores para Inclusão, Setor de patrimônio; 6. Doação, Autoridade competente; 7. Permuta, Autoridade competente; 8. Leilão, Setor de licitações; 9. Destinação como resíduo, Setor de patrimônio; 10. Baixa e registro, Setor de patrimônio; 11. Arquivamento, Setor de patrimônio.
 
 ## Controle e contas
 
