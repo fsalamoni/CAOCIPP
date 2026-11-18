@@ -924,9 +924,19 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
                     (0, context_1.erroUsuario)(e);
                 }
             }
+            // Painel gerado do rito na revisão: o tipo já nasce criando o registro na autuação (só página própria do órgão).
+            const criaRegistro = (0, registroCriado_1.sanitizeCriaRegistro)(tp.cria_registro);
+            if (criaRegistro) {
+                if (criaRegistro.modulo)
+                    throw new https_1.HttpsError('invalid-argument', 'Ao implantar, o tipo só pode criar registro em página própria. Ajuste no tipo de processo depois.');
+                const pg = (await db.collection('entityTypes').doc(criaRegistro.pagina).get()).data();
+                const erros = (0, registroCriado_1.errosCriaRegistro)(criaRegistro, pg && pg.organization_id === orgId ? pg : null, formulario || { campos: [] });
+                if (erros.length)
+                    throw new https_1.HttpsError('invalid-argument', erros[0]);
+            }
             const ref = db.collection(context_1.COL.tipos).doc();
             tipoId = ref.id;
-            batch.set(ref, Object.assign(Object.assign({}, (formulario ? { formulario } : {})), { nome: (0, secretaria_1.texto)(tp.nome), sigla: (0, secretaria_1.texto)(tp.sigla, 12), descricao: (0, secretaria_1.texto)(tp.descricao, secretaria_1.MAX_TEXTO_LONGO), rito_id: ritoRef.id, sigilo_padrao: tp.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', unidade_inicial: ((_q = rito.fases[0]) === null || _q === void 0 ? void 0 : _q.unidade_id) || null, ativo: true, organization_id: orgId, created_at: agora, created_by: auth.uid, updated_at: agora, updated_by: auth.uid }));
+            batch.set(ref, Object.assign(Object.assign(Object.assign({}, (formulario ? { formulario } : {})), (criaRegistro ? { cria_registro: criaRegistro } : {})), { nome: (0, secretaria_1.texto)(tp.nome), sigla: (0, secretaria_1.texto)(tp.sigla, 12), descricao: (0, secretaria_1.texto)(tp.descricao, secretaria_1.MAX_TEXTO_LONGO), rito_id: ritoRef.id, sigilo_padrao: tp.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', unidade_inicial: ((_q = rito.fases[0]) === null || _q === void 0 ? void 0 : _q.unidade_id) || null, ativo: true, organization_id: orgId, created_at: agora, created_by: auth.uid, updated_at: agora, updated_by: auth.uid }));
         }
         await batch.commit();
         await audit(editarId ? 'SECRETARIA_RITO_SALVO' : 'SECRETARIA_RITO_IMPLANTADO', {

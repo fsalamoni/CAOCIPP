@@ -4,7 +4,7 @@ Processos completos e prontos para começar, montados a partir da lei de cada á
 
 Nenhum modelo é penal. Os sancionadores são administrativos (disciplinar, ético, fiscalização, contratual, fiscal, de trânsito) e os do Ministério Público são extrajudiciais cíveis (notícia de fato, procedimento administrativo, procedimento preparatório, inquérito civil, ajustamento de conduta, recomendação, audiência pública, revisão de arquivamento e os expedientes próprios do MPRS).
 
-Muitos modelos seguem o rito de uma instituição: o TED da OAB/RS, o processo ético-disciplinar e a fiscalização do CAU, os provimentos do MPRS e as resoluções do CNMP, a câmara de conciliação, os acordos e a dívida ativa da AGU, e os ritos correcionais e a leniência da CGU. O filtro **Inspirado em** mostra a origem de cada um. Onde a pesquisa não confirmou um artigo ou prazo, a base diz "conferir na norma vigente".
+Muitos modelos seguem o rito de uma instituição: o TED da OAB/RS, o processo ético-disciplinar e a fiscalização do CAU, os provimentos do MPRS (inclusive os de contratos e de bens móveis) e as resoluções do CNMP, a câmara de conciliação, os acordos e a dívida ativa da AGU, e os ritos correcionais e a leniência da CGU. O filtro **Inspirado em** mostra a origem de cada um. Onde a pesquisa não confirmou um artigo ou prazo, a base diz "conferir na norma vigente".
 
 Os modelos são da plataforma e ficam no código (`src/lib/modelos/`); nenhum órgão os altera. Usar um modelo grava uma cópia que é só do órgão, no banco do órgão: ela se ajusta à vontade e não muda quando a plataforma atualiza o modelo. Toda ferramenta que um modelo usa (julgamento em sessão, disputa de preços, audiência, comunicação, formulário, documento exigido, andamento automático) também está no editor para qualquer rito do órgão. Para levar um rito pronto a outro órgão, use "Exportar para outro órgão" no menu do rito e, lá, "Importar de outro órgão" (Guia do rito, parte 20).
 
@@ -22,7 +22,8 @@ Os modelos são da plataforma e ficam no código (`src/lib/modelos/`); nenhum ó
 5. Clique em **Usar**. A revisão faz três coisas:
    - casa as unidades do modelo com as do órgão pelo nome, ou propõe criá-las;
    - mostra as pendências, se houver;
-   - se o modelo tem partes, propõe criar o tipo de processo já com os polos e os nomes deles, por exemplo Denunciante e Acusado ou Contratante e Contratada.
+   - se o modelo tem partes, propõe criar o tipo de processo já com os polos e os nomes deles, por exemplo Denunciante e Acusado ou Contratante e Contratada;
+   - pergunta, num quadro em destaque, se o rito terá **painel e planilha de acompanhamento**. Todo modelo traz essa possibilidade, já com o nome sugerido (Contratos, Bens móveis, Sindicâncias). É opcional: **Ligar** cria na hora uma página própria do órgão, com uma coluna por fase e um campo por dado das ações, e o tipo de processo criado com o rito passa a abrir um registro nela a cada autuação; **Seguir sem painel** não cria nada, e dá para ligar depois em "Integração com o painel". Precisa da integração Páginas próprias ligada.
 6. Ajuste o rito à norma do órgão. Os pontos mais comuns:
    - prazos e contagem (dias úteis ou corridos), que o regimento local muda com frequência;
    - nomes de unidades;
@@ -67,7 +68,8 @@ Toda mudança na biblioteca passa por dois testes:
   - toda espera aponta para uma comunicação anterior com prazo;
   - toda saída por resposta está entre os encaminhamentos;
   - nenhuma fase passa de 20 ações;
-  - o diagrama (Mermaid) preserva fases e prazos.
+  - o diagrama (Mermaid) preserva fases e prazos;
+  - todo modelo propõe o nome do painel e da planilha.
 - **`functions-v2/test/bibliotecaRitos.test.js`:**
   - o servidor aceita cada modelo e guarda tudo o que ele configura;
   - os metadados estão completos;
@@ -86,14 +88,15 @@ Os modelos ficam em `src/lib/modelos/<área>.js` e são escritos com a linguagem
   - `referencia`: a instituição ou lei em que o modelo se inspira, curta (por exemplo "OAB/RS" ou "Lei 14.133"), usada no filtro **Inspirado em**;
   - `descricao`, explicativa: para que serve, como corre, onde está o contraditório e como termina;
   - `quando` e `base`;
-  - `tipo` (polos e nomes), quando há partes.
+  - `tipo` (polos e nomes), quando há partes;
+  - o nome do painel e da planilha, em `PAINEIS`, no arquivo `src/lib/bibliotecaRitos.js` (um registro e o plural).
 - Para conferir só uma área: `MODELOS_AREA=<área> node --test src/lib/bibliotecaRitos.test.js`.
 - O catálogo abaixo é gerado a partir dos próprios modelos.
 - Filtro, ordem, grupos, destaque da busca e o resumo do que o rito faz ficam em `src/lib/bibliotecaFiltro.js`, com teste em `src/lib/bibliotecaFiltro.test.js`. Esse teste também exige `referencia`, descrição, quando usar e base em todo modelo, e nenhum travessão no texto.
 
 ## Fontes
 
-A pesquisa normativa que embasou os modelos está nos arquivos do projeto, em `/mnt/project-files/modelos-rito/`: `pesquisa-modelos.md` (os primeiros 28 modelos), `pesquisa-conselhos.md` (OAB/RS e CAU), `pesquisa-mprs.md` (CNMP e MPRS) e `pesquisa-agu-cgu.md` (AGU e CGU) e `pesquisa-contratos-patrimonio.md` (gestão contratual completa e gestão de bens patrimoniais), cada um com as URLs consultadas. Em cada modelo, a **Base** cita as normas e os artigos. Onde a pesquisa não confirmou um ponto, a orientação da fase avisa e pede que o órgão confira.
+A pesquisa normativa que embasou os modelos está nos arquivos do projeto, em `/mnt/project-files/modelos-rito/`: `pesquisa-modelos.md` (os primeiros 28 modelos), `pesquisa-conselhos.md` (OAB/RS e CAU), `pesquisa-mprs.md` (CNMP e MPRS) e `pesquisa-agu-cgu.md` (AGU e CGU) `pesquisa-contratos-patrimonio.md` (gestão contratual completa e gestão de bens patrimoniais) e `pesquisa-mprs-contratos-patrimonio.md` (contratos, descumprimento contratual e bens móveis no MPRS, pelos Provimentos 104/2023, 05/2023, 55/2022 e 02/2009 da PGJ, e o que vale do Estado do RS), cada um com as URLs consultadas. Em cada modelo, a **Base** cita as normas e os artigos. Onde a pesquisa não confirmou um ponto, a orientação da fase avisa e pede que o órgão confira.
 
 ## Catálogo
 
@@ -102,11 +105,11 @@ A pesquisa normativa que embasou os modelos está nos arquivos do projeto, em `/
 | Administrativo geral | Processo administrativo com interessado (médio); Recurso administrativo julgado por colegiado (médio) |
 | Correcional e disciplinar | Sindicância investigativa e investigação preliminar sumária (curto); Processo administrativo disciplinar, rito ordinário (longo); Processo administrativo disciplinar, rito sumário (médio); Termo de ajustamento de conduta disciplinar (curto); Correição e inspeção em Promotoria de Justiça (MPRS) (médio); Sindicância patrimonial (médio); Juízo de admissibilidade correcional (curto); Processo disciplinar de empregado público (médio) |
 | Ética e conselhos profissionais | Processo ético-profissional (conselho profissional) (longo); Processo disciplinar (entidade de classe) (longo); Apuração ética por comissão de ética pública (médio); Processo disciplinar no TED da OAB/RS (longo); Revisão de processo disciplinar (OAB) (curto); Reabilitação de inscrito punido (OAB) (curto); Processo ético-disciplinar do CAU (longo) |
-| Sancionador e fiscalização | Responsabilização de pessoa jurídica (PAR) (longo); Infração contratual e sanção a fornecedor (médio); Fiscalização com auto de infração e defesa (médio); Processo administrativo fiscal (lançamento e impugnação) (longo); Multa de trânsito (defesa prévia e recursos) (médio); Fiscalização do exercício profissional no CAU (médio); Acordo de leniência (Lei Anticorrupção) (longo) |
-| Contratações e contratos | Contratação pública por licitação (longo); Contratação direta: dispensa e inexigibilidade (médio); Compra ou contratação privada (médio); Gestão contratual completa: da assinatura à extinção (longo); Gestão e fiscalização de contrato de serviço continuado (longo); Recebimento de bens ou serviços, liquidação e pagamento (curto); Parceria com organização da sociedade civil (longo) |
+| Sancionador e fiscalização | Responsabilização de pessoa jurídica (PAR) (longo); Infração contratual e sanção a fornecedor (médio); Descumprimento contratual no MPRS: apuração e sanção (longo); Fiscalização com auto de infração e defesa (médio); Processo administrativo fiscal (lançamento e impugnação) (longo); Multa de trânsito (defesa prévia e recursos) (médio); Fiscalização do exercício profissional no CAU (médio); Acordo de leniência (Lei Anticorrupção) (longo) |
+| Contratações e contratos | Contratação pública por licitação (longo); Contratação direta: dispensa e inexigibilidade (médio); Compra ou contratação privada (médio); Gestão contratual completa: da assinatura à extinção (longo); Gestão de contrato no MPRS: do empenho ao encerramento (longo); Gestão e fiscalização de contrato de serviço continuado (longo); Recebimento de bens ou serviços, liquidação e pagamento (curto); Parceria com organização da sociedade civil (longo) |
 | Atendimento, ouvidoria e transparência | Manifestação de ouvidoria (curto); Pedido de acesso à informação (curto) |
 | Ministério Público (não penal) | Notícia de Fato (curto); Procedimento Administrativo do Ministério Público (médio); Procedimento Preparatório (médio); Inquérito Civil (longo); Compromisso de ajustamento de conduta (TAC) (longo); Recomendação do Ministério Público (curto); Audiência pública do Ministério Público (curto); Revisão de arquivamento pelo Conselho Superior (MPRS) (médio); Destinação de bens e valores de tutela coletiva (MPRS) (médio); Cadastramento de entidade para destinação de recursos (MPRS) (curto); Triagem de representação sobre patrimônio público (MPRS) (curto) |
-| Gestão interna e pessoas | Consulta ou parecer interno (curto); Concessão de benefício ou licença a servidor (curto); Proposta de ato normativo ao conselho (curto); Gestão de bens patrimoniais: do tombamento à baixa (longo) |
+| Gestão interna e pessoas | Consulta ou parecer interno (curto); Concessão de benefício ou licença a servidor (curto); Proposta de ato normativo ao conselho (curto); Gestão de bens patrimoniais: do tombamento à baixa (longo); Bens móveis no MPRS: do tombamento à baixa (longo) |
 | Controle e contas | Tomada de contas especial (fase interna) (longo) |
 | Advocacia pública e consultoria | Mediação e conciliação na câmara da advocacia pública (CCAF) (médio); Acordo para prevenir ou encerrar litígio com a União (médio); Cobrança administrativa e inscrição em dívida ativa (crédito não tributário) (médio) |
 
@@ -422,6 +425,22 @@ Apura infração de licitante ou contratada, como inexecução, atraso injustifi
 
 **Fases:** 1. Comunicação da ocorrência, Fiscalização; 2. Juízo de admissibilidade, Setor de contratos; 3. Defesa no rito simples, Setor de contratos; 4. Instauração da comissão, Gabinete; 5. Defesa perante a comissão, Comissão processante; 6. Instrução, Comissão processante; 7. Alegações finais, Comissão processante; 8. Relatório da comissão, Comissão processante; 9. Análise jurídica, Assessoria jurídica; 10. Decisão, Gabinete; 11. Recurso ou reconsideração (20 dias), Gabinete; 12. Instância recursal (20 dias), Instância recursal; 13. Execução e registro (15 dias), Setor de contratos; 14. Arquivamento, Secretaria.
 
+### Descumprimento contratual no MPRS: apuração e sanção
+
+**Porte:** Longo, 13 fases. **Inspirado em:** MPRS. **Identificador:** `descumprimento-contratual-mprs`.
+
+O procedimento "Descumprimento Contratual" do Ministério Público do RS: o fiscal instaura com a gravidade, os danos, a cláusula descumprida e o inciso do art. 155 da Lei 14.133; o gestor analisa e abre 15 dias úteis de defesa, quando o caso é de advertência ou multa, ou remete à Direção-Geral para a comissão processante de dois ou mais servidores estáveis, quando o caso é de impedimento ou de inidoneidade. Depois vêm a manifestação do gestor ou o relatório da comissão, a manifestação da Unidade de Assessoramento Jurídico e a decisão do Diretor-Geral (advertência, multa e impedimento) ou do Subprocurador-Geral de Justiça para Assuntos Administrativos (inidoneidade). Da intimação correm 15 dias úteis para recurso ou pedido de reconsideração. A decisão final sai no Diário Eletrônico, a sanção é registrada no CFIL/RS e no CEIS e a multa é cobrada, com inscrição no CADIN/RS se não for paga. Multa de até R$ 250,00 fica sobrestada.
+
+**Quando usar:** Inexecução total ou parcial de contrato, de nota de empenho ou de ata de registro de preços do MPRS, e recusa em assinar. Abra como processo derivado do contrato ("Novo processo derivado deste"). A sanção é administrativa. Ligue o painel e a planilha para acompanhar defesas, prazos e multas a cobrar.
+
+**Base:** Provimento 104/2023-PGJ, arts. 55, § 2º, 66 e 89 a 98; Provimento 05/2023-PGJ, arts. 21, XVI, 22, XVI, e 23, VII; Provimento 75/2016-PGJ (atos da Lei 12.846/2013); Lei 14.133/2021, arts. 155 a 163 e 165 a 168; Lei estadual 11.389/1999 e Decreto 42.250/2003 (CFIL/RS: conferir na norma vigente). O provimento não fala em efeito suspensivo nem em alegações finais: valem os arts. 158, § 2º, e 168 da lei.
+
+**Partes:** Ministério Público (requerente), Contratada (requerido).
+
+**Recursos do motor usados:** 6 comunicações às partes; 5 esperas de resposta; audiência (audiência de instrução); 10 documentos; 1 formulário de dados; 6 fases com saída decidida pela resposta.
+
+**Fases:** 1. Instauração pelo fiscal, Fiscalização do contrato; 2. Análise do gestor, Gestão do contrato; 3. Multa sobrestada, Unidade de Assessoramento Jurídico; 4. Defesa prévia, Gestão do contrato; 5. Manifestação do gestor, Gestão do contrato; 6. Comissão processante, Comissão processante; 7. Manifestação jurídica, Unidade de Assessoramento Jurídico; 8. Decisão, Direção-Geral; 9. Intimação e recurso, Unidade de Assessoramento Jurídico; 10. Reconsideração e decisão final, Subprocuradoria-Geral de Justiça para Assuntos Administrativos; 11. Publicação e registros, Unidade de Contratos; 12. Cobrança da multa, Unidade de Contratos; 13. Arquivamento, Unidade de Contratos.
+
 ### Fiscalização com auto de infração e defesa
 
 **Porte:** Médio, 13 fases. **Inspirado em:** Poder de polícia. **Identificador:** `auto-de-infracao`.
@@ -558,7 +577,7 @@ Fluxo de aquisição de bens e serviços em empresa ou entidade privada, da requ
 
 Um processo por contrato administrativo, do começo ao fim: convocação e assinatura, garantia, publicação no PNCP (condição de eficácia), designação de gestor e fiscais, início da execução, fiscalização a cada período, recebimento, liquidação e pagamento em ordem cronológica. De cada pagamento o contrato segue para o período seguinte ou para um evento: termo aditivo, apostila, prorrogação da vigência, reequilíbrio, subcontratação ou mudança societária, solução consensual de controvérsia e extinção antecipada. Falha não corrigida é remetida a processo derivado de apuração de infração ("Novo processo derivado deste", com o modelo "Infração contratual e sanção a fornecedor"); o contrato continua sendo acompanhado aqui. No fim, recebimento definitivo, avaliação de desempenho da contratada para o cadastro de fornecedores, liberação da garantia e encerramento.
 
-**Quando usar:** Qualquer contrato administrativo (serviço contínuo ou por escopo, fornecimento, obra ou serviço de engenharia), de licitação ou de contratação direta. Um processo por contrato. Para o quadro de todos os contratos, use "Gerar painel e planilha" na Integração com o painel (Guia do rito, parte 21).
+**Quando usar:** No Ministério Público do RS, prefira o modelo "Gestão de contrato no MPRS", que já traz as unidades e os prazos dos provimentos. Qualquer contrato administrativo (serviço contínuo ou por escopo, fornecimento, obra ou serviço de engenharia), de licitação ou de contratação direta. Um processo por contrato. Para o quadro de todos os contratos, use "Gerar painel e planilha" na Integração com o painel (Guia do rito, parte 21).
 
 **Base:** Lei 14.133/2021, arts. 53, § 4º, 88, §§ 3º e 4º, 89 a 103, 104, 105 a 114, 115 a 123, 124 a 136, 137 a 139, 140 a 146, 151 a 154, 155 a 163 e 165 a 168; Decreto 11.246/2022; IN SEGES 5/2017; IN SEGES 77/2022; Lei 4.320/1964, arts. 58 a 65.
 
@@ -567,6 +586,22 @@ Um processo por contrato administrativo, do começo ao fim: convocação e assin
 **Recursos do motor usados:** 16 comunicações às partes; 8 esperas de resposta; audiências (reunião e conciliação); 35 documentos; 6 formulários de dados; 11 fases com saída decidida pela resposta.
 
 **Fases:** 1. Formalização e assinatura, Setor de contratos; 2. Recusa em assinar, Gabinete; 3. Garantia contratual, Setor de contratos; 4. Publicação no PNCP (20 dias), Setor de contratos; 5. Designação de gestão e fiscalização, Gabinete; 6. Início da execução, Gestão do contrato; 7. Execução e fiscalização, Fiscalização do contrato; 8. Notificação para correção, Fiscalização do contrato; 9. Remessa a processo de apuração, Gestão do contrato; 10. Ateste e recebimento, Gestão do contrato; 11. Liquidação e pagamento (20 dias), Setor financeiro; 12. Termo aditivo: instrução (30 dias corridos), Gestão do contrato; 13. Apostila (30 dias corridos), Setor de contratos; 14. Prorrogação da vigência, Gestão do contrato; 15. Reequilíbrio econômico-financeiro (30 dias corridos), Gestão do contrato; 16. Subcontratação ou mudança na contratada, Gestão do contrato; 17. Solução de controvérsia, Gabinete; 18. Parecer jurídico, Assessoria jurídica; 19. Termo aditivo: assinatura e publicação (20 dias), Setor de contratos; 20. Extinção antecipada, Gabinete; 21. Recebimento definitivo do objeto, Gestão do contrato; 22. Avaliação de desempenho da contratada, Gestão do contrato; 23. Encerramento e liberação da garantia, Gestão do contrato; 24. Arquivamento, Secretaria.
+
+### Gestão de contrato no MPRS: do empenho ao encerramento
+
+**Porte:** Longo, 22 fases. **Inspirado em:** MPRS. **Identificador:** `gestao-contratual-mprs`.
+
+O contrato do Ministério Público do RS como os provimentos internos mandam: a Assessoria de Planejamento e Orçamento empenha; a Unidade de Contratos formaliza, colhe a assinatura eletrônica, publica a designação do gestor e dos fiscais e o extrato no Diário Eletrônico, cadastra no Licitacon do TCE e confere o PNCP; o gestor notifica o início e o fiscal técnico emite a ordem de serviço ou de fornecimento. A cada período o fiscal registra a execução e o recebimento provisório, o gestor atesta e manda ao Setor Financeiro com a lista de checagem e as certidões. Do pagamento o contrato segue para o período seguinte ou para um evento: alteração (com aval do coordenador, análise orçamentária, parecer e minuta da Unidade de Assessoramento Jurídico e aprovação do Diretor-Geral), prorrogação pedida 45 dias antes do fim, reajuste por apostila (IPCA ou INCC-DI), verificação anual da habilitação e extinção. O descumprimento vira processo derivado, instaurado pelo fiscal. No fim, recebimento definitivo, relatório final com boas práticas e liberação da garantia. A contratada é chamada a assinar, corrigir, regularizar certidões, anuir e se defender.
+
+**Quando usar:** Contratos do MPRS regidos pela Lei 14.133/2021 (e, no que couber, os antigos da Lei 8.666). Abra um processo por contrato, logo depois da homologação ou da ratificação. Outro órgão estadual pode usar trocando as unidades e conferindo o próprio regulamento. Ligue o painel e a planilha para ver todos os contratos, as vigências e os pagamentos num quadro.
+
+**Base:** Provimento 104/2023-PGJ, arts. 13, 15, 17, 18 e 52 a 100 (com os Provimentos 6/2024, 34/2025, 41/2025 e 73/2025); Provimento 05/2023-PGJ, arts. 4º, 8º, 12 e 18 a 26; Provimento 03/2023-PGJ (governança das contratações); Lei 14.133/2021, arts. 89 a 147; Resolução CNMP 264/2023. O Provimento 104 não fixa percentual de garantia, prazos de recebimento e de pagamento em dias nem trata de subcontratação e repactuação: nesses pontos valem o contrato e a lei.
+
+**Partes:** Ministério Público (requerente), Contratada (requerido).
+
+**Recursos do motor usados:** 14 comunicações às partes; 8 esperas de resposta; audiência (reunião); 32 documentos; 6 formulários de dados; 12 fases com saída decidida pela resposta.
+
+**Fases:** 1. Empenho, Assessoria de Planejamento e Orçamento; 2. Formalização e assinatura, Unidade de Contratos; 3. Não assinatura, Unidade de Contratos; 4. Publicação e cadastros, Unidade de Contratos; 5. Início da execução, Gestão do contrato; 6. Execução e fiscalização, Fiscalização do contrato; 7. Notificação para correção, Fiscalização do contrato; 8. Descumprimento contratual, Fiscalização do contrato; 9. Recebimento e ateste, Gestão do contrato; 10. Pagamento, Assessoria de Planejamento e Orçamento; 11. Verificação anual da habilitação, Gestão do contrato; 12. Alteração do contrato: instrução, Gestão do contrato; 13. Prorrogação da vigência, Gestão do contrato; 14. Reajuste por apostila, Gestão do contrato; 15. Análise orçamentária, Assessoria de Planejamento e Orçamento; 16. Parecer e minuta do termo aditivo, Unidade de Assessoramento Jurídico; 17. Aprovação do Diretor-Geral, Direção-Geral; 18. Termo aditivo: empenho e formalização, Unidade de Contratos; 19. Extinção do contrato, Gestão do contrato; 20. Recebimento definitivo e relatório final, Gestão do contrato; 21. Encerramento e liberação da garantia, Unidade de Contratos; 22. Arquivamento, Unidade de Contratos.
 
 ### Gestão e fiscalização de contrato de serviço continuado
 
@@ -884,7 +919,7 @@ Para conselhos e colegiados que editam resoluções, enunciados, instruções e 
 
 Acompanha a vida de um bem do órgão (ou de um lote de bens iguais) do ingresso à baixa: conferência e classificação (permanente ou consumo), tombamento com plaqueta e registro patrimonial e contábil (vida útil e valor residual), carga ao responsável por termo de responsabilidade. Em uso, o processo fica em "Bem em uso" e dela saem os eventos: inventário anual, movimentação ou troca de responsável, manutenção, reavaliação e depreciação, cessão ou empréstimo, apuração de extravio, dano ou furto (termo circunstanciado para pequeno valor sem dolo, ou processo disciplinar derivado) e bem sem uso ou com defeito. O inservível é classificado por comissão (ocioso, recuperável, antieconômico, irrecuperável) e segue para reaproveitamento, alienação (leilão, doação de interesse social, permuta) ou descarte ambientalmente adequado. Tudo termina na baixa patrimonial e contábil. Não trata de patrimônio histórico ou cultural.
 
-**Quando usar:** Bens permanentes de uso do órgão (mobiliário, equipamentos, veículos, informática, imóveis, softwares e licenças). Um processo por bem ou por lote do mesmo ingresso. Para o quadro e a planilha dos bens, use "Gerar painel e planilha".
+**Quando usar:** No Ministério Público do RS, prefira o modelo "Bens móveis no MPRS", pelo Provimento 55/2022-PGJ. Bens permanentes de uso do órgão (mobiliário, equipamentos, veículos, informática, imóveis, softwares e licenças). Um processo por bem ou por lote do mesmo ingresso. Para o quadro e a planilha dos bens, use "Gerar painel e planilha".
 
 **Base:** Lei 4.320/1964, arts. 15, § 2º, 94 a 96 e 106; Lei 14.133/2021, arts. 76 e 140; NBC TSP 07 e 09; MCASP, Parte II; Portaria STN 448/2002; Lei 12.305/2010; na União, Decreto 12.785/2025 (que substituiu o Decreto 9.373/2018) e IN CGU 4/2009. Estados e municípios: conferir o regulamento próprio de bens e de desfazimento.
 
@@ -893,6 +928,22 @@ Acompanha a vida de um bem do órgão (ou de um lote de bens iguais) do ingresso
 **Recursos do motor usados:** 17 documentos; 5 formulários de dados; 9 fases com saída decidida pela resposta.
 
 **Fases:** 1. Entrada e conferência, Almoxarifado; 2. Tombamento e registro, Patrimônio; 3. Carga ao responsável, Patrimônio; 4. Bem em uso, Patrimônio; 5. Inventário, Comissão de inventário; 6. Movimentação ou transferência, Patrimônio; 7. Manutenção, Manutenção; 8. Reavaliação e depreciação, Contabilidade; 9. Cessão ou empréstimo, Gabinete; 10. Apuração de extravio ou dano, Patrimônio; 11. Classificação de inservível, Comissão de desfazimento; 12. Reaproveitamento, Patrimônio; 13. Alienação ou descarte, Gabinete; 14. Baixa patrimonial, Patrimônio; 15. Arquivamento, Secretaria.
+
+### Bens móveis no MPRS: do tombamento à baixa
+
+**Porte:** Longo, 19 fases. **Inspirado em:** MPRS. **Identificador:** `gestao-patrimonio-mprs`.
+
+A vida do bem móvel permanente do Ministério Público do RS, pelo Provimento 55/2022-PGJ: classificação e cadastro na Unidade de Patrimônio e Almoxarifado, tombamento antes de sair, carga por Termo de Responsabilidade ao titular da unidade (no interior, o Diretor da Promotoria) ou carga pessoal no bem de uso exclusivo. Com o bem em uso, cada evento tem o seu caminho: o inventário anual, com as datas de 31 de julho, 31 de agosto, 30 de setembro e 31 de outubro; a conferência de 30 dias do novo titular; a movimentação entre unidades; a perda, o furto ou o dano, com Termo Circunstanciado Administrativo, decisão do Subprocurador-Geral de Justiça para Assuntos Administrativos e reposição ou indenização pela tabela do provimento; a devolução para triagem (ocioso-excedente, recuperável, obsoleto, fora do padrão ou irrecuperável); a cessão de uso. O inservível passa pela Comissão Permanente de Avaliação de Patrimônio e, com autorização do Diretor-Geral, é doado, leiloado, permutado, descartado ou incinerado, com baixa ao fim.
+
+**Quando usar:** Bens móveis permanentes do MPRS. Abra um processo por bem ou por lote (uma aquisição, uma unidade, um conjunto para baixa). Bem de consumo fica no controle do almoxarifado. Não trata de imóveis nem de patrimônio histórico e cultural. Ligue o painel e a planilha para ter a relação dos bens, com tombo, unidade e situação.
+
+**Base:** Provimento 55/2022-PGJ (bens móveis), arts. 1º a 35; Provimento 02/2009, arts. 2º a 7º e 16 (alienação e desfazimento; o capítulo da venda foi revogado pelo Provimento 05/2023-PGJ); Lei 14.133/2021, arts. 6º, XL, 31 e 76, II (alienação de bens móveis e leilão); Lei 4.320/1964, arts. 94 a 96; Lei 12.305/2010 (resíduos); Decreto estadual 58.685/2026 (Programa Sustentare, de adesão facultativa pelos outros Poderes e órgãos); Decreto estadual 57.408/2023 (bens inservíveis do Executivo: só referência, conferir na norma vigente).
+
+**Partes:** sem partes (processo interno).
+
+**Recursos do motor usados:** 20 documentos; 5 formulários de dados; 10 fases com saída decidida pela resposta.
+
+**Fases:** 1. Entrada e classificação, Unidade de Patrimônio e Almoxarifado; 2. Tombamento e cadastro, Unidade de Patrimônio e Almoxarifado; 3. Carga e Termo de Responsabilidade, Unidade de Patrimônio e Almoxarifado; 4. Bem em uso, Unidade detentora da carga; 5. Inventário anual, Unidade detentora da carga; 6. Inconsistência do inventário, Unidade de Patrimônio e Almoxarifado; 7. Conferência do novo titular, Unidade detentora da carga; 8. Movimentação, Unidade detentora da carga; 9. Perda, furto ou dano: termo circunstanciado, Unidade detentora da carga; 10. Instrução do termo circunstanciado, Unidade de Patrimônio e Almoxarifado; 11. Decisão do Subprocurador-Geral, Subprocuradoria-Geral de Justiça para Assuntos Administrativos; 12. Reposição ou indenização, Direção-Geral; 13. Triagem, Unidade de Patrimônio e Almoxarifado; 14. Cessão de uso, Subprocuradoria-Geral de Justiça para Assuntos Administrativos; 15. Avaliação para baixa, Comissão Permanente de Avaliação de Patrimônio; 16. Autorização da baixa, Direção-Geral; 17. Destinação, Unidade de Patrimônio e Almoxarifado; 18. Baixa patrimonial, Unidade de Patrimônio e Almoxarifado; 19. Arquivamento, Unidade de Patrimônio e Almoxarifado.
 
 ## Controle e contas
 
