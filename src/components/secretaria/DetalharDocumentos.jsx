@@ -88,7 +88,7 @@ export async function enviarDetalhados(orgId, procId, itens, { version, onProgre
  * que o documento cumpre; sem elas, o servidor reconhece pelo tipo.
  * `naAutuacao`: o processo ainda vai ser criado (o texto muda um pouco).
  */
-export default function DetalharDocumentos({ aberto, itens: iniciais, tipos = [], exigencias = [], naAutuacao = false, ocupado = false, onConfirmar, onFechar }) {
+export default function DetalharDocumentos({ aberto, itens: iniciais, tipos = [], exigencias = [], naAutuacao = false, soMinuta = false, ocupado = false, onConfirmar, onFechar }) {
     const [itens, setItens] = useState(iniciais || []);
     const [k, setK] = useState(0);
     useEffect(() => { if (aberto) { setItens(iniciais || []); setK(0); } }, [aberto, iniciais]);
@@ -133,6 +133,11 @@ export default function DetalharDocumentos({ aberto, itens: iniciais, tipos = []
                             onChange={(e) => set({ descricao: e.target.value })} />
                         <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Entra no registro da juntada, junto com o título e o tipo.</p>
                     </div>
+                    {soMinuta ? (
+                        <p className="rounded-md bg-indigo-50 dark:bg-indigo-950 text-indigo-900 dark:text-indigo-100 px-3 py-2 text-sm">
+                            Entra como minuta, só para a equipe. Nesta fase não se assina nem se junta: o documento e os anexos seguem com o processo, e quem revisa decide o que vai aos autos.
+                        </p>
+                    ) : (
                     <fieldset>
                         <legend className="text-sm font-medium mb-1">O que fazer {naAutuacao ? 'ao criar o processo' : 'agora'}</legend>
                         <RadioGroup value={d.destino} onValueChange={(v) => set({ destino: v, atende: null })} className="space-y-1">
@@ -144,6 +149,7 @@ export default function DetalharDocumentos({ aberto, itens: iniciais, tipos = []
                             ))}
                         </RadioGroup>
                     </fieldset>
+                    )}
                     {d.destino === 'juntar' && (
                         <>
                             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={d.assinar} onChange={(e) => set({ assinar: e.target.checked })} /> Assinar ao juntar (assinatura eletrônica simples, com seu nome, a data e a hora)</label>
@@ -174,7 +180,7 @@ export default function DetalharDocumentos({ aberto, itens: iniciais, tipos = []
                     <Button variant="ghost" disabled={ocupado} onClick={onFechar}>Cancelar</Button>
                     {!ultimo
                         ? <Button disabled={ocupado || !tituloOk || !dataOk} onClick={() => setK(k + 1)}>Próximo</Button>
-                        : <Button disabled={ocupado || !pronto} onClick={() => onConfirmar(itens)}>{naAutuacao ? 'Guardar os detalhes' : itens.length > 1 ? `Registrar os ${itens.length}` : DESTINOS_ENTRADA.find(([v]) => v === d.destino)?.[1]}</Button>}
+                        : <Button disabled={ocupado || !pronto} onClick={() => onConfirmar(soMinuta ? itens.map((x) => ({ ...x, destino: 'minuta', assinar: false })) : itens)}>{soMinuta ? 'Incluir como minuta' : naAutuacao ? 'Guardar os detalhes' : itens.length > 1 ? `Registrar os ${itens.length}` : DESTINOS_ENTRADA.find(([v]) => v === d.destino)?.[1]}</Button>}
                 </DialogFooter>
             </DialogContent>
         </Dialog>

@@ -5,9 +5,11 @@
  * de partes dos autos para o PDF. Lógica pura, sem Firebase.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.documentoInterno = exports.registroInterno = exports.MAX_DOCS_INTERNOS = exports.MODOS_SELECAO = exports.numeroDoEvento = exports.geraTermo = exports.documentoDoEvento = exports.visivelParaPartes = exports.documentoVisivel = exports.polosQueVeem = exports.MOVIMENTOS_INTERNOS = exports.TIPOS_SISTEMA = void 0;
+exports.documentoInterno = exports.registroInterno = exports.MAX_DOCS_INTERNOS = exports.MODOS_SELECAO = exports.numeroDoEvento = exports.geraTermo = exports.podeFicarSemEfeito = exports.documentoDoEvento = exports.visivelParaPartes = exports.documentoVisivel = exports.polosQueVeem = exports.MOVIMENTOS_INTERNOS = exports.TIPOS_SISTEMA = void 0;
 exports.origemEvento = origemEvento;
 exports.polosEscolhidos = polosEscolhidos;
+exports.podeExcluirDosAutos = podeExcluirDosAutos;
+exports.eventosSemEfeito = eventosSemEfeito;
 exports.tituloEvento = tituloEvento;
 exports.folhasDoEvento = folhasDoEvento;
 exports.numerarEventos = numerarEventos;
@@ -70,6 +72,31 @@ exports.visivelParaPartes = visivelParaPartes;
 /** Id do documento que o evento juntou aos autos (juntada, petição). */
 const documentoDoEvento = (m) => { var _a, _b; return (typeof ((_a = m.dados) === null || _a === void 0 ? void 0 : _a.documento_id) === 'string' && typeof ((_b = m.dados) === null || _b === void 0 ? void 0 : _b.ordem) === 'number' ? m.dados.documento_id : null); };
 exports.documentoDoEvento = documentoDoEvento;
+/**
+ * Quem pode desentranhar um documento juntado ou tornar um ato sem efeito:
+ * quem o praticou, o admin do órgão, o gestor da unidade onde foi praticado
+ * (o admin delegado do órgão interno conta como gestor) e a unidade que
+ * decide, enquanto está com o processo.
+ */
+function podeExcluirDosAutos(quem, ato) {
+    return quem.isAdmin === true || quem.decisorComPosse === true
+        || (!!ato.autor_uid && ato.autor_uid === quem.uid)
+        || (!!ato.unidade_id && (quem.gestorDe || []).includes(String(ato.unidade_id)));
+}
+/** Atos que não se tornam sem efeito por certidão: mudam o estado do processo, têm caminho próprio ou já são a própria anulação. */
+const SEM_EFEITO_NAO = ['autuacao', 'tramitacao', 'conclusao', 'fase', 'situacao', 'exclusao', 'restauracao', 'retificacao', 'desentranhamento', 'sem_efeito'];
+/** O ato pode ficar sem efeito? Documento juntado sai por desentranhamento; registro do sistema não é ato de ninguém. */
+const podeFicarSemEfeito = (m) => origemEvento(m) !== 'sistema' && !SEM_EFEITO_NAO.includes(m.tipo) && !(0, exports.documentoDoEvento)(m);
+exports.podeFicarSemEfeito = podeFicarSemEfeito;
+/** Eventos que outro evento tornou sem efeito: seq do alvo → seq da certidão. */
+function eventosSemEfeito(movs) {
+    var _a;
+    const r = new Map();
+    for (const m of movs)
+        if (m.tipo === 'sem_efeito' && typeof ((_a = m.dados) === null || _a === void 0 ? void 0 : _a.alvo_seq) === 'number')
+            r.set(m.dados.alvo_seq, m.seq);
+    return r;
+}
 /** Ato de usuário sem documento: a página dele é o termo. */
 const geraTermo = (m) => origemEvento(m) === 'usuario' && !(0, exports.documentoDoEvento)(m);
 exports.geraTermo = geraTermo;
@@ -103,6 +130,8 @@ const TITULOS = {
     convite: 'Convite',
     guarda: 'Documento guardado fora dos autos',
     exclusao: 'Termo de exclusão',
+    desentranhamento: 'Termo de desentranhamento',
+    sem_efeito: 'Certidão de ato sem efeito',
     restauracao: 'Termo de restauração',
     certidao_fase: 'Certidão conjunta',
     efeitos_fase: 'O que a fase fez sozinha',
@@ -171,12 +200,11 @@ function numerarEventos(movs) {
 const numeroDoEvento = (numeros, seq) => { var _a; return (_a = numeros === null || numeros === void 0 ? void 0 : numeros.get(seq)) !== null && _a !== void 0 ? _a : String(seq); };
 exports.numeroDoEvento = numeroDoEvento;
 /** O que a tela precisa saber de cada evento, além do movimento gravado. `numeros`: de numerarEventos, sobre todos os eventos do processo. */
-function extrasDoEvento(m, docs, numeros) {
-    var _a;
-    return {
-        origem: origemEvento(m), titulo: tituloEvento(m), folhas: folhasDoEvento(m, docs), documento_id: (0, exports.documentoDoEvento)(m),
-        numero: numeros ? (_a = numeros.get(m.seq)) !== null && _a !== void 0 ? _a : null : String(m.seq),
-    };
+function extrasDoEvento(m, docs, numeros, anulados) {
+    var _a, _b, _c;
+    const doc = (0, exports.documentoDoEvento)(m);
+    const se = anulados === null || anulados === void 0 ? void 0 : anulados.get(m.seq);
+    return Object.assign(Object.assign(Object.assign({ origem: origemEvento(m), titulo: tituloEvento(m), folhas: folhasDoEvento(m, docs), documento_id: doc, numero: numeros ? (_a = numeros.get(m.seq)) !== null && _a !== void 0 ? _a : null : String(m.seq) }, (doc && ((_b = docs.get(doc)) === null || _b === void 0 ? void 0 : _b.desentranhado) ? { desentranhado: true } : {})), (se !== undefined ? { sem_efeito: numeros ? (_c = numeros.get(se)) !== null && _c !== void 0 ? _c : null : String(se) } : {})), { pode_sem_efeito: (0, exports.podeFicarSemEfeito)(m) && se === undefined });
 }
 /** Urgentes primeiro, mantendo a ordem que a lista já tinha. */
 function urgentesPrimeiro(lista) {

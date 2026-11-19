@@ -55,8 +55,19 @@ export default function AndamentoDaFase({ f, mudar, ligadas, primeira = false })
                     <span className={dica}>O arquivamento fica registrado com quem fez e a data, e sai no extrato do PDF. Use na última fase do rito.</span>
                 </span>
             </label>
+            {!f.final && (
+                <label className={caixa}>
+                    <Checkbox className="mt-0.5" checked={f.elaboracao === true} onCheckedChange={(c) => mudar({ elaboracao: c === true ? true : undefined, ...(c === true ? { juntada_conjunta: undefined } : {}) })} />
+                    <span>Fase de elaboração: quem está nela só prepara minutas
+                        <span className={dica}>
+                            Para a assessoria que redige e não decide. O documento redigido ou enviado entra direto como minuta, e os anexos também: nesta fase ninguém assina, junta aos autos nem guarda fora dos autos.
+                            A ação que pede documento se cumpre com a minuta. Na remessa, todas as minutas seguem sozinhas com o processo, e quem revisa, na fase seguinte, assina e decide o que entra nos autos.
+                        </span>
+                    </span>
+                </label>
+            )}
             <label className={caixa}>
-                <Checkbox className="mt-0.5" checked={f.juntada_conjunta === true} onCheckedChange={(c) => mudar({ juntada_conjunta: c === true ? true : undefined })} />
+                <Checkbox className="mt-0.5" checked={f.juntada_conjunta === true} disabled={f.elaboracao === true} onCheckedChange={(c) => mudar({ juntada_conjunta: c === true ? true : undefined })} />
                 <span>Botão Finalizar: escolher, ordenar, assinar e juntar os documentos de uma vez
                     <span className={dica}>
                         Na tela do processo, a fase ganha o botão Finalizar {f.nome?.trim() ? `(aqui, "Finalizar ${f.nome.trim()[0].toLowerCase()}${f.nome.trim().slice(1)}")` : ''}. Quem tem o processo

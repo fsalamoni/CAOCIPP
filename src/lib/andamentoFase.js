@@ -33,6 +33,7 @@ export function resumoAndamento(f, paginas) {
         f?.espera && !f.final ? 'é de espera: ao concluir, o processo volta para a fase de onde veio' : null,
         f?.avanco === 'auto' && !f.final ? (f.espera ? 'volta sozinha ao cumprir o que a fase exige' : 'segue sozinha ao cumprir o que a fase exige') : null,
         f?.ao_entrar?.arquivar ? 'arquiva o processo ao entrar' : null,
+        f?.elaboracao ? 'é de elaboração: documentos entram como minuta e seguem sozinhos com o processo; assinar e juntar cabem a quem revisa' : null,
         f?.juntada_conjunta ? 'tem o botão Finalizar: escolher, ordenar, assinar e juntar os documentos de uma vez' : null,
         s?.modulo && s.ao_entrar ? `${nomeDoRegistro(s, paginas)} fica "${rotuloDoAlvo(s, s.ao_entrar, paginas)}" ao entrar` : null,
         s?.modulo && s.ao_assumir ? `${nomeDoRegistro(s, paginas)} fica "${rotuloDoAlvo(s, s.ao_assumir, paginas)}" quando alguém assume` : null,

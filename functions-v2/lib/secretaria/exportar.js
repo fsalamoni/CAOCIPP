@@ -138,7 +138,7 @@ async function folhaDadosPdf(o, m, geradoEm, integridade) {
     return pdf.save();
 }
 /** Página do ato de usuário que não juntou documento: o que foi feito, por quem e quando. */
-async function termoPdf(orgNome, numero, m, unidade) {
+async function termoPdf(orgNome, numero, m, unidade, semEfeitoPor) {
     var _a;
     const pdf = await pdfLib().PDFDocument.create();
     const w = new Escritor(pdf, await pdf.embedFont(pdfLib().StandardFonts.Helvetica), await pdf.embedFont(pdfLib().StandardFonts.HelveticaBold), '');
@@ -146,7 +146,9 @@ async function termoPdf(orgNome, numero, m, unidade) {
     w.texto(orgNome || 'Órgão', { size: 11, bold: true, espaco: 2 });
     w.texto(`Processo nº ${numero}`, { size: 10, cor: [0.4, 0.4, 0.4], espaco: 36 });
     w.texto((0, autos_1.tituloEvento)(m).toUpperCase(), { size: 14, bold: true, espaco: 6 });
-    w.texto(`Evento nº ${(_a = m.numero_evento) !== null && _a !== void 0 ? _a : m.seq}`, { size: 10, cor: [0.4, 0.4, 0.4], espaco: 24 });
+    w.texto(`Evento nº ${(_a = m.numero_evento) !== null && _a !== void 0 ? _a : m.seq}`, { size: 10, cor: [0.4, 0.4, 0.4], espaco: semEfeitoPor ? 8 : 24 });
+    if (semEfeitoPor)
+        w.texto(`ATO SEM EFEITO: ver o evento nº ${semEfeitoPor}.`, { size: 11, bold: true, cor: [0.7, 0.1, 0.1], espaco: 16 });
     w.texto(String(m.descricao), { size: 11, espaco: 24 });
     w.texto(`Praticado por ${m.autor_nome}${unidade ? `, ${unidade}` : ''}, em ${quandoBR(m.em)}.`, { size: 10, espaco: 30 });
     w.texto('Termo gerado pela plataforma a partir do registro do evento. A integridade é conferida pela cadeia de hash dos eventos do processo.', { size: 8, cor: [0.45, 0.45, 0.45], espaco: 4 });
@@ -163,6 +165,9 @@ async function montarPdfAutos(o) {
     const numeros = (0, autos_1.numerarEventos)(o.movimentos);
     const movimentos = o.movimentos.map((m) => (Object.assign(Object.assign({}, m), { numero_evento: (0, autos_1.numeroDoEvento)(numeros, m.seq) })));
     const evQuebra = quebra === null ? null : (0, autos_1.numeroDoEvento)(numeros, quebra);
+    // Ato que outro tornou sem efeito: a página continua, com o aviso e o número da certidão.
+    const anulados = (0, autos_1.eventosSemEfeito)(o.movimentos);
+    const semEfeitoPor = (m) => { const s = anulados.get(m.seq); return s === undefined ? undefined : (0, autos_1.numeroDoEvento)(numeros, s); };
     const unid = (id) => { const n = o.nomeUnidade(String(id || '')); return n ? ` (${n})` : ''; };
     const pdf = await pdfLib().PDFDocument.create();
     pdf.setTitle(`Processo ${proc.numero}`);
@@ -215,7 +220,16 @@ async function montarPdfAutos(o) {
     let folhaLegado = 1; // processos anteriores às folhas gravadas
     const anexarDocumento = async (d, corte) => {
         let bytes;
-        if (d.origem === 'upload' && bytesAnexos + pesoNoPdf(d) > LIMITE_ANEXOS_BYTES) {
+        const des = d.desentranhado;
+        if (des) {
+            // Desentranhado: uma folha de aviso no lugar, com as folhas que ele ocupava (a numeração não muda).
+            bytes = await (0, autos_3.folhaSimples)(`Documento nº ${d.ordem} desentranhado`, [
+                `${String(d.titulo)} (${String(d.tipo)})${typeof d.folha_inicial === 'number' ? `, ${(0, autos_3.textoFolhas)(d.folha_inicial, Number(d.paginas) || 1)}` : ''}.`,
+                `Desentranhado em ${quandoBR(des.em)} por ${des.por_nome || ''}${des.evento_seq ? `, no evento nº ${(0, autos_1.numeroDoEvento)(numeros, des.evento_seq)}` : ''}.`,
+                `Motivo: ${des.motivo || ''}`,
+            ]);
+        }
+        else if (d.origem === 'upload' && bytesAnexos + pesoNoPdf(d) > LIMITE_ANEXOS_BYTES) {
             bytes = await (0, autos_3.folhaSimples)(String(d.titulo), [
                 'Arquivo não incorporado: o PDF único dos autos passou do limite de tamanho.',
                 'Baixe o documento avulso ou gere o PDF em partes; o hash abaixo permite conferir o original.',
@@ -228,6 +242,13 @@ async function montarPdfAutos(o) {
         }
         const gravada = typeof d.folha_inicial === 'number';
         const folha = gravada ? d.folha_inicial : folhaLegado;
+        if (des) {
+            const ate = folha + (Number(d.paginas) || 1) - 1;
+            await (0, autos_3.anexarCarimbado)(pdf, bytes, { processo: String(proc.numero), folha, ordem: d.ordem, titulo: `${String(d.titulo)} (desentranhado)`, rotuloFolhas: ate > folha ? `fls. ${folha} a ${ate}` : undefined });
+            if (!gravada)
+                folhaLegado += Number(d.paginas) || 1;
+            return;
+        }
         const codigo = d.codigo_verificacao || await (0, autos_3.garantirCodigo)(o.db, o.orgId, o.ref.id, String(proc.numero), d.id);
         const qtd = await (0, autos_3.anexarCarimbado)(pdf, bytes, Object.assign({ processo: String(proc.numero), folha, ordem: d.ordem, titulo: String(d.titulo), juntadoEm: d.juntado_em, juntadoPor: d.juntado_por_nome, sha256: d.sha256, codigo }, (corte ? { paginas: [corte[0] - folha, corte[1] - folha] } : {})));
         if (!gravada)
@@ -249,7 +270,7 @@ async function montarPdfAutos(o) {
         if (m.tipo === 'autuacao')
             await (0, autos_3.anexarCarimbado)(pdf, await folhaDadosPdf(o, m, geradoEm, integridade), Object.assign(Object.assign({}, info), { mesmaFolha: true }));
         else
-            await (0, autos_3.anexarCarimbado)(pdf, await termoPdf(String(o.orgNome || ''), String(proc.numero), m, o.nomeUnidade(String(m.unidade_id || ''))), info);
+            await (0, autos_3.anexarCarimbado)(pdf, await termoPdf(String(o.orgNome || ''), String(proc.numero), m, o.nomeUnidade(String(m.unidade_id || '')), semEfeitoPor(m)), info);
     };
     // A folha de dados (evento 1) vem logo depois da capa: é a segunda folha do processo impresso.
     const autuacao = ((_a = atos[0]) === null || _a === void 0 ? void 0 : _a.tipo) === 'autuacao' ? atos[0] : null;
@@ -262,7 +283,7 @@ async function montarPdfAutos(o) {
         for (const m of atos) {
             const d = docsPorId.get((0, autos_1.documentoDoEvento)(m) || '');
             w.texto(`Evento ${m.numero_evento} · ${quandoBR(m.em)} · ${m.autor_nome}${unid(m.unidade_id)}${folhasTxt(m) ? ` · ${folhasTxt(m)}` : ''}`, { bold: true, size: 9, espaco: 0 });
-            w.texto(d ? `Doc. nº ${d.ordem}: ${d.titulo} (${d.tipo})` : `${(0, autos_1.tituloEvento)(m)}. ${m.descricao}`, { size: 9, espaco: 0 });
+            w.texto(d ? `Doc. nº ${d.ordem}: ${d.titulo} (${d.tipo})${d.desentranhado ? ' — DESENTRANHADO' : ''}` : `${(0, autos_1.tituloEvento)(m)}. ${m.descricao}${semEfeitoPor(m) ? ` — SEM EFEITO (evento ${semEfeitoPor(m)})` : ''}`, { size: 9, espaco: 0 });
             w.texto(`hash ${m.hash}`, { size: 6, cor: [0.5, 0.5, 0.5], espaco: 6 });
         }
     }
@@ -282,7 +303,7 @@ async function montarPdfAutos(o) {
         w.texto('Registros automáticos, de controle interno e os que o rito deixa fora dos autos, em ordem cronológica. Não ocupam folhas dos autos.', { size: 8, cor: [0.45, 0.45, 0.45], espaco: 10 });
         for (const m of sistema) {
             w.texto(`Evento ${m.numero_evento} · ${quandoBR(m.em)} · ${m.autor_nome}${unid(m.unidade_id)}`, { bold: true, size: 9, espaco: 0 });
-            w.texto(String(m.descricao), { size: 9, espaco: 0 });
+            w.texto(`${String(m.descricao)}${semEfeitoPor(m) ? ` — SEM EFEITO (evento ${semEfeitoPor(m)})` : ''}`, { size: 9, espaco: 0 });
             w.texto(`hash ${m.hash}`, { size: 6, cor: [0.5, 0.5, 0.5], espaco: 6 });
         }
     }

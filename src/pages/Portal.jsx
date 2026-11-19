@@ -590,7 +590,8 @@ function ProcessoParte({ id, onVoltar }) {
                                 <div key={d.id} className="flex items-center gap-3 py-2 border-b last:border-0 border-slate-100 dark:border-slate-800">
                                     <span className="font-mono text-xs w-8 text-slate-600">{d.ordem}</span>
                                     <div className="flex-1 min-w-0">
-                                        <button type="button" className="font-medium truncate block max-w-full text-left hover:underline" onClick={() => setLeitura(d.id)}>{d.titulo}{d.novo && <span className="ml-2 inline-block w-2 h-2 rounded-full bg-indigo-500 align-middle" aria-label="novo" />}</button>
+                                        {d.desentranhado && <p className="text-xs text-rose-800 dark:text-rose-200">Desentranhado dos autos em {dataHora(d.desentranhado.em)}. Motivo: {d.desentranhado.motivo}</p>}
+                                        <button type="button" className={`font-medium truncate block max-w-full text-left hover:underline ${d.desentranhado ? 'line-through decoration-slate-400' : ''}`} onClick={() => setLeitura(d.id)}>{d.titulo}{d.novo && <span className="ml-2 inline-block w-2 h-2 rounded-full bg-indigo-500 align-middle" aria-label="novo" />}</button>
                                         <p className="text-xs text-slate-600">{[d.tipo, d.folha_inicial ? (d.folha_final > d.folha_inicial ? `fls. ${d.folha_inicial}–${d.folha_final}` : `fl. ${d.folha_inicial}`) : null, dataHora(d.juntado_em)].filter(Boolean).join(' · ')}</p>
                                     </div>
                                     {d.codigo_verificacao && (

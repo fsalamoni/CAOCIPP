@@ -5,6 +5,24 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 19/11/2026 — Fase de elaboração e exclusão dos autos com justificativa
+- Nova opção da fase, "Fase de elaboração: quem está nela só prepara
+  minutas". O que se redige ou anexa entra como minuta (sem perguntar), já
+  cumpre a ação de documento da fase e segue inteiro com o processo na
+  remessa. Assinar, pedir assinatura, juntar, guardar fora dos autos e
+  Finalizar somem da tela e o servidor recusa. Excluir a minuta antes de
+  seguir devolve a ação a pendente.
+- Rito Consultas CAOCIPP: a Análise passa a ser fase de elaboração, e
+  "Redigir ou anexar a minuta do parecer" é cumprida pela minuta do tipo
+  Parecer. A Revisão, no Gabinete, segue decidindo o que vai aos autos.
+- Desentranhar documento juntado e tornar ato sem efeito, na aba Eventos,
+  com justificativa obrigatória e termo próprio. Podem quem praticou, o
+  gestor da unidade, o admin e a unidade que decide, com o processo. Nada
+  se apaga: no PDF fica uma folha de aviso no lugar ("fls. 7 a 9"); o
+  portal mostra o aviso e não entrega o arquivo; a conferência pública diz
+  que o documento saiu dos autos; o ato sem efeito fica riscado, com o
+  número da certidão. Folhas e números de evento não mudam.
+
 ### 19/11/2026 — Eventos numerados sem saltos para as partes
 - Só o ato que as partes veem recebe número inteiro, em sequência (1, 2,
   3…). O registro interno leva o número do último ato público antes dele

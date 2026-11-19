@@ -218,7 +218,9 @@ export async function anexarCarimbado(
     origem: Uint8Array,
     info: { processo: string; folha: number | null; ordem?: number; titulo: string; juntadoEm?: string; juntadoPor?: string; sha256?: string; codigo?: string | null; paginas?: [number, number];
         /** Termo que passou de uma página: todas levam a mesma folha (a numeração dos autos não muda). */
-        mesmaFolha?: boolean },
+        mesmaFolha?: boolean;
+        /** Aviso no lugar de várias folhas (documento desentranhado): o rótulo delas no carimbo. */
+        rotuloFolhas?: string },
 ): Promise<number> {
     let src: PDFDocument;
     try { src = await pdfLib().PDFDocument.load(origem, { ignoreEncryption: true }); } catch {
@@ -233,7 +235,7 @@ export async function anexarCarimbado(
         const i = indices[n];
         destino.addPage(pg);
         const { width, height } = pg.getSize();
-        const fls = !info.folha ? '' : info.mesmaFolha ? ` · fls. ${info.folha}${i ? ' (continuação)' : ''}` : ` · fls. ${info.folha + i}`;
+        const fls = info.rotuloFolhas ? ` · ${info.rotuloFolhas}` : !info.folha ? '' : info.mesmaFolha ? ` · fls. ${info.folha}${i ? ' (continuação)' : ''}` : ` · fls. ${info.folha + i}`;
         const topo = winAnsi(`Processo nº ${info.processo}${fls}`);
         pg.drawText(topo, { x: width - 20 - font.widthOfTextAtSize(topo, 8), y: height - 16, size: 8, font, color: pdfLib().rgb(0.25, 0.25, 0.4) });
         if (qr && info.codigo) {

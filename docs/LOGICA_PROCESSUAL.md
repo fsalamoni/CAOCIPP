@@ -195,6 +195,13 @@ informado.
   quem é competente); entre unidades do mesmo órgão, conforme o rito.
 - **Conclusão** é a remessa a quem decide; abre o tempo do decisor (CPC,
   art. 228).
+- **Fase de elaboração.** Quem prepara (assessoria, analista) não decide o
+  que entra nos autos. Na fase marcada "de elaboração", o que se redige ou
+  anexa entra sozinho como minuta, já cumpre o documento que a ação pede,
+  e todas as minutas seguem com o processo na remessa. Assinar, pedir
+  assinatura, juntar e guardar fora dos autos ficam fechados (na tela e no
+  servidor) até a fase seguinte, de quem revisa. Excluir a minuta antes de
+  seguir devolve a ação a pendente.
 - **Fase × local.** A fase diz em que ponto do procedimento o processo
   está; a unidade diz onde está. Elas andam juntas na maioria dos ritos,
   mas não sempre (o gabinete devolve à secretaria para cumprir, sem mudar a
@@ -431,6 +438,20 @@ informado.
 
 - Documento juntado não se edita nem se apaga; correção é ato novo
   (certidão, novo documento). Desentranhamento, quando houver, é ato formal.
+- **Desentranhamento** (documento juntado) e **ato sem efeito** (termo,
+  certidão, ação da fase): exigem justificativa e geram termo próprio, que
+  vai aonde o ato estava (nos autos, para quem o via; interno, só no
+  sistema). Nada se apaga: o documento desentranhado vira, no PDF, uma
+  folha de aviso no lugar das que ocupava ("fls. 7 a 9"), com o motivo;
+  o portal mostra o aviso e não entrega o conteúdo; a equipe ainda abre o
+  original; a conferência pública diz que saiu dos autos. O ato sem efeito
+  continua na lista e no PDF, riscado, com o número da certidão. Folhas e
+  números de evento não mudam. Podem fazer: quem praticou o ato, o gestor
+  da unidade onde se praticou (o admin do órgão interno conta como
+  gestor), o admin do órgão e a unidade que decide, enquanto está com o
+  processo. Remessa, fase e situação não ficam "sem efeito": corrigem-se
+  com novo ato. Ação da fase atual se desfaz pela própria ação, que também
+  desfaz o que ela fez (prazo, audiência, dado).
 - Cada evento entra numa cadeia de hash; folhas são numeradas em sequência e
   nunca renumeradas.
 - **Numeração dos eventos sem saltos para quem é de fora.** Só o ato que

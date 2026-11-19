@@ -87,6 +87,7 @@ export default function Conferir() {
                                 <dt className="text-slate-500">Documento</dt><dd>nº {d.ordem} · {d.titulo} <span className="text-slate-500">({d.tipo}{d.peticao ? ', petição de parte' : ''})</span></dd>
                                 {folhas && <><dt className="text-slate-500">Folhas</dt><dd>{folhas}</dd></>}
                                 <dt className="text-slate-500">Juntado em</dt><dd>{dataHora(d.juntado_em)}{d.juntado_por ? ` por ${d.juntado_por}` : ''}</dd>
+                                {d.desentranhado_em && <><dt className="text-slate-500">Desentranhado em</dt><dd className="text-rose-800 dark:text-rose-200 font-medium">{dataHora(d.desentranhado_em)}: o documento não faz mais parte dos autos</dd></>}
                                 {d.nome_arquivo && <><dt className="text-slate-500">Arquivo original</dt><dd className="break-all">{d.nome_arquivo}</dd></>}
                             </dl>
                             <div>

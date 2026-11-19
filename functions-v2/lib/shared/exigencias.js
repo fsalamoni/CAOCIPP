@@ -49,6 +49,8 @@ exports.faltaAssinatura = faltaAssinatura;
 exports.atende = atende;
 exports.reconhecer = reconhecer;
 exports.camposDoCumprimento = camposDoCumprimento;
+exports.cumpridaPelaMinuta = cumpridaPelaMinuta;
+exports.semCumprimentoDaMinuta = semCumprimentoDaMinuta;
 exports.camposAoEntrarNaFase = camposAoEntrarNaFase;
 exports.destinoDoMovimento = destinoDoMovimento;
 exports.tituloCertidao = tituloCertidao;
@@ -811,6 +813,32 @@ function camposDoCumprimento(proc, faseId, cumpridas, documentoId, ordem) {
         out.acoes_feitas = Object.assign(Object.assign({}, feitasTodas), { [faseId]: [...new Set([...(feitasTodas[faseId] || []), ...acoes])].sort((a, b) => a - b) });
     }
     return out;
+}
+/**
+ * Fase de elaboração: a exigência de documento (para os autos) que a minuta
+ * recém-criada cumpre, ou nenhuma. Uma minuta cumpre uma exigência: a do
+ * mesmo modelo ou tipo; sem isso, a primeira que não pede tipo. Assinatura
+ * não é cobrada aqui: quem assina é quem revisa, na fase seguinte.
+ */
+function cumpridaPelaMinuta(pendentes, d) {
+    const cabem = pendentes.filter((e) => !e.destino && atende(e, d));
+    return cabem.find((e) => (e.modelo_id && e.modelo_id === d.modelo_id) || igual(e.tipo, d.tipo))
+        || cabem.find((e) => !e.tipo && !e.modelo_id) || null;
+}
+/**
+ * A minuta saiu (excluída) antes de seguir: o que ela cumpria na fase volta a
+ * faltar, e a ação de documento ligada volta a ficar pendente.
+ */
+function semCumprimentoDaMinuta(proc, faseId, documentoId) {
+    const todas = (proc.exigencias_cumpridas || {});
+    const daFase = todas[faseId] || {};
+    const sai = Object.keys(daFase).filter((k) => { var _b; return ((_b = daFase[k]) === null || _b === void 0 ? void 0 : _b.documento_id) === documentoId; });
+    if (!sai.length)
+        return {};
+    const resto = Object.fromEntries(Object.entries(daFase).filter(([k]) => !sai.includes(k)));
+    const acoes = sai.filter((k) => /^a\d+$/.test(k)).map((k) => Number(k.slice(1)));
+    const feitasTodas = (proc.acoes_feitas || {});
+    return Object.assign({ exigencias_cumpridas: Object.assign(Object.assign({}, todas), { [faseId]: resto }) }, (acoes.length ? { acoes_feitas: Object.assign(Object.assign({}, feitasTodas), { [faseId]: (feitasTodas[faseId] || []).filter((i) => !acoes.includes(i)) }) } : {}));
 }
 /** Ao entrar numa fase (inclusive voltando a ela), o que ela exige recomeça: a rodada anterior fica nos movimentos. */
 function camposAoEntrarNaFase(proc, faseId) {

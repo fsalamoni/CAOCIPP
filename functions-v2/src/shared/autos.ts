@@ -14,7 +14,7 @@ export interface Evento {
     folha?: number;
 }
 
-export interface PecaFolhas { folha_inicial?: number | null; folha_final?: number | null }
+export interface PecaFolhas { folha_inicial?: number | null; folha_final?: number | null; desentranhado?: unknown }
 
 /**
  * usuario: ato do processo (termo com folha, salvo se juntou documento);
@@ -64,6 +64,34 @@ export const visivelParaPartes = (m: Evento, polo?: string | null): boolean =>
 export const documentoDoEvento = (m: Evento): string | null =>
     (typeof m.dados?.documento_id === 'string' && typeof m.dados?.ordem === 'number' ? m.dados.documento_id : null);
 
+/**
+ * Quem pode desentranhar um documento juntado ou tornar um ato sem efeito:
+ * quem o praticou, o admin do órgão, o gestor da unidade onde foi praticado
+ * (o admin delegado do órgão interno conta como gestor) e a unidade que
+ * decide, enquanto está com o processo.
+ */
+export function podeExcluirDosAutos(
+    quem: { uid: string; isAdmin?: boolean; gestorDe?: string[]; decisorComPosse?: boolean },
+    ato: { autor_uid?: unknown; unidade_id?: unknown },
+): boolean {
+    return quem.isAdmin === true || quem.decisorComPosse === true
+        || (!!ato.autor_uid && ato.autor_uid === quem.uid)
+        || (!!ato.unidade_id && (quem.gestorDe || []).includes(String(ato.unidade_id)));
+}
+
+/** Atos que não se tornam sem efeito por certidão: mudam o estado do processo, têm caminho próprio ou já são a própria anulação. */
+const SEM_EFEITO_NAO = ['autuacao', 'tramitacao', 'conclusao', 'fase', 'situacao', 'exclusao', 'restauracao', 'retificacao', 'desentranhamento', 'sem_efeito'];
+/** O ato pode ficar sem efeito? Documento juntado sai por desentranhamento; registro do sistema não é ato de ninguém. */
+export const podeFicarSemEfeito = (m: Evento): boolean =>
+    origemEvento(m) !== 'sistema' && !SEM_EFEITO_NAO.includes(m.tipo) && !documentoDoEvento(m);
+
+/** Eventos que outro evento tornou sem efeito: seq do alvo → seq da certidão. */
+export function eventosSemEfeito(movs: Evento[]): Map<number, number> {
+    const r = new Map<number, number>();
+    for (const m of movs) if (m.tipo === 'sem_efeito' && typeof m.dados?.alvo_seq === 'number') r.set(m.dados.alvo_seq, m.seq);
+    return r;
+}
+
 /** Ato de usuário sem documento: a página dele é o termo. */
 export const geraTermo = (m: Evento): boolean => origemEvento(m) === 'usuario' && !documentoDoEvento(m);
 
@@ -97,6 +125,8 @@ const TITULOS: Record<string, string> = {
     convite: 'Convite',
     guarda: 'Documento guardado fora dos autos',
     exclusao: 'Termo de exclusão',
+    desentranhamento: 'Termo de desentranhamento',
+    sem_efeito: 'Certidão de ato sem efeito',
     restauracao: 'Termo de restauração',
     certidao_fase: 'Certidão conjunta',
     efeitos_fase: 'O que a fase fez sozinha',
@@ -154,10 +184,16 @@ export function numerarEventos(movs: Evento[]): Map<number, string> {
 export const numeroDoEvento = (numeros: Map<number, string> | undefined, seq: number): string => numeros?.get(seq) ?? String(seq);
 
 /** O que a tela precisa saber de cada evento, além do movimento gravado. `numeros`: de numerarEventos, sobre todos os eventos do processo. */
-export function extrasDoEvento(m: Evento, docs: Map<string, PecaFolhas>, numeros?: Map<number, string>) {
+export function extrasDoEvento(m: Evento, docs: Map<string, PecaFolhas>, numeros?: Map<number, string>, anulados?: Map<number, number>) {
+    const doc = documentoDoEvento(m);
+    const se = anulados?.get(m.seq);
     return {
-        origem: origemEvento(m), titulo: tituloEvento(m), folhas: folhasDoEvento(m, docs), documento_id: documentoDoEvento(m),
+        origem: origemEvento(m), titulo: tituloEvento(m), folhas: folhasDoEvento(m, docs), documento_id: doc,
         numero: numeros ? numeros.get(m.seq) ?? null : String(m.seq),
+        // Documento desentranhado e ato sem efeito: a linha fica, com o aviso (número da certidão).
+        ...(doc && docs.get(doc)?.desentranhado ? { desentranhado: true } : {}),
+        ...(se !== undefined ? { sem_efeito: numeros ? numeros.get(se) ?? null : String(se) } : {}),
+        pode_sem_efeito: podeFicarSemEfeito(m) && se === undefined,
     };
 }
 

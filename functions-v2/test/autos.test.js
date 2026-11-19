@@ -25,7 +25,7 @@ test('termo: só ato de usuário que não juntou documento', () => {
 
 test('folhas do evento: as do documento ou a do termo', () => {
     assert.deepEqual(movs.map((m) => folhasDoEvento(m, docs)), [[1, 1], null, [2, 4], [5, 5], null, null]);
-    assert.deepEqual(extrasDoEvento(movs[2], docs), { origem: 'usuario', titulo: 'Juntada de documento', folhas: [2, 4], documento_id: 'd1', numero: '3' });
+    assert.deepEqual(extrasDoEvento(movs[2], docs), { origem: 'usuario', titulo: 'Juntada de documento', folhas: [2, 4], documento_id: 'd1', numero: '3', pode_sem_efeito: false });
     assert.equal(tituloEvento({ seq: 1, tipo: 'tipo_novo' }), 'Certidão');
 });
 

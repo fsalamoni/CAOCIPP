@@ -28,7 +28,7 @@ function IconeEvento({ m }) {
  * autos peça a peça e se gera o PDF integral ou só das partes marcadas.
  * `gerarPdf(selecao)` devolve `{ base64, nome }`.
  */
-export default function EventosAutos({ movimentos, nomeUnidade, gerarPdf, titulo = 'Eventos', className = '' }) {
+export default function EventosAutos({ movimentos, nomeUnidade, gerarPdf, onExcluir, titulo = 'Eventos', className = '' }) {
     const [filtro, setFiltro] = useState('todos');
     const [busca, setBusca] = useState('');
     const [crescente, setCrescente] = useState(false);
@@ -115,9 +115,16 @@ export default function EventosAutos({ movimentos, nomeUnidade, gerarPdf, titulo
                                                 <span className="flex flex-wrap items-center gap-1.5 font-medium group-hover:underline"><IconeEvento m={m} /> {m.titulo}
                                                     {m.novo && <Badge className="bg-indigo-600 hover:bg-indigo-600 text-[10px] px-1.5 py-0">novo</Badge>}
                                                     {m.origem !== 'usuario' && <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal">{oculto(m) ? 'sem evento' : m.dados?.fora_impressao ? 'só no sistema' : m.origem === 'interno' ? 'interno' : 'sistema'}</Badge>}
+                                                    {m.desentranhado && <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal border-rose-300 text-rose-800 dark:text-rose-200">desentranhado</Badge>}
+                                                    {m.sem_efeito && <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal border-rose-300 text-rose-800 dark:text-rose-200">sem efeito (evento {m.sem_efeito})</Badge>}
                                                 </span>
-                                                <span className="block text-slate-700 dark:text-slate-300">{m.descricao}</span>
+                                                <span className={`block text-slate-700 dark:text-slate-300 ${m.sem_efeito || m.desentranhado ? 'line-through decoration-slate-400' : ''}`}>{m.descricao}</span>
                                             </button>
+                                            {onExcluir && (m.documento_id ? !m.desentranhado : m.pode_sem_efeito) && (
+                                                <button type="button" onClick={() => onExcluir(m)} className="block text-xs text-rose-700 dark:text-rose-300 hover:underline min-h-11 sm:min-h-0">
+                                                    {m.documento_id ? 'Desentranhar' : 'Tornar sem efeito'}
+                                                </button>
+                                            )}
                                             <span className="md:hidden block text-xs text-slate-600 dark:text-slate-400"><span className="sm:hidden">{[dataHora(m.em), textoFolhas(m.folhas)].filter(Boolean).join(' · ')} · </span>{[m.autor_nome, unidade(m)].filter(Boolean).join(' · ')}</span>
                                         </td>
                                         <td className="py-2 pr-3 hidden md:table-cell text-xs"><span className="block">{m.autor_nome}</span><span className="text-slate-600 dark:text-slate-400">{unidade(m)}</span></td>

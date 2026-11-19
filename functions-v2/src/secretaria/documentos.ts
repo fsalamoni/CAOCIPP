@@ -1,5 +1,5 @@
 import * as admin from 'firebase-admin';
-import { polosEscolhidos } from '../shared/autos';
+import { podeExcluirDosAutos, podeFicarSemEfeito, polosEscolhidos, visivelParaPartes } from '../shared/autos';
 import { FieldValue } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import {
@@ -7,13 +7,13 @@ import {
 } from '../shared/secretaria';
 import { sanitizeDoc } from '../shared/documento';
 import type { Fase } from '../shared/secretaria';
-import { Cumpridas, camposDoCumprimento, destinoDaGuarda, exigeAlgo, marcasDoDestino, pendentesDaFase, reconhecer, respostasDaFase } from '../shared/exigencias';
+import { Cumpridas, camposDoCumprimento, cumpridaPelaMinuta, semCumprimentoDaMinuta, destinoDaGuarda, exigeAlgo, marcasDoDestino, pendentesDaFase, reconhecer, respostasDaFase } from '../shared/exigencias';
 import { avancarSozinho } from './processos';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { registrarLeitura } from './sessoes';
 import { avisarPedidoAssinatura, avisarPendencia } from './avisosEquipe';
 import { camposDosPrazosDasAcoes } from '../shared/prazosFase';
-import { lotacoesDe, unidadeDecide } from '../shared/secretaria';
+import { lotacoesDe, podeAgir, unidadeDecide } from '../shared/secretaria';
 import {
     COL, REGION, calendarioDasAcoes, carregarContexto, conferirVersao, erroUsuario, exigirAuth, exigirPosse, lerProcesso, registrarInternos, registrarMovimento,
     comSinal,
@@ -49,7 +49,7 @@ import { reabrirSala } from './audienciaSala';
 interface DocRequest {
     organizationId: string;
     processoId: string;
-    action: 'criarMinuta' | 'editarMinuta' | 'upload' | 'assinar' | 'juntar' | 'guardar' | 'excluirMinuta' | 'baixar' | 'pdf' | 'pedirAssinatura' | 'versoes'
+    action: 'criarMinuta' | 'editarMinuta' | 'upload' | 'assinar' | 'juntar' | 'guardar' | 'excluirMinuta' | 'baixar' | 'pdf' | 'pedirAssinatura' | 'versoes' | 'desentranhar' | 'semEfeito'
         | 'paraEditor' | 'converter' | 'docx';
     /** editarMinuta de minuta assinada: quem revisa confirma que as assinaturas saem (e voltam a ser pedidas). */
     revisarAssinada?: boolean;
@@ -88,6 +88,10 @@ interface DocRequest {
     descricao?: string;
     /** criarMinuta/upload: data do próprio documento (assinatura ou emissão), AAAA-MM-DD, até hoje. */
     data_documento?: string;
+    /** desentranhar / semEfeito: a justificativa, que vai ao termo. */
+    motivo?: string;
+    /** semEfeito: o evento (seq) que fica sem efeito. */
+    seq?: number;
 }
 
 const MAX_DESCRICAO_DOC = 500;
@@ -127,6 +131,11 @@ export const secretariaDocumento = onCall<DocRequest>(
             const d = p.docId ? (await procRef.collection('documentos').doc(String(p.docId)).get()).data() : undefined;
             if (!d || d.status !== 'juntado') throw new HttpsError('not-found', 'Documento não encontrado');
             await registrarLeitura(c, procRef, proc, `Leu o documento ${d.ordem ? `nº ${d.ordem}, ` : ''}${String(d.titulo || '')}`);
+        }
+        // Fase de elaboração: quem está nela só prepara; assinar, juntar e guardar cabem a quem revisa, na fase seguinte.
+        const faseDoProc = ((proc.fases || []) as Fase[]).find((f) => f.id === proc.fase_atual);
+        if (faseDoProc?.elaboracao === true && ['assinar', 'pedirAssinatura', 'juntar', 'guardar'].includes(String(p.action))) {
+            throw new HttpsError('failed-precondition', `Na fase ${faseDoProc.nome || 'atual'} só se elaboram minutas: assinar e decidir o que entra nos autos cabem a quem revisa, na fase seguinte.`);
         }
         // Feriados locais e recesso, se o ato puder abrir prazo de ação.
         const calendario = ['juntar', 'guardar'].includes(String(p.action)) ? await calendarioDasAcoes(c.db, c.orgId, proc) : undefined;
@@ -243,6 +252,22 @@ export const secretariaDocumento = onCall<DocRequest>(
             return entregar(buf, nome, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', auth.uid);
         }
 
+        // Fase de elaboração: a minuta recém-criada cumpre a ação de documento que a pede (registro só da equipe).
+        const cumprirComMinuta = async (docId: string, d: { origem: string; tipo: string; modelo_id?: string; titulo: string }) => {
+            if (faseDoProc?.elaboracao !== true) return null;
+            return c.db.runTransaction(async (tx) => {
+                const atual = (await tx.get(procRef)).data() || {};
+                const fase = ((atual.fases || []) as Fase[]).find((f) => f.id === atual.fase_atual);
+                if (fase?.elaboracao !== true) return null;
+                const pendentes = pendentesDaFase(fase, atual.exigencias_cumpridas as Cumpridas | undefined, respostasDaFase(atual));
+                const e = cumpridaPelaMinuta(pendentes, { origem: d.origem, tipo: d.tipo, modelo_id: d.modelo_id, assinaturas: 0, atribuicoes: [] });
+                if (!e) return null;
+                const mi = registrarInternos(tx, c, procRef, atual, [`Minuta preparada: ${d.titulo} (${d.tipo}). Cumpre "${e.descricao}"; segue com o processo para a revisão.`]);
+                tx.update(procRef, { ...mi, ...camposDoCumprimento(atual, fase.id, [e], docId, null) });
+                return e.chave;
+            });
+        };
+
         if (p.action === 'criarMinuta' || p.action === 'upload') {
             exigirPosse(c, proc);
             const titulo = texto(p.titulo) || (p.action === 'upload' ? texto(p.nomeArquivo) : '');
@@ -267,7 +292,8 @@ export const secretariaDocumento = onCall<DocRequest>(
                 const hash = sha256(jsonCanonico(conteudo));
                 const campos = semApagar(await camposDoConteudo(caminhoArquivo(c.orgId, procRef.id, ref.id), conteudo!, hash));
                 await ref.set({ ...base, origem: 'editor', ...campos, sha256: hash });
-                return { success: true, id: ref.id };
+                const cumpriu = await cumprirComMinuta(ref.id, { ...base, origem: 'editor' });
+                return { success: true, id: ref.id, ...(cumpriu ? { cumpre: cumpriu } : {}) };
             }
             const mime = String(p.mime || '');
             if (!TIPOS_ARQUIVO_PERMITIDOS[mime]) throw new HttpsError('invalid-argument', 'Tipo de arquivo não aceito');
@@ -298,7 +324,8 @@ export const secretariaDocumento = onCall<DocRequest>(
                 if (leitura) await bucket.file(leitura.leitura_path).delete({ ignoreNotFound: true }).catch(() => undefined);
                 throw e;
             }
-            return { success: true, id: ref.id };
+            const cumpriu = await cumprirComMinuta(ref.id, { ...base, origem: 'upload' });
+            return { success: true, id: ref.id, ...(cumpriu ? { cumpre: cumpriu } : {}) };
         }
 
         if (p.action === 'editarMinuta') {
@@ -361,6 +388,9 @@ export const secretariaDocumento = onCall<DocRequest>(
                 throw new HttpsError('failed-precondition', 'Esta minuta seguiu com o processo para outra unidade. Ela só pode ser excluída quando o processo voltar à sua unidade.');
             }
             await c.db.recursiveDelete(ref); // com as redações anteriores
+            // A minuta cumpria a ação de documento da fase (elaboração): ela volta a faltar.
+            const desfeito = semCumprimentoDaMinuta(proc, String(proc.fase_atual), ref.id);
+            if (Object.keys(desfeito).length) await procRef.update(desfeito);
             // Minuta do acórdão excluída pela unidade: volta ao redator, que corrige e envia de novo (S6).
             if (doc.acordao_sessao_id && proc.acordao?.documento_id === ref.id) {
                 const sem = { 'acordao.enviado_em': FieldValue.delete(), 'acordao.documento_id': FieldValue.delete() };
@@ -522,6 +552,8 @@ export const secretariaDocumento = onCall<DocRequest>(
                 const exig = fase ? camposDoCumprimento(atual, fase.id, cumpridas, ref.id, ordem) : {};
                 const juntado = {
                     status: 'juntado', ordem, visivel_partes: visivel, ...marcaPolos, juntado_em: agoraIso, juntado_por: auth.uid, juntado_por_nome: c.userName,
+                    // Onde se juntou: o gestor dessa unidade pode desentranhar.
+                    unidade_juntada: String(atual.unidade_atual || ''),
                     // PDF feito agora, com as fontes atuais; se um dia precisar ser refeito, sai igual.
                     ...(antes.origem === 'editor' || !ehLegado(antes) ? { fontes: FONTES_ATUAIS } : {}),
                     paginas, folha_inicial: folha, folha_final: folha + paginas - 1,
@@ -591,6 +623,55 @@ export const secretariaDocumento = onCall<DocRequest>(
             });
             const { tentar, ...feito } = r;
             return comAvanco(feito, tentar);
+        }
+
+        if (p.action === 'desentranhar' || p.action === 'semEfeito') {
+            // Exclusão dos autos com justificativa. Nada se apaga: o documento sai das
+            // folhas (fica um aviso no lugar) e o ato fica marcado sem efeito, por termo.
+            const motivo = texto(p.motivo, 500);
+            if (motivo.length < 10) throw new HttpsError('invalid-argument', 'Escreva a justificativa (ao menos 10 caracteres)');
+            const r = await c.db.runTransaction(async (tx) => {
+                const { ref: pr, data: atual } = await lerProcesso(c, p.processoId, tx);
+                conferirVersao(atual, p.version);
+                if (atual.status === 'arquivado') throw new HttpsError('failed-precondition', 'Processo arquivado');
+                const decisorComPosse = podeAgir(atual as never, c.ctx) && unidadeDecide(c.unidades.find((u) => u.id === atual.unidade_atual));
+                const quem = { uid: auth.uid, isAdmin: c.ctx.isAdmin, gestorDe: c.gestorDe, decisorComPosse };
+                const negar = () => { throw new HttpsError('permission-denied', 'Só quem praticou o ato, o gestor da unidade, o admin ou a unidade que decide, com o processo, podem excluí-lo dos autos'); };
+                if (p.action === 'desentranhar') {
+                    const { ref, doc } = await lerDoc(tx);
+                    if (doc.status !== 'juntado') throw new HttpsError('failed-precondition', 'Só se desentranha documento juntado aos autos');
+                    if (doc.desentranhado) throw new HttpsError('already-exists', 'O documento já foi desentranhado');
+                    if (!podeExcluirDosAutos(quem, { autor_uid: doc.juntado_por, unidade_id: doc.unidade_juntada || doc.unidade_origem })) negar();
+                    const fls = textoFolhas(Number(doc.folha_inicial) || 0, Number(doc.paginas) || 1);
+                    const mov = registrarMovimento(tx, c, pr, atual, 'desentranhamento',
+                        `Desentranhado o documento nº ${doc.ordem}: ${doc.titulo} (${doc.tipo})${doc.folha_inicial ? `, ${fls}` : ''}. Motivo: ${motivo.replace(/\.$/, '')}. O documento sai dos autos; no lugar fica este aviso, e a numeração não muda.`,
+                        { documento_alvo: ref.id, ordem_alvo: doc.ordem, motivo, visivel_partes: doc.visivel_partes !== false, ...(doc.visivel_polos ? { visivel_polos: doc.visivel_polos } : {}) });
+                    tx.update(ref, { desentranhado: { em: agoraIso, por: auth.uid, por_nome: c.userName, motivo, evento_seq: mov.mov_seq } });
+                    if (doc.codigo_verificacao) tx.set(c.db.collection(COL.verificacao).doc(String(doc.codigo_verificacao)), { desentranhado_em: agoraIso }, { merge: true });
+                    // O que ele cumpria na fase em curso volta a faltar.
+                    const desfeito = semCumprimentoDaMinuta(atual, String(atual.fase_atual || ''), ref.id);
+                    tx.update(pr, { ...mov, ...desfeito });
+                    return { version: mov.version, visivel: doc.visivel_partes !== false };
+                }
+                const seq = Number(p.seq);
+                const ms = await tx.get(pr.collection('movimentos').doc(String(seq).padStart(6, '0')));
+                const alvo = ms.data();
+                if (!alvo || !Number.isInteger(seq)) throw new HttpsError('not-found', 'Evento não encontrado');
+                if (!podeFicarSemEfeito(alvo as never)) throw new HttpsError('failed-precondition', 'Este evento não fica sem efeito por certidão: documento juntado sai por desentranhamento, e remessa, fase e situação se corrigem com novo ato');
+                const ja = await tx.get(pr.collection('movimentos').where('tipo', '==', 'sem_efeito').where('dados.alvo_seq', '==', seq).limit(1));
+                if (!ja.empty) throw new HttpsError('already-exists', 'O evento já está sem efeito');
+                if (!podeExcluirDosAutos(quem, alvo)) negar();
+                const dAlvo = (alvo.dados || {}) as Record<string, unknown>;
+                // A certidão vai aonde o ato foi: nos autos, para as partes que o viam; interno, só no sistema.
+                const mov = registrarMovimento(tx, c, pr, atual, 'sem_efeito',
+                    `Certifico que fica sem efeito o ato "${String(alvo.descricao || '').slice(0, 200)}", praticado por ${alvo.autor_nome} em ${new Date(String(alvo.em)).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}. Motivo: ${motivo.replace(/\.$/, '')}.`,
+                    { alvo_seq: seq, motivo, visivel_partes: dAlvo.visivel_partes !== false && visivelParaPartes(alvo as never),
+                        ...(dAlvo.visivel_polos ? { visivel_polos: dAlvo.visivel_polos } : {}), ...(dAlvo.interno === true ? { interno: true } : {}) });
+                tx.update(pr, mov);
+                return { version: mov.version, visivel: visivelParaPartes(alvo as never) };
+            });
+            if (r.visivel) void avisarPartesDoMovimento(c.db, procRef.id, undefined, 1);
+            return { version: r.version };
         }
 
         throw new HttpsError('invalid-argument', 'Ação desconhecida');

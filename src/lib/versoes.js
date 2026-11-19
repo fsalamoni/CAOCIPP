@@ -41,7 +41,7 @@ const FASE = [['nome', 'nome'], ['nome_publico', 'nome para as partes'], ['expli
     ['condicoes_regra', 'regra das saídas'], ['saida_padrao', 'saída padrão'], ['modelos', 'modelos sugeridos'], ['documentos', 'documentos exigidos'], ['registro_atos', 'registro nos autos'],
     ['registro', 'registro nos autos'], ['certidao', 'certidão'], ['ao_entrar', 'ao entrar na fase'], ['aviso', 'quem é avisado'],
     ['prazo_alerta_dias', 'antecedência do alerta de prazo'], ['prazo_vencido', 'prazo vencido'],
-    ['avanco', 'seguir sozinha'], ['situacao_registro', 'situação do registro ligado'], ['espera', 'fase de espera'], ['juntada_conjunta', 'botão Finalizar'],
+    ['avanco', 'seguir sozinha'], ['situacao_registro', 'situação do registro ligado'], ['espera', 'fase de espera'], ['juntada_conjunta', 'botão Finalizar'], ['elaboracao', 'fase de elaboração'],
     ['permissoes', 'quem pode na fase']];
 const REGRA = [['pede', 'o que pede'], ['rotulo', 'nome do dado'], ['ajuda', 'ajuda'], ['opcoes', 'opções'], ['modulo', 'módulo'], ['campos', 'campos do formulário'],
     ['destino', 'onde fica'], ['autos', 'onde fica'], ['documento', 'documento'], ['partes', 'quem vê'], ['obrigatoria', 'obrigatória'], ['recomendada', 'recomendada'],
