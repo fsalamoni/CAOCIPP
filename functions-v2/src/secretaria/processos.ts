@@ -8,7 +8,7 @@ import {
     hojeBrasil, lotacoesDe, MAX_MINUTAS_REMESSA, minutaAcessivel, podeAgir, podeExcluirProcesso, podeVer, saidaAutomatica, saidasDoProcesso, Espera, Origem, RefOrigem, ehParte, sanitizeOrigem, sha256, texto, unidadeDecide, verificarCadeia,
 } from '../shared/secretaria';
 import { auditar } from './config';
-import { extrasDoEvento, urgentesPrimeiro } from '../shared/autos';
+import { extrasDoEvento, numerarEventos, urgentesPrimeiro } from '../shared/autos';
 import {
     Consolidacao, Cumpridas, ItemCertidao, MAX_ITEM_CERTIDAO, RegraAcao, cabeNaCertidao, textoDoItem, acoesObrigatoriasPendentes, camposAoEntrarNaFase, destinoDaAcao,
     destinoDoMovimento, deveEmitir, grupoDe, marcasDoDestino, marcasNaFase, mudancaNaCertidao, partesVeem, pedidoDaAcao, documentosQueFaltam, textoCertidao,
@@ -1044,6 +1044,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, comSin
         const quemLe = { uid: c.ctx.uid, isAdmin: c.ctx.isAdmin, gestorDe: c.gestorDe };
         const movsBrutos = movs.docs.map((d) => d.data());
         const movimentos = movsBrutos.map((m) => semReservado(m, quemLe));
+        // Numeração dos autos: públicos em sequência, internos subsidiários (5.1).
+        const numerosEventos = numerarEventos(movsBrutos as never);
         const posse = podeAgir(data as never, c.ctx);
         const documentos = docs.docs
             .map((d) => ({ id: d.id, ...d.data() } as admin.firestore.DocumentData))
@@ -1119,7 +1121,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, comSin
                 julgamento_em_curso: data.julgamento_em_curso ? { relator_nome: data.julgamento_em_curso.relator_nome || '', manter_votos: data.julgamento_em_curso.manter_votos === true } : null,
             },
             hoje: hojeBrasil(),
-            movimentos: movimentos.map((m) => ({ ...m, ...extrasDoEvento(m as never, new Map(documentos.map((d) => [d.id, d]))) })),
+            movimentos: movimentos.map((m) => ({ ...m, ...extrasDoEvento(m as never, new Map(documentos.map((d) => [d.id, d])), numerosEventos) })),
             documentos,
             informacoes: informacoes.map((i) => ([i.ref, ...(i.refs || [])].some(fechada)
                 ? { ...i, restrito: true, ref: marcar(i.ref), ...(i.refs ? { refs: i.refs.map(marcar) } : {}) } : i)),

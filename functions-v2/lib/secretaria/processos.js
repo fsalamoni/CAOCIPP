@@ -995,6 +995,8 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, (
         const quemLe = { uid: c.ctx.uid, isAdmin: c.ctx.isAdmin, gestorDe: c.gestorDe };
         const movsBrutos = movs.docs.map((d) => d.data());
         const movimentos = movsBrutos.map((m) => (0, informacoes_1.semReservado)(m, quemLe));
+        // Numeração dos autos: públicos em sequência, internos subsidiários (5.1).
+        const numerosEventos = (0, autos_1.numerarEventos)(movsBrutos);
         const posse = (0, secretaria_1.podeAgir)(data, c.ctx);
         const documentos = docs.docs
             .map((d) => (Object.assign({ id: d.id }, d.data())))
@@ -1035,7 +1037,7 @@ exports.secretariaProcesso = (0, https_1.onCall)({ region: context_1.REGION }, (
                     enviado_em: data.acordao.enviado_em || null, documento_id: data.acordao.documento_id || null, juntado_em: data.acordao.juntado_em || null, ordem: data.acordao.ordem || null,
                 } : null, julgamento_em_curso: data.julgamento_em_curso ? { relator_nome: data.julgamento_em_curso.relator_nome || '', manter_votos: data.julgamento_em_curso.manter_votos === true } : null }),
             hoje: (0, secretaria_1.hojeBrasil)(),
-            movimentos: movimentos.map((m) => (Object.assign(Object.assign({}, m), (0, autos_1.extrasDoEvento)(m, new Map(documentos.map((d) => [d.id, d])))))),
+            movimentos: movimentos.map((m) => (Object.assign(Object.assign({}, m), (0, autos_1.extrasDoEvento)(m, new Map(documentos.map((d) => [d.id, d])), numerosEventos)))),
             documentos,
             informacoes: informacoes.map((i) => ([i.ref, ...(i.refs || [])].some(fechada)
                 ? Object.assign(Object.assign(Object.assign({}, i), { restrito: true, ref: marcar(i.ref) }), (i.refs ? { refs: i.refs.map(marcar) } : {})) : i)),

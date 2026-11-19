@@ -89,7 +89,7 @@ test('condição: lê a rodada da fase, a resposta de outra fase e os dados do p
     const proc = (extra) => ({ fases, fase_atual: 'ins', status: 'em_tramitacao', unidade_atual: 'u', ...extra });
     const ctx = ex.respostasDaFase(proc({ acoes_respostas: { adm: { 0: 'Ordinário', 1: 'sim' }, ins: { 2: 'Procede' } }, urgente: true, sigilo: 'restrito', partes: [{ nome: 'A', retirada: true }, { nome: 'B' }],
         origem: { tipo: 'oficio' }, tipo_id: 't1', campos: [{ id: 'modalidade', valor: 'Pregão' }, { id: 'srp', valor: true }, { id: 'vazio', valor: '' }, { id: 'ref', valor: { x: 1 } }] }));
-    assert.deepEqual(ctx, { 'adm/0': 'Ordinário', 'adm/1': 'sim', 2: 'Procede', '@urgente': 'sim', '@sigilo': 'restrito', '@partes': 'sim', '@origem': 'oficio', '@tipo': 't1', '@campo:modalidade': 'Pregão', '@campo:srp': 'sim' });
+    assert.deepEqual(ctx, { 'adm/0': 'Ordinário', 'adm/1': 'sim', 2: 'Procede', '@urgente': 'sim', '@sigilo': 'restrito', '@partes': 'sim', '@origem': 'oficio', '@tipo': 't1', '@campo:modalidade': 'Pregão', '@campo:srp': 'sim', '@campo:ref': '@preenchido' });
     assert.deepEqual(ex.respostasDaFase({ fase_atual: 'x' }), { '@urgente': 'nao', '@sigilo': 'normal', '@partes': 'nao' });
     const ins = fases[1];
     assert.equal(ex.acaoAtiva(ins, 1, ctx), true, 'ação que só vale no rito ordinário, escolhido na Admissibilidade');
@@ -117,4 +117,15 @@ test('saída automática: a regra que vale indica a saída; sem regra indicada, 
     // Saída padrão que também tem regra não é "senão": só segue por ela quando a regra dela vale.
     const dupla = base(); dupla[1].saida_padrao = 'arq';
     assert.equal(s.saidaAutomatica({ fases: rito(dupla), fase_atual: 'ins', status: 'em_tramitacao', unidade_atual: 'u' }, ['u']), null);
+});
+
+test('ação que só se marca, ligada a um campo: preenchido o campo, ela é dispensada (não vale)', () => {
+    const f = { id: 'rec', acoes: ['Converter em PGEA', 'Informar o PGEA'], acoes_regras: [{ do_processo: 'pgea', obrigatoria: true }, { pede: 'texto', do_processo: 'pgea' }] };
+    const cheio = ex.respostasDaFase({ fase_atual: 'rec', campos: [{ id: 'pgea', valor: '00001.000.001/2026' }] });
+    const vazio = ex.respostasDaFase({ fase_atual: 'rec', campos: [{ id: 'pgea', valor: '' }] });
+    assert.equal(ex.acaoAtiva(f, 0, cheio), false, 'campo preenchido: dispensada, nem obrigatória é cobrada');
+    assert.equal(ex.acaoAtiva(f, 0, vazio), true, 'campo vazio: vale');
+    assert.equal(ex.acaoAtiva(f, 1, cheio), true, 'ação de dado ligada continua valendo (cumpre-se com o valor)');
+    assert.equal(ex.dispensadaPeloProcesso({ do_processo: '@assunto' }, ex.respostasDaFase({ fase_atual: 'x', assunto: 'Licitação' })), true, 'assunto também dispensa');
+    assert.equal(ex.dispensadaPeloProcesso({ do_processo: '@assunto' }, ex.respostasDaFase({ fase_atual: 'x', assunto: '  ' })), false);
 });

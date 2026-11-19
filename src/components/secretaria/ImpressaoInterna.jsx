@@ -76,9 +76,9 @@ export default function ImpressaoInterna({ aberto, movimentos, documentos, gerar
                             {itens.registros.map((m) => (
                                 <li key={m.seq}>
                                     <label className={linha}>
-                                        {caixa(`r:${m.seq}`, `Imprimir o registro ${m.seq}: ${m.titulo}`)}
+                                        {caixa(`r:${m.seq}`, `Imprimir o registro ${m.numero ?? m.seq}: ${m.titulo}`)}
                                         <span className="min-w-0">
-                                            <span className="font-medium">{m.seq} · {m.titulo}</span>
+                                            <span className="font-medium">{m.numero ?? m.seq} · {m.titulo}</span>
                                             <span className={menor}>{dataHora(m.em)} · {m.autor_nome}</span>
                                             <span className="block break-words text-slate-700 dark:text-slate-300">{String(m.descricao || '').slice(0, 220)}{String(m.descricao || '').length > 220 ? '…' : ''}</span>
                                         </span>

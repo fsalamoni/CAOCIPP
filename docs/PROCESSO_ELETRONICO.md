@@ -622,6 +622,18 @@ Inspirado na capa de eventos do eproc e no "Gerar PDF" do SEI.
   `titulo`, `folhas` e `documento_id` (`extrasDoEvento`). "Ler os autos"
   usa o `LeitorAutos` evento a evento. A tabela fica na aba **Eventos** da
   tela do processo; a **Capa** mostra a cronologia dos atos dos autos.
+- **Número do evento** (desde 19/11/2026; `numerarEventos` e
+  `numeroDoEvento` em `shared/autos.ts`, `numero` em `extrasDoEvento`).
+  Calculado na leitura, sobre todos os movimentos do processo, sem gravar
+  nada: só o que todas as partes veem (`visivelParaPartes` sem polo) ganha
+  número inteiro, em sequência; o resto ganha o número do último público
+  antes dele mais um subsidiário (5.1, 5.2; antes do primeiro público,
+  0.1). O registro "sem evento" (`oculto`) fica sem número ("—" na tabela).
+  Vale na tabela de Eventos, no leitor, na busca, na impressão interna e no
+  PDF (folha de dados, termos, índice, extrato e aviso de cadeia quebrada).
+  No portal a parte vê os inteiros sem salto; o que é restrito ao polo dela
+  aparece com o número subsidiário. A seleção do PDF continua por `seq`.
+  Processos antigos passam a mostrar a numeração nova (o `seq` não muda).
 - **Seleção** (`selecao` em `secretariaExportarPdf` e em `secretariaPortal`
   ação `exportar`; `sanitizeSelecao` e `selecionar`): `modo` `integral`,
   `apenas` ou `exceto` (com `eventos`: lista de `seq`) ou `intervalo`
@@ -982,8 +994,10 @@ passa a decidir o resto da fase:
 
 - **Ação condicional** ("Quando vale", na configuração da ação): a ação só
   aparece e só é cobrada quando a resposta de uma ação de escolha **anterior**
-  da mesma fase for uma das marcadas. Sem a resposta, a equipe vê a ação
-  apagada, com "vale só se …". O servidor recusa cumprir ação que não vale e
+  da mesma fase for uma das marcadas. Ação que não vale não aparece na tela
+  do processo (desde 19/11/2026; antes ficava apagada, com "vale só se …");
+  se ela depende de resposta ainda não dada na fase, a tela diz quantas ações
+  ainda podem aparecer. O servidor recusa cumprir ação que não vale e
   não a conta nas exigências da fase. Documento condicional já juntado fica
   registrado se a resposta mudar ("cumprida antes de a resposta mudar").
 - **Regra da saída** ("Regra desta saída", em Encaminhamentos): a saída é
@@ -1127,14 +1141,24 @@ deixaram de ler só a rodada da própria fase. Sem os campos novos, a condição
 `do_processo_campos` no formulário; `shared/doProcesso.ts`, espelho em
 `src/lib/doProcesso.js`):
 
-- **O que faz**: a ação que pede um dado (confirmar, texto, número, data,
+- **Ação que só se marca** (desde 19/11/2026): o campo ligado a dispensa
+  ("Dispensada quando preenchido"). Com o campo preenchido, ela não vale
+  (`dispensadaPeloProcesso`, lida dentro de `acaoAtiva` em
+  `shared/exigencias.ts` e no espelho do cliente): some da tela, não é
+  cobrada, não gera registro e o servidor recusa marcá-la. Apagado o campo,
+  volta a valer. Antes ela era cumprida pelo sistema, com registro; o que já
+  foi cumprido assim continua registrado. `respostasDaFase` passou a ler
+  também o assunto e a descrição (`@campo:@assunto`, `@campo:@descricao`) e
+  o campo de registro de outro módulo como preenchido.
+- **O que faz**: a ação que pede um dado (texto, número, data,
   lista, sim/não ou formulário) pode apontar para um campo do formulário do
   tipo de processo, ou para o assunto e a descrição. Se o campo está
   preenchido, na criação ou depois, o sistema cumpre a ação sozinho com o
   valor do campo: o registro vai aos autos como qualquer cumprimento, com
   "Cumprida automaticamente: o dado já consta do processo" e o autor
-  "Sistema (dado do processo)". Ação de confirmar se cumpre com o campo
-  preenchido; de lista, só se o valor é uma das opções; formulário, só com
+  "Sistema (dado do processo)". Na tela, a ação cumprida assim sai da lista
+  e fica no resumo "ações já resolvidas pelos dados do processo" (desde
+  19/11/2026). Ação de lista se cumpre só se o valor é uma das opções; formulário, só com
   todos os obrigatórios preenchidos. Tipos que não combinam não se ligam.
 - **Quando roda**: ao autuar (fase inicial) e depois de cada ato que muda o
   processo (avançar, tramitar, alterar dados, marcar ação, mudar a

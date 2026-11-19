@@ -44,7 +44,7 @@ function secoesDaFolha(d) {
     add('Dados do processo', d.campos.map((c) => ({ texto: `${c.rotulo}: ${c.tipo === 'registro' && !d.equipe ? c.valor : (0, camposProcesso_1.valorTexto)(c)}` })));
     add('Dados registrados no andamento', d.informacoes.flatMap((i) => {
         const linhas = (0, informacoes_1.linhasDaInformacao)(i);
-        const nota = d.equipe ? `Fase ${i.fase_nome} · evento ${i.seq} · ${i.por}, ${d.quando(i.em)}` : `Registrado em ${d.quando(i.em)}`;
+        const nota = d.equipe ? `Fase ${i.fase_nome} · evento ${d.evento ? d.evento(i.seq) : i.seq} · ${i.por}, ${d.quando(i.em)}` : `Registrado em ${d.quando(i.em)}`;
         return linhas.map((texto, k) => (k === linhas.length - 1 ? { texto, nota } : { texto }));
     }));
     const fase = (p.fases || []).find((f) => f.id === p.fase_atual);

@@ -644,8 +644,18 @@ export function valorAtende(x: Condicao, v: string | undefined): boolean {
     return v !== undefined && x.valores.includes(v);
 }
 
+/**
+ * Ação que só se marca, ligada a um campo do processo ("Dispensada quando
+ * preenchido"): com o campo preenchido, ela não é precisa. Não aparece, não é
+ * cobrada e não gera registro; apagado o campo, volta a valer.
+ */
+export function dispensadaPeloProcesso(r: RegraAcao | null | undefined, resp: Record<string, string> | undefined): boolean {
+    return !!r?.do_processo && !r.documento && (r.pede === undefined || (r.pede as string) === 'confirmar') && resp?.[`@campo:${r.do_processo}`] !== undefined;
+}
+
 /** A ação vale agora (sem condição, ou com a resposta que ela pede, de ação que também vale)? */
 export function acaoAtiva(f: FaseRegras | undefined, i: number, resp: Record<string, string> | undefined): boolean {
+    if (dispensadaPeloProcesso(f?.acoes_regras?.[i], resp)) return false;
     const se = f?.acoes_regras?.[i]?.se;
     if (!se) return true;
     return [se, ...(se.e || [])].every((x) => !condicaoLocal(x) || x.acao < i) && condicaoAtendida(se, resp, f);
@@ -653,6 +663,7 @@ export function acaoAtiva(f: FaseRegras | undefined, i: number, resp: Record<str
 
 type ProcDaCondicao = {
     acoes_respostas?: unknown; fase_atual?: unknown; urgente?: unknown; sigilo?: unknown; partes?: unknown; origem?: unknown; tipo_id?: unknown; campos?: unknown;
+    assunto?: unknown; descricao?: unknown;
 };
 
 /**
@@ -684,8 +695,14 @@ export function respostasDaFase(proc: ProcDaCondicao): Record<string, string> {
         } else if (typeof c?.id === 'string' && c.id && Array.isArray(c.valor) && c.valor.length) {
             // Múltipla escolha marcada: só conta como preenchida.
             out[`@campo:${c.id}`] = '@preenchido';
+        } else if (typeof c?.id === 'string' && c.id && c.valor && typeof c.valor === 'object' && !Array.isArray(c.valor)) {
+            // Registro de outro módulo escolhido: também só preenchido.
+            out[`@campo:${c.id}`] = '@preenchido';
         }
     }
+    // Assunto e descrição, campos padrão do "Novo processo", para a ação que só se marca ligada a eles.
+    if (typeof proc.assunto === 'string' && proc.assunto.trim()) out['@campo:@assunto'] = '@preenchido';
+    if (typeof proc.descricao === 'string' && proc.descricao.trim()) out['@campo:@descricao'] = '@preenchido';
     return out;
 }
 

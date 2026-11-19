@@ -140,6 +140,7 @@ export default function Help() {
             Ligado, ele aparece entre as páginas do órgão, na barra do alto e no menu lateral, e as abas internas
             (Meu trabalho, Caixa, Mesa de decisão, Sessões, Todos, Painel, Unidades) ficam no endereço: recarregar ou compartilhar o link mantém a aba.
             As listas e o processo aberto se atualizam sozinhos: o que um colega ou uma parte faz aparece em cerca de dois segundos, sem recarregar a página.
+            Nos eventos, só os atos que as partes veem têm número inteiro, em sequência; os registros internos levam o número do ato público anterior (ex.: 5.1), para que ninguém de fora veja salto na numeração.
           </p>
           <div className="grid md:grid-cols-2 gap-6">
             <FeatureCard

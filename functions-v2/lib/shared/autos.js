@@ -5,11 +5,12 @@
  * de partes dos autos para o PDF. Lógica pura, sem Firebase.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.documentoInterno = exports.registroInterno = exports.MAX_DOCS_INTERNOS = exports.MODOS_SELECAO = exports.geraTermo = exports.documentoDoEvento = exports.visivelParaPartes = exports.documentoVisivel = exports.polosQueVeem = exports.MOVIMENTOS_INTERNOS = exports.TIPOS_SISTEMA = void 0;
+exports.documentoInterno = exports.registroInterno = exports.MAX_DOCS_INTERNOS = exports.MODOS_SELECAO = exports.numeroDoEvento = exports.geraTermo = exports.documentoDoEvento = exports.visivelParaPartes = exports.documentoVisivel = exports.polosQueVeem = exports.MOVIMENTOS_INTERNOS = exports.TIPOS_SISTEMA = void 0;
 exports.origemEvento = origemEvento;
 exports.polosEscolhidos = polosEscolhidos;
 exports.tituloEvento = tituloEvento;
 exports.folhasDoEvento = folhasDoEvento;
+exports.numerarEventos = numerarEventos;
 exports.extrasDoEvento = extrasDoEvento;
 exports.urgentesPrimeiro = urgentesPrimeiro;
 exports.sanitizeSelecao = sanitizeSelecao;
@@ -137,9 +138,45 @@ function folhasDoEvento(m, docs) {
     }
     return typeof m.folha === 'number' ? [m.folha, m.folha] : null;
 }
-/** O que a tela precisa saber de cada evento, além do movimento gravado. */
-function extrasDoEvento(m, docs) {
-    return { origem: origemEvento(m), titulo: tituloEvento(m), folhas: folhasDoEvento(m, docs), documento_id: (0, exports.documentoDoEvento)(m) };
+/**
+ * Número de cada evento, como se lê nos autos. Só o que todas as partes veem
+ * ganha número inteiro, em sequência (1, 2, 3…): quem lê de fora não encontra
+ * salto que sugira ato oculto ou excluído. O ato interno (registro da equipe,
+ * do sistema, o que é restrito a um polo) ganha número subsidiário do último
+ * evento público antes dele (5.1, 5.2…); antes do primeiro público, 0.1. O
+ * registro "sem evento" (`oculto`) não tem número. A ordem e a cadeia de hash
+ * continuam pelo `seq`, que não muda.
+ */
+function numerarEventos(movs) {
+    var _a;
+    const out = new Map();
+    let pub = 0;
+    let sub = 0;
+    for (const m of [...movs].sort((a, b) => a.seq - b.seq)) {
+        if (((_a = m.dados) === null || _a === void 0 ? void 0 : _a.oculto) === true)
+            continue;
+        if ((0, exports.visivelParaPartes)(m)) {
+            pub += 1;
+            sub = 0;
+            out.set(m.seq, String(pub));
+        }
+        else {
+            sub += 1;
+            out.set(m.seq, `${pub}.${sub}`);
+        }
+    }
+    return out;
+}
+/** Número do evento para mostrar (o subsidiário, o público ou, sem nenhum, o seq). */
+const numeroDoEvento = (numeros, seq) => { var _a; return (_a = numeros === null || numeros === void 0 ? void 0 : numeros.get(seq)) !== null && _a !== void 0 ? _a : String(seq); };
+exports.numeroDoEvento = numeroDoEvento;
+/** O que a tela precisa saber de cada evento, além do movimento gravado. `numeros`: de numerarEventos, sobre todos os eventos do processo. */
+function extrasDoEvento(m, docs, numeros) {
+    var _a;
+    return {
+        origem: origemEvento(m), titulo: tituloEvento(m), folhas: folhasDoEvento(m, docs), documento_id: (0, exports.documentoDoEvento)(m),
+        numero: numeros ? (_a = numeros.get(m.seq)) !== null && _a !== void 0 ? _a : null : String(m.seq),
+    };
 }
 /** Urgentes primeiro, mantendo a ordem que a lista já tinha. */
 function urgentesPrimeiro(lista) {

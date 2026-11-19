@@ -5,6 +5,28 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 19/11/2026 — Eventos numerados sem saltos para as partes
+- Só o ato que as partes veem recebe número inteiro, em sequência (1, 2,
+  3…). O registro interno leva o número do último ato público antes dele
+  (5.1, 5.2…). Nem no portal nem no PDF aparece salto que sugira ato oculto
+  ou excluído.
+- Vale na aba Eventos, em "Ler os autos", na busca, na impressão interna e no
+  PDF dos autos (folha de dados, termos, índice e extrato). Registro "sem
+  evento" não tem número. A ordem e a cadeia de hash não mudam.
+
+### 19/11/2026 — Ação dispensada pelo dado do processo some da tela
+- Na ação que só se marca, "Vem do processo" virou **Dispensada pelo
+  processo**: com o campo preenchido (ex.: número do PGEA informado na
+  autuação), a ação não é precisa. Ela some da tela, não é cobrada e não gera
+  registro, porque não houve ato. Apagado o campo, volta a valer.
+- Ação condicional que não vale neste processo deixou de aparecer apagada:
+  sai da lista. Se depende de resposta ainda não dada na fase, a tela diz
+  quantas podem aparecer.
+- Ação de dado cumprida sozinha com o valor do processo sai da lista e fica no
+  resumo "ações já resolvidas pelos dados do processo".
+- Condição por campo do processo passou a ler o campo de registro de outro
+  módulo como preenchido (antes contava como vazio).
+
 ### 19/11/2026 — Envio de arquivo que parava em 0%
 - **Correção:** o arquivo enviado (minuta, juntada, petição no portal,
   documento da disputa, Word aberto no editor) ia do navegador direto ao

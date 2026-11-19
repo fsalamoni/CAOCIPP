@@ -23,6 +23,8 @@ export interface DadosFolha {
     unidadeAtual: string;
     geradoEm: string;
     quando: (iso: unknown) => string;
+    /** Número do evento nos autos (público ou subsidiário) pelo seq; sem ele, o seq. */
+    evento?: (seq: number) => string;
 }
 
 const SITUACOES: Record<string, string> = { em_tramitacao: 'Em tramitação', sobrestado: 'Sobrestado', arquivado: 'Arquivado' };
@@ -57,7 +59,7 @@ export function secoesDaFolha(d: DadosFolha): SecaoFolha[] {
     add('Dados do processo', d.campos.map((c) => ({ texto: `${c.rotulo}: ${c.tipo === 'registro' && !d.equipe ? c.valor : valorTexto(c)}` })));
     add('Dados registrados no andamento', d.informacoes.flatMap((i) => {
         const linhas = linhasDaInformacao(i);
-        const nota = d.equipe ? `Fase ${i.fase_nome} · evento ${i.seq} · ${i.por}, ${d.quando(i.em)}` : `Registrado em ${d.quando(i.em)}`;
+        const nota = d.equipe ? `Fase ${i.fase_nome} · evento ${d.evento ? d.evento(i.seq) : i.seq} · ${i.por}, ${d.quando(i.em)}` : `Registrado em ${d.quando(i.em)}`;
         return linhas.map((texto, k) => (k === linhas.length - 1 ? { texto, nota } : { texto }));
     }));
     const fase = ((p.fases || []) as Array<{ id: string; nome: string; nome_publico?: string }>).find((f) => f.id === p.fase_atual);

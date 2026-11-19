@@ -78,7 +78,7 @@ test('o processo vira uma tabela só: rodada, outras fases e dados (igual ao ser
         acoes_respostas: { adm: { 0: 'Ordinário', 1: 'sim' }, ins: { 2: 'Procede' } }, urgente: true, sigilo: 'restrito', partes: [{ nome: 'A', retirada: {} }, { nome: 'B' }],
         origem: { tipo: 'oficio' }, tipo_id: 't1', campos: [{ id: 'modalidade', valor: 'Pregão' }, { id: 'srp', valor: true }, { id: 'vazio', valor: '' }, { id: 'ref', valor: { x: 1 } }],
     }));
-    assert.deepEqual(ctx, { 'adm/0': 'Ordinário', 'adm/1': 'sim', 2: 'Procede', '@urgente': 'sim', '@sigilo': 'restrito', '@partes': 'sim', '@origem': 'oficio', '@tipo': 't1', '@campo:modalidade': 'Pregão', '@campo:srp': 'sim' });
+    assert.deepEqual(ctx, { 'adm/0': 'Ordinário', 'adm/1': 'sim', 2: 'Procede', '@urgente': 'sim', '@sigilo': 'restrito', '@partes': 'sim', '@origem': 'oficio', '@tipo': 't1', '@campo:modalidade': 'Pregão', '@campo:srp': 'sim', '@campo:ref': '@preenchido' });
     assert.deepEqual(respostasDoProcesso({ fase_atual: 'x' }), { '@urgente': 'nao', '@sigilo': 'normal', '@partes': 'nao' });
     assert.equal(acaoAtiva(ins, 1, ctx), true, 'ação que só vale no rito ordinário, escolhido na Admissibilidade');
     assert.equal(acaoAtiva(ins, 1, respostasDoProcesso(proc({ acoes_respostas: { adm: { 0: 'Sumário' } } }))), false);
@@ -167,4 +167,13 @@ test('copiar fases leva as condições de outra fase e a saída padrão', () => 
     assert.equal(dup.acoes_regras[1].se.fase, 'adm');
     assert.deepEqual(dup.condicoes_regra.aleg, ins.condicoes_regra.aleg);
     assert.equal(dup.saida_padrao, 'julg');
+});
+
+test('ação que só se marca, ligada a um campo: preenchido, ela é dispensada (igual ao servidor)', () => {
+    const f = { id: 'rec', acoes: ['Converter em PGEA', 'Informar o PGEA'], acoes_regras: [{ do_processo: 'pgea' }, { pede: 'texto', do_processo: 'pgea' }] };
+    const cheio = respostasDoProcesso({ fase_atual: 'rec', campos: [{ id: 'pgea', valor: '00001.000.001/2026' }] });
+    assert.equal(acaoAtiva(f, 0, cheio), false);
+    assert.equal(acaoAtiva(f, 0, respostasDoProcesso({ fase_atual: 'rec', campos: [] })), true);
+    assert.equal(acaoAtiva(f, 1, cheio), true);
+    assert.equal(acaoAtiva({ acoes: ['x'], acoes_regras: [{ do_processo: '@descricao' }] }, 0, respostasDoProcesso({ descricao: 'Há' })), false);
 });

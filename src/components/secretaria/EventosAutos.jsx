@@ -42,7 +42,7 @@ export default function EventosAutos({ movimentos, nomeUnidade, gerarPdf, titulo
     const visiveis = useMemo(() => {
         const t = busca.trim().toLowerCase();
         const l = movimentos.filter((m) => (filtro === 'ocultos' ? oculto(m) : !oculto(m) && (filtro === 'todos' || (filtro === 'docs' ? !!m.documento_id : m.origem === filtro)))
-            && (!t || `${m.seq} ${m.titulo} ${m.descricao} ${m.autor_nome}`.toLowerCase().includes(t)));
+            && (!t || `${m.numero ?? m.seq} ${m.titulo} ${m.descricao} ${m.autor_nome}`.toLowerCase().includes(t)));
         return crescente ? l : [...l].reverse();
     }, [movimentos, filtro, busca, crescente]);
 
@@ -59,7 +59,7 @@ export default function EventosAutos({ movimentos, nomeUnidade, gerarPdf, titulo
     // O leitor percorre os eventos em ordem cronológica, cada um na sua página.
     // O que o rito deixou só no sistema não tem página para ler: não sai em impressão.
     const pecas = useMemo(() => movimentos.filter((m) => !m.dados?.fora_impressao).map((m) => ({
-        id: m.seq, ordem: m.seq, titulo: m.titulo, tipo: m.autor_nome, juntado_em: m.em,
+        id: m.seq, ordem: m.numero ?? m.seq, titulo: m.titulo, tipo: m.autor_nome, juntado_em: m.em,
         folha_inicial: m.folhas?.[0], folha_final: m.folhas?.[1],
     })), [movimentos]);
 
@@ -86,6 +86,11 @@ export default function EventosAutos({ movimentos, nomeUnidade, gerarPdf, titulo
                 </div>
             </CardHeader>
             <CardContent>
+                {movimentos.some((m) => String(m.numero || '').includes('.')) && (
+                    <p className="text-xs text-slate-600 dark:text-slate-400 pb-2">
+                        Os números inteiros são os atos que as partes veem, em sequência. Os registros internos levam o número do último ato público antes deles (ex.: 5.1, 5.2) e as partes não os veem.
+                    </p>
+                )}
                 {!visiveis.length ? <p className="text-sm text-slate-600 dark:text-slate-400 py-4">Nenhum evento com esse filtro.</p> : (
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
@@ -102,8 +107,8 @@ export default function EventosAutos({ movimentos, nomeUnidade, gerarPdf, titulo
                             <tbody>
                                 {visiveis.map((m) => (
                                     <tr key={m.seq} className={`border-b border-slate-100 dark:border-slate-800 align-top ${marcados.has(m.seq) ? 'bg-indigo-50/60 dark:bg-indigo-950/40' : ''}`}>
-                                        <td className="py-2 pr-2">{!oculto(m) && <label className="-my-2 flex h-11 w-11 items-center justify-center sm:my-0 sm:inline sm:h-auto sm:w-auto"><input type="checkbox" checked={marcados.has(m.seq)} onChange={() => marcar(m.seq)} aria-label={`Marcar o evento ${m.seq}`} /></label>}</td>
-                                        <td className="py-2 pr-3 font-mono text-xs tabular-nums" title={m.hash ? `SHA-256 ${m.hash}` : undefined}>{m.seq}</td>
+                                        <td className="py-2 pr-2">{!oculto(m) && <label className="-my-2 flex h-11 w-11 items-center justify-center sm:my-0 sm:inline sm:h-auto sm:w-auto"><input type="checkbox" checked={marcados.has(m.seq)} onChange={() => marcar(m.seq)} aria-label={`Marcar o evento ${m.numero ?? m.seq}`} /></label>}</td>
+                                        <td className="py-2 pr-3 font-mono text-xs tabular-nums" title={m.hash ? `SHA-256 ${m.hash}` : undefined}>{m.numero ?? <span className="text-slate-400" title="Registro sem evento: não tem número nos autos">—</span>}</td>
                                         <td className="py-2 pr-3 whitespace-nowrap text-xs text-slate-600 dark:text-slate-400 hidden sm:table-cell">{dataHora(m.em)}</td>
                                         <td className="py-2 pr-3 sm:min-w-[14rem] break-words">
                                             <button type="button" onClick={() => !m.dados?.fora_impressao && setLeitura(m.seq)} className="text-left group" title={m.dados?.fora_impressao ? 'Registro só no sistema: não sai em impressão' : undefined}>
