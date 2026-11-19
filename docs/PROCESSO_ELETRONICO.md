@@ -382,15 +382,20 @@ Regras comuns:
 
 - Todo documento nasce **minuta** da unidade que tem o processo, redigido no
   editor ou enviado (PDF, PNG, JPG, TXT, DOC, DOCX, ODT, XLSX; até 50 MB).
-- **Envio de arquivo** (16/11/2026): o navegador põe o arquivo direto no
-  Storage, numa área de espera da própria conta (`secretaria-envios/{uid}/{id}`,
-  só criação, até 50 MB e só os tipos aceitos, em `storage.rules`), com
-  barra de progresso, e chama a função com `envio` no lugar do `base64`
-  (`prepararEnvio` em `secretariaService.js`). A função
-  (`secretaria/arquivos.ts`, `lerArquivoEnviado`) confere o dono pelo
-  caminho, o tamanho e se o conteúdo bate com o tipo (assinatura do arquivo:
-  um executável chamado .pdf é recusado), guarda no lugar definitivo e apaga
-  a cópia de espera. O `base64` na chamada continua aceito até 5 MB.
+- **Envio de arquivo** (19/11/2026): todo arquivo sobe pelas próprias
+  funções, o mesmo caminho do resto da tela (`prepararEnvio` em
+  `secretariaService.js`). Até 4 MB vai em `base64` na chamada. Acima disso
+  vai em partes de 4 MB, com progresso, pela ação `enviarParte` de
+  `secretariaPortal` (qualquer conta liberada; grava só em
+  `secretaria-envios/{uid}/{id}.NN`), e a chamada final leva `envio` no lugar
+  do `base64`. A função (`secretaria/arquivos.ts`, `lerArquivoEnviado`) junta
+  as partes, confere o dono pelo caminho, o tamanho e se o conteúdo bate com
+  o tipo (assinatura do arquivo: um executável chamado .pdf é recusado),
+  guarda no lugar definitivo e apaga as partes. **Não voltar ao envio direto
+  do navegador ao Storage** (usado de 16 a 19/11/2026): redes de órgãos
+  públicos barram `firebasestorage.googleapis.com` e o envio ficava em 0%
+  sem erro. A regra de `storage.rules` para a área de espera segue aberta só
+  para as abas abertas antes da troca.
 - **Limite de descompressão:** Word, LibreOffice e planilha são pacotes ZIP.
   Antes de ler, a função confere o pacote (`abrirZip` em
   `secretaria/conversaoComum.ts`): até 3.000 partes, 120 MB por parte e

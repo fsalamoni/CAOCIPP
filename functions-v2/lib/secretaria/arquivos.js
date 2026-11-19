@@ -1,7 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MAX_ENTREGA_DIRETA = exports.semApagar = void 0;
+exports.MAX_ENTREGA_DIRETA = exports.semApagar = exports.PARTE_BYTES = void 0;
 exports.lerArquivoEnviado = lerArquivoEnviado;
+exports.gravarParte = gravarParte;
 exports.gravarOriginal = gravarOriginal;
 exports.lerOriginal = lerOriginal;
 exports.camposDoConteudo = camposDoConteudo;
@@ -33,14 +34,16 @@ async function lerArquivoEnviado(p, uid, mime) {
     if (p.envio) {
         if (!(0, arquivo_1.envioDaConta)(p.envio, uid))
             throw new https_1.HttpsError('permission-denied', 'Envio de arquivo inválido');
-        const f = bucket().file(String(p.envio));
+        // Em partes (gravarParte) ou, nas abas abertas antes disso, num arquivo só posto pelo navegador.
+        const [partes] = await bucket().getFiles({ prefix: `${p.envio}.` });
+        const arquivos = partes.length ? partes.sort((a, b) => a.name.localeCompare(b.name)) : [bucket().file(String(p.envio))];
         try {
-            [buf] = await f.download();
+            buf = Buffer.concat(await Promise.all(arquivos.map((f) => f.download().then(([b]) => b))));
         }
         catch (_a) {
             throw new https_1.HttpsError('not-found', 'O arquivo enviado não chegou. Envie de novo.');
         }
-        await f.delete({ ignoreNotFound: true }).catch(() => undefined);
+        await Promise.all(arquivos.map((f) => f.delete({ ignoreNotFound: true }).catch(() => undefined)));
         if (buf.length > secretaria_1.MAX_UPLOAD_BYTES)
             throw new https_1.HttpsError('invalid-argument', `Arquivo acima de ${mb(secretaria_1.MAX_UPLOAD_BYTES)}`);
     }
@@ -54,6 +57,23 @@ async function lerArquivoEnviado(p, uid, mime) {
     if (!(0, arquivo_1.conteudoConfere)(buf, mime))
         throw new https_1.HttpsError('invalid-argument', 'O conteúdo do arquivo não confere com o tipo informado');
     return buf;
+}
+/** Tamanho de cada parte de um arquivo grande (a chamada da função aceita até 10 MB; em base64 a parte dá 5,4 MB). */
+exports.PARTE_BYTES = 4 * 1024 * 1024;
+/**
+ * Uma parte de um arquivo acima de 4 MB, na área de espera da conta. O
+ * arquivo vem pela própria função, e não direto ao Storage, porque redes de
+ * órgãos públicos barram o endereço do Storage e o envio ficava em 0%.
+ */
+async function gravarParte(p, uid) {
+    const n = Number(p.parte);
+    if (!(0, arquivo_1.envioDaConta)(p.envio, uid) || !Number.isInteger(n) || n < 0 || n >= Math.ceil(secretaria_1.MAX_UPLOAD_BYTES / exports.PARTE_BYTES))
+        throw new https_1.HttpsError('invalid-argument', 'Envio de arquivo inválido');
+    const buf = Buffer.from(String(p.base64 || ''), 'base64');
+    if (!buf.length || buf.length > exports.PARTE_BYTES)
+        throw new https_1.HttpsError('invalid-argument', 'Parte de arquivo inválida');
+    await bucket().file(`${p.envio}.${String(n).padStart(2, '0')}`).save(buf, { resumable: false, contentType: 'application/octet-stream' });
+    return { success: true };
 }
 /**
  * Guarda o original exatamente como veio. Se o gzip (sem perda, os bytes

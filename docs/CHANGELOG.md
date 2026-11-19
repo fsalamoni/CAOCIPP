@@ -5,6 +5,14 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 19/11/2026 — Envio de arquivo que parava em 0%
+- **Correção:** o arquivo enviado (minuta, juntada, petição no portal,
+  documento da disputa, Word aberto no editor) ia do navegador direto ao
+  Storage, e em rede que barra esse endereço o aviso ficava em "Enviando: 0%"
+  sem erro e sem como cancelar. Agora todo arquivo sobe pelas funções: até
+  4 MB numa chamada, acima disso em partes de 4 MB com progresso (até 50 MB).
+  Teste pela tela com o Storage barrado em `scripts/e2e-salvar-editor-tela.mjs`.
+
 ### 19/11/2026 — Salvar minutas, modelos e timbrado de novo
 - **Correção:** salvar pelo editor (minuta, modelo, papel timbrado, cabeçalho
   e rodapé no editor completo) falhava com "hasOwnProperty is not a

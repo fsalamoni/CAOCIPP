@@ -25,9 +25,11 @@ export async function lerArquivoEnviado(p: { envio?: unknown; base64?: unknown }
     let buf: Buffer;
     if (p.envio) {
         if (!envioDaConta(p.envio, uid)) throw new HttpsError('permission-denied', 'Envio de arquivo inválido');
-        const f = bucket().file(String(p.envio));
-        try { [buf] = await f.download(); } catch { throw new HttpsError('not-found', 'O arquivo enviado não chegou. Envie de novo.'); }
-        await f.delete({ ignoreNotFound: true }).catch(() => undefined);
+        // Em partes (gravarParte) ou, nas abas abertas antes disso, num arquivo só posto pelo navegador.
+        const [partes] = await bucket().getFiles({ prefix: `${p.envio}.` });
+        const arquivos = partes.length ? partes.sort((a, b) => a.name.localeCompare(b.name)) : [bucket().file(String(p.envio))];
+        try { buf = Buffer.concat(await Promise.all(arquivos.map((f) => f.download().then(([b]) => b)))); } catch { throw new HttpsError('not-found', 'O arquivo enviado não chegou. Envie de novo.'); }
+        await Promise.all(arquivos.map((f) => f.delete({ ignoreNotFound: true }).catch(() => undefined)));
         if (buf.length > MAX_UPLOAD_BYTES) throw new HttpsError('invalid-argument', `Arquivo acima de ${mb(MAX_UPLOAD_BYTES)}`);
     } else {
         buf = Buffer.from(String(p.base64 || ''), 'base64');
@@ -36,6 +38,23 @@ export async function lerArquivoEnviado(p: { envio?: unknown; base64?: unknown }
     if (!buf.length) throw new HttpsError('invalid-argument', 'Arquivo vazio');
     if (!conteudoConfere(buf, mime)) throw new HttpsError('invalid-argument', 'O conteúdo do arquivo não confere com o tipo informado');
     return buf;
+}
+
+/** Tamanho de cada parte de um arquivo grande (a chamada da função aceita até 10 MB; em base64 a parte dá 5,4 MB). */
+export const PARTE_BYTES = 4 * 1024 * 1024;
+
+/**
+ * Uma parte de um arquivo acima de 4 MB, na área de espera da conta. O
+ * arquivo vem pela própria função, e não direto ao Storage, porque redes de
+ * órgãos públicos barram o endereço do Storage e o envio ficava em 0%.
+ */
+export async function gravarParte(p: { envio?: unknown; parte?: unknown; base64?: unknown }, uid: string): Promise<{ success: true }> {
+    const n = Number(p.parte);
+    if (!envioDaConta(p.envio, uid) || !Number.isInteger(n) || n < 0 || n >= Math.ceil(MAX_UPLOAD_BYTES / PARTE_BYTES)) throw new HttpsError('invalid-argument', 'Envio de arquivo inválido');
+    const buf = Buffer.from(String(p.base64 || ''), 'base64');
+    if (!buf.length || buf.length > PARTE_BYTES) throw new HttpsError('invalid-argument', 'Parte de arquivo inválida');
+    await bucket().file(`${p.envio}.${String(n).padStart(2, '0')}`).save(buf, { resumable: false, contentType: 'application/octet-stream' });
+    return { success: true };
 }
 
 /**

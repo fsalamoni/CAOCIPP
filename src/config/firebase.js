@@ -5,7 +5,6 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, connectAuthEmulator } from 'firebase/auth';
 import { initializeFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
-import { getStorage, connectStorageEmulator } from 'firebase/storage';
 
 // Official project fallback configuration.
 // This avoids production outage if build-time env vars are not available.
@@ -86,8 +85,6 @@ export const db = initializeFirestore(app, {
     ignoreUndefinedProperties: true,
 });
 export const functions = getFunctions(app, 'southamerica-east1'); // São Paulo region
-// Só a área de espera dos envios (storage.rules); o resto passa pelas functions.
-export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
 
 // Configure Google Auth Provider
@@ -106,7 +103,6 @@ if (import.meta.env.DEV) {
             connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
             connectFirestoreEmulator(db, 'localhost', 8080);
             connectFunctionsEmulator(functions, 'localhost', 5001);
-            connectStorageEmulator(storage, 'localhost', 9199);
         } catch (error) {
             console.warn('Failed to connect to emulators:', error);
         }

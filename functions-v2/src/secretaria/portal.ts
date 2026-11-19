@@ -13,7 +13,7 @@ import { camposDosPrazosDasAcoes } from '../shared/prazosFase';
 import { COL, Contexto, REGION, calendarioDasAcoes, exigirAuth, registrarMovimento } from './context';
 import { caminhoArquivo } from './documentos';
 import { FONTES_ATUAIS, caminhoPdf, conteudoDoDocumento, folhasDoProcesso, novoCodigo, paginasDeArquivo, pdfCarimbado, registroVerificacao, textoFolhas, versaoDeLeitura } from './autos';
-import { entregar, gravarOriginal, lerArquivoEnviado, lerOriginal } from './arquivos';
+import { entregar, gravarOriginal, gravarParte, lerArquivoEnviado, lerOriginal } from './arquivos';
 import { renderizarDocumento, textoParaDoc } from './pdfDocumento';
 import { montarPdfAutos, selecaoOuErro } from './exportar';
 import { documentoVisivel, extrasDoEvento, visivelParaPartes } from '../shared/autos';
@@ -194,6 +194,8 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
     const uid = auth.uid;
     const nomeConta = String(auth.token.name || auth.token.email || 'Parte');
     await exigirContaLiberada(db, uid);
+    // Parte de arquivo grande, de qualquer tela (equipe ou portal): só a área de espera da própria conta.
+    if ((p.action as string) === 'enviarParte') return gravarParte(p as unknown as Record<string, unknown>, uid);
     // Fornecedor em disputa de preços (S11): não é parte e não vê os autos.
     if (typeof p.action === 'string' && ACOES_FORNECEDOR.includes(p.action)) return acaoFornecedor(db, auth, p as unknown as Record<string, unknown>);
 
