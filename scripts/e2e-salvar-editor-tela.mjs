@@ -1,11 +1,13 @@
 // Salvar pelo editor de verdade (na tela), nos emuladores, com o site em modo emulador:
 //   VITE_USE_EMULATORS=true npx vite --port 5173 &   (com os VITE_FIREBASE_* do projeto demo-sigo)
 //   npx firebase emulators:exec --only auth,firestore,functions,storage --project demo-sigo "node scripts/e2e-salvar-editor-tela.mjs"
-// Confere: a minuta redigida no editor é salva; o papel timbrado com cabeçalho em "Editor completo" é salvo.
+// Confere: a minuta redigida no editor é salva; o papel timbrado com cabeçalho em "Editor completo" é salvo;
+// arquivo pequeno e de 9 MB sobem pela tela com o endereço do Storage barrado (rede de órgão público).
 // O e2e-editor.mjs chama as funções direto e não passa pelo editor: foi assim que escapou o erro
 // "hasOwnProperty is not a function" (atributos do editor sem protótipo), corrigido em src/lib/paraEnvio.js.
 import { createRequire } from 'module';
 import assert from 'node:assert/strict';
+import { createHash, randomBytes } from 'crypto';
 const req = createRequire(new URL('../functions-v2/package.json', import.meta.url));
 const raiz = createRequire(new URL('../package.json', import.meta.url));
 const admin = req('firebase-admin');
@@ -17,7 +19,7 @@ const { chromium } = raiz('playwright');
 const SITE = process.env.E2E_SITE || 'http://localhost:5173';
 const SHOTS = process.env.E2E_SHOTS || '/tmp';
 const PROJ = 'demo-sigo';
-admin.initializeApp({ projectId: PROJ });
+admin.initializeApp({ projectId: PROJ, storageBucket: `${PROJ}.appspot.com` });
 const db = admin.firestore();
 const app = initializeApp({ apiKey: 'demo', projectId: PROJ, appId: 'x' });
 const auth = getAuth(app); connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
@@ -82,6 +84,27 @@ try {
     await page.screenshot({ path: `${SHOTS}/salvar-timbrado.png` });
     console.log('ok 2: papel timbrado com cabeçalho no editor completo salvo');
     assert.equal(erros.filter((e) => /hasOwnProperty/.test(e)).length, 0);
+
+    // 3) Arquivo enviado pela tela numa rede que barra o Storage (era o envio parado em 0%): pequeno e em partes.
+    await page.route(/:9199\//, (r) => r.abort());
+    const { PDFDocument } = req('pdf-lib');
+    const pdfDe = async (bytes) => { const d = await PDFDocument.create(); d.addPage(); if (bytes) await d.attach(randomBytes(bytes), 'anexo.bin', { mimeType: 'application/octet-stream' }); return Buffer.from(await d.save()); };
+    await page.goto(`${SITE}/ProcessoEletronico?org=org1&p=${p.id}`);
+    for (const [nome, bytes] of [['pequeno.pdf', 0], ['grande.pdf', 9 * 1024 * 1024]]) {
+        const buffer = await pdfDe(bytes);
+        await page.getByRole('button', { name: /Novo documento/ }).first().click({ timeout: 90000 });
+        await page.locator('#novo-arquivo').setInputFiles({ name: nome, mimeType: 'application/pdf', buffer });
+        await page.getByText('Deixar como minuta').first().click();
+        await page.getByRole('button', { name: 'Deixar como minuta' }).click();
+        await page.getByText('Arquivo enviado como minuta').first().waitFor({ timeout: 120000 });
+        await page.getByText('Arquivo enviado como minuta').first().waitFor({ state: 'hidden', timeout: 30000 });
+        const d = (await db.collection(`secProcessos/${p.id}/documentos`).where('nome_arquivo', '==', nome).get()).docs[0]?.data();
+        assert.equal(d?.sha256, createHash('sha256').update(buffer).digest('hex'), `${nome} guardado byte a byte`);
+    }
+    const [sobras] = await admin.storage().bucket().getFiles({ prefix: 'secretaria-envios/' });
+    assert.equal(sobras.length, 0, 'partes apagadas da área de espera');
+    await page.screenshot({ path: `${SHOTS}/enviar-arquivo.png` });
+    console.log('ok 3: arquivo pequeno e de 9 MB (em partes) enviados pela tela com o Storage barrado');
 } finally {
     await browser.close();
 }

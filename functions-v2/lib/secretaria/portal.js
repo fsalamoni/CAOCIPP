@@ -159,6 +159,9 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
     const uid = auth.uid;
     const nomeConta = String(auth.token.name || auth.token.email || 'Parte');
     await (0, vinculo_1.exigirContaLiberada)(db, uid);
+    // Parte de arquivo grande, de qualquer tela (equipe ou portal): só a área de espera da própria conta.
+    if (p.action === 'enviarParte')
+        return (0, arquivos_1.gravarParte)(p, uid);
     // Fornecedor em disputa de preços (S11): não é parte e não vê os autos.
     if (typeof p.action === 'string' && certames_1.ACOES_FORNECEDOR.includes(p.action))
         return (0, certames_1.acaoFornecedor)(db, auth, p);

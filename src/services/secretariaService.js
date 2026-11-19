@@ -6,7 +6,7 @@
 // ============================================================================
 
 import { httpsCallable } from 'firebase/functions';
-import { functions } from '@/config/firebase';
+import { auth, functions } from '@/config/firebase';
 import { logger } from '@/utils/logger';
 import { paraEnvio } from '@/lib/paraEnvio';
 
@@ -126,20 +126,21 @@ export async function prepararEnvio(file, { onProgresso, tipos } = {}) {
     if (!aceitos.includes(mime)) throw new Error(`Tipo de arquivo não aceito: ${file.name}`);
     if (!file.size) throw new Error(`Arquivo vazio: ${file.name}`);
     if (file.size > MAX_ENVIO_MB * 1024 * 1024) throw new Error(`${file.name} passa de ${MAX_ENVIO_MB} MB`);
-    const [{ ref, uploadBytesResumable }, { storage, auth }] = await Promise.all([import('firebase/storage'), import('@/config/firebase')]);
+    // Tudo pela função (o mesmo caminho do resto da tela): o envio direto ao
+    // Storage parava em 0% nas redes que barram aquele endereço.
+    if (file.size <= PARTE_BYTES) return { base64: await arquivoParaBase64(file), mime, nomeArquivo: file.name };
     const uid = auth.currentUser?.uid;
     if (!uid) throw new Error('Entre de novo na sua conta para enviar arquivos');
     const id = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('');
     const envio = `secretaria-envios/${uid}/${id}`;
-    await new Promise((ok, falha) => {
-        const tarefa = uploadBytesResumable(ref(storage, envio), file, { contentType: mime });
-        tarefa.on('state_changed',
-            (s) => onProgresso?.(s.totalBytes ? s.bytesTransferred / s.totalBytes : 0),
-            (e) => falha(new Error(e?.code === 'storage/unauthorized' ? `O armazenamento recusou ${file.name} (tipo ou tamanho)` : `Não foi possível enviar ${file.name}. Confira a conexão e tente de novo.`)),
-            () => ok());
-    });
+    for (let parte = 0; parte * PARTE_BYTES < file.size; parte++) {
+        onProgresso?.(parte * PARTE_BYTES / file.size);
+        await secPortal('enviarParte', { envio, parte, base64: await arquivoParaBase64(file.slice(parte * PARTE_BYTES, (parte + 1) * PARTE_BYTES)) });
+    }
     return { envio, mime, nomeArquivo: file.name };
 }
+/** Igual a PARTE_BYTES do servidor (secretaria/arquivos.ts). */
+const PARTE_BYTES = 4 * 1024 * 1024;
 
 /** Lê um File como base64 (sem o prefixo data:). */
 export function arquivoParaBase64(file) {
