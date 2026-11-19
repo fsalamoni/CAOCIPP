@@ -106,6 +106,7 @@ const CINZA = [0.4, 0.4, 0.4];
  * passar de uma página; todas levam a folha do evento.
  */
 async function folhaDadosPdf(o, m, geradoEm, integridade) {
+    var _a;
     const pdf = await pdfLib().PDFDocument.create();
     const w = new Escritor(pdf, await pdf.embedFont(pdfLib().StandardFonts.Helvetica), await pdf.embedFont(pdfLib().StandardFonts.HelveticaBold), '');
     const unidade = o.nomeUnidade(String(m.unidade_id || ''));
@@ -113,12 +114,14 @@ async function folhaDadosPdf(o, m, geradoEm, integridade) {
     w.texto(String(o.orgNome || 'Órgão'), { size: 11, bold: true, espaco: 2 });
     w.texto(`Processo nº ${o.proc.numero}`, { size: 10, cor: CINZA, espaco: 20 });
     w.texto('TERMO DE AUTUAÇÃO', { size: 14, bold: true, espaco: 4 });
-    w.texto(`Evento nº ${m.seq} · Folha de dados do processo`, { size: 10, cor: CINZA, espaco: 14 });
+    w.texto(`Evento nº ${(_a = m.numero_evento) !== null && _a !== void 0 ? _a : m.seq} · Folha de dados do processo`, { size: 10, cor: CINZA, espaco: 14 });
     w.texto(String(m.descricao), { size: 10, espaco: 2 });
     w.texto(`Praticado por ${m.autor_nome}${unidade ? `, ${unidade}` : ''}, em ${quandoBR(m.em)}.`, { size: 9, cor: CINZA, espaco: 14 });
+    const nums = (0, autos_1.numerarEventos)(o.movimentos);
     const secoes = (0, folhaDados_1.secoesDaFolha)({
         proc: o.proc, equipe: o.equipe === true, campos: o.campos || [], informacoes: o.informacoes || [],
         unidadeAtual: o.nomeUnidade(String(o.proc.unidade_atual || '')), geradoEm, quando: quandoBR,
+        evento: (seq) => (0, autos_1.numeroDoEvento)(nums, seq),
     });
     for (const s of secoes) {
         w.texto(s.titulo, { size: 10, bold: true, espaco: 3 });
@@ -136,13 +139,14 @@ async function folhaDadosPdf(o, m, geradoEm, integridade) {
 }
 /** Página do ato de usuário que não juntou documento: o que foi feito, por quem e quando. */
 async function termoPdf(orgNome, numero, m, unidade) {
+    var _a;
     const pdf = await pdfLib().PDFDocument.create();
     const w = new Escritor(pdf, await pdf.embedFont(pdfLib().StandardFonts.Helvetica), await pdf.embedFont(pdfLib().StandardFonts.HelveticaBold), '');
     w.y -= 40;
     w.texto(orgNome || 'Órgão', { size: 11, bold: true, espaco: 2 });
     w.texto(`Processo nº ${numero}`, { size: 10, cor: [0.4, 0.4, 0.4], espaco: 36 });
     w.texto((0, autos_1.tituloEvento)(m).toUpperCase(), { size: 14, bold: true, espaco: 6 });
-    w.texto(`Evento nº ${m.seq}`, { size: 10, cor: [0.4, 0.4, 0.4], espaco: 24 });
+    w.texto(`Evento nº ${(_a = m.numero_evento) !== null && _a !== void 0 ? _a : m.seq}`, { size: 10, cor: [0.4, 0.4, 0.4], espaco: 24 });
     w.texto(String(m.descricao), { size: 11, espaco: 24 });
     w.texto(`Praticado por ${m.autor_nome}${unidade ? `, ${unidade}` : ''}, em ${quandoBR(m.em)}.`, { size: 10, espaco: 30 });
     w.texto('Termo gerado pela plataforma a partir do registro do evento. A integridade é conferida pela cadeia de hash dos eventos do processo.', { size: 8, cor: [0.45, 0.45, 0.45], espaco: 4 });
@@ -152,8 +156,13 @@ async function termoPdf(orgNome, numero, m, unidade) {
 /** Monta o PDF único dos autos. A equipe passa tudo; o portal passa só o que a parte pode ver. */
 async function montarPdfAutos(o) {
     var _a;
-    const { proc, movimentos, docs } = o;
-    const quebra = (0, secretaria_1.verificarCadeia)(movimentos);
+    const { proc, docs } = o;
+    const quebra = (0, secretaria_1.verificarCadeia)(o.movimentos);
+    // Número de cada evento nos autos: públicos em sequência, internos subsidiários (5.1).
+    // Sobre a lista inteira de quem pede: para a parte, só os públicos, que dão a mesma sequência.
+    const numeros = (0, autos_1.numerarEventos)(o.movimentos);
+    const movimentos = o.movimentos.map((m) => (Object.assign(Object.assign({}, m), { numero_evento: (0, autos_1.numeroDoEvento)(numeros, m.seq) })));
+    const evQuebra = quebra === null ? null : (0, autos_1.numeroDoEvento)(numeros, quebra);
     const unid = (id) => { const n = o.nomeUnidade(String(id || '')); return n ? ` (${n})` : ''; };
     const pdf = await pdfLib().PDFDocument.create();
     pdf.setTitle(`Processo ${proc.numero}`);
@@ -178,7 +187,7 @@ async function montarPdfAutos(o) {
     };
     const integridade = quebra === null
         ? `Integridade: cadeia de ${movimentos.length} eventos conferida (SHA-256).`
-        : `ATENÇÃO: a cadeia de eventos não confere a partir do evento ${quebra}.`;
+        : `ATENÇÃO: a cadeia de eventos não confere a partir do evento ${evQuebra}.`;
     // Capa: só o órgão, o número, a data da autuação e se está ativo ou arquivado.
     // O resto (assunto, rito, partes, dados) está na folha de dados, que é a folha do evento 1.
     if (sel.capa) {
@@ -252,7 +261,7 @@ async function montarPdfAutos(o) {
         w.texto('Índice dos autos', { size: 14, bold: true, espaco: 10 });
         for (const m of atos) {
             const d = docsPorId.get((0, autos_1.documentoDoEvento)(m) || '');
-            w.texto(`Evento ${m.seq} · ${quandoBR(m.em)} · ${m.autor_nome}${unid(m.unidade_id)}${folhasTxt(m) ? ` · ${folhasTxt(m)}` : ''}`, { bold: true, size: 9, espaco: 0 });
+            w.texto(`Evento ${m.numero_evento} · ${quandoBR(m.em)} · ${m.autor_nome}${unid(m.unidade_id)}${folhasTxt(m) ? ` · ${folhasTxt(m)}` : ''}`, { bold: true, size: 9, espaco: 0 });
             w.texto(d ? `Doc. nº ${d.ordem}: ${d.titulo} (${d.tipo})` : `${(0, autos_1.tituloEvento)(m)}. ${m.descricao}`, { size: 9, espaco: 0 });
             w.texto(`hash ${m.hash}`, { size: 6, cor: [0.5, 0.5, 0.5], espaco: 6 });
         }
@@ -272,7 +281,7 @@ async function montarPdfAutos(o) {
         w.texto('Extrato de registros internos e do sistema', { size: 14, bold: true, espaco: 4 });
         w.texto('Registros automáticos, de controle interno e os que o rito deixa fora dos autos, em ordem cronológica. Não ocupam folhas dos autos.', { size: 8, cor: [0.45, 0.45, 0.45], espaco: 10 });
         for (const m of sistema) {
-            w.texto(`Evento ${m.seq} · ${quandoBR(m.em)} · ${m.autor_nome}${unid(m.unidade_id)}`, { bold: true, size: 9, espaco: 0 });
+            w.texto(`Evento ${m.numero_evento} · ${quandoBR(m.em)} · ${m.autor_nome}${unid(m.unidade_id)}`, { bold: true, size: 9, espaco: 0 });
             w.texto(String(m.descricao), { size: 9, espaco: 0 });
             w.texto(`hash ${m.hash}`, { size: 6, cor: [0.5, 0.5, 0.5], espaco: 6 });
         }
@@ -289,6 +298,7 @@ const rotuloInterno = (d) => (d.status === 'controle' ? 'Documento guardado fora
  * que é de uso interno. Nunca é servido às partes.
  */
 async function montarPdfInterno(o) {
+    var _a;
     const pdf = await pdfLib().PDFDocument.create();
     pdf.setTitle(`Processo ${o.proc.numero} (uso interno)`);
     pdf.setCreator('SIGO — Processo Eletrônico');
@@ -317,7 +327,7 @@ async function montarPdfInterno(o) {
         r.texto('Registros do andamento que não são peça dos autos, em ordem cronológica.', { size: 8, cor: [0.45, 0.45, 0.45], espaco: 10 });
         for (const m of o.registros) {
             const un = o.nomeUnidade(String(m.unidade_id || ''));
-            r.texto(`Evento ${m.seq} · ${(0, autos_1.tituloEvento)(m)}`, { bold: true, size: 10, espaco: 0 });
+            r.texto(`Evento ${(_a = m.numero_evento) !== null && _a !== void 0 ? _a : m.seq} · ${(0, autos_1.tituloEvento)(m)}`, { bold: true, size: 10, espaco: 0 });
             r.texto(`${quandoBR(m.em)} · ${m.autor_nome}${un ? ` (${un})` : ''}`, { size: 8, cor: CINZA, espaco: 2 });
             r.texto(String(m.descricao), { size: 10, espaco: 10 });
         }
@@ -381,7 +391,10 @@ exports.secretariaExportarPdf = (0, https_1.onCall)({ region: context_1.REGION, 
             si.registros.length ? ref.collection('movimentos').orderBy('seq').get() : null,
             lerDocs(si.documentos), lerDocs(si.versoes),
         ]);
-        const registros = ((movSnap === null || movSnap === void 0 ? void 0 : movSnap.docs) || []).map((d) => d.data()).filter((m) => marcados.has(m.seq) && (0, autos_1.registroInterno)(m));
+        const todosMovs = ((movSnap === null || movSnap === void 0 ? void 0 : movSnap.docs) || []).map((d) => d.data());
+        const numeros = (0, autos_1.numerarEventos)(todosMovs);
+        const registros = todosMovs.filter((m) => marcados.has(m.seq) && (0, autos_1.registroInterno)(m))
+            .map((m) => (Object.assign(Object.assign({}, m), { numero_evento: (0, autos_1.numeroDoEvento)(numeros, m.seq) })));
         const documentos = docsLidos.filter((d) => (0, autos_1.documentoInterno)(d, minha(d)))
             .sort((a, b) => String(a.criado_em).localeCompare(String(b.criado_em)));
         // Redações anteriores: a mesma regra de quem vê o documento.

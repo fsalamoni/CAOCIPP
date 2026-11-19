@@ -433,6 +433,15 @@ informado.
   (certidão, novo documento). Desentranhamento, quando houver, é ato formal.
 - Cada evento entra numa cadeia de hash; folhas são numeradas em sequência e
   nunca renumeradas.
+- **Numeração dos eventos sem saltos para quem é de fora.** Só o ato que
+  todas as partes veem recebe número inteiro (1, 2, 3…). O ato interno
+  (registro da equipe, do sistema, documento fora do portal, o que é
+  restrito a um polo) recebe número subsidiário do último ato público antes
+  dele (5.1, 5.2…). Assim a parte nunca encontra um salto que sugira ato
+  oculto ou excluído, e a equipe lê a cronologia inteira sabendo a que ato
+  público cada registro interno se prende. O registro "sem evento" não tem
+  número. A ordem real e a cadeia de hash continuam pelo `seq` gravado
+  (`numerarEventos` em `functions-v2/src/shared/autos.ts`).
 - O registro interno também entra na cadeia: tirar algo dos autos não é
   apagar, é classificar.
 

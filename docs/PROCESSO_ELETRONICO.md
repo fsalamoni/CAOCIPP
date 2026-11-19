@@ -622,6 +622,18 @@ Inspirado na capa de eventos do eproc e no "Gerar PDF" do SEI.
   `titulo`, `folhas` e `documento_id` (`extrasDoEvento`). "Ler os autos"
   usa o `LeitorAutos` evento a evento. A tabela fica na aba **Eventos** da
   tela do processo; a **Capa** mostra a cronologia dos atos dos autos.
+- **Número do evento** (desde 19/11/2026; `numerarEventos` e
+  `numeroDoEvento` em `shared/autos.ts`, `numero` em `extrasDoEvento`).
+  Calculado na leitura, sobre todos os movimentos do processo, sem gravar
+  nada: só o que todas as partes veem (`visivelParaPartes` sem polo) ganha
+  número inteiro, em sequência; o resto ganha o número do último público
+  antes dele mais um subsidiário (5.1, 5.2; antes do primeiro público,
+  0.1). O registro "sem evento" (`oculto`) fica sem número ("—" na tabela).
+  Vale na tabela de Eventos, no leitor, na busca, na impressão interna e no
+  PDF (folha de dados, termos, índice, extrato e aviso de cadeia quebrada).
+  No portal a parte vê os inteiros sem salto; o que é restrito ao polo dela
+  aparece com o número subsidiário. A seleção do PDF continua por `seq`.
+  Processos antigos passam a mostrar a numeração nova (o `seq` não muda).
 - **Seleção** (`selecao` em `secretariaExportarPdf` e em `secretariaPortal`
   ação `exportar`; `sanitizeSelecao` e `selecionar`): `modo` `integral`,
   `apenas` ou `exceto` (com `eventos`: lista de `seq`) ou `intervalo`

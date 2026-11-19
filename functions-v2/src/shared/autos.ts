@@ -130,9 +130,35 @@ export function folhasDoEvento(m: Evento, docs: Map<string, PecaFolhas>): [numbe
     return typeof m.folha === 'number' ? [m.folha, m.folha] : null;
 }
 
-/** O que a tela precisa saber de cada evento, além do movimento gravado. */
-export function extrasDoEvento(m: Evento, docs: Map<string, PecaFolhas>) {
-    return { origem: origemEvento(m), titulo: tituloEvento(m), folhas: folhasDoEvento(m, docs), documento_id: documentoDoEvento(m) };
+/**
+ * Número de cada evento, como se lê nos autos. Só o que todas as partes veem
+ * ganha número inteiro, em sequência (1, 2, 3…): quem lê de fora não encontra
+ * salto que sugira ato oculto ou excluído. O ato interno (registro da equipe,
+ * do sistema, o que é restrito a um polo) ganha número subsidiário do último
+ * evento público antes dele (5.1, 5.2…); antes do primeiro público, 0.1. O
+ * registro "sem evento" (`oculto`) não tem número. A ordem e a cadeia de hash
+ * continuam pelo `seq`, que não muda.
+ */
+export function numerarEventos(movs: Evento[]): Map<number, string> {
+    const out = new Map<number, string>();
+    let pub = 0;
+    let sub = 0;
+    for (const m of [...movs].sort((a, b) => a.seq - b.seq)) {
+        if (m.dados?.oculto === true) continue;
+        if (visivelParaPartes(m)) { pub += 1; sub = 0; out.set(m.seq, String(pub)); } else { sub += 1; out.set(m.seq, `${pub}.${sub}`); }
+    }
+    return out;
+}
+
+/** Número do evento para mostrar (o subsidiário, o público ou, sem nenhum, o seq). */
+export const numeroDoEvento = (numeros: Map<number, string> | undefined, seq: number): string => numeros?.get(seq) ?? String(seq);
+
+/** O que a tela precisa saber de cada evento, além do movimento gravado. `numeros`: de numerarEventos, sobre todos os eventos do processo. */
+export function extrasDoEvento(m: Evento, docs: Map<string, PecaFolhas>, numeros?: Map<number, string>) {
+    return {
+        origem: origemEvento(m), titulo: tituloEvento(m), folhas: folhasDoEvento(m, docs), documento_id: documentoDoEvento(m),
+        numero: numeros ? numeros.get(m.seq) ?? null : String(m.seq),
+    };
 }
 
 /** Urgentes primeiro, mantendo a ordem que a lista já tinha. */

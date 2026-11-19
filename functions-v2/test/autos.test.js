@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { origemEvento, geraTermo, documentoDoEvento, folhasDoEvento, extrasDoEvento, sanitizeSelecao, selecionar, tituloEvento, urgentesPrimeiro } = require('../lib/shared/autos');
+const { origemEvento, geraTermo, documentoDoEvento, folhasDoEvento, extrasDoEvento, numerarEventos, numeroDoEvento, sanitizeSelecao, selecionar, tituloEvento, urgentesPrimeiro } = require('../lib/shared/autos');
 
 const movs = [
     { seq: 1, tipo: 'autuacao', dados: {}, folha: 1 },
@@ -25,8 +25,31 @@ test('termo: só ato de usuário que não juntou documento', () => {
 
 test('folhas do evento: as do documento ou a do termo', () => {
     assert.deepEqual(movs.map((m) => folhasDoEvento(m, docs)), [[1, 1], null, [2, 4], [5, 5], null, null]);
-    assert.deepEqual(extrasDoEvento(movs[2], docs), { origem: 'usuario', titulo: 'Juntada de documento', folhas: [2, 4], documento_id: 'd1' });
+    assert.deepEqual(extrasDoEvento(movs[2], docs), { origem: 'usuario', titulo: 'Juntada de documento', folhas: [2, 4], documento_id: 'd1', numero: '3' });
     assert.equal(tituloEvento({ seq: 1, tipo: 'tipo_novo' }), 'Certidão');
+});
+
+test('numeração: só o que as partes veem é inteiro, sem saltos; o interno é subsidiário do último público', () => {
+    const lista = [
+        { seq: 1, tipo: 'autuacao', dados: {} },
+        { seq: 2, tipo: 'atribuicao', dados: {} },
+        { seq: 3, tipo: 'acao_fase', dados: {} },
+        { seq: 4, tipo: 'juntada', dados: { documento_id: 'd1', ordem: 1 } },
+        { seq: 5, tipo: 'juntada', dados: { documento_id: 'd2', ordem: 2, visivel_partes: false } },
+        { seq: 6, tipo: 'acao_fase', dados: { oculto: true } },
+        { seq: 7, tipo: 'fase', dados: { interno: true } },
+        { seq: 8, tipo: 'juntada', dados: { documento_id: 'd3', ordem: 3, visivel_polos: ['ativo'] } },
+        { seq: 9, tipo: 'tramitacao', dados: {} },
+    ];
+    const n = numerarEventos(lista);
+    assert.deepEqual([...n.entries()], [[1, '1'], [2, '1.1'], [3, '1.2'], [4, '2'], [5, '2.1'], [7, '2.2'], [8, '2.3'], [9, '3']]);
+    assert.equal(n.has(6), false, 'registro sem evento não tem número');
+    assert.equal(numeroDoEvento(n, 6), '6');
+    assert.deepEqual(numerarEventos([{ seq: 1, tipo: 'atribuicao', dados: {} }, { seq: 2, tipo: 'autuacao', dados: {} }]), new Map([[1, '0.1'], [2, '1']]));
+    assert.equal(extrasDoEvento(lista[5], new Map(), n).numero, null);
+    // A parte só recebe os públicos: numerados de novo, dão a mesma sequência.
+    const publicos = lista.filter((m) => /^\d+$/.test(n.get(m.seq) || ''));
+    assert.deepEqual([...numerarEventos(publicos).values()], ['1', '2', '3']);
 });
 
 test('seleção: integral, exceto, apenas e intervalo de folhas', () => {

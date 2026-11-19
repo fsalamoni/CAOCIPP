@@ -9,7 +9,7 @@ import { CampoValor } from '../shared/camposProcesso';
 import { InformacaoAndamento, informacoesDaFolha, informacoesDoAndamento } from '../shared/informacoes';
 import { secoesDaFolha, situacaoDaCapa } from '../shared/folhaDados';
 import {
-    Selecao, documentoDoEvento, documentoInterno, folhasDoEvento, origemEvento, registroInterno, sanitizeSelecao, sanitizeSelecaoInterna, selecionar, tituloEvento,
+    Selecao, documentoDoEvento, documentoInterno, folhasDoEvento, numerarEventos, numeroDoEvento, origemEvento, registroInterno, sanitizeSelecao, sanitizeSelecaoInterna, selecionar, tituloEvento,
 } from '../shared/autos';
 import { minutaAcessivel } from '../shared/secretaria';
 import { conteudoDoDocumento } from './autos';
@@ -126,12 +126,14 @@ async function folhaDadosPdf(o: OpcoesAutos, m: admin.firestore.DocumentData, ge
     w.texto(String(o.orgNome || 'Órgão'), { size: 11, bold: true, espaco: 2 });
     w.texto(`Processo nº ${o.proc.numero}`, { size: 10, cor: CINZA, espaco: 20 });
     w.texto('TERMO DE AUTUAÇÃO', { size: 14, bold: true, espaco: 4 });
-    w.texto(`Evento nº ${m.seq} · Folha de dados do processo`, { size: 10, cor: CINZA, espaco: 14 });
+    w.texto(`Evento nº ${m.numero_evento ?? m.seq} · Folha de dados do processo`, { size: 10, cor: CINZA, espaco: 14 });
     w.texto(String(m.descricao), { size: 10, espaco: 2 });
     w.texto(`Praticado por ${m.autor_nome}${unidade ? `, ${unidade}` : ''}, em ${quandoBR(m.em)}.`, { size: 9, cor: CINZA, espaco: 14 });
+    const nums = numerarEventos(o.movimentos as never);
     const secoes = secoesDaFolha({
         proc: o.proc, equipe: o.equipe === true, campos: o.campos || [], informacoes: o.informacoes || [],
         unidadeAtual: o.nomeUnidade(String(o.proc.unidade_atual || '')), geradoEm, quando: quandoBR,
+        evento: (seq) => numeroDoEvento(nums, seq),
     });
     for (const s of secoes) {
         w.texto(s.titulo, { size: 10, bold: true, espaco: 3 });
@@ -155,7 +157,7 @@ async function termoPdf(orgNome: string, numero: string, m: admin.firestore.Docu
     w.texto(orgNome || 'Órgão', { size: 11, bold: true, espaco: 2 });
     w.texto(`Processo nº ${numero}`, { size: 10, cor: [0.4, 0.4, 0.4], espaco: 36 });
     w.texto(tituloEvento(m as never).toUpperCase(), { size: 14, bold: true, espaco: 6 });
-    w.texto(`Evento nº ${m.seq}`, { size: 10, cor: [0.4, 0.4, 0.4], espaco: 24 });
+    w.texto(`Evento nº ${m.numero_evento ?? m.seq}`, { size: 10, cor: [0.4, 0.4, 0.4], espaco: 24 });
     w.texto(String(m.descricao), { size: 11, espaco: 24 });
     w.texto(`Praticado por ${m.autor_nome}${unidade ? `, ${unidade}` : ''}, em ${quandoBR(m.em)}.`, { size: 10, espaco: 30 });
     w.texto('Termo gerado pela plataforma a partir do registro do evento. A integridade é conferida pela cadeia de hash dos eventos do processo.', { size: 8, cor: [0.45, 0.45, 0.45], espaco: 4 });
@@ -165,8 +167,13 @@ async function termoPdf(orgNome: string, numero: string, m: admin.firestore.Docu
 
 /** Monta o PDF único dos autos. A equipe passa tudo; o portal passa só o que a parte pode ver. */
 export async function montarPdfAutos(o: OpcoesAutos): Promise<Uint8Array> {
-    const { proc, movimentos, docs } = o;
-    const quebra = verificarCadeia(movimentos as never);
+    const { proc, docs } = o;
+    const quebra = verificarCadeia(o.movimentos as never);
+    // Número de cada evento nos autos: públicos em sequência, internos subsidiários (5.1).
+    // Sobre a lista inteira de quem pede: para a parte, só os públicos, que dão a mesma sequência.
+    const numeros = numerarEventos(o.movimentos as never);
+    const movimentos: admin.firestore.DocumentData[] = o.movimentos.map((m) => ({ ...m, numero_evento: numeroDoEvento(numeros, m.seq) }));
+    const evQuebra = quebra === null ? null : numeroDoEvento(numeros, quebra);
     const unid = (id: unknown) => { const n = o.nomeUnidade(String(id || '')); return n ? ` (${n})` : ''; };
     const pdf = await pdfLib().PDFDocument.create();
     pdf.setTitle(`Processo ${proc.numero}`);
@@ -191,7 +198,7 @@ export async function montarPdfAutos(o: OpcoesAutos): Promise<Uint8Array> {
 
     const integridade = quebra === null
         ? `Integridade: cadeia de ${movimentos.length} eventos conferida (SHA-256).`
-        : `ATENÇÃO: a cadeia de eventos não confere a partir do evento ${quebra}.`;
+        : `ATENÇÃO: a cadeia de eventos não confere a partir do evento ${evQuebra}.`;
     // Capa: só o órgão, o número, a data da autuação e se está ativo ou arquivado.
     // O resto (assunto, rito, partes, dados) está na folha de dados, que é a folha do evento 1.
     if (sel.capa) {
@@ -263,7 +270,7 @@ export async function montarPdfAutos(o: OpcoesAutos): Promise<Uint8Array> {
         w.texto('Índice dos autos', { size: 14, bold: true, espaco: 10 });
         for (const m of atos) {
             const d = docsPorId.get(documentoDoEvento(m as never) || '');
-            w.texto(`Evento ${m.seq} · ${quandoBR(m.em)} · ${m.autor_nome}${unid(m.unidade_id)}${folhasTxt(m) ? ` · ${folhasTxt(m)}` : ''}`, { bold: true, size: 9, espaco: 0 });
+            w.texto(`Evento ${m.numero_evento} · ${quandoBR(m.em)} · ${m.autor_nome}${unid(m.unidade_id)}${folhasTxt(m) ? ` · ${folhasTxt(m)}` : ''}`, { bold: true, size: 9, espaco: 0 });
             w.texto(d ? `Doc. nº ${d.ordem}: ${d.titulo} (${d.tipo})` : `${tituloEvento(m as never)}. ${m.descricao}`, { size: 9, espaco: 0 });
             w.texto(`hash ${m.hash}`, { size: 6, cor: [0.5, 0.5, 0.5], espaco: 6 });
         }
@@ -280,7 +287,7 @@ export async function montarPdfAutos(o: OpcoesAutos): Promise<Uint8Array> {
         w.texto('Extrato de registros internos e do sistema', { size: 14, bold: true, espaco: 4 });
         w.texto('Registros automáticos, de controle interno e os que o rito deixa fora dos autos, em ordem cronológica. Não ocupam folhas dos autos.', { size: 8, cor: [0.45, 0.45, 0.45], espaco: 10 });
         for (const m of sistema) {
-            w.texto(`Evento ${m.seq} · ${quandoBR(m.em)} · ${m.autor_nome}${unid(m.unidade_id)}`, { bold: true, size: 9, espaco: 0 });
+            w.texto(`Evento ${m.numero_evento} · ${quandoBR(m.em)} · ${m.autor_nome}${unid(m.unidade_id)}`, { bold: true, size: 9, espaco: 0 });
             w.texto(String(m.descricao), { size: 9, espaco: 0 });
             w.texto(`hash ${m.hash}`, { size: 6, cor: [0.5, 0.5, 0.5], espaco: 6 });
         }
@@ -342,7 +349,7 @@ export async function montarPdfInterno(o: OpcoesInterno): Promise<Uint8Array> {
         r.texto('Registros do andamento que não são peça dos autos, em ordem cronológica.', { size: 8, cor: [0.45, 0.45, 0.45], espaco: 10 });
         for (const m of o.registros) {
             const un = o.nomeUnidade(String(m.unidade_id || ''));
-            r.texto(`Evento ${m.seq} · ${tituloEvento(m as never)}`, { bold: true, size: 10, espaco: 0 });
+            r.texto(`Evento ${m.numero_evento ?? m.seq} · ${tituloEvento(m as never)}`, { bold: true, size: 10, espaco: 0 });
             r.texto(`${quandoBR(m.em)} · ${m.autor_nome}${un ? ` (${un})` : ''}`, { size: 8, cor: CINZA, espaco: 2 });
             r.texto(String(m.descricao), { size: 10, espaco: 10 });
         }
@@ -403,7 +410,10 @@ export const secretariaExportarPdf = onCall<{ organizationId: string; processoId
                 si.registros.length ? ref.collection('movimentos').orderBy('seq').get() : null,
                 lerDocs(si.documentos), lerDocs(si.versoes),
             ]);
-            const registros = (movSnap?.docs || []).map((d) => d.data()).filter((m) => marcados.has(m.seq) && registroInterno(m as never));
+            const todosMovs = (movSnap?.docs || []).map((d) => d.data());
+            const numeros = numerarEventos(todosMovs as never);
+            const registros = todosMovs.filter((m) => marcados.has(m.seq) && registroInterno(m as never))
+                .map((m) => ({ ...m, numero_evento: numeroDoEvento(numeros, m.seq) }));
             const documentos = docsLidos.filter((d) => documentoInterno(d, minha(d)))
                 .sort((a, b) => String(a.criado_em).localeCompare(String(b.criado_em)));
             // Redações anteriores: a mesma regra de quem vê o documento.

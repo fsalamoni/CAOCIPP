@@ -5,6 +5,15 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 19/11/2026 — Eventos numerados sem saltos para as partes
+- Só o ato que as partes veem recebe número inteiro, em sequência (1, 2,
+  3…). O registro interno leva o número do último ato público antes dele
+  (5.1, 5.2…). Nem no portal nem no PDF aparece salto que sugira ato oculto
+  ou excluído.
+- Vale na aba Eventos, em "Ler os autos", na busca, na impressão interna e no
+  PDF dos autos (folha de dados, termos, índice e extrato). Registro "sem
+  evento" não tem número. A ordem e a cadeia de hash não mudam.
+
 ### 19/11/2026 — Ação dispensada pelo dado do processo some da tela
 - Na ação que só se marca, "Vem do processo" virou **Dispensada pelo
   processo**: com o campo preenchido (ex.: número do PGEA informado na
