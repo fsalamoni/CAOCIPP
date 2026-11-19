@@ -250,6 +250,12 @@ dependem de autorização expressa; nenhuma foi feita.
   aplicam a autorização: vínculo com o órgão, módulo ativo, posse (só a unidade
   que tem o processo movimenta), lotação, sigilo restrito e minutas visíveis só
   à unidade de origem. Id de outro órgão responde "não encontrado".
+- Desde 19/11/2026 o navegador não grava mais no Storage: o arquivo sobe
+  pelas funções (até 4 MB na chamada; acima, em partes pela ação
+  `enviarParte` de `secretariaPortal`, que exige conta liberada e só grava em
+  `secretaria-envios/{uid}/{id}.NN`, no máximo 13 partes de 4 MB). A exceção
+  abaixo nas regras fica só para abas abertas antes da troca e pode ser
+  fechada depois.
 - `storage.rules` nega ao navegador ler ou alterar qualquer arquivo do
   bucket. A única exceção é criar arquivo na área de espera da própria conta
   (`secretaria-envios/{uid}/{id}`, até 50 MB, só os tipos aceitos, sem ler

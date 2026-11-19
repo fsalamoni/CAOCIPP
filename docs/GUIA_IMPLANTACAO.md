@@ -54,7 +54,7 @@ Cada passo corresponde a uma aba da configuração. No guia dentro do SIGO, o bo
 
 1. **Estrutura.** Se o órgão tem órgãos internos (promotorias, departamentos), crie-os. Cada um pode ter tipos de processo próprios.
 2. **Unidades e equipes.** Crie uma unidade para cada lugar por onde o processo passa: quem protocola, quem instrui, quem decide, quem assessora, quem julga em colegiado. Lote as pessoas e dê a cada uma o papel (gere ou atua) e a atribuição, como Presidente da comissão, Pregoeiro ou Fiscal do contrato. As atribuições servem para reservar atos e designar responsáveis no rito.
-3. **Rito.** Em Novo rito, comece de um modelo da biblioteca, de um arquivo ou em branco. Troque as unidades genéricas pelas do órgão e confira prazos e contagem com a norma local.
+3. **Rito.** Em Novo rito, comece de um modelo da biblioteca, de um arquivo ou em branco. Troque as unidades genéricas pelas do órgão e confira prazos e contagem com a norma local. A revisão pergunta se o rito terá painel e planilha de acompanhamento: é opcional, e dá para ligar depois.
 4. **Tipo de processo.** O tipo liga o rito ao "Novo processo". Nele se definem:
    - o formulário, com os campos, as partes e os nomes dos polos;
    - a numeração (siglas ou códigos numéricos: se o número usa códigos, como 000001.001.002/2026, dê o código de cada tipo, unidade e órgão interno no botão Códigos, em Tipos de processo);

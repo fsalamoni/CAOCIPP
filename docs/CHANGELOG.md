@@ -18,6 +18,276 @@ cada mudança está nas mensagens de commit (`git log`).
 - Condição por campo do processo passou a ler o campo de registro de outro
   módulo como preenchido (antes contava como vazio).
 
+### 19/11/2026 — Envio de arquivo que parava em 0%
+- **Correção:** o arquivo enviado (minuta, juntada, petição no portal,
+  documento da disputa, Word aberto no editor) ia do navegador direto ao
+  Storage, e em rede que barra esse endereço o aviso ficava em "Enviando: 0%"
+  sem erro e sem como cancelar. Agora todo arquivo sobe pelas funções: até
+  4 MB numa chamada, acima disso em partes de 4 MB com progresso (até 50 MB).
+  Teste pela tela com o Storage barrado em `scripts/e2e-salvar-editor-tela.mjs`.
+
+### 19/11/2026 — Salvar minutas, modelos e timbrado de novo
+- **Correção:** salvar pelo editor (minuta, modelo, papel timbrado, cabeçalho
+  e rodapé no editor completo) falhava com "hasOwnProperty is not a
+  function" e nada era gravado. O editor monta atributos sem protótipo e o
+  SDK do Firebase não os envia; `paraEnvio` (`src/lib/paraEnvio.js`) agora
+  copia todo pedido do Processo Eletrônico para objetos comuns.
+- **Leitura dos autos:** o leitor contínuo já busca o próximo documento
+  enquanto o atual está aberto.
+- Teste de tela `scripts/e2e-salvar-editor-tela.mjs` salva pelo editor de
+  verdade (o `e2e-editor.mjs` chama as funções direto e não pegava o erro).
+
+### 19/11/2026 — Ritos de parcerias e convênios, e biblioteca separada por âmbito
+- **Seis modelos novos**, na área nova "Parcerias, convênios e cooperação"
+  (`src/lib/modelos/parcerias.js`): um rito de **formalização** (contato com
+  os partícipes, problema e solução, estudo técnico, plano de trabalho,
+  minuta, pareceres, aprovação, assinatura e publicação, com o que muda em
+  cada instrumento) e um de **acompanhamento** (execução, fiscalização,
+  relatório anual, aditivo, renovação, irregularidade, prestação de contas e
+  encerramento) para o MPRS (Provimento 59/2011-PGJ e IN CAGE 4/2024), para o
+  Estado do RS (IN CAGE 4/2024 e Decreto 53.175/2016) e para a União
+  (Decretos 11.531/2023 e 10.426/2020 e Portaria SEGES/MGI 3.506/2025). A
+  biblioteca passa a 68 modelos.
+- **Encaixe no Painel de Parcerias.** O rito de formalização do MPRS move a
+  parceria pelas colunas e leva à ficha tudo o que cada coluna exige
+  (`docs/PARCERIAS.md`, seção 9; Guia do rito, parte 22). Um teste falha se
+  o rito deixar de cobrir o painel.
+- **Biblioteca por âmbito.** Todo modelo tem âmbito (MPRS, Estado do RS,
+  União, Ministério Público em geral, conselhos e entidades de classe,
+  qualquer órgão), em `MODELOS_POR_AMBITO`. A tela agrupa por âmbito e,
+  dentro dele, por área; há filtro de âmbito, a busca acha pelo âmbito e o
+  "Qual modelo usar?" pergunta o órgão. A parceria com organização da
+  sociedade civil passou para a área de parcerias.
+- Catálogo regenerado, com tabela por âmbito. Pesquisa e pontos a conferir
+  em `/mnt/project-files/modelos-rito/pesquisa-parcerias-convenios.md`.
+
+### 18/11/2026 — Papel timbrado com as ferramentas dos modelos
+- **Timbrado do órgão e da unidade** ganha o mesmo editor dos modelos:
+  papel e margens, cabeçalho e rodapé completos (texto, imagens, tabelas,
+  "fl. X de Y", em todas as páginas, só na primeira ou menos na primeira),
+  número de página, estilos e numeração. As linhas simples continuam.
+- **Vale por baixo de todo documento** (`documento.layout`, aplicado por
+  `comTimbrado` no PDF dos autos, no Word e no editor): o modelo ou o
+  documento muda só o que quiser; cabeçalho e rodapé "da unidade" seguem o
+  do timbrado. A unidade com timbrado próprio não herda o layout do órgão.
+- Prévia da folha com texto de exemplo e **Ver em PDF** antes de salvar
+  (`previaModelo` aceita `timbrado`).
+- O layout guarda valores explícitos iguais ao padrão (A4, todas as
+  páginas…), para o documento poder voltar ao padrão por cima do timbrado.
+
+### 18/11/2026 — Parte externa: representante qualificado, documento por polo e tipos de petição
+- **Representante com qualidade e inscrição.** Ao convidar o representante
+  de uma parte, a equipe informa se ele é advogado, defensor público,
+  procurador do ente público, representante legal ou preposto, e a
+  inscrição (a da OAB é obrigatória para advogado). Quem depende de
+  procuração ou de ato de representação só recebe o acesso com a
+  conferência marcada, que fica no registro. O que ele protocola sai
+  assinado com a qualificação.
+- **Documento visível só a um polo.** Na juntada, "Portal das partes" ganha
+  "Só para" cada polo com parte no processo. As demais partes não veem o
+  documento, o andamento da juntada nem o aviso por e-mail, e ele só
+  acompanha comunicação a esse polo.
+- **Cada polo vê só as próprias petições** (opção do tipo de processo, em
+  Partes). Serve à negociação: a proposta de um lado não vai ao outro. O
+  portal avisa a parte de que a petição é reservada.
+- **Tipos de petição do órgão** (Listas do órgão): somam-se aos do sistema
+  no portal. Também entram pela importação de arquivo.
+- **Modelos atualizados**: as tratativas e o acordo completo (MPRS) passam a
+  aceitar o ente lesado como parte, com as petições reservadas por polo.
+- Guia do rito (parte 18) e tutorial atualizados.
+
+### 18/11/2026 — Cronograma de obrigações (parcelas com alerta e comprovante pelo portal)
+- **Nova opção em "O que pede"**, para qualquer rito: **Registrar um
+  cronograma de obrigações**. Na tela do processo, "Montar cronograma" gera
+  parcelas iguais (quantidade, primeiro vencimento, periodicidade, valor de
+  cada uma ou total a dividir) e aceita obrigações avulsas, com ou sem
+  valor. Cada uma vira um prazo do processo, com alerta de vencimento.
+- **A parte comprova pelo portal**: vê o andamento do cronograma, o valor e
+  o vencimento de cada obrigação e o botão "Enviar comprovante". A equipe
+  confere e encerra a obrigação como cumprida.
+- **Outra opção nova: Esperar o cumprimento do cronograma.** A ação mostra
+  quantas obrigações foram cumpridas, quantas estão atrasadas e a próxima,
+  e se cumpre sozinha quando a última é cumprida. Obrigatória, segura a
+  fase até o cumprimento integral.
+- **Botão "Cronograma"** em "Pendências e prazos", para processo de qualquer
+  rito, mesmo sem a ação (um parcelamento, um ajustamento de conduta).
+- **Modelos atualizados**: o acompanhamento do acordo de não persecução
+  civil e o acordo completo (MPRS) registram o cronograma no início e só
+  chegam ao "Cumprimento integral" com todas as obrigações cumpridas.
+- Guia do rito (parte 3), tutorial e filtro "Cronograma de obrigações" na
+  biblioteca de modelos.
+
+### 18/11/2026 — Ação "Abrir um processo derivado" no rito
+- **Nova opção em "O que pede"**, para qualquer rito: **Abrir um processo
+  derivado**. Na tela do processo, a ação mostra o botão "Abrir processo",
+  que leva ao "Novo processo" com o processo atual como origem e, se o rito
+  sugerir, o tipo já escolhido (pelo nome do tipo ou do rito que ele usa).
+- **Cumpre-se sozinha.** Criado o processo, a ação fica cumprida no
+  processo de origem, com o número do derivado. Com duas ações destas na
+  fase, a sugestão diz qual delas o processo novo cumpre. "Já existe"
+  registra um processo que já estava ligado; processo sem ligação é
+  recusado.
+- **Modelos atualizados** para usar a ação: Inquérito Civil, inquérito de
+  improbidade e tratativas do acordo (MPRS), gestão contratual e contrato
+  do MPRS (apuração de infração e descumprimento contratual).
+- Guia do rito (parte 3), tutorial e filtro "Processo derivado" na
+  biblioteca de modelos.
+
+### 18/11/2026 — Acordo de não persecução civil e inquérito de improbidade (MPRS)
+- **Quatro modelos novos na biblioteca (agora 62)**, pelo Provimento
+  27/2026-PGJ e pela Resolução CNMP 306/2025, lidos na íntegra: "tratativas
+  e celebração" (da sinalização à homologação judicial, em sigilo, com
+  recusa e pedido de revisão, oitiva do ente lesado e aprovação do Conselho
+  Superior em até 60 dias); "acompanhamento do cumprimento" (do registro do
+  acordo firmado ao cumprimento integral, ou ao vencimento antecipado com
+  execução, ação ou remessa ao órgão de execução responsável); "das
+  tratativas ao cumprimento" (os dois num processo só); e "Inquérito civil
+  de improbidade administrativa (MPRS)", com a prescrição, os 365 dias
+  prorrogáveis uma vez e a manifestação do investigado da Lei 8.429/1992.
+- **Inquérito Civil geral ligado ao acordo.** A instrução ganhou a saída
+  "Acordo de não persecução civil", que manda abrir os processos derivados
+  de tratativas e de acompanhamento. O modelo de ajustamento de conduta
+  avisa que, em improbidade, o instrumento é o acordo (a Resolução CNMP
+  306/2025 revogou o art. 1º, § 2º, da Resolução 179).
+- **Partes externas.** O celebrante é parte, o advogado ou defensor é
+  representante dele, e o ente lesado é interessado só no acompanhamento:
+  as tratativas são confidenciais até a homologação.
+- **Próximas etapas do plano:** cronograma
+  de obrigações com comprovação pelo portal e visibilidade por polo.
+
+### 18/11/2026 — Cabeçalho, rodapé, número de página e imagens nos modelos (etapa 2 de 2)
+- Nova aba **Cabeçalho e rodapé** em Página: cada um pode ser o timbrado da
+  unidade, um **próprio do documento** (texto, logotipo, tabela, com fonte,
+  tamanho e alinhamento livres) ou nenhum, e aparecer em todas as páginas, só
+  na primeira ou em todas menos a primeira. "Número da página" e "Total de
+  páginas" entram como campos ({{pagina}}, {{paginas}}).
+- **Número de página** no rodapé ou no cabeçalho, à esquerda, ao centro ou à
+  direita, em "Página 1 de 5", "Página 1", "1", "1/5" ou "– 1 –", com tamanho
+  e a opção de não numerar a primeira página.
+- **Imagens**: arrastar os cantos redimensiona; largura exata em cm.
+- **Prévia em PDF** e **Word** do modelo, direto do editor de modelo, sem
+  salvar.
+- PDF dos autos e Word saem como a tela; no Word, cabeçalho e rodapé são os
+  nativos, com "Primeira página diferente". Documento sem essas opções não muda.
+
+### 18/11/2026 — Página e estilos nos modelos de documento (etapa 1 de 2)
+- O editor de modelos e minutas ganhou o botão **Página**: papel (A4, Ofício,
+  Carta, A5), retrato ou paisagem e margens em cm, com margens prontas (SIGO,
+  ABNT, Word, estreitas) e prévia da folha.
+- **Estilos** como no Word: Texto normal, Títulos 1 a 4 e Citação se ajustam
+  (fonte, tamanho, negrito, itálico, sublinhado, maiúsculas, cor,
+  alinhamento, recuos, espaços) e o documento pode ter estilos próprios
+  ("Ementa", "Assinatura"), criados a partir do parágrafo atual.
+- **Numeração automática** de títulos (1., 1.1. ou I., 1.) e de parágrafos
+  (botão #, em 1., 1), 1 – ou 1º); **listas** com marcador •, ◦, ▪ ou
+  travessão e numeração 1, a, A, i, I com ponto ou parêntese e início
+  escolhido; **recuos exatos** em cm, inclusive à direita.
+- Fontes novas: Georgia, Garamond, Open Sans e Lato.
+- A formatação fica no próprio texto: o modelo passa para a minuta e o PDF
+  dos autos e o Word (.docx) saem iguais à tela. Documento sem essas opções
+  não muda.
+
+### 18/11/2026 — Versões federal e do Estado do RS dos ritos de sanção e de bens
+- **Três modelos novos na biblioteca (agora 58).** "Sanção a fornecedor no
+  Estado do RS: apuração e registro no CFIL/RS" (Lei 14.133 com a Lei
+  estadual 11.389/1999, o Decreto 42.250/2003 e a IN CAGE 2/2003); "Bens
+  móveis inservíveis no Estado do RS" (Decretos 57.408/2023 e 58.685/2026,
+  com o Programa Sustentare); e "Bens móveis inservíveis na administração
+  federal" (Decreto 12.785/2025, que revogou o 9.373/2018).
+- **Modelos gerais revistos.** A sanção a fornecedor explica o registro no
+  CEIS e no CNEP pelo Decreto 11.129/2022 (quem registra, quando e o quê).
+  Os modelos de gestão de contrato dizem que o Decreto 11.246/2022 e as
+  instruções da SEGES são do Executivo federal e servem de referência aos
+  outros entes. O de bens patrimoniais aponta os modelos por esfera.
+- **O que não foi criado, e por quê.** Gestão de contrato estadual: o
+  Executivo do RS não tem regulamento de gestor e fiscal, só os decretos de
+  licitação e de contratação direta. Gestão de contrato e sanção federais:
+  os modelos gerais já seguem as normas federais. O Decreto estadual
+  57.916/2024 (leilão) não pôde ser lido e está marcado para conferir.
+
+### 18/11/2026 — Data de entrada própria do aditivo
+- A data de entrada do aditivo é a dele (dia em que chegou a informação que
+  o originou, ou hoje), nunca a do original. O servidor recusa data anterior
+  à entrada do original e data futura, na criação e na edição do aditivo; a
+  tela de criação explica a regra e limita o calendário. O padrão "hoje"
+  passa a ser o dia em Brasília.
+
+### 18/11/2026 — Ritos do MPRS para contratos e bens, e painel em todo modelo
+- Três modelos novos na biblioteca (agora 55), pelas normas internas do
+  Ministério Público do RS. **Gestão de contrato no MPRS** (Provimentos
+  104/2023 e 05/2023-PGJ): empenho, Unidade de Contratos, assinatura
+  eletrônica, Diário Eletrônico, Licitacon e PNCP, gestor e fiscais,
+  pagamento com lista de checagem, aditivo aprovado pelo Diretor-Geral,
+  prorrogação pedida 45 dias antes, reajuste por apostila, verificação anual
+  da habilitação, extinção e encerramento. **Descumprimento contratual no
+  MPRS** (arts. 89 a 98): instauração pelo fiscal, defesa em 15 dias úteis ou
+  comissão processante, decisão do Diretor-Geral ou do Subprocurador-Geral
+  para Assuntos Administrativos, recurso, CFIL/RS, CEIS e cobrança, com a
+  multa de até R$ 250,00 sobrestada. **Bens móveis no MPRS** (Provimentos
+  55/2022 e 02/2009): tombamento, Termo de Responsabilidade, inventário com
+  as datas de 31/07 a 31/10, conferência de 30 dias do novo titular,
+  movimentação, perda, furto ou dano com a tabela de indenização, triagem,
+  cessão de uso, Comissão Permanente de Avaliação e baixa.
+- **Todo modelo com painel e planilha opcionais.** Cada um dos 55 modelos
+  traz o nome sugerido do painel. Na revisão de um rito novo, um quadro em
+  destaque pergunta se o órgão quer ligar: "Ligar: criar painel e planilha"
+  ou "Seguir sem painel", com o que cada escolha faz e como ligar depois.
+- O painel gerado na revisão já recebe os processos: o tipo de processo
+  criado com o rito nasce com "Criar registro na autuação" apontando para a
+  página gerada (número e assunto), conferido no servidor ao implantar.
+- **Revisão no mesmo dia.** No contrato do MPRS, o descumprimento apontado
+  na verificação anual da habilitação volta à fiscalização (antes ia ao
+  ateste de um período); a equipe ganhou a fiscalização administrativa e o
+  fiscal público usuário; a análise do gestor explica a diferença entre os
+  Provimentos 05/2023 e 104/2023 sobre a advertência. Os modelos gerais de
+  contrato continuado e de sanção a fornecedor apontam para os do MPRS. O
+  tutorial ganhou três receitas (contrato, bens e painel), e o Guia do rito
+  (parte 16), o Guia de implantação e o glossário falam do painel opcional.
+  Novo `scripts/e2e-painel-modelo.mjs`, com a tela, do modelo à autuação.
+- **Decreto 57.408/2023 e manual do CFIL/RS lidos.** Os dois textos que
+  estavam marcados "conferir" entraram nos ritos do MPRS. No descumprimento
+  contratual, a fase de publicação diz o que o CFIL/RS pede (procedimento,
+  contrato ou empenho, inciso do art. 155, data e página da publicação), quem
+  cadastra, a carga mensal ao CEIS e a baixa automática ao fim do prazo, e
+  ganhou a juntada do comprovante. No contrato, a consulta ao CFIL/RS antes
+  da assinatura vem com a regra e o comprovante. Nos bens móveis, o decreto
+  do Executivo entra como referência: o antieconômico, a preferência por
+  outro órgão público, os motivos de doação e a ata da eliminação.
+
+### 18/11/2026 — Gestão contratual completa e gestão de bens patrimoniais
+- Dois modelos novos na biblioteca (agora 52). **Gestão contratual completa:
+  da assinatura à extinção** (Lei 14.133): assinatura, garantia, PNCP,
+  designação, fiscalização, recebimento, pagamento e, a partir de cada
+  pagamento, os eventos do contrato (aditivo, apostila, prorrogação,
+  reequilíbrio, subcontratação, controvérsia e extinção), com remessa a
+  processo derivado de apuração de infração, avaliação de desempenho e
+  encerramento.
+- **Gestão de bens patrimoniais: do tombamento à baixa**: entrada,
+  tombamento, carga, inventário, movimentação, manutenção, reavaliação,
+  cessão, extravio ou dano, inservível, reaproveitamento, alienação e baixa.
+- Todo modelo da biblioteca gera um painel que o servidor aceita (teste).
+
+### 18/11/2026 — Painel e planilha gerados a partir do rito
+- Em "Integração com o painel", **Gerar painel e planilha**: o SIGO monta uma
+  página própria com uma coluna por fase do rito e um campo por dado que as
+  ações pedem, mostra antes de criar e liga o rito a ela (cada fase move o
+  cartão, cada ação leva o dado à ficha).
+
+### 18/11/2026 — Integração do rito com o painel
+- O editor do rito mostra as colunas com o nome do quadro (Em Análise,
+  Aguarda Terceiros, Arquivados), não mais o nome interno da situação.
+- **Integração com o painel**, no editor do rito: coluna por coluna, a fase
+  que põe o cartão nela e de onde vem cada informação que ela pede (o
+  sistema, uma ação ou falta), com as ligações reconhecidas pelos nomes e o
+  botão Aplicar. O que falta vira uma ação obrigatória na fase certa.
+- **Leva ao painel**, em cada ação que pede um dado: o dado vai para a ficha
+  da consulta, do expediente, da parceria ou do registro da página, com
+  entrada no histórico.
+- **Criar registro na autuação** agora cria também a consulta ou o
+  expediente, com os dados do processo.
+- A capa do processo avisa quando o rito conduz um painel e nenhum registro
+  dele está ligado. Guia do rito, parte 21.
+
 ### 17/11/2026 — Aditivos em Consultas e Expedientes
 - **Criar aditivo** na ficha de qualquer consulta ou expediente, em qualquer
   fase, ou direto do aviso de número já existente no cadastro. Pode haver

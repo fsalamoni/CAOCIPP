@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { TIPOS_PETICAO } from '@/lib/listasImportar';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { FileUp, Loader2, Plus, Trash2 } from 'lucide-react';
@@ -28,6 +29,10 @@ const LISTAS = [
     {
         k: 'origem', titulo: 'Origens do processo', genero: false, sistema: ORIGENS.map((o) => o[1]),
         exemplo: 'Ex.: Ouvidoria', dica: 'Aparecem na autuação e na capa, e o rito pode usá-las nas condições ("Origem é Ouvidoria").',
+    },
+    {
+        k: 'peticao', titulo: 'Tipos de petição', genero: false, sistema: TIPOS_PETICAO,
+        exemplo: 'Ex.: Comprovante de cumprimento', dica: 'Aparecem para a parte e o representante no portal, em "Tipo de petição", junto dos do sistema. A petição já protocolada guarda o nome do tipo.',
     },
 ];
 

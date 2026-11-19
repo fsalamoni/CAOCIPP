@@ -85,6 +85,9 @@ export const PEDIDOS = [
     ['lista', 'Uma escolha numa lista'],
     ['sim_nao', 'Sim ou não'],
     ['registro', 'Um registro de outro módulo'],
+    ['derivado', 'Abrir um processo derivado'],
+    ['cronograma', 'Registrar um cronograma de obrigações'],
+    ['quitacao', 'Esperar o cumprimento do cronograma'],
     ['formulario', 'Um formulário (vários campos)'],
     ['documento', 'Um documento'],
     ['comunicacao', 'Comunicar as partes (intimação, citação…)'],
@@ -128,7 +131,7 @@ export const pedidoDaAcao = (r) => (r?.documento ? 'documento' : r?.pede || 'con
 export const partesVeem = (r) => destinoDaAcao(r) !== 'nenhum'
     && (r?.partes === true || (r?.partes === undefined && r?.autos === true))
     && (pedidoDaAcao(r) !== 'confirmar' || ['autos', 'consolidar'].includes(destinoDaAcao(r)));
-export const pedeDado = (r) => !['confirmar', 'documento', 'orientacao', ...PEDIDOS_DAS_PARTES].includes(pedidoDaAcao(r));
+export const pedeDado = (r) => !['confirmar', 'documento', 'orientacao', 'quitacao', ...PEDIDOS_DAS_PARTES].includes(pedidoDaAcao(r));
 /** O dado da ação pode ir para a folha de dados do processo (evento 1 do PDF)? Reservado, nunca: a folha é de toda a equipe. */
 export const podeIrParaFolha = (r) => pedeDado(r) && !r?.ve;
 /** Ação que não se marca: só orienta quem está na fase. */
@@ -620,7 +623,7 @@ function regraComPedidoSemNivel(r, pede, acao) {
         // O prazo próprio acompanha a ação, seja o que for que ela peça.
         ...(r?.prazo_dias > 0 && !['orientacao', 'resposta'].includes(pede) ? { prazo_dias: r.prazo_dias, ...(r.prazo_contagem === 'corridos' ? { prazo_contagem: 'corridos' } : {}) } : {}),
         // A folha de dados segue enquanto a ação pedir um dado.
-        ...(r?.folha_dados && !['confirmar', 'documento', ...PEDIDOS_DAS_PARTES].includes(pede) ? { folha_dados: true } : {}),
+        ...(r?.folha_dados && !['confirmar', 'documento', 'quitacao', ...PEDIDOS_DAS_PARTES].includes(pede) ? { folha_dados: true } : {}),
         // Dado reservado segue se o pedido novo ainda puder ser reservado.
         ...(r?.ve && PEDIDOS_RESERVAVEIS.includes(pede) ? { ve: r.ve } : {}) };
     return Object.keys(extra).length ? { ...(nova || {}), ...extra } : nova;
@@ -637,6 +640,8 @@ function regraComPedidoBase(r, pede, acao) {
         };
     }
     if (pede === 'orientacao') return { pede, ...(r?.ajuda ? { ajuda: r.ajuda } : {}) };
+    // Esperar o cronograma: cumpre-se sozinha, sem dado, destino nem nome.
+    if (pede === 'quitacao') return { pede, ...(r?.obrigatoria ? { obrigatoria: true } : r?.recomendada ? { recomendada: true } : {}), ...(r?.ajuda ? { ajuda: r.ajuda } : {}) };
     // Comunicar e esperar: o registro são as próprias comunicações e manifestações (nos autos), sem destino nem partes na regra.
     if (PEDIDOS_DAS_PARTES.includes(pede)) {
         return {
@@ -656,6 +661,7 @@ function regraComPedidoBase(r, pede, acao) {
         ...(r?.rotulo && pede !== 'confirmar' ? { rotulo: r.rotulo } : {}),
         ...(pede === 'lista' ? { opcoes: r?.opcoes || [] } : {}),
         ...(pede === 'registro' ? { modulo: r?.modulo || 'consultas' } : {}),
+        ...(pede === 'derivado' && r?.derivado?.tipo ? { derivado: { tipo: r.derivado.tipo } } : {}),
         ...(pede === 'formulario' ? { campos: r?.campos?.length ? r.campos : [novoCampo()] } : {}),
         ...(dest !== 'evento' ? { destino: dest } : {}),
         ...(partesVeem(r) ? { partes: true } : {}),
@@ -690,7 +696,10 @@ export function resumoDaAcao(r) {
     if (pede === 'documento') {
         return dest === 'autos' ? 'documento juntado aos autos' : `documento guardado fora dos autos (${dest === 'evento' ? 'evento no extrato' : 'só no sistema'})`;
     }
+    if (pede === 'quitacao') return `espera o cronograma de obrigações; cumpre-se sozinha quando todas estiverem cumpridas${{ '': '; obrigatória', recomendado: '; recomendada', opcional: '' }[nivelDaAcao(r)]}${r?.se ? '; condicional' : ''}`;
     const oque = pede === 'confirmar' ? 'confirmação'
+        : pede === 'cronograma' ? 'registra o cronograma de obrigações: cada uma vira um prazo com alerta'
+        : pede === 'derivado' ? `abre um processo derivado${r?.derivado?.tipo ? ` (sugestão: ${r.derivado.tipo})` : ''}; cumpre-se sozinha quando ele é aberto`
         : pede === 'formulario' ? `formulário de ${r?.campos?.length || 0} ${r?.campos?.length === 1 ? 'campo' : 'campos'}`
             : ROTULO_PEDIDO[pede].replace(/^Uma? /, '').toLowerCase();
     const onde = dest === 'autos' ? 'certidão nos autos' : ROTULO_DESTINO[dest];

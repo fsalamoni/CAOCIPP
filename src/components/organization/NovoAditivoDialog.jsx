@@ -37,6 +37,9 @@ export default function NovoAditivoDialog({ open, onOpenChange, modulo, organiza
     const numero = origem.numero || origem[cfg.campoNumero] || '';
     const ehAditivo = Boolean(origem.aditivo_de);
     const ativos = members.filter((m) => m.active !== false);
+    // Só o original serve de limite aqui; vindo de um aditivo, o servidor confere com o original.
+    const entradaOrigem = String(origem.entry_date || origem.entrada || '');
+    const minimo = !ehAditivo && /^\d{4}-\d{2}-\d{2}/.test(entradaOrigem) ? entradaOrigem.slice(0, 10) : undefined;
 
     const enviar = async (e) => {
         e.preventDefault();
@@ -76,7 +79,7 @@ export default function NovoAditivoDialog({ open, onOpenChange, modulo, organiza
                 </DialogHeader>
 
                 <div className="rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3 text-xs text-slate-600 dark:text-slate-300 space-y-1">
-                    <p>O aditivo é um novo card, com o mesmo número e os mesmos dados de identificação, que entra em <strong>Pendente</strong> e percorre todas as fases com a sua própria linha do tempo.</p>
+                    <p>O aditivo é um novo card, com o mesmo número e os mesmos dados de identificação, que entra em <strong>Pendente</strong> e percorre todas as fases com a sua própria linha do tempo. Datas de entrada e de cada fase são só do aditivo: nada vem do original nem de aditivos anteriores.</p>
                     <p>{cfg.Nome === 'Consulta' ? 'A consulta original continua' : 'O expediente original continua'} exatamente como está, na fase em que se encontra (se arquivad{cfg.a}, segue arquivad{cfg.a}). Os dois mostram o vínculo e a fase um do outro.</p>
                 </div>
 
@@ -96,8 +99,11 @@ export default function NovoAditivoDialog({ open, onOpenChange, modulo, organiza
                     </div>
                     <div className="grid sm:grid-cols-2 gap-4">
                         <div>
-                            <Label htmlFor="aditivo_entrada">Data de entrada *</Label>
-                            <Input id="aditivo_entrada" type="date" value={entrada} onChange={(e) => setEntrada(e.target.value)} required className="mt-1" />
+                            <Label htmlFor="aditivo_entrada">Data de entrada do aditivo *</Label>
+                            <Input id="aditivo_entrada" type="date" value={entrada} onChange={(e) => setEntrada(e.target.value)} min={minimo} max={hoje()} required aria-describedby="aditivo_entrada_dica" className="mt-1" />
+                            <p id="aditivo_entrada_dica" className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                Dia em que chegou a informação que deu origem ao aditivo, ou hoje. Não pode ser anterior à entrada do original nem futura.
+                            </p>
                         </div>
                         <div>
                             <Label htmlFor="aditivo_responsavel">Assessor responsável</Label>

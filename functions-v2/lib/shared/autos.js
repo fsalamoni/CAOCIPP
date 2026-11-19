@@ -5,8 +5,9 @@
  * de partes dos autos para o PDF. Lógica pura, sem Firebase.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.documentoInterno = exports.registroInterno = exports.MAX_DOCS_INTERNOS = exports.MODOS_SELECAO = exports.geraTermo = exports.documentoDoEvento = exports.visivelParaPartes = exports.MOVIMENTOS_INTERNOS = exports.TIPOS_SISTEMA = void 0;
+exports.documentoInterno = exports.registroInterno = exports.MAX_DOCS_INTERNOS = exports.MODOS_SELECAO = exports.geraTermo = exports.documentoDoEvento = exports.visivelParaPartes = exports.documentoVisivel = exports.polosQueVeem = exports.MOVIMENTOS_INTERNOS = exports.TIPOS_SISTEMA = void 0;
 exports.origemEvento = origemEvento;
+exports.polosEscolhidos = polosEscolhidos;
 exports.tituloEvento = tituloEvento;
 exports.folhasDoEvento = folhasDoEvento;
 exports.extrasDoEvento = extrasDoEvento;
@@ -33,9 +34,34 @@ function origemEvento(m) {
 /** Movimentos que o portal nunca mostra às partes (além dos marcados `visivel_partes: false`). */
 exports.MOVIMENTOS_INTERNOS = ['atribuicao', 'pendencia', 'acao_fase', 'orientacao_concluida', 'guarda', 'efeitos_fase', 'rito_atualizado'];
 /** A parte vê o evento? Registros internos e de controle, não; certidão de ação no rito, sim. */
-const visivelParaPartes = (m) => {
+/** Polos que veem o item no portal, quando ele é restrito a alguns (null = todos os polos). */
+const polosQueVeem = (x) => {
+    const l = Array.isArray(x === null || x === void 0 ? void 0 : x.visivel_polos) ? x.visivel_polos.filter((p) => typeof p === 'string' && !!p) : [];
+    return l.length ? l : null;
+};
+exports.polosQueVeem = polosQueVeem;
+/** Saneia a escolha de "quem vê": só polos que o processo tem; todos (ou nenhum) = sem restrição. */
+function polosEscolhidos(bruto, polosDoProcesso) {
+    const l = [...new Set((Array.isArray(bruto) ? bruto : []).filter((p) => typeof p === 'string' && polosDoProcesso.includes(p)))];
+    return l.length && l.length < new Set(polosDoProcesso).size ? l : null;
+}
+/** O polo vê o documento juntado? (fora do portal, ninguém; restrito, só os polos indicados) */
+const documentoVisivel = (d, polo) => {
+    if (d.visivel_partes === false)
+        return false;
+    const so = (0, exports.polosQueVeem)(d);
+    return !so || (!!polo && so.includes(polo));
+};
+exports.documentoVisivel = documentoVisivel;
+/**
+ * A parte vê o evento? Com `polo`, responde para aquele polo; sem ele, só é
+ * visível o que todos os polos veem (o "último andamento" e os avisos gerais
+ * nunca levam o que é restrito a um polo).
+ */
+const visivelParaPartes = (m, polo) => {
     var _a, _b;
-    return ((_a = m.dados) === null || _a === void 0 ? void 0 : _a.visivel_partes) !== false && origemEvento(m) !== 'interno'
+    return (!(0, exports.polosQueVeem)(m.dados) || (!!polo && (0, exports.polosQueVeem)(m.dados).includes(polo)))
+        && ((_a = m.dados) === null || _a === void 0 ? void 0 : _a.visivel_partes) !== false && origemEvento(m) !== 'interno'
         // Pendência aberta à mão é assunto entre a equipe e o decisor, mesmo com termo nos autos.
         && (!exports.MOVIMENTOS_INTERNOS.includes(m.tipo) || (m.tipo === 'acao_fase' && ((_b = m.dados) === null || _b === void 0 ? void 0 : _b.nos_autos) === true));
 };

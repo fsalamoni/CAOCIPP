@@ -3,6 +3,7 @@
 // functions-v2/src/shared/situacaoRegistro.ts: o servidor é quem valida e
 // aplica; aqui é só o que a tela mostra.
 
+import { rotuloDaColuna } from './painelModulos.js';
 export const SITUACOES = ['Pendente', 'Em elaboração', 'Aguarda retorno de terceiros', 'Em revisão', 'Revisadas', 'Na pasta'];
 /** Situações de Parcerias que o rito dá ("Extintos" tem procedimento próprio no módulo). */
 export const SITUACOES_PARCERIA = ['Pendente', 'Em análise', 'Em revisão', 'Revisadas', 'Aguarda Terceiros', 'Parcerias'];
@@ -19,9 +20,10 @@ export const nomeDoRegistro = (s, paginas) => (s?.modulo === 'paginas'
     ? `o registro de ${paginaDe(s, paginas)?.nome || 'página própria'}`
     : MODULOS_SITUACAO.find(([id]) => id === s?.modulo)?.[2] || 'o registro');
 /** Situações que o registro pode ter: as do quadro ou, em página própria, as fases dela. [valor, rótulo]. */
+// Consultas, Expedientes e Parcerias: o valor é a situação gravada; o rótulo, o nome da coluna no quadro ("Em elaboração" é "Em Análise").
 export const situacoesDaRegra = (s, paginas) => (s?.modulo === 'paginas'
     ? (paginaDe(s, paginas)?.fases || []).map((x) => [x.key, x.label])
-    : (s?.modulo === 'parcerias' ? SITUACOES_PARCERIA : SITUACOES).map((x) => [x, x]));
+    : (s?.modulo === 'parcerias' ? SITUACOES_PARCERIA : SITUACOES).map((x) => [x, rotuloDaColuna(s?.modulo === 'parcerias' ? 'parcerias' : 'consultas', x)]));
 const rotuloDoAlvo = (s, alvo, paginas) => situacoesDaRegra(s, paginas).find(([k]) => k === alvo)?.[1] || alvo;
 
 /** O que a fase faz sozinha no andamento, em frases curtas (resumo do editor, prévia e tela do processo). */

@@ -45,7 +45,7 @@ const FASE = [['nome', 'nome'], ['nome_publico', 'nome para as partes'], ['expli
     ['permissoes', 'quem pode na fase']];
 const REGRA = [['pede', 'o que pede'], ['rotulo', 'nome do dado'], ['ajuda', 'ajuda'], ['opcoes', 'opções'], ['modulo', 'módulo'], ['campos', 'campos do formulário'],
     ['destino', 'onde fica'], ['autos', 'onde fica'], ['documento', 'documento'], ['partes', 'quem vê'], ['obrigatoria', 'obrigatória'], ['recomendada', 'recomendada'],
-    ['se', 'condição'], ['quem', 'quem pode cumprir'], ['atribuicao', 'quem pode cumprir'], ['prazo_dias', 'prazo da ação'], ['prazo_contagem', 'prazo da ação'], ['comunicacao', 'comunicação às partes'], ['resposta', 'resposta esperada'], ['audiencia', 'audiência'], ['julgamento', 'julgamento colegiado'], ['disputa', 'disputa de preços'], ['ou', 'alternativa'], ['folha_dados', 'folha de dados'], ['ve', 'quem vê o dado']];
+    ['se', 'condição'], ['quem', 'quem pode cumprir'], ['atribuicao', 'quem pode cumprir'], ['prazo_dias', 'prazo da ação'], ['prazo_contagem', 'prazo da ação'], ['comunicacao', 'comunicação às partes'], ['resposta', 'resposta esperada'], ['audiencia', 'audiência'], ['julgamento', 'julgamento colegiado'], ['disputa', 'disputa de preços'], ['derivado', 'processo derivado'], ['ou', 'alternativa'], ['folha_dados', 'folha de dados'], ['ve', 'quem vê o dado']];
 // Ação repetida na fase: a 2ª "Certificar" casa com a 2ª.
 const acoesDe = (f) => {
     const n = {};
@@ -85,8 +85,9 @@ export function diffTipo(versao, atual) {
     const formulario = PADROES.filter((p) => !igual(fv[p.id], fa[p.id]) || !igual(fv.rotulos?.[p.id], fa.rotulos?.[p.id]) || !igual(fv.ajudas?.[p.id], fa.ajudas?.[p.id])).map((p) => p.rotulo);
     if (!igual(fv.polos, fa.polos)) formulario.push('polos das partes');
     if (!igual(fv.nomes_polos || {}, fa.nomes_polos || {})) formulario.push('nomes dos polos');
+    if (!!fv.peticoes_por_polo !== !!fa.peticoes_por_polo) formulario.push('petições visíveis só ao próprio polo');
     if (c.ordemMudou) formulario.push('ordem dos campos');
-    const conhecidas = new Set([...PADROES.map((p) => p.id), 'rotulos', 'ajudas', 'polos', 'nomes_polos', 'campos']);
+    const conhecidas = new Set([...PADROES.map((p) => p.id), 'rotulos', 'ajudas', 'polos', 'nomes_polos', 'peticoes_por_polo', 'campos']);
     if ([...new Set([...Object.keys(fv), ...Object.keys(fa)])].some((k) => !conhecidas.has(k) && !igual(fv[k], fa[k]))) formulario.push('outros ajustes do formulário');
     const so = (x) => ({ id: x.id, rotulo: x.rotulo });
     const campos = {

@@ -211,10 +211,13 @@ export function mudancasDaSituacao(
  * sem origem nesse módulo, o único registro dele ligado ao processo.
  */
 export function registroDoProcesso(
-    proc: { origem?: { ref?: { modulo?: string; id?: string } } | null; vinculos?: unknown }, modulo: string,
+    proc: { origem?: { ref?: { modulo?: string; id?: string } } | null; vinculos?: unknown; registro_criado?: { modulo?: string; id?: string } | null }, modulo: string,
 ): { id: string } | { falta: 'nenhum' | 'varios' } {
     const o = proc.origem?.ref;
     if (o?.modulo === modulo && o.id) return { id: String(o.id) };
+    // A consulta ou o expediente que a autuação criou vale logo depois da origem.
+    const cr = proc.registro_criado;
+    if (cr?.modulo === modulo && cr.id) return { id: String(cr.id) };
     const ids = [...new Set((Array.isArray(proc.vinculos) ? proc.vinculos : []).map(String)
         .filter((v) => v.startsWith(`${modulo}:`)).map((v) => v.slice(modulo.length + 1)))];
     return ids.length === 1 ? { id: ids[0] } : { falta: ids.length ? 'varios' : 'nenhum' };

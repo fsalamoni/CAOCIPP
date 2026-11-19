@@ -172,8 +172,8 @@ export function sancaoFornecedor() {
     return montar({
         id: 'sancao-fornecedor', nome: 'Infração contratual e sanção a fornecedor', area: 'sancionador', porte: 'medio', referencia: 'Lei 14.133',
         descricao: 'Apura infração de licitante ou contratada, como inexecução, atraso injustificado, não manter a proposta ou apresentar documento falso, e aplica advertência, multa, impedimento de licitar e contratar ou declaração de inidoneidade. O juízo de admissibilidade define a sanção cabível em tese, e com ela o rito: o simples, conduzido pelo setor de contratos, para advertência e multa; ou o com comissão de dois ou mais servidores estáveis, obrigatório para impedimento e inidoneidade. O contraditório está na defesa em 15 dias úteis, nas alegações finais em 15 dias úteis quando há prova nova e no recurso ou pedido de reconsideração, ambos com efeito suspensivo. Termina com a execução da sanção, a cobrança da multa e o registro no CEIS e no CNEP.',
-        quando: 'Ocorrência registrada pelo fiscal ou gestor do contrato, ou pelo agente de contratação na licitação, que possa configurar infração do art. 155 da Lei 14.133.',
-        base: 'Lei 14.133/2021, arts. 117, § 1º, 155 a 163, 166 a 168 e 183.',
+        quando: 'Ocorrência registrada pelo fiscal ou gestor do contrato, ou pelo agente de contratação na licitação, que possa configurar infração do art. 155 da Lei 14.133. No Ministério Público do RS, prefira "Descumprimento contratual no MPRS", com as autoridades e os prazos do Provimento 104/2023-PGJ. No Executivo do RS, use "Sanção a fornecedor no Estado do RS", com o CFIL/RS.',
+        base: 'Lei 14.133/2021, arts. 117, § 1º, 155 a 163, 166 a 168 e 183; Decreto 11.129/2022, arts. 58 a 63 (registro no CEIS e no CNEP, por todos os Poderes e esferas).',
         tipo: { polos: ['requerido'], nomes_polos: { requerido: 'Contratada ou licitante' } },
     }, [
         {
@@ -311,10 +311,10 @@ export function sancaoFornecedor() {
         },
         {
             nome: 'Execução e registro', unidade: 'Setor de contratos', prazo_dias: 15, prazo_auto: true,
-            orientacao: 'Informe a sanção ao CEIS e ao CNEP em até 15 dias úteis da aplicação (art. 161). A multa se cobra por desconto dos pagamentos devidos, pela garantia ou judicialmente (art. 156, § 8º). A reabilitação é pedida depois, em processo próprio, com reparação integral, multa paga e o prazo do art. 163.',
+            orientacao: 'Informe a sanção aos cadastros em até 15 dias úteis da aplicação (art. 161). O CEIS recebe o impedimento e a inidoneidade; o CNEP, só as sanções da Lei 12.846 (Decreto 11.129/2022, arts. 58 e 59). O registro é feito logo depois de vencido o prazo de recurso ou de reconsideração, ou da decisão final, pelo próprio órgão que aplicou a sanção, de qualquer Poder ou esfera, que também cuida da exclusão (arts. 61 a 63). Informe nome, CNPJ ou CPF, tipo, fundamento, processo, início e fim do efeito, valor da multa e abrangência (art. 60). Estados e municípios costumam ter cadastro próprio, que também deve ser alimentado. A multa se cobra por desconto dos pagamentos devidos, pela garantia ou judicialmente (art. 156, § 8º). A reabilitação é pedida depois, em processo próprio, com reparação integral, multa paga e o prazo do art. 163.',
             acoes: [
                 A.simNao('Há sanção definitiva a executar?', { obrigatoria: true }),
-                A.fazer('Informar a sanção ao CEIS e ao CNEP', { se: quando('Há sanção definitiva a executar?', 'sim') }),
+                A.fazer('Informar a sanção ao CEIS e ao CNEP', { se: quando('Há sanção definitiva a executar?', 'sim'), ajuda: 'Impedimento e inidoneidade vão ao CEIS. O CNEP é para as sanções da Lei 12.846. Advertência e multa sozinhas não restringem licitar.' }),
                 A.escolha('Cobrança da multa', ['Não há multa', 'Desconto dos pagamentos', 'Execução da garantia', 'Cobrança judicial'], { se: quando('Há sanção definitiva a executar?', 'sim') }),
                 A.fazer('Anotar a sanção no histórico do contrato e do fornecedor', { se: quando('Há sanção definitiva a executar?', 'sim') }),
             ],

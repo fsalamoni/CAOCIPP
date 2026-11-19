@@ -1,4 +1,5 @@
 import * as admin from 'firebase-admin';
+import { Representacao, nomeQualificado, sanitizeRepresentacao } from '../shared/representacao';
 import { randomBytes } from 'crypto';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
@@ -11,7 +12,7 @@ import { extrasDoEvento, urgentesPrimeiro } from '../shared/autos';
 import {
     Consolidacao, Cumpridas, ItemCertidao, MAX_ITEM_CERTIDAO, RegraAcao, cabeNaCertidao, textoDoItem, acoesObrigatoriasPendentes, camposAoEntrarNaFase, destinoDaAcao,
     destinoDoMovimento, deveEmitir, grupoDe, marcasDoDestino, marcasNaFase, mudancaNaCertidao, partesVeem, pedidoDaAcao, documentosQueFaltam, textoCertidao,
-    aberturaCertidao, tituloCertidao, visivelCertidao, acaoAtiva, condicaoAtendida, respondeNaRodada, respostaDaAcao, respostasDaAcao, respostasDaFase, textoDaCondicao, Condicao,
+    aberturaCertidao, tituloCertidao, visivelCertidao, acaoAtiva, derivadoPendente, condicaoAtendida, respondeNaRodada, respostaDaAcao, respostasDaAcao, respostasDaFase, textoDaCondicao, Condicao,
 } from '../shared/exigencias';
 import { podeQuem, podeReserva, textoQuem, textoReserva } from '../shared/permissoesFase';
 import { RESULTADOS_DISPUTA } from '../shared/certames';
@@ -30,9 +31,10 @@ import {
 import { chaveContador, faltasCodigo, formatarNumero, identificadorSemNumero, numeracaoDe, numeracaoTipoDe } from '../shared/numeracao';
 import { informacaoVisivel, informacoesDoAndamento, semReservado } from '../shared/informacoes';
 import { COLECAO, MODULOS, Modulo, ROTULO_MODULO, Ref, ehInterno, ehModuloOrigem, idEscolhido, integracoesDe, lerFlags, TipoPagina, refDe, refDePagina, refsDoFormulario, refsFechadas, resolverRegistro, vinculosDe } from '../shared/modulos';
-import { ModuloSituacao, chaveDoRegistro, mudancasDaPagina, mudancasDaParceria, mudancasDaSituacao, registroDoProcesso } from '../shared/situacaoRegistro';
+import { ModuloSituacao, SituacaoRegistro, chaveDoRegistro, mudancasDaPagina, mudancasDaParceria, mudancasDaSituacao, registroDoProcesso } from '../shared/situacaoRegistro';
 import { phasesReachedUpTo, validateRecordValues } from '../customEntities/schema';
-import type { EntityTypeDef } from '../customEntities/schema';
+import type { EntityTypeDef, FieldDef } from '../customEntities/schema';
+import { AoRegistro, CAMPOS_CRIACAO, ModuloPainel, NOME_CRIACAO, camposParaModulo, camposParaPagina, defDaCriacao, docDoModulo, paresDaAcao } from '../shared/painelModulos';
 import { CriaRegistro, DadosDaAutuacao, PaginaDef, faseDoRegistro, sanitizeCriaRegistro, valoresDoRegistro } from '../shared/registroCriado';
 import { historyEntryId } from '../shared/history';
 import { formatPersonName } from '../shared/normalization';
@@ -45,6 +47,7 @@ import { COL_ANOTACOES, COL_SESSOES, acaoAnotacao, acaoSessao, leiturasDoProcess
 import { COL_CERTAMES } from './certames';
 import { avisarEntradaNaFase, avisarPendencia, avisarUnidadeRecebeu } from './avisosEquipe';
 import { acertarAcoesDoRito, configComunicacoes, expedir, tornarSemEfeito } from './comunicacoes';
+import { ItemObrigacao, prazosDoCronograma, quitado, resumoDoCronograma, sanitizeObrigacoes, textoDaQuitacao } from '../shared/cronograma';
 import { CampoDoProcesso, camposParaLigar, camposPelaAcao, chaveDoValor, ligada, passosPeloProcesso } from '../shared/doProcesso';
 import {
     COL, REGION, atorDe, carregarContexto, contextoDoSistema, conferirVersao, erroUsuario, exigirAdmin, exigirAuth, exigirPosse, lerProcesso,
@@ -61,7 +64,7 @@ import {
 interface ProcRequest {
     organizationId: string;
     action: 'listar' | 'obter' | 'autuar' | 'tramitar' | 'atribuir' | 'avancarFase' | 'alterarStatus'
-        | 'abrirPendencia' | 'resolverPendencia' | 'abrirPrazo' | 'encerrarPrazo' | 'prorrogarPrazo' | 'devolverPrazo' | 'convidarParte' | 'revogarParte'
+        | 'abrirPendencia' | 'resolverPendencia' | 'abrirPrazo' | 'abrirCronograma' | 'encerrarPrazo' | 'prorrogarPrazo' | 'devolverPrazo' | 'convidarParte' | 'revogarParte'
         | 'marcarAcao' | 'concluirOrientacao' | 'contadores' | 'alterarDados' | 'urgencia' | 'expedirComunicacao' | 'tornarSemEfeito'
         | 'excluir' | 'restaurar' | 'excluidos' | 'excluirDefinitivo' | 'emitirCertidao' | 'vinculados' | 'indice';
     /** excluirDefinitivo: o número do processo, digitado por quem confirma. */
@@ -353,13 +356,52 @@ async function lerPaginasDoRito(
     }
 }
 
+/** O registro para onde a ação leva o dado ("Leva ao painel"): o mesmo que o rito conduziria nesse módulo. */
+async function lerRegistroDaAcao(tx: admin.firestore.Transaction, c: Ctx, proc: admin.firestore.DocumentData, ao: AoRegistro): Promise<RegistroLido> {
+    const regra = { modulo: ao.modulo, ...(ao.pagina ? { pagina: ao.pagina } : {}), ao_entrar: 'x' } as SituacaoRegistro;
+    const lidos = await lerRegistrosDoRito(tx, c, { ...proc, fases: [{ situacao_registro: regra }] });
+    return lidos.get(chaveDoRegistro(regra)) || { falta: 'o registro ligado não foi lido' };
+}
+
+/**
+ * "Leva ao painel": grava no registro ligado o dado que a ação registrou, na
+ * mesma transação do ato, com uma entrada no histórico do registro. Devolve as
+ * notas do registro interno (o que foi levado e o que ficou de fora).
+ */
+function levarAoRegistro(
+    tx: admin.firestore.Transaction, c: Ctx, r: RegistroLido | null, ao: AoRegistro, dado: { tipo: string; rotulo: string; valor: unknown },
+    proc: admin.firestore.DocumentData, fase: Fase, acao: string,
+): string[] {
+    if (!r) return [];
+    const nome = ao.modulo === 'paginas' ? ROTULO_MODULO.paginas : ROTULO_MODULO[ao.modulo];
+    if ('falta' in r) return [`"${acao}": o dado não foi levado a ${nome}: ${r.falta}.`];
+    const pares = paresDaAcao(ao, dado);
+    const g = r.modulo === 'paginas'
+        ? camposParaPagina(((r.tipo?.fields || []) as FieldDef[]), r.doc, pares)
+        : camposParaModulo(r.modulo as ModuloPainel, r.doc, pares);
+    const rotulo = r.modulo === 'paginas' ? String(r.rotulo || 'Registro') : nome;
+    const notas = g.fora.map((x) => `${rotulo} ${r.numero}: não levado pela ação "${acao}": ${x}.`);
+    if (!g.levados.length) return notas;
+    gravarNoRegistro(tx, c, r, g.campos, `Dados do processo eletrônico ${proc.numero} (fase ${fase.nome}, ação "${acao}"): ${g.levados.join('; ')}`);
+    return [`${rotulo} ${r.numero}: ${g.levados.join('; ')} (pela ação "${acao}").`, ...notas];
+}
+
 type Arquivado = { modulo: ModuloSituacao; id: string; numero: string };
 
 /** Página onde o tipo cria o registro na autuação, lida antes da transação. Null: o tipo não cria, ou o processo já nasce de um registro dela. */
 type PaginaNova = { cfg: CriaRegistro; def: admin.firestore.DocumentData; ref: admin.firestore.DocumentReference };
 async function paginaDoTipo(c: Ctx, tipo: admin.firestore.DocumentData | null, origem: { ref?: { modulo: string; pagina?: string } } | null): Promise<PaginaNova | null> {
     const cfg = sanitizeCriaRegistro(tipo?.cria_registro);
-    if (!tipo || !cfg || (origem?.ref?.modulo === 'paginas' && origem.ref.pagina === cfg.pagina)) return null;
+    if (!tipo || !cfg) return null;
+    if (cfg.modulo) {
+        // Consulta ou expediente: processo que já nasce de um registro do módulo não cria outro.
+        if (origem?.ref?.modulo === cfg.modulo) return null;
+        if (!integracoesDe(c.org, await lerFlags(c.db))[cfg.modulo]) {
+            throw new HttpsError('failed-precondition', `O tipo ${tipo.nome} cria ${cfg.modulo === 'consultas' ? 'uma consulta' : 'um expediente'} na autuação, mas a integração com ${ROTULO_MODULO[cfg.modulo]} está desligada. Peça ao administrador para ligá-la em "Integrações com outros módulos".`);
+        }
+        return { cfg, def: defDaCriacao(cfg.modulo), ref: c.db.collection(COLECAO[cfg.modulo]).doc() };
+    }
+    if (origem?.ref?.modulo === 'paginas' && origem.ref.pagina === cfg.pagina) return null;
     if (!integracoesDe(c.org, await lerFlags(c.db)).paginas) {
         throw new HttpsError('failed-precondition', `O tipo ${tipo.nome} cria um registro numa página própria, mas a integração com Páginas próprias está desligada. Peça ao administrador para ligá-la em "Integrações com outros módulos".`);
     }
@@ -372,6 +414,7 @@ async function paginaDoTipo(c: Ctx, tipo: admin.firestore.DocumentData | null, o
 
 /** Grava, na transação da autuação, o registro novo da página (mesmo formato de createRecord, validado pelas regras da página). */
 function criarRegistroDaAutuacao(tx: admin.firestore.Transaction, c: Ctx, pg: PaginaNova, dados: DadosDaAutuacao): { ref: Ref; doc: admin.firestore.DocumentData } {
+    if (pg.cfg.modulo) return criarNoModulo(tx, c, pg, pg.cfg.modulo, dados);
     const def = pg.def as PaginaDef & { key?: string };
     const nome = String(def.label_singular || 'Registro');
     const fase = faseDoRegistro(pg.cfg, def);
@@ -391,6 +434,36 @@ function criarRegistroDaAutuacao(tx: admin.firestore.Transaction, c: Ctx, pg: Pa
         details: { entity_type_id: pg.cfg.pagina, record_id: pg.ref.id, processo: dados.numero }, timestamp: FieldValue.serverTimestamp(),
     });
     return { ref: refDePagina(pg.ref.id, doc, def as TipoPagina), doc };
+}
+
+/**
+ * Consulta ou expediente criado na autuação: o mesmo documento de
+ * createProcess e createExpediente (Pendente, sem datas de tramitação), com os
+ * valores que o tipo tira do processo, histórico, contadores do órgão e
+ * registro na auditoria. Número e quem pediu são obrigatórios.
+ */
+function criarNoModulo(tx: admin.firestore.Transaction, c: Ctx, pg: PaginaNova, modulo: 'consultas' | 'expedientes', dados: DadosDaAutuacao): { ref: Ref; doc: admin.firestore.DocumentData } {
+    const nome = NOME_CRIACAO[modulo].singular;
+    const fields = CAMPOS_CRIACAO[modulo];
+    const { ok, errors, normalized } = validateRecordValues(fields, valoresDoRegistro(pg.cfg, pg.def as PaginaDef, dados));
+    if (!ok) throw new HttpsError('invalid-argument', `Não foi possível criar ${modulo === 'consultas' ? 'a consulta' : 'o expediente'}: ${Object.values(errors)[0]} Preencha o que falta ou peça ao administrador para ajustar o tipo.`);
+    const agora = new Date();
+    const entrada = { date: agora.toISOString().split('T')[0], time: agora.toTimeString().split(' ')[0], user_id: c.ctx.uid, user_name: c.userName, action: `${nome} criad${modulo === 'consultas' ? 'a' : 'o'} pelo processo eletrônico ${dados.numero}`, timestamp: agora.toISOString() };
+    const doc = {
+        id: pg.ref.id, organization_id: c.orgId, ...docDoModulo(modulo, normalized),
+        created_by: c.ctx.uid, created_at: FieldValue.serverTimestamp(), updated_at: FieldValue.serverTimestamp(), activity_log: [entrada],
+    };
+    tx.set(pg.ref, doc);
+    tx.set(pg.ref.collection('history').doc(historyEntryId(entrada)), { ...entrada, created_at: FieldValue.serverTimestamp() });
+    const stats = modulo === 'consultas'
+        ? { processes_count: FieldValue.increment(1), active_processes: FieldValue.increment(1) }
+        : { expedientes_count: FieldValue.increment(1), active_expedientes: FieldValue.increment(1) };
+    tx.set(c.db.collection('organizations').doc(c.orgId), { stats }, { merge: true });
+    tx.set(c.db.collection('auditLogs').doc(), {
+        organization_id: c.orgId, user_id: c.ctx.uid, user_name: c.userName, action: modulo === 'consultas' ? 'CREATE_PROCESS' : 'CREATE_EXPEDIENTE',
+        details: { [modulo === 'consultas' ? 'process_id' : 'expediente_id']: pg.ref.id, processo: dados.numero }, timestamp: FieldValue.serverTimestamp(),
+    });
+    return { ref: refDe(modulo, pg.ref.id, doc), doc };
 }
 
 /** Registro ligado arquivado pela regra da fase: mesmo webhook de quando se arquiva no quadro. */
@@ -554,7 +627,7 @@ const itensDepois = (proc: admin.firestore.DocumentData, grupo: string, item: It
 const textoDispensa = (d: string[]) => (d.length ? ` Dispensado o que o rito exigia na fase: ${d.join('; ')}.` : '');
 
 /** Valor informado ao cumprir a ação, conferido contra o que o rito pede. Lança HttpsError. */
-async function valorDaAcao(c: Awaited<ReturnType<typeof carregarContexto>>, regra: RegraAcao | null | undefined, acao: string, bruto: unknown) {
+async function valorDaAcao(c: Awaited<ReturnType<typeof carregarContexto>>, regra: RegraAcao | null | undefined, acao: string, bruto: unknown, procId = '', prazos: Prazo[] = []) {
     const pede = pedidoDaAcao(regra);
     if (pede === 'confirmar' || pede === 'documento' || pede === 'orientacao' || pede === 'comunicacao') return null;
     const rotulo = regra?.rotulo || acao;
@@ -587,6 +660,31 @@ async function valorDaAcao(c: Awaited<ReturnType<typeof carregarContexto>>, regr
         try { campos = validarCampos(form, bruto, [], await refsDoFormulario(c.db, c.orgId, c.org, form, bruto)); } catch (e) { erroUsuario(e); }
         if (!campos.length) throw new HttpsError('invalid-argument', `Preencha "${rotulo}"`);
         return dadoDoFormulario(rotulo, campos);
+    }
+    if (pede === 'cronograma') {
+        // Cronograma de obrigações: as parcelas viram prazos do processo (na transação); o dado é o resumo.
+        const b = (bruto && typeof bruto === 'object' ? bruto : {}) as { itens?: unknown; destinatario?: unknown };
+        let itens: ItemObrigacao[] = [];
+        try { itens = sanitizeObrigacoes(b.itens); } catch (e) { erroUsuario(e); }
+        const destinatario = texto(b.destinatario, 120);
+        const t = `${resumoDoCronograma(itens)}${destinatario ? `, a cargo de ${destinatario}` : ''}`;
+        return { rotulo: regra?.rotulo || 'Cronograma de obrigações', tipo: 'texto' as TipoCampo, valor: t, valor_texto: t, ref: undefined, refs: [] as Ref[], restrito: false, cronograma: { itens, destinatario } };
+    }
+    if (pede === 'quitacao') {
+        if (!quitado(prazos)) throw new HttpsError('failed-precondition', `"${acao}" se cumpre sozinha quando todas as obrigações do cronograma estiverem cumpridas.`);
+        const t = textoDaQuitacao(prazos, hojeBrasil());
+        return { rotulo: regra?.rotulo || 'Obrigações do cronograma', tipo: 'texto' as TipoCampo, valor: t, valor_texto: t, ref: undefined, refs: [] as Ref[], restrito: false };
+    }
+    if (pede === 'derivado') {
+        // Processo derivado: o servidor confere que ele nasceu deste (ou está ligado a este) e guarda só o número.
+        const id = idEscolhido(bruto);
+        if (!id) throw new HttpsError('invalid-argument', `"${acao}" se cumpre com o processo aberto a partir deste: abra-o pela própria ação ou escolha o que já existe.`);
+        const d = (await c.db.collection(COL.processos).doc(id).get()).data();
+        if (!d || d.organization_id !== c.orgId || d.status === 'excluido' || !((d.vinculos || []) as string[]).includes(`pe:${procId}`)) {
+            throw new HttpsError('invalid-argument', `"${rotulo}": o processo escolhido não nasceu deste nem está ligado a ele`);
+        }
+        const numero = String(d.numero || '');
+        return { rotulo: regra?.rotulo || 'Processo derivado', tipo: 'texto' as TipoCampo, valor: numero, valor_texto: numero, ref: undefined, refs: [] as Ref[], restrito: false };
     }
     if (pede === 'registro') {
         // Registro de outro módulo: o servidor lê e guarda só número e título; a parte vê só o número.
@@ -934,7 +1032,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, comSin
             // Sem o conteúdo (pode ter imagens): só o que a lista mostra.
             ref.collection('documentos').select(
                 'titulo', 'tipo', 'origem', 'status', 'mime', 'nome_arquivo', 'tamanho', 'sha256', 'ordem', 'unidade_origem',
-                'autor_nome', 'criado_em', 'juntado_em', 'assinaturas', 'peticao', 'visivel_partes', 'paginas', 'folha_inicial', 'folha_final', 'codigo_verificacao',
+                'autor_nome', 'criado_em', 'juntado_em', 'assinaturas', 'peticao', 'visivel_partes', 'visivel_polos', 'paginas', 'folha_inicial', 'folha_final', 'codigo_verificacao',
                 'assinaturas_pedidas', 'peticao_tipo', 'modelo_id', 'unidades_acesso', 'guardado_em', 'guardado_por_nome', 'versoes_qtd',
             ).get(),
             // Quem leu pela pauta: para a unidade que tem o processo e a administração.
@@ -957,7 +1055,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, comSin
                 sha256: d.sha256, ordem: d.ordem || null, unidade_origem: d.unidade_origem,
                 autor_nome: d.autor_nome, criado_em: d.criado_em, juntado_em: d.juntado_em || null,
                 assinaturas: d.assinaturas || [], assinaturas_pedidas: d.assinaturas_pedidas || [],
-                peticao: d.peticao === true, peticao_tipo: d.peticao_tipo || null, visivel_partes: d.visivel_partes !== false,
+                peticao: d.peticao === true, peticao_tipo: d.peticao_tipo || null, visivel_partes: d.visivel_partes !== false, ...(Array.isArray(d.visivel_polos) && d.visivel_polos.length ? { visivel_polos: d.visivel_polos } : {}),
                 paginas: d.paginas || null, folha_inicial: d.folha_inicial || null, folha_final: d.folha_final || null, codigo_verificacao: d.codigo_verificacao || null, modelo_id: d.modelo_id || null, unidades_acesso: d.unidades_acesso || [],
                 guardado_em: d.guardado_em || null, guardado_por: d.guardado_por_nome || null, versoes: Number(d.versoes_qtd) || 0,
             }))
@@ -978,8 +1076,9 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, comSin
                 campos: camposLidos.map((x) => (fechada(x.ref) ? { ...x, ref: { ...x.ref, restrito: true } } : x)),
                 partes: (data.partes || []).map(({ convite_hash, uid, representantes, ...x }: Record<string, unknown>) => ({
                     ...x, portal: uid ? 'ativo' : convite_hash ? 'convidado' : null,
-                    representantes: ((representantes || []) as Array<Record<string, unknown>>).map(({ convite_hash: ch, uid: u, nome, email }) => ({
+                    representantes: ((representantes || []) as Array<Record<string, unknown>>).map(({ convite_hash: ch, uid: u, nome, email, qualidade, inscricao, poderes }) => ({
                         nome, email: email || null, portal: u ? 'ativo' : ch ? 'convidado' : null,
+                        ...(qualidade ? { qualidade } : {}), ...(inscricao ? { inscricao } : {}), ...(poderes === true ? { poderes: true } : {}),
                     })),
                 })),
                 fases: data.fases || [],
@@ -996,6 +1095,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, comSin
                 // Disputa de preços da ação do rito (S11): só o resumo; o aviso e as propostas ficam em secCertames.
                 certame: data.certame || null,
                 nomes_polos: data.nomes_polos || {},
+                ...(data.peticoes_por_polo === true ? { peticoes_por_polo: true } : {}),
                 acoes_feitas: data.acoes_feitas || {},
                 acoes_respostas: data.acoes_respostas || {},
                 // Ações cumpridas sozinhas pelo dado do processo (a tela diz que foi assim).
@@ -1133,10 +1233,14 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, comSin
             const criado = paginaNova ? criarRegistroDaAutuacao(tx, c, paginaNova, {
                 numero, assunto, descricao, hoje: hojeBrasil(), unidade: unidade.nome, tipo: tipo?.nome || '', partes: partes.map((x) => x.nome), campos,
             }) : null;
-            const chaveCriado = criado ? `paginas:${criado.ref.id}` : '';
+            const moduloCriado = paginaNova?.cfg.modulo;
+            const chaveCriado = criado ? `${moduloCriado || 'paginas'}:${criado.ref.id}` : '';
             // A regra da primeira fase que vale na autuação conduz o registro recém-criado.
-            if (criado && registros.has(`paginas:${paginaNova!.cfg.pagina}`)) {
-                registros.set(`paginas:${paginaNova!.cfg.pagina}`, { ref: paginaNova!.ref, doc: criado.doc, modulo: 'paginas', numero: criado.ref.numero, tipo: paginaNova!.def, rotulo: String(paginaNova!.def.label_singular || 'Registro') });
+            const chaveConduz = moduloCriado || `paginas:${paginaNova?.cfg.pagina}`;
+            if (criado && registros.has(chaveConduz)) {
+                registros.set(chaveConduz, moduloCriado
+                    ? { ref: paginaNova!.ref, doc: criado.doc, modulo: moduloCriado, numero: criado.ref.numero }
+                    : { ref: paginaNova!.ref, doc: criado.doc, modulo: 'paginas', numero: criado.ref.numero, tipo: paginaNova!.def, rotulo: String(paginaNova!.def.label_singular || 'Registro') });
             }
             const fases = rito.fases as Fase[];
             // Campos que o tipo exige para sair de cada fase (cópia: mudar o tipo depois não muda este processo).
@@ -1160,6 +1264,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, comSin
                 ...(tipo ? { tipo_id: String(p.tipo_id), tipo_nome: tipo.nome, tipo_versao: Number(tipo.versao) || 1 } : {}),
                 // Nomes dos polos do tipo, como na autuação (o tipo pode mudar depois).
                 ...(tipo && Object.keys(formularioDe(tipo).nomes_polos).length ? { nomes_polos: formularioDe(tipo).nomes_polos } : {}),
+                ...(tipo && formularioDe(tipo).peticoes_por_polo ? { peticoes_por_polo: true } : {}),
                 status: 'em_tramitacao',
                 rito_id: ritoSnap.id,
                 rito_nome: rito.nome,
@@ -1186,7 +1291,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, comSin
                 : aplicarSituacao(tx, c, registros, fases[0], designacaoInicial?.uid && fase1.situacao_registro?.ao_assumir ? 'ao_assumir' : 'ao_entrar', base,
                     designacaoInicial?.uid ? { uid: designacaoInicial.uid, nome: designacaoInicial.nome || '' } : undefined);
             registroArquivado = sit.arquivou;
-            const notaCriado = criado ? [`${String(paginaNova!.def.label_singular || 'Registro')} ${criado.ref.numero} criado em ${String(paginaNova!.def.label_plural || paginaNova!.def.label_singular || 'Páginas próprias')} com os dados da autuação.`] : [];
+            const notaCriado = criado ? [`${String(paginaNova!.def.label_singular || 'Registro')} ${criado.ref.numero}: registro criado em ${String(paginaNova!.def.label_plural || paginaNova!.def.label_singular || 'Páginas próprias')} com os dados da autuação.`] : [];
             const ef = { ...efFase, interno: [...efFase.interno, ...notaCriado, ...sit.notas] };
             autuado = { proc: { ...base, ...ef.campos }, ...(ef.pendencia ? { pendencia: ef.pendencia } : {}) };
             const mov = registrarMovimento(tx, c, procRef, base, 'autuacao',
@@ -1203,6 +1308,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, comSin
         avisarArquivado(orgId, registroArquivado);
         // O que veio na autuação já cumpre as ações ligadas da primeira fase (ex.: número do PGEA informado na entrada).
         if (temLigacoes([(rito.fases as Fase[])[0]])) await cumprirPeloProcesso(c, procRef.id);
+        // Nasceu de outro processo: a ação "Abrir processo derivado" pendente na fase atual dele se cumpre sozinha.
+        if (refOrigem?.modulo === 'pe') await registrarDerivado(c, refOrigem.id, procRef.id, [String(tipo?.nome || ''), String(rito.nome || '')]);
         return { success: true, id: procRef.id, numero };
     }
 
@@ -1288,6 +1395,50 @@ export async function cumprirPeloProcesso(c: Ctx, id: string): Promise<Record<st
 }
 
 /**
+ * Cronograma de obrigações todo cumprido: cumpre a ação pendente da fase atual
+ * que espera por isso (`pede: 'quitacao'`), pelo mesmo caminho da caixa de
+ * marcar e com as permissões de quem praticou o ato. Devolve o resultado, ou
+ * null quando não há o que cumprir (ou não coube: fica para a equipe).
+ */
+async function cumprirQuitacao(c: Ctx, id: string): Promise<Record<string, unknown> | null> {
+    try {
+        const d = (await c.db.collection(COL.processos).doc(id).get()).data();
+        if (!d || d.status !== 'em_tramitacao' || !quitado(d.prazos as Prazo[] | undefined)) return null;
+        const fase = ((d.fases || []) as Fase[]).find((f) => f.id === d.fase_atual);
+        const feitas = ((d.acoes_feitas || {})[String(d.fase_atual)] || []) as number[];
+        const resp = respostasDaFase(d);
+        const idx = (fase?.acoes_regras || []).findIndex((r, i) => r?.pede === 'quitacao' && !feitas.includes(i) && acaoAtiva(fase, i, resp));
+        if (idx < 0) return null;
+        return await movimentar(c, { organizationId: c.orgId, action: 'marcarAcao', id, version: d.version, acao_idx: idx, feita: true } as unknown as ProcRequest);
+    } catch (e) {
+        console.warn('[secretaria] ação de cumprimento do cronograma não registrada', id, (e as Error)?.message);
+        return null;
+    }
+}
+
+/**
+ * Processo derivado aberto: cumpre, no processo de origem, a ação "Abrir
+ * processo derivado" pendente na fase atual (a que sugere o tipo ou o rito do
+ * novo processo; na falta, a que não sugere nada), pelo mesmo caminho da caixa de
+ * marcar e com as permissões de quem abriu. Nunca desfaz a autuação: o que
+ * não couber (sem a posse do processo de origem, ação reservada) fica para a
+ * equipe, que registra o processo pela própria ação.
+ */
+async function registrarDerivado(c: Ctx, origemId: string, novoId: string, nomes: string[]): Promise<void> {
+    try {
+        const d = (await c.db.collection(COL.processos).doc(origemId).get()).data();
+        if (!d || d.organization_id !== c.orgId || d.status !== 'em_tramitacao') return;
+        const fase = ((d.fases || []) as Fase[]).find((f) => f.id === d.fase_atual);
+        const idx = derivadoPendente(fase, (d.acoes_feitas || {})[String(d.fase_atual)] || [], nomes, (i) => acaoAtiva(fase, i, respostasDaFase(d)));
+        if (idx < 0) return;
+        // Com as permissões de quem abriu: ação reservada a outra pessoa não se cumpre por aqui.
+        await movimentar(c, { organizationId: c.orgId, action: 'marcarAcao', id: origemId, version: d.version, acao_idx: idx, feita: true, valor: novoId } as unknown as ProcRequest);
+    } catch (e) {
+        console.warn('[secretaria] ação de processo derivado não cumprida', origemId, novoId, (e as Error)?.message);
+    }
+}
+
+/**
  * Julgamento proclamado na sessão (S4): o sistema registra o resultado na ação
  * de julgamento do rito, com os votos da sessão, pelo mesmo caminho do botão
  * "Registrar julgamento" (certidão, saída da fase, avanço automático). Devolve
@@ -1355,11 +1506,14 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
     let entrou: { fase: Fase; unidadeId: string; proc: admin.firestore.DocumentData; remessa: boolean } | null = null;
     // Ações ligadas a campos do processo: depois do ato, o sistema confere o que se cumpre sozinho (cumprirPeloProcesso).
     let ligacoes = false;
+    // Rito com a ação que espera o cumprimento do cronograma: depois do ato, o sistema confere se ela se cumpriu.
+    let temQuitacao = false;
     const resultado = await db.runTransaction(async (tx) => {
         const { ref, data } = await lerProcesso(c, p.id, tx);
         conferirVersao(data, p.version);
         exigirPosse(c, data);
         ligacoes = temLigacoes(data.fases);
+        temQuitacao = ((data.fases || []) as Fase[]).some((f) => (f.acoes_regras || []).some((r) => r?.pede === 'quitacao'));
         // Campos exigidos por fase: valem os que o tipo ainda pede (lido antes de qualquer escrita).
         const tipoAtual = data.campos_exigidos && data.tipo_id && ['tramitar', 'avancarFase', 'alterarStatus'].includes(String(p.action))
             ? (await tx.get(db.collection(COL.tipos).doc(String(data.tipo_id)))).data() : null;
@@ -1607,7 +1761,10 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             const proclamado = regra?.pede === 'julgamento' ? data.sessao?.proclamado : null;
             // Disputa de preços: vale o resultado registrado na disputa (S13), não o que vier na tela.
             const disputa = regra?.pede === 'disputa' ? data.certame : null;
-            const dado = feita ? await valorDaAcao(c, regra, acao, proclamado ? { data: proclamado.data, votos: proclamado.votos } : disputa ? { resultado: disputa.resultado, resumo: disputa.resumo } : p.valor) : null;
+            const dado = feita ? await valorDaAcao(c, regra, acao, proclamado ? { data: proclamado.data, votos: proclamado.votos } : disputa ? { resultado: disputa.resultado, resumo: disputa.resumo } : p.valor, String(p.id), (data.prazos || []) as Prazo[]) : null;
+            // "Leva ao painel": o registro ligado é lido aqui, antes de qualquer escrita da transação.
+            const leva = dado && regra?.ao_registro && !regra.ve ? regra.ao_registro : null;
+            const registroLeva = leva ? await lerRegistroDaAcao(tx, c, data, leva) : null;
             // Resposta registrada à mão (manifestação por outro meio): "sem manifestação" ou "parcial" só depois de
             // decorrido o prazo de quem foi comunicado. Contraditório: ninguém perde a vez antes da hora.
             if (regra?.pede === 'resposta' && dado && dado.valor !== 'Apresentada'
@@ -1666,8 +1823,28 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             const comResposta = respondeu ? { acoes_respostas: todasRespostas } : {};
             // Prazos das ações: encerra o da cumprida, reabre o da desfeita e acompanha a ação condicional que passou a valer (ou deixou).
             const pz = prazosDasAcoes({ ...data, acoes_feitas: feitas, ...comResposta }, fase, hojeBrasil(), new Date().toISOString(), calendario, c.userName, () => randomBytes(10).toString('hex'));
-            const comPrazos = pz ? { prazos: pz.prazos, ...derivados((data.pendencias || []) as Pendencia[], pz.prazos) } : {};
-            const notasPrazo = pz?.notas || [];
+            // Cronograma de obrigações: registrar cria os prazos; desfazer cancela os que a ação criou e seguem em aberto.
+            let listaPrazos: Prazo[] | null = pz ? pz.prazos : null;
+            let notaCronograma = '';
+            if (regra?.pede === 'cronograma') {
+                const basePrazos = (listaPrazos || data.prazos || []) as Prazo[];
+                if (feita && dado && 'cronograma' in dado && dado.cronograma) {
+                    if (basePrazos.length + dado.cronograma.itens.length > MAX_ITENS) throw new HttpsError('resource-exhausted', 'Limite de prazos do processo');
+                    listaPrazos = [...basePrazos, ...prazosDoCronograma(dado.cronograma.itens, {
+                        hoje: hojeBrasil(), agora: new Date().toISOString(), quem: c.userName, destinatario: dado.cronograma.destinatario,
+                        novoId: () => randomBytes(10).toString('hex'), cronograma_de: `${fase.id}:${idx}`,
+                    })];
+                } else if (!feita) {
+                    const sai = (x: Prazo) => x.obrigacao === true && x.status === 'aberto' && x.cronograma_de === `${fase.id}:${idx}`;
+                    const n = basePrazos.filter(sai).length;
+                    if (n) {
+                        listaPrazos = basePrazos.map((x) => (sai(x) ? { ...x, status: 'cancelado' as const, encerrado_em: hojeBrasil(), encerrado_por: c.userName } : x));
+                        notaCronograma = ` ${n === 1 ? 'Fica cancelada a obrigação em aberto' : `Ficam canceladas as ${n} obrigações em aberto`} do cronograma.`;
+                    }
+                }
+            }
+            const comPrazos = listaPrazos ? { prazos: listaPrazos, ...derivados((data.pendencias || []) as Pendencia[], listaPrazos) } : {};
+            const notasPrazo = [...(pz?.notas || []), ...(leva && dado ? levarAoRegistro(tx, c, registroLeva, leva, dado as { tipo: string; rotulo: string; valor: unknown }, data, fase, acao) : [])];
             if (notasPrazo.length) expedidas += 1;
             // Audiência: designar grava a audiência no processo; desfazer a cancela (fica na lista, para a história).
             let comAudiencia = {};
@@ -1696,7 +1873,7 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             // O rito diz onde fica: certidão nos autos (com folha), evento no extrato, só no sistema ou sem evento.
             const dest = destinoDaAcao(regra);
             const sufixoAuto = !doProc ? '' : feita ? ' Cumprida automaticamente: o dado já consta do processo.' : ' Desfeita automaticamente: o dado do processo foi apagado ou mudou.';
-            const comDado = (!dado ? '' : reservado ? ` ${dado.rotulo}: reservado a quem gere a unidade.` : ` ${dado.rotulo}: ${dado.valor_texto}.`) + cancelada + sufixoAuto + notaLigacao;
+            const comDado = (!dado ? '' : reservado ? ` ${dado.rotulo}: reservado a quem gere a unidade.` : ` ${dado.rotulo}: ${dado.valor_texto}.`) + cancelada + notaCronograma + sufixoAuto + notaLigacao;
             const marcaAuto = doProc ? { do_processo: true } : {};
             if (dest === 'consolidar') {
                 // Certidão conjunta: o ato fica oculto e entra como item da certidão do grupo.
@@ -1958,6 +2135,19 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             return mov;
         }
 
+        if (p.action === 'abrirCronograma') {
+            // Cronograma de obrigações fora do rito: o mesmo registro da ação "Registrar o cronograma".
+            let itens: ItemObrigacao[] = [];
+            try { itens = sanitizeObrigacoes((p as unknown as { itens?: unknown }).itens); } catch (e) { erroUsuario(e); }
+            if (prazos.length + itens.length > MAX_ITENS) throw new HttpsError('resource-exhausted', 'Limite de prazos do processo');
+            const destinatario = texto(p.destinatario, 120);
+            const lista = [...prazos, ...prazosDoCronograma(itens, { hoje: hojeBrasil(), agora, quem: c.userName, destinatario, novoId: () => ref.collection('_').doc().id })];
+            const mov = registrarMovimento(tx, c, ref, data, 'prazo',
+                `Cronograma de obrigações registrado: ${resumoDoCronograma(itens)}${destinatario ? `, a cargo de ${destinatario}` : ''}.`, { cronograma: itens.length, ...marcasNaFase(data, 'prazo') });
+            tx.update(ref, { ...mov, prazos: lista, ...derivados(pendencias, lista) });
+            return mov;
+        }
+
         if (p.action === 'encerrarPrazo') {
             const alvo = prazos.find((x) => x.id === p.prazo_id && x.status === 'aberto');
             if (!alvo) throw new HttpsError('not-found', 'Prazo aberto não encontrado');
@@ -2003,7 +2193,7 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             if (parte.retirada) throw new HttpsError('failed-precondition', `${parte.nome} foi retirada do processo`);
             // Alvo: a própria parte, um representante já listado (representante_idx)
             // ou um representante novo ({ nome, email }). Cada um tem a própria conta.
-            type Rep = { nome: string; email?: string; uid?: string; convite_hash?: string };
+            type Rep = { nome: string; email?: string; uid?: string; convite_hash?: string } & Representacao;
             const reps: Rep[] = [...((parte.representantes || []) as Rep[])];
             let ridx = p.representante_idx === undefined || p.representante_idx === null ? -1 : Number(p.representante_idx);
             const novoRep = p.action === 'convidarParte' && p.representante && typeof p.representante === 'object' ? p.representante as Record<string, unknown> : null;
@@ -2012,13 +2202,16 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
                 if (!nome) throw new HttpsError('invalid-argument', 'Informe o nome do representante');
                 if (reps.length >= MAX_REPRESENTANTES) throw new HttpsError('invalid-argument', `Até ${MAX_REPRESENTANTES} representantes por parte`);
                 const emailRep = texto(novoRep.email, 120);
-                reps.push({ nome, ...(emailRep ? { email: emailRep } : {}) });
+                // Qualidade (advogado, defensor…), inscrição e a conferência da procuração.
+                let rep: Representacao = {};
+                try { rep = sanitizeRepresentacao(novoRep); } catch (e) { erroUsuario(e); }
+                reps.push({ nome, ...(emailRep ? { email: emailRep } : {}), ...rep });
                 ridx = reps.length - 1;
             }
             const alvo: Rep = ridx >= 0 ? reps[ridx] : parte;
             if (!alvo) throw new HttpsError('invalid-argument', 'Representante inválido');
             const np = nomeDoPolo(data.nomes_polos, parte.polo);
-            const rotulo = ridx >= 0 ? `${alvo.nome}, representante de ${parte.nome} (${np})` : `${parte.nome} (${np})`;
+            const rotulo = ridx >= 0 ? `${nomeQualificado(alvo)}, representante de ${parte.nome} (${np})` : `${parte.nome} (${np})`;
             const dadosMov = { parte_idx: idx, ...(ridx >= 0 ? { representante: alvo.nome } : {}) };
             // Convite anterior ainda não usado deixa de valer em qualquer dos dois casos.
             if (alvo.convite_hash) tx.set(db.collection(COL.convites).doc(alvo.convite_hash), { revogado: true }, { merge: true });
@@ -2056,7 +2249,7 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             const atualizado = { ...alvo, convite_hash: hash, ...(email ? { email } : {}) };
             if (ridx >= 0) { reps[ridx] = atualizado; partes[idx] = { ...parte, representantes: reps }; } else partes[idx] = atualizado;
             const mov = registrarMovimento(tx, c, ref, data, 'convite',
-                `${rotulo} convidado a acompanhar o processo pelo portal das partes${email ? ' (convite por e-mail)' : ''}.`, dadosMov);
+                `${rotulo} convidado a acompanhar o processo pelo portal das partes${email ? ' (convite por e-mail)' : ''}${novoRep && (alvo as Rep).poderes ? '. Procuração ou ato de representação conferido' : ''}.`, dadosMov);
             tx.update(ref, { ...mov, partes });
             return mov;
         }
@@ -2087,6 +2280,11 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
     if (tentarAuto) {
         const auto = await avancarSozinho(c, String(p.id));
         if (auto) return auto;
+    }
+    // Obrigação encerrada, cronograma registrado ou fase nova: com tudo cumprido, a ação que espera o cronograma se cumpre.
+    if (temQuitacao && ['encerrarPrazo', 'avancarFase', 'tramitar', 'marcarAcao'].includes(String(p.action))) {
+        const q = await cumprirQuitacao(c, String(p.id));
+        if (q) return { success: true, version: q.version, automaticas: true };
     }
     // Entrou em fase, os dados mudaram ou a ação preencheu um campo: o que o processo já informa cumpre as ações ligadas.
     if (ligacoes && !opcoes.doProcesso && ['avancarFase', 'tramitar', 'alterarDados', 'marcarAcao', 'alterarStatus'].includes(String(p.action))) {

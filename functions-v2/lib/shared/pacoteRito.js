@@ -19,7 +19,7 @@ exports.VERSAO_PACOTE = 1;
 const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : null);
 /** Ids de páginas próprias citadas no rito e no formulário do tipo (para mandar o nome junto). */
 function paginasCitadas(rito, formulario) {
-    var _a, _b;
+    var _a, _b, _c;
     const ids = new Set();
     const deCampos = (cs) => (Array.isArray(cs) ? cs : []).forEach((c) => { const o = obj(c); if ((o === null || o === void 0 ? void 0 : o.modulo) === 'paginas' && typeof o.pagina === 'string')
         ids.add(o.pagina); });
@@ -29,10 +29,12 @@ function paginasCitadas(rito, formulario) {
         for (const r of f.acoes_regras || []) {
             if ((r === null || r === void 0 ? void 0 : r.modulo) === 'paginas' && r.pagina)
                 ids.add(r.pagina);
+            if (((_b = r === null || r === void 0 ? void 0 : r.ao_registro) === null || _b === void 0 ? void 0 : _b.modulo) === 'paginas' && r.ao_registro.pagina)
+                ids.add(r.ao_registro.pagina);
             deCampos(r === null || r === void 0 ? void 0 : r.campos);
         }
     }
-    deCampos((_b = obj(formulario)) === null || _b === void 0 ? void 0 : _b.campos);
+    deCampos((_c = obj(formulario)) === null || _c === void 0 ? void 0 : _c.campos);
     return [...ids];
 }
 /**
@@ -98,7 +100,7 @@ function pacoteDoRito(rito, ctx) {
         return ((x === null || x === void 0 ? void 0 : x.modulo) === 'paginas' && typeof x.pagina === 'string' ? Object.assign(Object.assign({}, x), { pagina: refPg.get(x.pagina) || '' }) : o);
     };
     const comPaginas = (cs) => (Array.isArray(cs) ? cs.map(pg) : cs);
-    const fasesPg = fases.map((f) => (Object.assign(Object.assign(Object.assign({}, f), (f.situacao_registro ? { situacao_registro: pg(f.situacao_registro) } : {})), (f.acoes_regras ? { acoes_regras: f.acoes_regras.map((r) => (r ? Object.assign(Object.assign({}, pg(r)), (r.campos ? { campos: comPaginas(r.campos) } : {})) : r)) } : {}))));
+    const fasesPg = fases.map((f) => (Object.assign(Object.assign(Object.assign({}, f), (f.situacao_registro ? { situacao_registro: pg(f.situacao_registro) } : {})), (f.acoes_regras ? { acoes_regras: f.acoes_regras.map((r) => (r ? Object.assign(Object.assign(Object.assign({}, pg(r)), (r.campos ? { campos: comPaginas(r.campos) } : {})), (r.ao_registro ? { ao_registro: pg(r.ao_registro) } : {})) : r)) } : {}))));
     const form = obj((_b = ctx.tipo) === null || _b === void 0 ? void 0 : _b.formulario);
     const tipo = ctx.tipo ? Object.assign(Object.assign(Object.assign(Object.assign({ nome: ctx.tipo.nome }, (ctx.tipo.sigla ? { sigla: ctx.tipo.sigla } : {})), (ctx.tipo.descricao ? { descricao: ctx.tipo.descricao } : {})), (form ? { formulario: Object.assign(Object.assign({}, form), (form.campos ? { campos: comPaginas(form.campos) } : {})) } : {})), (ctx.tipo.sigilo_padrao === 'restrito' ? { sigilo_padrao: 'restrito' } : {})) : null;
     return {

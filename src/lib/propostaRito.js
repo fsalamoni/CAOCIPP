@@ -1029,7 +1029,7 @@ export function montarPayload(p, tipo) {
         unidades: p.unidades.filter((u) => usadosUn.has(u.ref)),
         modelos,
         tipo_processo: tipo.criar && (tipo.nome || p.nome || '').trim()
-            ? { nome: (tipo.nome || p.nome).trim(), sigla: tipo.sigla.trim(), ...(tipo.formulario ? { formulario: tipo.formulario } : {}), ...(tipo.descricao ? { descricao: tipo.descricao } : {}) }
+            ? { nome: (tipo.nome || p.nome).trim(), sigla: tipo.sigla.trim(), ...(tipo.formulario ? { formulario: tipo.formulario } : {}), ...(tipo.descricao ? { descricao: tipo.descricao } : {}), ...(tipo.cria_registro ? { cria_registro: tipo.cria_registro } : {}) }
             : null,
     };
 }

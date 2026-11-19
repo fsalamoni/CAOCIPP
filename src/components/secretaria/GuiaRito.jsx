@@ -36,11 +36,15 @@ const QUANDO_USAR = {
     lista: 'Uma opção entre as que você define. Serve para criar desvios.',
     sim_nao: 'Uma decisão de sim ou não. Também serve para criar desvios.',
     registro: 'Ligar o processo a um registro de outro módulo, como uma consulta.',
+    derivado: 'Quando a fase manda abrir outro processo ligado a este (a apuração de uma infração, as tratativas de um acordo, o acompanhamento do que foi firmado). A ação traz o botão que abre o "Novo processo" já com a origem e o tipo sugerido, e se cumpre sozinha quando ele é criado.',
+    cronograma: 'Quando há parcelas ou obrigações com vencimento (um acordo, um parcelamento, um ajustamento de conduta). Quem cumpre a ação gera as parcelas de uma vez; cada uma vira um prazo com alerta, a parte comprova pelo portal e o órgão a encerra como cumprida.',
+    quitacao: 'Na fase que só pode terminar com tudo cumprido. A ação mostra o andamento do cronograma e se cumpre sozinha quando a última obrigação é encerrada como cumprida.',
     formulario: 'Vários dados de uma vez, cada um com o seu campo. Um campo de lista ou de sim ou não também serve para criar desvios.',
     documento: 'Uma peça redigida no órgão ou um arquivo recebido.',
     comunicacao: 'Intimar, notificar ou citar as partes de um polo, com prazo e texto que o rito propõe. Cumpre-se expedindo pela própria ação (parte 15).',
     audiencia: 'Marcar audiência, oitiva, sessão de julgamento, reunião ou inspeção: data, hora, local ou link e quem participa. A designação vai aos autos (parte 15).',
     julgamento: 'Julgar em turma, câmara, comissão, conselho ou plenário: a equipe registra a sessão e o voto de cada membro, o sistema apura o resultado, que decide a saída da fase, e a certidão vai aos autos (parte 15).',
+    disputa: 'Cotação de preços ou dispensa eletrônica conduzida pela própria ação: aviso, propostas, lances e resultado, que decide a saída da fase.',
     resposta: 'Esperar a defesa ou manifestação das partes comunicadas. Cumpre-se sozinha, com a resposta no prazo ou com o fim dele (parte 15).',
     orientacao: 'Um lembrete a quem está na fase, ou uma ação que o nome da fase já diz. Ninguém marca e nada fica registrado.',
 };
@@ -87,7 +91,7 @@ export default function GuiaRito({ variante = 'outline', className = '', inicial
                     <Tabs value={aba} onValueChange={setAba}>
                     <TabsList className="h-auto flex-wrap justify-start">
                         <TabsTrigger value="tutorial">Tutorial</TabsTrigger>
-                        <TabsTrigger value="referencia">Referência (20 partes)</TabsTrigger>
+                        <TabsTrigger value="referencia">Referência (22 partes)</TabsTrigger>
                     </TabsList>
                     {/* Montado sempre: a etapa e o que foi conferido continuam ao voltar da referência. */}
                     <TabsContent value="tutorial" forceMount tabIndex={-1} className="data-[state=inactive]:hidden">
@@ -354,13 +358,13 @@ export default function GuiaRito({ variante = 'outline', className = '', inicial
                             </table>
                         </Parte>
                         <Parte titulo="16. Começar de um modelo da biblioteca">
-                            <p>Em <strong>Novo rito</strong>, a <strong>Biblioteca de modelos de processo</strong> traz processos completos, montados a partir da lei de cada área: administrativo geral, disciplinar, ético, sancionador e fiscalização, contratações e contratos, ouvidoria e acesso à informação, gestão de pessoas, contas, advocacia pública e procedimentos extrajudiciais do Ministério Público, muitos inspirados no rito de uma instituição (OAB/RS, CAU/BR, MPRS, CNMP, AGU, CGU). Nenhum é penal.</p>
+                            <p>Em <strong>Novo rito</strong>, a <strong>Biblioteca de modelos de processo</strong> traz processos completos, montados a partir da lei de cada área: administrativo geral, disciplinar, ético, sancionador e fiscalização, contratações e contratos, ouvidoria e acesso à informação, gestão de pessoas, contas, advocacia pública e procedimentos extrajudiciais do Ministério Público, muitos inspirados no rito de uma instituição (OAB/RS, CAU/BR, MPRS, CNMP, AGU, CGU). Do MPRS há também os ritos administrativos: gestão de contrato, descumprimento contratual e bens móveis, pelos provimentos da Procuradoria-Geral de Justiça. Onde a regra muda com a esfera de governo, há versões próprias: sanção a fornecedor no Estado do RS, com o CFIL/RS, bens móveis inservíveis na administração federal e no Estado do RS, e os convênios, termos de cooperação e parcerias, com um rito de formalização e outro de acompanhamento da execução para o MPRS, para o Estado do RS e para a União (parte 22). Alguns modelos trabalham em conjunto: o inquérito civil de improbidade abre, por <strong>Novo processo derivado deste</strong> ou pelo botão <strong>Abrir processo</strong> da ação que pede um processo derivado (parte 3), o processo de tratativas do acordo de não persecução civil e, depois da homologação, o de acompanhamento do cumprimento; cada um tem o próprio rito e fica vinculado ao de origem. Nenhum é penal.</p>
                             <ul className="list-disc space-y-1 pl-5">
-                                <li>A biblioteca abre e fecha pelo título (a tela lembra a sua escolha). Fechada, mostra só as áreas: clique numa para abrir já filtrada.</li>
-                                <li>Os modelos ficam agrupados por área, cada grupo fechado com a contagem e os nomes. Abra um grupo, ou use <strong>Abrir todas as áreas</strong>.</li>
+                                <li>A biblioteca abre e fecha pelo título (a tela lembra a sua escolha). Fechada, mostra os âmbitos e as áreas: clique num deles para abrir já filtrada.</li>
+                                <li>Os modelos ficam separados por <strong>âmbito</strong>, que diz de quem é a norma: Ministério Público do RS, Estado do RS, União e órgãos federais, Ministério Público em geral, conselhos e entidades de classe, ou qualquer órgão. Dentro de cada âmbito, vêm por <strong>área</strong> (o assunto). Cada grupo fica fechado, dizendo para quem serve e quantos modelos tem por área. Abra um grupo, ou use <strong>Abrir todos os âmbitos</strong>.</li>
                                 <li><strong>Buscar</strong> procura no nome, na instituição, na lei, nas fases e na descrição, sem ligar para acentos, e marca o termo achado. Os mais relevantes vêm primeiro.</li>
-                                <li>Filtre por <strong>área</strong>, <strong>porte</strong> (curto, médio, longo), e <strong>Inspirado em</strong> (a instituição ou lei de origem). <strong>Usa</strong> mostra só os modelos com julgamento em sessão de colegiado (o processo vai à pauta da aba Sessões), com disputa de preços ou com audiência e reunião. <strong>Limpar filtros</strong> volta tudo.</li>
-                                <li><strong>Ordenar</strong>: por área, por relevância, por nome ou pelo tamanho (do mais curto ao mais longo, ou o contrário).</li>
+                                <li>Filtre por <strong>âmbito</strong>, <strong>área</strong>, <strong>porte</strong> (curto, médio, longo), e <strong>Inspirado em</strong> (a instituição ou lei de origem). <strong>Usa</strong> mostra só os modelos com julgamento em sessão de colegiado (o processo vai à pauta da aba Sessões), com disputa de preços ou com audiência e reunião. <strong>Limpar filtros</strong> volta tudo.</li>
+                                <li><strong>Ordenar</strong>: por âmbito e área (o padrão), só por área, por relevância, por nome ou pelo tamanho (do mais curto ao mais longo, ou o contrário).</li>
                                 <li>Clique no nome do modelo para ver a descrição inteira, quando usar, a base, as partes, o que o rito faz (comunicações, audiências, documentos, saídas) e as fases com prazos e unidades.</li>
                             </ul>
                             <ol className="list-decimal space-y-1.5 pl-5">
@@ -369,6 +373,7 @@ export default function GuiaRito({ variante = 'outline', className = '', inicial
                                 <li>Confira prazos e contagem (úteis ou corridos) com a norma que vale para o seu órgão. Regimentos locais costumam mudar prazos.</li>
                                 <li>Ajuste ações, documentos e saídas: tire o que não se aplica, acrescente o que o seu órgão exige.</li>
                                 <li>Se o modelo tem partes, o tipo de processo é proposto já com os polos e os nomes (Denunciante, Acusado, Licitante). Desmarque se quiser ligar o rito a um tipo que já existe.</li>
+                                <li>Decida sobre o <strong>painel e a planilha de acompanhamento</strong>. A revisão mostra um quadro em destaque: <strong>Ligar</strong> cria uma página própria do órgão com uma coluna por fase e um campo por dado das ações, já com o nome que o modelo sugere (Contratos, Bens móveis, Sindicâncias), e o tipo criado com o rito passa a abrir um registro nela a cada autuação; <strong>Seguir sem painel</strong> não cria nada, e o processo funciona igual. Dá para ligar depois (parte 21).</li>
                                 <li>Implante. Depois, o rito e o tipo se editam como qualquer outro.</li>
                             </ol>
                         </Parte>
@@ -386,6 +391,7 @@ export default function GuiaRito({ variante = 'outline', className = '', inicial
                                 </tbody>
                             </table>
                             <p>Processos antigos seguem como estavam: sem essas opções, nada muda.</p>
+                            <p><strong>Formatação do modelo.</strong> No editor do modelo, o botão <strong>Página</strong> define papel, orientação e margens, os estilos (Texto normal, Títulos, Citação e estilos próprios, como "Ementa") e a numeração automática de títulos e de parágrafos. Isso fica gravado no próprio modelo: a minuta criada a partir dele já nasce assim, e o PDF dos autos e o Word saem com a mesma formatação. Na aba <strong>Cabeçalho e rodapé</strong>, o modelo usa o timbrado da unidade ou um cabeçalho e um rodapé próprios (com logotipo, campos do processo e o número da folha), em todas as páginas ou só na primeira, e escolhe onde e como sai o número de página. <strong>Prévia em PDF</strong>, no alto do editor do modelo, mostra o resultado folha a folha antes de salvar.</p>
                             <p><strong>Documento que chega como arquivo.</strong> No "Novo processo" e em "Novo documento", ao escolher o arquivo a pessoa já diz o tipo, do que se trata, a data do documento e se ele é juntado aos autos, guardado fora deles ou fica como minuta, além de assinar, abrir pendência e marcar o que o rito exige e ele cumpre. Cada arquivo entra na ordem da lista, com a data e a hora do ato. Os tipos oferecidos são os de "Documentos e modelos" da unidade.</p>
                         </Parte>
                         <Parte titulo="18. Listas do órgão: espécies e origens a mais">
@@ -401,8 +407,17 @@ export default function GuiaRito({ variante = 'outline', className = '', inicial
                                     <tr><td>Espécies de comunicação</td><td>Expedir comunicação, ação do rito que pede comunicação às partes, textos prontos, portal</td><td>Edital, notificação extrajudicial, convocação</td></tr>
                                     <tr><td>Espécies de audiência</td><td>Ação do rito que designa audiência, aviso na capa, portal das partes</td><td>Sessão de mediação, reunião de conciliação, audiência pública</td></tr>
                                     <tr><td>Origens do processo</td><td>Autuação, retificação, capa, PDF da equipe, condições do rito (dado Origem)</td><td>Ouvidoria, corregedoria, auditoria interna</td></tr>
+                                    <tr><td>Tipos de petição</td><td>Portal das partes, em &quot;Tipo de petição&quot;, junto dos do sistema; a petição guarda o nome do tipo</td><td>Comprovante de cumprimento, proposta de acordo, pedido de repactuação</td></tr>
                                 </tbody>
                             </table>
+                            <p>
+                                <strong>Quem é de fora do órgão</strong> entra pelo portal das partes, como parte ou como representante dela. Ao convidar um representante,
+                                informe a qualidade (advogado, defensor público, procurador do ente público, representante legal, preposto) e a inscrição; advogado,
+                                representante legal e preposto só recebem o acesso com a procuração ou o ato de representação conferido, e tudo o que ele protocola sai
+                                assinado com a qualificação. Quando um documento não deve ir a todas as partes, a juntada oferece &quot;Só para&quot; cada polo. E, no tipo
+                                de processo, &quot;Cada polo vê só as próprias petições no portal&quot; mantém em reserva o que cada lado apresenta, como numa negociação
+                                de acordo: a equipe vê tudo e decide o que mostrar a cada um.
+                            </p>
                             <ul className="list-disc pl-5 space-y-1">
                                 <li>Marque "Nome masculino" nas espécies como edital ou ofício: os textos saem "ao edital", "ciência do edital", "edital expedido".</li>
                                 <li>Uma espécie do órgão funciona como as do sistema: com prazo, a parte responde no prazo; sem prazo, fica só a ciência.</li>
@@ -453,6 +468,71 @@ export default function GuiaRito({ variante = 'outline', className = '', inicial
                                 <li>O arquivo não leva nada que identifique o órgão de origem: nem ids, nem quem criou, nem e-mails, nem processos. Páginas próprias vão pelo nome e casam com as do outro órgão; a que não existe lá aparece na revisão para escolher.</li>
                                 <li>Só a administração do Processo Eletrônico exporta e implanta rito. Ao implantar, o servidor confere de novo cada fase, regra e texto, como em qualquer rito, e registra no histórico quem exportou e quem implantou.</li>
                                 <li>O que vem de fora vira do seu órgão: mudar depois não afeta o órgão de origem, e o de origem mudar o dele não afeta o seu.</li>
+                            </ul>
+                        </Parte>
+                        <Parte titulo="21. Integração com o painel (Consultas, Expedientes, Parcerias e páginas próprias)">
+                            <p>
+                                O painel é o quadro que a equipe acompanha: cada coluna é uma situação (no Painel de Consultas: Pendentes, Em Análise, Aguarda Terceiros, Em Revisão, Revisadas e Arquivados)
+                                e algumas colunas pedem informações (o destinatário da diligência, a pasta na rede). Integrar o rito é fazer o processo eletrônico mover o cartão e preencher a ficha sozinho, sem ninguém repetir no painel o que já fez nos autos.
+                            </p>
+                            <ol className="list-decimal space-y-1.5 pl-5">
+                                <li>Ligue o módulo em "Integrações com outros módulos" (Consultas, Expedientes, Parcerias ou Páginas próprias).</li>
+                                <li>No editor do rito, abra <strong>Integração com o painel</strong> e escolha o painel. Cada coluna aparece com a fase que põe o cartão nela e, item por item, de onde vem o que a coluna pede: o sistema preenche, uma ação dá, ou falta.</li>
+                                <li>O SIGO reconhece as ligações pelos nomes das fases e das ações (ex.: a fase Análise põe a consulta em Em Análise quando alguém assume; "Informar o destinatário" leva o dado para a ficha). Desmarque o que não quiser e clique em <strong>Aplicar</strong>. O que a coluna pede e nenhuma ação dá ganha uma ação nova, obrigatória, na fase certa.</li>
+                                <li>Em cada ação que pede um dado, <strong>Leva ao painel</strong> mostra para qual campo da ficha ele vai. No formulário, cada campo escolhe o seu.</li>
+                                <li>No tipo de processo, marque <strong>Criar registro na autuação</strong> e escolha Consultas, Expedientes ou a página: ao autuar, a consulta (ou o expediente, ou o registro) nasce com os dados do processo e fica ligada a ele. Sem isso, o processo precisa nascer do registro ou tê-lo num campo.</li>
+                                <li>Salve o rito e o tipo. O servidor confere tudo de novo: painel ligado, campo que existe e tipo de dado compatível.</li>
+                            </ol>
+                            <ul className="space-y-1.5">
+                                <Termo nome="Coluna">A situação do registro no painel. A fase tem duas regras: ao entrar e quando alguém assume (parte 8). O editor mostra o nome da coluna como está no quadro.</Termo>
+                                <Termo nome="Leva ao painel">Ao cumprir a ação, o dado vai para a ficha do registro, com uma entrada no histórico dele dizendo de qual processo, fase e ação veio. Data que marca uma coluna só é gravada quando o registro já está nela, para o cartão não pular de coluna.</Termo>
+                                <Termo nome="Sem registro ligado">A capa do processo avisa a equipe que o rito conduz um painel e nenhum registro dele está ligado. O andamento do processo segue normal; só o painel fica parado, e o registro interno do processo diz o motivo.</Termo>
+                                <Termo nome="Ação reservada">Ação marcada como reservada (só alguns veem) não leva dado ao painel, que toda a equipe do módulo lê.</Termo>
+                                <Termo nome="Gerar painel e planilha">Quando nenhum painel serve (um rito novo, de contratos ou de patrimônio), o botão monta uma página própria a partir do rito: uma coluna por fase, um campo por dado que as ações pedem (mais o número do processo e o assunto), já ligada a cada fase e ação. Você dá o nome, confere as colunas e os campos e cria. A página nasce na hora (precisa da permissão de gerenciar páginas); o rito muda só ao salvar. Num rito novo, a revisão pergunta em destaque se você quer ligar o painel ("Ligar: criar painel e planilha" ou "Seguir sem painel"); todo modelo da biblioteca já traz o nome sugerido, e seguir sem painel não tira nada do processo. Se o tipo de processo nasce junto com o rito, ele já cria o registro a cada autuação, com o número e o assunto. Em rito que já existe, marque "Criar registro na autuação" no tipo de processo, com a página nova. A página se ajusta à vontade em Páginas personalizadas: renomear coluna ou campo não quebra a ligação.</Termo>
+                            </ul>
+                            <table className={tabela}>
+                                <thead><tr><th>Coluna do Painel de Consultas</th><th>Fase do Rito Consultas CAOCIPP</th><th>O que a coluna pede e de onde vem</th></tr></thead>
+                                <tbody>
+                                    <tr><td>Pendentes</td><td>Análise, ao entrar (o registro já nasce nesta coluna)</td><td>Número, consulente, local e entrada: da autuação (Criar registro na autuação) ou das ações do Recebimento</td></tr>
+                                    <tr><td>Em Análise</td><td>Análise, quando alguém assume</td><td>Responsável e início da análise: o sistema preenche</td></tr>
+                                    <tr><td>Aguarda Terceiros</td><td>Diligências externas</td><td>Data da remessa: o sistema preenche; a quem foi remetido: da ação de diligência</td></tr>
+                                    <tr><td>Em Revisão</td><td>Revisão</td><td>Remessa para revisão: o sistema preenche; pasta na rede: da ação "Informar: Pasta na rede", que a integração cria</td></tr>
+                                    <tr><td>Revisadas</td><td>Devolução</td><td>Data da revisão: o sistema preenche</td></tr>
+                                    <tr><td>Arquivados</td><td>Arquivamento</td><td>Devolução ao consulente e arquivamento: o sistema preenche</td></tr>
+                                </tbody>
+                            </table>
+                        </Parte>
+                        <Parte titulo="22. Parcerias e convênios: formalizar, acompanhar e casar com o Painel de Parcerias">
+                            <p>
+                                Cada parceria tem dois momentos, e a biblioteca traz um rito para cada um, em três âmbitos (Ministério Público do RS, Estado do RS e União). O de <strong>formalização</strong> vai da ideia à publicação:
+                                contato com os partícipes, problema e solução, estudo técnico, plano de trabalho, minuta, pareceres, aprovação, assinatura e súmula. Ele pergunta o <strong>instrumento</strong> (convênio com repasse, termo de cooperação
+                                sem repasse, termo de fomento ou de colaboração com organização da sociedade civil, acordo de cooperação, protocolo de intenções, acordo de cooperação técnica, termo de execução descentralizada) e mostra o que vale para cada um.
+                                O de <strong>acompanhamento</strong> começa depois da publicação e segue até o fim da vigência.
+                            </p>
+                            <ol className="list-decimal space-y-1.5 pl-5">
+                                <li>Ligue Parcerias em "Integrações com outros módulos". Crie a parceria no Painel de Parcerias (coluna Pendentes) e abra o processo de formalização a partir dela, ou ligue os dois: é esse vínculo que faz o quadro andar com o processo.</li>
+                                <li>Use o modelo de formalização do seu âmbito. No do MPRS, a revisão já mostra <strong>Integração com o painel</strong> como pronta: cada fase põe a parceria na coluna certa e as ações levam à ficha o que a coluna exige. Não crie outro painel para ele.</li>
+                                <li>Na última fase antes do fim, o formulário "Registrar o instrumento na ficha da parceria" leva o tipo, a assinatura, a publicação, a vigência, o termo final e o aviso de renovação. Escreva o tipo como ele está cadastrado no painel (Convênio, Termo de Cooperação, Termo de Fomento). Com tudo preenchido, a parceria passa a "Parcerias".</li>
+                                <li>Na mesma fase, a ação <strong>Abrir o acompanhamento da execução</strong> abre o processo derivado com o rito de acompanhamento. Ele registra o plano de trabalho como cronograma (cada meta ou parcela vira um prazo com alerta) e pergunta o que vem agora: registro do período, relatório anual, alteração ou termo aditivo, renovação da vigência, irregularidade, prestação de contas, denúncia ou rescisão, ou encerramento.</li>
+                                <li>Aditivo e renovação abrem, pela ação do rito, um novo processo de formalização. No painel, o aditivo é criado na ficha da parceria (ou sozinho, na data do aviso de renovação) e é movido por lá: o rito não conduz aditivos. Por isso, não ligue o processo do aditivo à ficha da parceria, para o formulário final não trocar os dados do termo original.</li>
+                            </ol>
+                            <table className={tabela}>
+                                <thead><tr><th>Coluna do Painel de Parcerias</th><th>Fase do rito de formalização do MPRS</th><th>O que a coluna pede e de onde vem</th></tr></thead>
+                                <tbody>
+                                    <tr><td>Pendentes</td><td>Proposta e contato com os partícipes (a parceria já nasce nesta coluna)</td><td>PGEA, assunto e partes: do formulário "Registrar os dados da proposta"</td></tr>
+                                    <tr><td>Em Análise</td><td>Estudo técnico, plano de trabalho e minuta, quando alguém assume</td><td>Assessor responsável e data: o sistema preenche</td></tr>
+                                    <tr><td>Em Revisão</td><td>Revisão da instrução</td><td>Início da revisão: o sistema preenche; pasta na rede: da ação "Pasta na rede", na fase anterior</td></tr>
+                                    <tr><td>Revisadas</td><td>Aprovação da minuta</td><td>Conclusão da revisão: o sistema preenche</td></tr>
+                                    <tr><td>Aguarda Terceiros</td><td>Direção-Geral e CAGE; Assinatura</td><td>Data da remessa: o sistema preenche; remetido para: da ação "Remetido para", na aprovação da minuta</td></tr>
+                                    <tr><td>Parcerias</td><td>Parceria formalizada</td><td>Tipo, assinatura, retorno, DEMP, vigência, objeto, termo final e aviso de renovação: do formulário da fase "Publicação e registro"</td></tr>
+                                    <tr><td>Extintos</td><td>Nenhuma: a extinção é feita na ficha, com confirmação</td><td>O rito de acompanhamento lembra de extinguir no encerramento</td></tr>
+                                </tbody>
+                            </table>
+                            <ul className="space-y-1.5">
+                                <Termo nome="O dado chega antes">Em Parcerias, o quadro confere o que a coluna exige no momento em que a parceria entra nela. Por isso o rito pede o dado na fase anterior. Se faltar, o processo anda, a parceria fica onde está e o registro interno do processo diz o que faltou.</Termo>
+                                <Termo nome="Parceria formalizada não volta">Depois de chegar a "Parcerias", a parceria não volta de coluna pelo rito, porque voltar apagaria os dados da formalização. Alteração se faz por aditivo.</Termo>
+                                <Termo nome="Estado do RS e União">Os ritos estaduais e federais não mexem no Painel de Parcerias, porque os controles oficiais são o FPE e o Transferegov.br. Quem quiser um quadro para eles escolhe "Ligar: criar painel e planilha" na revisão (parte 21).</Termo>
+                                <Termo nome="Confira a norma">Os prazos e artigos vêm do Provimento 59/2011-PGJ, da Instrução Normativa CAGE 4/2024, do Decreto estadual 53.175/2016, dos Decretos federais 11.531/2023 e 10.426/2020 e da Portaria SEGES/MGI 3.506/2025. Onde a base do modelo diz "confira", a pesquisa não leu o texto vigente inteiro.</Termo>
                             </ul>
                         </Parte>
                     </TabsContent>

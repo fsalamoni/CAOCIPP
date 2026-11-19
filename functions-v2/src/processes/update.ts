@@ -6,7 +6,7 @@ import { formatPersonName } from '../shared/normalization';
 import { historyEntryId } from '../shared/history';
 import { fireOrgWebhook } from '../shared/webhooks';
 import { vinculoBloqueado } from '../shared/vinculo';
-import { protegerVinculo, propagarNumero } from '../registros/aditivos';
+import { protegerVinculo, propagarNumero, conferirEdicaoEntrada } from '../registros/aditivos';
 
 interface UpdateProcessRequest {
     id: string;
@@ -77,6 +77,7 @@ export const updateProcess = onCall<UpdateProcessRequest>(
         delete changes.anonymized_by;
         // Vínculo original/aditivo só pelo servidor; aditivo segue o nº do original.
         protegerVinculo(changes, processData, 'process_number');
+        await conferirEdicaoEntrada('processes', processData, changes);
         const numeroMudou = !processData.aditivo_de && typeof changes.process_number === 'string'
             && changes.process_number.trim() !== '' && changes.process_number !== processData.process_number;
 

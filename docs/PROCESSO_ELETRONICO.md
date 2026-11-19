@@ -311,7 +311,7 @@ e escrita passam pelas functions, que aplicam posse, lotação, sigilo e minutas
 | `secProcessos/{id}` | `numero, assunto, descricao, partes[], campos[{id, rotulo, tipo, valor (lista de textos na múltipla; número no registro), visivel_partes, formato?, ref?{modulo, id, numero, titulo?, restrito?} (registro)}], campos_exigidos?{fase_id: [{id, rotulo, condicao?}]}, origem{tipo, descricao}?, sigilo, status, tipo_id?, tipo_nome?, rito_id, rito_versao, fases[]` (cópia), `fase_atual, unidade_atual, unidades_historico[], responsavel_uid, mov_seq, doc_seq, folhas_seq, ultimo_hash, version, recebido_em, acoes_feitas{faseId: [idx]}, exigencias_cumpridas{faseId: {chave: {documento_id, ordem}}}?, orientacao{texto, por, em, de}?, assinaturas_pendentes[{docId, uid, titulo}]` |
 | `secProcessos/{id}/movimentos/{seq}` | `seq, tipo, descricao, autor_uid, autor_nome, unidade_id, em, dados, hash_anterior, hash` |
 | `secProcessos/{id}/documentos/{id}` | `titulo, tipo, origem (editor\|upload), status (minuta\|juntado), unidade_origem, conteudo` (ou `delta` legado) ou `storage_path, mime, tamanho`, `sha256, assinaturas[], assinaturas_pedidas[{uid, nome, por, em}]?, ordem, juntado_em, visivel_partes, peticao?, peticao_tipo?, modelo_id?, unidades_acesso?[], paginas, folha_inicial, folha_final, pdf_path?, pdf_sha256?, codigo_verificacao?` |
-| `secConfig/{org}` | `documento: {cabecalho_linhas[], brasao, rodape, fonte_padrao, tamanho_padrao, tipos_documento[]}` (papel timbrado), `calendario: {feriados[{data, descricao}], recessos[{inicio, fim, descricao}], recesso_forense}`, `alerta_prazos` |
+| `secConfig/{org}` | `documento: {cabecalho_linhas[], brasao, rodape, fonte_padrao, tamanho_padrao, layout, tipos_documento[]}` (papel timbrado; `layout` como o `doc.attrs.layout`, ou null), `calendario: {feriados[{data, descricao}], recessos[{inicio, fim, descricao}], recesso_forense}`, `alerta_prazos` |
 | `secVerificacao/{código}` | cópia pública da juntada: `organization_id, processo_id, documento_id, orgao, numero, ordem, titulo, tipo, origem, nome_arquivo, juntado_em, juntado_por, folha_inicial, folha_final, paginas, assinaturas[{nome, em, nivel}], sha256, pdf_sha256, peticao` |
 | `secModelos/{id}` | `organization_id, unidade_id?` (vazio = modelo do órgão), `nome, tipo_documento, descricao, ativo, versao, formato (editor\|original)`, `conteudo` (editor) ou `storage_path, arquivo_nome, arquivo_mime, tamanho` (original) |
 | `secConvites/{sha256 do token}` | `organization_id, processo_id, parte_idx, parte_nome, email, expira_em, usado_por, revogado` |
@@ -382,15 +382,20 @@ Regras comuns:
 
 - Todo documento nasce **minuta** da unidade que tem o processo, redigido no
   editor ou enviado (PDF, PNG, JPG, TXT, DOC, DOCX, ODT, XLSX; até 50 MB).
-- **Envio de arquivo** (16/11/2026): o navegador põe o arquivo direto no
-  Storage, numa área de espera da própria conta (`secretaria-envios/{uid}/{id}`,
-  só criação, até 50 MB e só os tipos aceitos, em `storage.rules`), com
-  barra de progresso, e chama a função com `envio` no lugar do `base64`
-  (`prepararEnvio` em `secretariaService.js`). A função
-  (`secretaria/arquivos.ts`, `lerArquivoEnviado`) confere o dono pelo
-  caminho, o tamanho e se o conteúdo bate com o tipo (assinatura do arquivo:
-  um executável chamado .pdf é recusado), guarda no lugar definitivo e apaga
-  a cópia de espera. O `base64` na chamada continua aceito até 5 MB.
+- **Envio de arquivo** (19/11/2026): todo arquivo sobe pelas próprias
+  funções, o mesmo caminho do resto da tela (`prepararEnvio` em
+  `secretariaService.js`). Até 4 MB vai em `base64` na chamada. Acima disso
+  vai em partes de 4 MB, com progresso, pela ação `enviarParte` de
+  `secretariaPortal` (qualquer conta liberada; grava só em
+  `secretaria-envios/{uid}/{id}.NN`), e a chamada final leva `envio` no lugar
+  do `base64`. A função (`secretaria/arquivos.ts`, `lerArquivoEnviado`) junta
+  as partes, confere o dono pelo caminho, o tamanho e se o conteúdo bate com
+  o tipo (assinatura do arquivo: um executável chamado .pdf é recusado),
+  guarda no lugar definitivo e apaga as partes. **Não voltar ao envio direto
+  do navegador ao Storage** (usado de 16 a 19/11/2026): redes de órgãos
+  públicos barram `firebasestorage.googleapis.com` e o envio ficava em 0%
+  sem erro. A regra de `storage.rules` para a área de espera segue aberta só
+  para as abas abertas antes da troca.
 - **Limite de descompressão:** Word, LibreOffice e planilha são pacotes ZIP.
   Antes de ler, a função confere o pacote (`abrirZip` em
   `secretaria/conversaoComum.ts`): até 3.000 partes, 120 MB por parte e
@@ -453,6 +458,79 @@ Regras comuns:
     em branco, entra inteiro; com texto, entra onde está o cursor.
   - **Word:** baixa a minuta em .docx (ação `docx`, `docxExportar.ts`), com o
     timbrado no cabeçalho e "Página X de Y" no rodapé.
+- **Página e estilos do documento (18/11/2026):** botão **Página** (régua) do
+  editor, ou "Modificar estilos…" na lista de estilos, abre
+  `LayoutDocumento.jsx` com três abas. Tudo fica em `doc.attrs.layout` (o
+  próprio texto do modelo ou da minuta), então viaja do modelo para a minuta
+  (`preencherCampos` preserva), para o pacote de outro órgão, para o PDF dos
+  autos e para o .docx. Documento sem `layout` sai exatamente como antes.
+  - *Papel e margens:* A4, Ofício (21,6 × 33), Carta ou A5, retrato ou
+    paisagem; margens de 0,5 a 8 cm, com prontas (SIGO 2,5/2,2/3/2, ABNT,
+    Word, moderadas, estreitas). Com timbrado, o texto começa abaixo dele e a
+    margem superior só vale se for maior.
+  - *Estilos:* Texto normal, Títulos 1 a 4 e Citação editáveis (fonte,
+    tamanho, negrito, itálico, sublinhado, maiúsculas, cor, alinhamento,
+    recuos de primeira linha, esquerda e direita, entre linhas, antes e
+    depois) e até 30 estilos próprios (`proprios`, parágrafo com `estilo`).
+    "Usar o parágrafo atual" copia a formatação de onde está o cursor. O que
+    está no parágrafo vale mais que o estilo; em listas e tabelas o recuo de
+    primeira linha do estilo não vale.
+  - *Numeração automática:* títulos em 1./1.1./1.1.1. ou I./1./1.1.
+    (`numeracao_titulos`); parágrafos marcados com o botão # (`numerado`)
+    contam pelo documento em 1., 1), 1 – ou 1º (`numeracao_paragrafos`). Na
+    tela são contadores do CSS; no PDF, `numerosAutomaticos`; no Word,
+    numeração nativa (o Word renumera ao editar).
+  - *Listas:* barra "Lista" aparece com o cursor numa lista: marcador •, ◦, ▪
+    ou – (`bulletList.marcador`); 1, a, A, i, I (`orderedList.formato`) com
+    "." ou ")" (`separador`) e "Começar em".
+  - *Recuo exato:* primeira linha, esquerda e direita (`margemDir`, novo) em cm
+    no menu ↕.
+  - *Fontes novas:* Georgia (Gelasio, mesma medida), Garamond (EB Garamond),
+    Open Sans e Lato, no editor, no PDF e no papel timbrado.
+  - Servidor: `shared/layoutDocumento.ts` (`sanitizeLayout`, lista fechada e só
+    o que difere do padrão; `estiloDoBloco`; `numerosAutomaticos`). Tela:
+    `src/lib/layoutDocumento.js` (espelho conferido em teste; `cssDoLayout`).
+  - *Cabeçalho e rodapé (etapa 2, 18/11/2026):* quarta aba da janela. Cada
+    um pode ser o da unidade (timbrado e rodapé de sempre), **próprio do
+    documento** (`layout.cabecalho/rodape.modo = 'proprio'`, `conteudo` com
+    os mesmos blocos do texto: parágrafos, imagens, tabelas, sem bordas para
+    logotipo ao lado do texto) ou nenhum; e aparecer em todas as páginas, só
+    na primeira ou em todas menos a primeira (`paginas`). O próprio nasce do
+    timbrado ("Recomeçar do timbrado") e é editado num editor compacto
+    (`EditorDocumento` com `faixa`). `{{pagina}}` e `{{paginas}}` (em Campos)
+    saem com o número de cada folha; os outros campos do modelo se preenchem
+    na minuta como no texto. O texto próprio fica guardado mesmo voltando ao
+    timbrado. No PDF, o corpo começa abaixo do cabeçalho próprio (altura
+    medida pelo pdfmake, `alturaDe`), como no Word; a margem de cima é a mesma
+    em todas as folhas. No Word, viram cabeçalhos/rodapés nativos com campos
+    PAGE e NUMPAGES e "Primeira página diferente" (`titlePg`).
+  - *Número de página:* posição (rodapé ou cabeçalho, à esquerda, ao centro
+    ou à direita, ou sem número), formato (Página 1 de 5, Página 1, 1, 1/5,
+    – 1 –), tamanho e "mostrar na primeira página" (`layout.numero_pagina`).
+    Sem nada, "Página X de Y" à direita do rodapé, como sempre.
+  - *Imagens:* arrastar os cantos redimensiona (proporção mantida); largura
+    exata em cm na barra "Imagem", além de 25/50/75/100% da área útil da
+    página escolhida; posição à esquerda, ao centro ou à direita.
+  - *Prévia do modelo:* no editor de modelo, **Prévia em PDF** (como sai nos
+    autos, com marca d'água MODELO) e **Word** (.docx), sem salvar (ação
+    `previaModelo` de `secretariaConfig`, mesma permissão de salvar o modelo).
+  - *Papel timbrado com as mesmas ferramentas:* o timbrado do órgão e o da
+    unidade (Configurações › Documentos) têm, além das linhas simples, o
+    botão para papel e margens, cabeçalho e rodapé completos (modos Simples,
+    Editor completo ou Nenhum), número de página, estilos e numeração
+    (`documento.layout`, validado por `sanitizeLayout`, até 600 KB). Esse
+    layout fica **por baixo** de todo documento com o timbrado
+    (`comTimbrado`, igual no servidor e no cliente): o documento muda só o
+    que define; cabeçalho/rodapé "da unidade" seguem o do timbrado. A janela
+    Página do documento mostra o que vale e guarda só o que difere do
+    timbrado (`limparLayout(l, herdado)`); por isso o layout aceita valores
+    explícitos iguais ao padrão (A4, "todas as páginas"). Unidade com
+    timbrado próprio não herda o layout do órgão (`documentoEfetivo`).
+    Petição da parte (`semCabecalho`) não leva nada do timbrado. A tela tem
+    prévia da folha com texto de exemplo e **Ver em PDF** antes de salvar
+    (`previaModelo` com `timbrado`).
+  - Limites: texto contornando imagem (imagem flutuante) não existe; a
+    importação de .docx não traz o layout, o cabeçalho nem o rodapé do Word.
 - **Revisar no editor qualquer minuta:** a minuta enviada como arquivo tem
   "Abrir no editor" (ação `paraEditor`). A conversão é feita no servidor, sem
   programa externo: Word .docx (`docx.ts`: estilos e herança, fontes do tema,
@@ -480,6 +558,12 @@ Regras comuns:
   marcas e atributos: link só `http(s)`/`mailto`, imagem só data URL PNG/JPEG
   (até 1,5 MB cada), documento até 4 MB. Nada é interpretado como HTML.
   Minutas antigas em Delta continuam abrindo (`deltaParaDoc`).
+- **Envio do texto do editor:** o ProseMirror monta os `attrs` dos nós sem
+  protótipo (`Object.create(null)`) e o SDK do Firebase não sabe enviá-los
+  ("hasOwnProperty is not a function"). Toda chamada de `secretariaService.js`
+  passa o pedido por `paraEnvio` (`src/lib/paraEnvio.js`), que copia para
+  objetos comuns. Vale para minuta, modelo, timbrado e portal. Teste de tela:
+  `scripts/e2e-salvar-editor-tela.mjs`.
 - **Modelos:** o admin cria textos prontos com campos (`{{numero}}`,
   `{{partes}}`, `{{data_extenso}}` etc.) que se preenchem ao começar a redigir
   (no editor e no Word original). Além dos fixos, cada campo do tipo e cada
@@ -1278,7 +1362,11 @@ opcionais; rito sem elas funciona como antes.
   ("Parcerias") ou extinta não volta pelo rito, porque voltar apagaria a
   formalização. Grava `status` e "Status alterado de A para B (pelo processo
   eletrônico N, fase F)" em `activity_log` e `history`. Aditivos não são
-  conduzidos. O Júri não é conduzido (não tem quadro de fases).
+  conduzidos. O Júri não é conduzido (não tem quadro de fases). Desde
+  19/11/2026 a biblioteca traz um rito que usa tudo isso: o
+  `parceria-formalizacao-mprs` cobre todas as colunas e informações do
+  Painel de Parcerias (mapa em `docs/PARCERIAS.md`, seção 9; teste em
+  `src/lib/bibliotecaFiltro.test.js`).
 - **Valer já na autuação** (14/11/2026; `situacao_registro.na_autuacao:
   true`, só no editor da primeira fase). Na autuação, `autuar` lê o registro
   (`lerRegistrosDoRito` com a origem e os vínculos do processo novo, antes de
@@ -1306,10 +1394,72 @@ opcionais; rito sem elas funciona como antes.
   é o conduzido; nas outras fases, `lerPaginasDoRito` prefere a origem,
   depois o criado. Processo que nasce de registro da mesma página não cria
   outro. A nota vai ao registro interno; a capa mostra "Criado na
-  autuação". Consultas, Expedientes e Parcerias não são criados pela
-  autuação: a ficha deles pede dados do domínio (consulente, promotor,
-  PGEA) que o processo não tem. Testes: `functions-v2/test/registroCriado.test.js`
-  e `src/lib/registroCriado.test.js`.
+  autuação". Desde 18/11/2026 a autuação também cria **consulta ou
+  expediente** (`cria_registro: { pagina: '', modulo: 'consultas' |
+  'expedientes', valores }`): os campos que o tipo preenche são os de
+  `CAMPOS_CRIACAO` (`shared/painelModulos.ts`; Nº do PGEA e consulente
+  obrigatórios na consulta, Nº do PGEA no expediente), o documento nasce
+  Pendente como em `createProcess`/`createExpediente` (`docDoModulo`), com
+  histórico, contadores e `CREATE_PROCESS`/`CREATE_EXPEDIENTE` no auditLogs
+  (`criarNoModulo`). Parcerias seguem sem criação pela autuação (a ficha pede
+  promotor, partes e objeto do termo). Testes: `functions-v2/test/registroCriado.test.js`,
+  `functions-v2/test/painelModulos.test.js` e `src/lib/registroCriado.test.js`.
+- **Integração com o painel** (18/11/2026; `shared/painelModulos.ts`,
+  espelho `src/lib/painelModulos.js`, tela `IntegracaoPainel.jsx`, Guia do
+  rito parte 21). Por que o Rito Consultas CAOCIPP não "conversava" com o
+  Painel de Consultas: (1) o editor mostrava as situações gravadas ("Em
+  elaboração", "Na pasta") e o quadro mostra outros nomes ("Em Análise",
+  "Arquivados"), então parecia que as fases não existiam no painel; (2) o
+  que as colunas pedem no quadro (destinatário da diligência, pasta na rede)
+  não vinha de nenhuma ação; (3) o processo autuado sem nascer de uma
+  consulta não tinha registro para conduzir. Agora: `PAINEIS` descreve, por
+  módulo, as colunas com o nome do quadro (`rotuloDaColuna`, usado também em
+  `situacoesDaRegra`), as informações que cada coluna pede (`auto` quando o
+  sistema preenche) e os campos da ficha que uma ação pode gravar. Cada
+  regra de ação ganha `ao_registro: { modulo, pagina?, campo? | campos? }`
+  ("Leva ao painel"; `sanitizeAoRegistro` no `sanitizeRegra`: só ação que
+  pede dado e não reservada, campo da lista e tipo compatível; página
+  conferida em `exigirPaginas`/`aoRegistroInvalido`; o módulo entra em
+  `modulosDoRito`). Em `marcarAcao`, com dado e `ao_registro`, o registro é
+  lido antes das escritas (`lerRegistroDaAcao`, o mesmo de
+  `registroDoProcesso`) e gravado por `levarAoRegistro` →
+  `camposParaModulo`/`camposParaPagina` (texto aparado, data só ISO, data que
+  marca coluna só quando o registro já está nela, valor de página validado
+  por `validateRecordValues`), com entrada no histórico do registro. Sem
+  registro ligado, nada muda nele e o registro interno do processo diz o
+  motivo; a capa avisa a equipe (`paineisSemRegistro`). No editor do rito,
+  "Integração com o painel" mostra a cobertura coluna a coluna
+  (`relatorioIntegracao`) e sugere pelos nomes (`sugestoesDeIntegracao`:
+  coluna da fase, levar dado de ação existente, criar ação obrigatória para
+  o que falta), aplicadas por `aplicarIntegracao`. O pacote de rito leva a
+  página de `ao_registro` pelo nome. Testes: `functions-v2/test/painelModulos.test.js`
+  e `src/lib/painelModulos.test.js` (com o Rito Consultas CAOCIPP).
+- **Painel opcional em todo modelo e tipo que já cria o registro**
+  (18/11/2026). `PAINEIS`, em `src/lib/bibliotecaRitos.js`, dá a cada
+  modelo o nome do painel (`painel: [singular, plural]`, exigido por
+  teste). Na revisão de rito novo, `IntegracaoPainel` recebe `convite` e
+  mostra a escolha "Ligar: criar painel e planilha" ou "Seguir sem
+  painel" antes da seção recolhida; `nomes` preenche o formulário de
+  geração. Gerada a página, a tela guarda em `tipo.cria_registro`
+  `{ pagina, valores: processo ← numero, assunto ← assunto }`;
+  `montarPayload` só o envia se o tipo for criado, e `aplicarPropostaRito`
+  confere com `sanitizeCriaRegistro` e `errosCriaRegistro` (página do
+  próprio órgão, ativa, campos existentes; módulo fixo é recusado ali).
+- **Gerar painel e planilha do rito** (18/11/2026, etapa 2; "Integração com
+  o painel" → Gerar). `painelDoRito(fases, [singular, plural])` monta a
+  definição da página própria: uma fase da página por fase do rito (chaves
+  sem acento, únicas; a primeira inicial, as finais finais), os campos
+  `processo` e `assunto` e um campo por dado de ação (`dadosDoRito`; tipo
+  pelo que a ação pede: data, número, sim ou não, texto longo, lista com as
+  opções da ação ou texto), com `phase` na coluna da fase e `table_layout`
+  com os primeiros. A tela grava pela `upsertEntityType` de sempre
+  (`sanitizeEntityTypeDefinition`, permissão de gerenciar páginas, auditLogs
+  `CREATE_ENTITY_TYPE`) e aplica `ligarAoPainelGerado`: cada fase livre
+  ganha `situacao_registro` da página (a primeira com `na_autuacao`) e cada
+  ação, `ao_registro` para o seu campo. Fase que já conduz outro painel e
+  ação que já leva a outro ficam como estão. O rito só muda ao salvar
+  (`salvarRito` confere de novo). O tipo de processo cria o registro com
+  "Criar registro na autuação".
 - **Assumir.** Na tela do processo, quem está lotado na unidade que tem o
   processo vê o botão **Assumir** enquanto ele não tem responsável (é a ação
   `atribuir` para si mesmo; o destino do registro continua sendo o da linha
@@ -2998,11 +3148,61 @@ A exportação é registrada em `auditLogs` (`SECRETARIA_PDF_EXPORTADO`).
   excluem sábados, domingos e feriados nacionais (fixos, Carnaval, Sexta-feira
   Santa e Corpus Christi). `encerrarPrazo` marca cumprido (no prazo ou fora
   dele) ou cancelado.
+- **Cronograma de obrigações** (nov/2026; `shared/cronograma.ts`, espelho em
+  `src/lib/cronograma.js`): parcelas e obrigações com vencimento e valor
+  opcional, registradas de uma vez (até 120 por registro). Cada obrigação é
+  um prazo com `obrigacao: true` (e `valor`, quando há): entra no alerta de
+  vencimento e em `proximo_vencimento`, aparece para a parte no portal com
+  "Enviar comprovante" (a petição cita o `prazo_id` e abre a pendência
+  "Apreciar petição", sem encerrar nada) e a equipe a encerra como cumprida
+  ou cancelada por `encerrarPrazo`. Nasce de duas formas: a ação do rito
+  `pede: 'cronograma'` (`marcarAcao` com `valor: { itens, destinatario }`;
+  desfazer cancela só as que a ação abriu e seguem abertas, pela marca
+  `cronograma_de: "fase:índice"`) ou o botão "Cronograma" de "Pendências e
+  prazos" (`abrirCronograma`, com a mesma permissão de `abrirPrazo`), para
+  processo de qualquer rito. A obrigação não leva `fase_id` nem `acao_idx`:
+  sobrevive à saída da fase e ao cumprimento da ação, ao contrário do prazo
+  próprio da ação. A ação `pede: 'quitacao'` ("Esperar o cumprimento do
+  cronograma") não se marca à mão: mostra o andamento e o servidor a cumpre
+  (`cumprirQuitacao`, depois de `encerrarPrazo`, `marcarAcao`, `avancarFase`
+  e `tramitar`) quando há ao menos uma obrigação cumprida e nenhuma aberta
+  (`quitado`; as canceladas não contam). Obrigatória, segura a fase como
+  toda ação obrigatória (sair sem ela exige motivo, que fica registrado). O
+  servidor confere os itens (`sanitizeObrigacoes`: descrição, data válida,
+  valor positivo). Na tela, as 4 obrigações mais próximas ficam à vista e as
+  demais recolhidas; em "Meus processos" do portal entram só as vencidas ou
+  dos próximos 30 dias (`prazosEmFoco`). Testes: `test/cronograma.test.js`,
+  `src/lib/cronograma.test.js` e `scripts/e2e-cronograma.mjs`.
 - O processo grava `pendencias_abertas`, `fase_suspensa` e
   `proximo_vencimento`, que a lista usa em selos e filtros (com pendência,
   com prazo, prazo vencido).
 
 ## Portal das partes (fase 3)
+
+- **Parte externa (nov/2026).** Três recursos para quem é de fora do órgão:
+  1. *Representante qualificado* (`shared/representacao.ts`, espelho em
+     `src/lib/representacao.js`): `convidarParte` com `representante {nome,
+     email, qualidade, inscricao, poderes}`. Qualidades: advogado (inscrição
+     obrigatória), defensor, procurador, legal, preposto, outro. Advogado,
+     representante legal e preposto exigem `poderes: true` (procuração ou
+     ato conferido); o servidor recusa sem isso. O rótulo e a assinatura do
+     representante levam a qualificação (`nomeQualificado`). Representante
+     sem qualidade segue valendo (os antigos).
+  2. *Visibilidade por polo* (`shared/autos.ts`): documento e movimento
+     podem levar `visivel_polos: string[]`. `documentoVisivel(d, polo)` e
+     `visivelParaPartes(m, polo)` respondem para o polo de quem lê; sem
+     polo (último andamento público, "Meus processos"), o restrito não
+     aparece. Vale para a lista, o PDF dos autos, a certidão, o download e o
+     aviso por e-mail (só às partes do polo). A juntada aceita
+     `visivel_polos` (`polosEscolhidos`: só polos com parte ativa; todos =
+     sem restrição). Comunicação não leva documento restrito a destinatário
+     de outro polo.
+  3. *Petições por polo*: `formulario.peticoes_por_polo` no tipo de processo
+     é copiado para o processo na autuação; a petição do portal nasce com
+     `visivel_polos: [polo da parte]`. A equipe sempre vê tudo.
+- **Tipos de petição do órgão**: lista `peticao` em Listas do órgão
+  (`tiposDePeticao`: os do sistema, os do órgão e "Outro" no fim). O portal
+  oferece e o servidor valida pela mesma função.
 
 - **Convite:** a unidade que tem o processo clica em Convidar ao lado da parte.
   A function gera um token aleatório (24 bytes), guarda só o SHA-256 em
@@ -3099,7 +3299,8 @@ misturam dentro de um processo.
   andamento de uma folha (número, assunto, fase, situação, prazos abertos,
   último movimento, data e hora). Leitor contínuo (`LeitorAutos`) abre os
   documentos em sequência com lista lateral, anterior/próximo, setas do
-  teclado, marca de lido no navegador e Baixar; cada documento tem o link de
+  teclado, marca de lido no navegador e Baixar (enquanto se lê um documento,
+  o leitor já pede o PDF do seguinte); cada documento tem o link de
   conferência pública para copiar.
 - **Em que ponto está:** a fase atual e quantas etapas faltam até o fim pelo
   caminho mais curto do rito (`fases` públicas só com id, nome, prazo e
@@ -3540,7 +3741,17 @@ admin define, em cada tipo, o que quem autua preenche:
   sugere esse módulo ("Sugerir este tipo ao criar um processo a partir de",
   aba Dados do tipo, `pode_nascer_de`). Na Capa de um processo, "Processos
   derivados" e "Novo processo derivado" fazem o mesmo a partir dele (também
-  no menu Mais do Andamento). A origem (`origem.ref {modulo, id, numero,
+  no menu Mais do Andamento). A ação do rito que pede **um processo
+  derivado** (`pede: 'derivado'`, com `derivado.tipo` opcional: o nome do
+  tipo ou do rito sugerido) mostra o botão "Abrir processo", que leva ao
+  mesmo "Novo processo" com o tipo sugerido já escolhido quando um só tipo
+  do órgão tem esse nome ou usa o rito com esse nome. Criado o processo, o
+  servidor cumpre a ação no processo de origem (`registrarDerivado`, com as
+  permissões de quem abriu): a pendente que sugere o tipo ou o rito do novo
+  processo; na falta, a que não sugere nada; na falta, a única pendente
+  (`derivadoPendente`). "Já existe" registra à mão um processo já ligado;
+  o servidor só aceita processo cujo `vinculos` cite o de origem. O dado
+  guardado é o número do processo derivado. A origem (`origem.ref {modulo, id, numero,
   titulo}`) é relida no servidor (`refDaOrigem`): de outro módulo, pede a
   integração ligada e confere o órgão; de outro processo (`'pe'`), passa por
   `lerProcesso` (quem não vê o processo não deriva dele) e guarda só o

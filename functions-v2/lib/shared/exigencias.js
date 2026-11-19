@@ -24,6 +24,7 @@ exports.destinoDaAcao = destinoDaAcao;
 exports.niveisDaFase = niveisDaFase;
 exports.sanitizeExigencia = sanitizeExigencia;
 exports.opcoesDaResposta = opcoesDaResposta;
+exports.derivadoPendente = derivadoPendente;
 exports.respostasDaAcao = respostasDaAcao;
 exports.sanitizeCondicao = sanitizeCondicao;
 exports.condicaoAmpla = condicaoAmpla;
@@ -65,6 +66,7 @@ const julgamento_1 = require("./julgamento");
 const certames_1 = require("./certames");
 const listasOrgao_1 = require("./listasOrgao");
 const doProcesso_1 = require("./doProcesso");
+const painelModulos_1 = require("./painelModulos");
 // Sem importar ./secretaria (que importa este módulo): o mesmo corte de texto.
 const MAX_TEXTO_CURTO = 200;
 const texto = (v, max = MAX_TEXTO_CURTO) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
@@ -115,7 +117,7 @@ exports.FORMAS = ['redigir', 'juntar', 'qualquer'];
 exports.MAX_ASSINATURAS_EXIGIDAS = 5;
 exports.NIVEIS = ['recomendado', 'opcional'];
 /** O que a ação pede a quem a cumpre. */
-exports.PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'formulario', 'documento', 'orientacao', 'comunicacao', 'resposta', 'audiencia', 'julgamento', 'disputa'];
+exports.PEDIDOS = ['confirmar', 'texto', 'texto_longo', 'numero', 'data', 'lista', 'sim_nao', 'registro', 'derivado', 'cronograma', 'quitacao', 'formulario', 'documento', 'orientacao', 'comunicacao', 'resposta', 'audiencia', 'julgamento', 'disputa'];
 exports.MAX_OPCOES_ACAO = 30;
 /** Campos de uma ação que pede um formulário. */
 exports.MAX_CAMPOS_ACAO = 10;
@@ -198,7 +200,7 @@ function sanitizeExigencia(raw, descricaoPadrao = '') {
     return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ descricao, forma }, (tipo ? { tipo } : {})), (modelo ? { modelo_id: modelo } : {})), (dest !== 'autos' ? { destino: dest } : {})), (nivel ? { nivel } : {})), (o.partes === false && dest === 'autos' ? { partes: false } : {})), (nAss ? { assinaturas: nAss } : {})), (atrib ? { assinatura_atribuicao: atrib } : {}));
 }
 function sanitizeRegra(raw, acao) {
-    var _b;
+    var _b, _c;
     const r = (raw && typeof raw === 'object' ? raw : {});
     const pedeBruto = exports.PEDIDOS.includes(r.pede) ? r.pede : (r.documento ? 'documento' : 'confirmar');
     // Orientação a quem cumpre: vale para qualquer ação.
@@ -236,6 +238,10 @@ function sanitizeRegra(raw, acao) {
         Object.assign(out, (0, permissoesFase_1.sanitizeQuem)(r.quem, r.atribuicao, `A ação "${acao}"`));
         return Object.assign(Object.assign(Object.assign({}, out), { pede: 'julgamento', julgamento: (0, julgamento_1.sanitizeJulgamentoDaAcao)(r.julgamento, acao), destino: 'autos', partes: true }), (r.obrigatoria === true ? { obrigatoria: true } : r.recomendada === true ? { recomendada: true } : {}));
     }
+    // Esperar o cumprimento do cronograma de obrigações: cumpre-se sozinha, sem dado a informar (ver shared/cronograma.ts).
+    if (pedeBruto === 'quitacao') {
+        return Object.assign(Object.assign(Object.assign({}, out), { pede: 'quitacao' }), (r.obrigatoria === true ? { obrigatoria: true } : r.recomendada === true ? { recomendada: true } : {}));
+    }
     // Esperar a resposta: a ação de que depende é validada com todas as regras da fase (sanitizeRegras).
     if (pedeBruto === 'resposta') {
         return Object.assign(Object.assign(Object.assign({}, out), { pede: 'resposta', resposta: { de: -1 } }), (r.obrigatoria === true ? { obrigatoria: true } : r.recomendada === true ? { recomendada: true } : {}));
@@ -257,6 +263,11 @@ function sanitizeRegra(raw, acao) {
             out.modulo = r.modulo;
             if (out.modulo === 'paginas')
                 out.pagina = (0, camposProcesso_1.paginaDe)(r.pagina, acao);
+        }
+        if (pedeBruto === 'derivado') {
+            const tipo = texto((_b = r.derivado) === null || _b === void 0 ? void 0 : _b.tipo, 80);
+            if (tipo)
+                out.derivado = { tipo };
         }
         if (pedeBruto === 'formulario') {
             const lista = Array.isArray(r.campos) ? r.campos : [];
@@ -298,7 +309,7 @@ function sanitizeRegra(raw, acao) {
         if (!out.pede || !exports.PEDIDOS_RESERVAVEIS.includes(out.pede)) {
             throw new Error(`A ação "${acao}": só texto, número, data ou formulário pode ficar reservado a quem gere a unidade`);
         }
-        if ((_b = out.campos) === null || _b === void 0 ? void 0 : _b.some((c) => c.tipo === 'registro')) {
+        if ((_c = out.campos) === null || _c === void 0 ? void 0 : _c.some((c) => c.tipo === 'registro')) {
             throw new Error(`A ação "${acao}": formulário com registro de outro módulo não pode ficar reservado`);
         }
         if (dest === 'autos' || dest === 'consolidar') {
@@ -309,6 +320,10 @@ function sanitizeRegra(raw, acao) {
     }
     // "Vem do processo": o campo do tipo que, preenchido, cumpre a ação sozinho (ver shared/doProcesso.ts).
     Object.assign(out, (0, doProcesso_1.sanitizeDoProcesso)(r, out));
+    // "Leva ao painel": o dado também vai ao registro ligado de outro módulo (ver shared/painelModulos.ts).
+    const ao = (0, painelModulos_1.sanitizeAoRegistro)(r.ao_registro, out);
+    if (ao)
+        out.ao_registro = ao;
     return Object.keys(out).length ? out : null;
 }
 /** Campos do formulário da ação que condicionam: os de escolha, e nunca os de ação com dado reservado. */
@@ -336,6 +351,22 @@ function opcoesDaResposta(r, campo) {
     if (r.pede === 'disputa')
         return [...certames_1.RESULTADOS_DISPUTA];
     return null;
+}
+const semAcento = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+/**
+ * A ação "Abrir processo derivado" que o processo recém-aberto cumpre na fase
+ * de origem: a pendente que sugere o tipo (ou o rito) dele; na falta, a que
+ * não sugere nada; na falta, a única pendente (a sugestão não obriga). Duas
+ * pendentes sem nome que case ficam para a equipe escolher. -1 quando nenhuma.
+ * `nomes`: o nome do tipo e o do rito do processo novo.
+ */
+function derivadoPendente(fase, feitas, nomes, ativa) {
+    const pend = ((fase === null || fase === void 0 ? void 0 : fase.acoes_regras) || []).map((r, i) => ({ r, i })).filter(({ r, i }) => (r === null || r === void 0 ? void 0 : r.pede) === 'derivado' && !feitas.includes(i) && ativa(i));
+    const dados = nomes.map((n) => semAcento(n || '')).filter(Boolean);
+    const achada = pend.find(({ r }) => { var _b; return dados.includes(semAcento(((_b = r === null || r === void 0 ? void 0 : r.derivado) === null || _b === void 0 ? void 0 : _b.tipo) || '')); })
+        || pend.find(({ r }) => { var _b; return !((_b = r === null || r === void 0 ? void 0 : r.derivado) === null || _b === void 0 ? void 0 : _b.tipo); })
+        || (pend.length === 1 ? pend[0] : undefined);
+    return achada ? achada.i : -1;
 }
 /** Valor gravado como chave da resposta: a opção escolhida, ou 'sim'/'nao'. */
 const chaveDaResposta = (v) => (typeof v === 'boolean' ? (v ? 'sim' : 'nao') : String(v !== null && v !== void 0 ? v : ''));

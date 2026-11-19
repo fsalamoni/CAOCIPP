@@ -8,7 +8,7 @@ export function gestaoContrato() {
     return montar({
         id: 'gestao-contrato', nome: 'Gestão e fiscalização de contrato de serviço continuado', area: 'contratacoes', porte: 'longo', referencia: 'Lei 14.133',
         descricao: 'Acompanha a execução de um contrato de serviço que se repete mês a mês (limpeza, vigilância, manutenção, suporte de TI), da designação do gestor e dos fiscais até o termo de recebimento definitivo e o encerramento. O processo é cíclico: a cada período os fiscais medem e recebem provisoriamente, o gestor atesta e o setor financeiro paga, e o ciclo volta para a medição seguinte. Repactuação, reajuste, prorrogação, alteração e reequilíbrio são tratados como eventos que saem do ciclo e voltam a ele; o descumprimento que persiste é remetido a processo próprio de apuração. A contratada é notificada para corrigir falhas, pode contestar glosas, é ouvida antes de qualquer alteração e tem defesa e recurso antes da extinção unilateral.',
-        quando: 'Contratos de serviço contínuo, com ou sem dedicação exclusiva de mão de obra, durante toda a vigência. Abra um processo por contrato.',
+        quando: 'Contratos de serviço contínuo, com ou sem dedicação exclusiva de mão de obra, durante toda a vigência. Abra um processo por contrato. No Ministério Público do RS, prefira "Gestão de contrato no MPRS". O Decreto 11.246/2022 e as instruções da SEGES são do Executivo federal: nos outros entes servem de referência.',
         base: 'Lei 14.133/2021, arts. 92, §§ 4º e 6º, 94, 106, 107, 117, 123 a 125, 135, 136, 137 a 141 e 165; Decreto 11.246/2022, arts. 8º e 21 a 25; IN SEGES 5/2017, arts. 39 a 50 e 54 a 57; IN SEGES 77/2022, arts. 7º e 8º.',
         tipo: { polos: ['requerente', 'requerido'], nomes_polos: { requerente: 'Contratante', requerido: 'Contratada' } },
     }, [
@@ -335,7 +335,7 @@ export function recebimentoPagamento() {
 /** 19. Parceria com organização da sociedade civil (Lei 13.019/2014). */
 export function parceriaOsc() {
     return montar({
-        id: 'parceria-osc', nome: 'Parceria com organização da sociedade civil', area: 'contratacoes', porte: 'longo', referencia: 'Lei 13.019',
+        id: 'parceria-osc', nome: 'Parceria com organização da sociedade civil', area: 'parcerias', porte: 'longo', referencia: 'Lei 13.019',
         descricao: 'Seleciona uma organização da sociedade civil, em regra por chamamento público, celebra termo de colaboração ou de fomento, acompanha a execução e julga a prestação de contas. Corre do edital ao julgamento das propostas pela comissão de seleção, com resultado e recursos, segue para o plano de trabalho, os pareceres e a celebração, que só produz efeitos com a publicação do extrato. Na execução, a organização recebe visitas e notificações, o relatório de monitoramento é homologado pela comissão e a vigência pode ser alterada a pedido. A organização presta contas, pode sanear irregularidades em 45 dias e tem defesa prévia antes de sanção; contas irregulares levam à sanção e à tomada de contas especial.',
         quando: 'Repasses a entidades sem fins lucrativos para execução de atividade ou projeto de interesse público. Para contratar empresa, use o rito de contratação por licitação.',
         base: 'Lei 13.019/2014, arts. 23 a 38, 52, 55, 58, 59 e 69 a 73; Decreto 8.726/2016 (Executivo federal).',

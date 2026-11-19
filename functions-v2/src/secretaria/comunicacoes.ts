@@ -93,6 +93,9 @@ export async function expedir(
     if (ped.documento_id) {
         const d = (await tx.get(ref.collection('documentos').doc(ped.documento_id))).data();
         if (!d || d.status !== 'juntado' || d.visivel_partes === false) throw new HttpsError('invalid-argument', 'Escolha um documento juntado e visível às partes');
+        // Documento restrito a alguns polos só acompanha comunicação a partes desses polos.
+        const so = Array.isArray(d.visivel_polos) && d.visivel_polos.length ? (d.visivel_polos as string[]) : null;
+        if (so && ped.partes_idx.some((x) => !so.includes(String(partes[x]?.polo)))) throw new HttpsError('invalid-argument', 'O documento escolhido é restrito a outro polo: os destinatários não podem vê-lo');
         docTitulo = `Doc. nº ${d.ordem}: ${d.titulo}`;
     }
     const agora = new Date().toISOString();

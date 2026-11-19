@@ -49,7 +49,7 @@ export default function Help() {
           <HelpItem
             number="3"
             title="Cadastrar Processos"
-            description="Na aba 'Consultas', clique em '+ Adicionar Consulta' e preencha os dados. Ao digitar o Nº da Consulta - PGEA, o SIGO confere se ele já existe no órgão, arquivadas inclusive: número novo ganha o sinal de certo verde; número existente mostra a fase e o responsável, com o botão para entrar na consulta ou criar um aditivo dela. Para nova tramitação de uma consulta já cadastrada (mesmo arquivada), abra a ficha e use 'Criar aditivo': nasce um card próprio em Pendente, vinculado ao original, que não muda. O mesmo vale para Expedientes."
+            description="Na aba 'Consultas', clique em '+ Adicionar Consulta' e preencha os dados. Ao digitar o Nº da Consulta - PGEA, o SIGO confere se ele já existe no órgão, arquivadas inclusive: número novo ganha o sinal de certo verde; número existente mostra a fase e o responsável, com o botão para entrar na consulta ou criar um aditivo dela. Para nova tramitação de uma consulta já cadastrada (mesmo arquivada), abra a ficha e use 'Criar aditivo': nasce um card próprio em Pendente, vinculado ao original, que não muda. A data de entrada do aditivo é a dele (o dia em que chegou a informação nova, ou hoje), nunca anterior à do original; as datas de cada fase também são só dele. O mesmo vale para Expedientes."
           />
           <HelpItem
             number="4"
@@ -160,6 +160,24 @@ export default function Help() {
               ]}
             />
             <FeatureCard
+              icon={FileText}
+              title="Formatar documentos e modelos como no Word"
+              items={[
+                "Botão Página (régua) no editor: papel A4, Ofício, Carta ou A5, retrato ou paisagem, e margens em cm (prontas: SIGO, ABNT, Word, estreitas)",
+                "Estilos: mude Texto normal, Títulos 1 a 4 e Citação (fonte, tamanho, negrito, maiúsculas, cor, alinhamento, recuos, espaços) e crie os seus, como Ementa ou Assinatura",
+                "Usar o parágrafo atual: formate um parágrafo na barra e copie para o estilo; Modificar estilos… fica na lista de estilos",
+                "Numeração automática: títulos em 1., 1.1. ou I., 1.; parágrafos numerados (botão #) em 1., 1), 1 – ou 1º",
+                "Listas: marcador •, ◦, ▪ ou travessão; numeração 1, a, A, i ou I com ponto ou parêntese, começando onde quiser",
+                "Recuos exatos em cm (primeira linha, esquerda e direita) no menu de espaçamento ↕; fontes Georgia, Garamond, Open Sans e Lato além das do Office",
+                "Cabeçalho e rodapé: o timbrado da unidade, um próprio do modelo (logotipo, texto, tabela sem bordas) ou nenhum; em todas as páginas, só na primeira ou menos na primeira",
+                "Número de página no rodapé ou no cabeçalho, à esquerda, ao centro ou à direita, em Página 1 de 5, 1/5, – 1 – e outros; pode pular a primeira página",
+                "Imagens: arraste os cantos para mudar o tamanho ou digite a largura em cm; à esquerda, ao centro ou à direita",
+                "No editor de modelo, Prévia em PDF mostra cada folha como sai nos autos, e Word baixa o .docx, sem precisar salvar",
+                "Tudo vai junto com o modelo para a minuta e sai igual no PDF dos autos e no Word (.docx)",
+                "Papel timbrado do órgão ou da unidade: os mesmos botões de papel e margens, cabeçalho e rodapé completos, número de página e estilos valem para todos os documentos; cada modelo muda por cima só o que quiser",
+              ]}
+            />
+            <FeatureCard
               icon={Gavel}
               title="Quem decide (gabinete)"
               items={[
@@ -230,7 +248,7 @@ export default function Help() {
               Abre no <strong>Tutorial</strong>: um passo a passo em 12 etapas para montar o rito do começo ao fim, com perguntas e
               respostas em cada etapa; "Quero fazer…", que diz qual ferramenta usar para cada situação, onde ela fica e o modelo que já
               faz assim; e "Qual modelo usar?", que indica os modelos da biblioteca pelo assunto, pela forma de decidir e pelo tamanho.
-              A <strong>Referência</strong> explica, em 20 partes, cada peça e cada opção do editor, com um exemplo completo. Serve para
+              A <strong>Referência</strong> explica, em 22 partes, cada peça e cada opção do editor, com um exemplo completo. Serve para
               quem monta o rito e para quem trabalha no processo entender por que cada passo acontece.
             </p>
             <Suspense fallback={<p className="text-sm text-slate-600 dark:text-slate-400">Carregando o guia…</p>}>

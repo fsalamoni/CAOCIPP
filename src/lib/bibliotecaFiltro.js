@@ -2,11 +2,12 @@
  * Filtro, ordem, grupos e destaque da biblioteca de modelos de rito (tela Novo rito).
  * Lógica pura: a interface está em src/components/secretaria/BibliotecaModelos.jsx.
  */
-import { AREAS, PORTES } from './modelos/dsl.js';
+import { AMBITOS, AREAS, PORTES, nomeAmbito } from './modelos/dsl.js';
 
 export const semAcento = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 export const ORDENS = [
+    ['ambito', 'Por âmbito e área'],
     ['area', 'Por área'],
     ['relevancia', 'Mais relevantes'],
     ['nome', 'Nome (A a Z)'],
@@ -14,7 +15,7 @@ export const ORDENS = [
     ['longo', 'Do mais longo ao mais curto'],
 ];
 
-export const FILTRO_VAZIO = { busca: '', area: '', porte: '', referencia: '', recurso: '' };
+export const FILTRO_VAZIO = { busca: '', ambito: '', area: '', porte: '', referencia: '', recurso: '' };
 
 /** S15: filtro pelo que o modelo usa do motor: sessão de colegiado, disputa de preços ou audiência. */
 export const RECURSOS_FILTRO = [
@@ -22,6 +23,8 @@ export const RECURSOS_FILTRO = [
     ['julgamento', 'Julgamento em sessão de colegiado'],
     ['disputa', 'Disputa de preços'],
     ['audiencia', 'Audiência ou reunião'],
+    ['derivado', 'Processo derivado'],
+    ['cronograma', 'Cronograma de obrigações'],
 ];
 export const usaRecurso = (m, r) => (m.fases || []).some((f) => (f.acoes_regras || []).some((x) => x?.pede === r));
 
@@ -36,7 +39,7 @@ export function pontos(m, busca) {
     if (!ts.length) return 1;
     const campos = [
         [semAcento(m.nome), 8],
-        [semAcento(m.referencia), 5],
+        [semAcento(`${m.referencia} ${m.ambito ? nomeAmbito(m.ambito) : ''}`), 5],
         [semAcento(m.base), 3],
         [semAcento(`${m.quando} ${(m.fases || []).map((f) => f.nome).join(' ')}`), 2],
         [semAcento(m.descricao), 1],
@@ -53,12 +56,13 @@ export function pontos(m, busca) {
 export const temPartes = (m) => (m.tipo?.polos?.length || 0) > 0;
 
 export function filtrar(modelos, f = FILTRO_VAZIO) {
-    return modelos.filter((m) => (!f.area || m.area === f.area) && (!f.porte || m.porte === f.porte)
+    return modelos.filter((m) => (!f.ambito || m.ambito === f.ambito) && (!f.area || m.area === f.area) && (!f.porte || m.porte === f.porte)
         && (!f.referencia || m.referencia === f.referencia) && (!f.recurso || usaRecurso(m, f.recurso)) && pontos(m, f.busca) > 0);
 }
 
 const ordemPorte = (p) => PORTES.findIndex(([x]) => x === p);
 const ordemArea = (a) => AREAS.findIndex(([x]) => x === a);
+const ordemAmbito = (a) => AMBITOS.findIndex(([x]) => x === a);
 const porNome = (a, b) => a.nome.localeCompare(b.nome, 'pt-BR');
 const tamanho = (m) => ordemPorte(m.porte) * 1000 + m.fases.length;
 
@@ -68,13 +72,24 @@ export function ordenar(modelos, ordem, busca = '') {
     if (ordem === 'curto') return l.sort((a, b) => tamanho(a) - tamanho(b) || porNome(a, b));
     if (ordem === 'longo') return l.sort((a, b) => tamanho(b) - tamanho(a) || porNome(a, b));
     if (ordem === 'relevancia') return l.sort((a, b) => pontos(b, busca) - pontos(a, busca) || porNome(a, b));
-    // Por área: na ordem das áreas; dentro da área, do mais curto ao mais longo.
-    return l.sort((a, b) => ordemArea(a.area) - ordemArea(b.area) || tamanho(a) - tamanho(b) || porNome(a, b));
+    // Por âmbito ou por área: na ordem das listas; dentro da área, do mais curto ao mais longo.
+    return l.sort((a, b) => (ordem === 'ambito' ? ordemAmbito(a.ambito) - ordemAmbito(b.ambito) : 0) || ordemArea(a.area) - ordemArea(b.area) || tamanho(a) - tamanho(b) || porNome(a, b));
 }
 
 /** Grupos por área, na ordem de AREAS, só com as áreas que têm modelo: [{ area, nome, modelos }]. */
 export function agrupar(modelos) {
     return AREAS.map(([area, nome]) => ({ area, nome, modelos: modelos.filter((m) => m.area === area) })).filter((g) => g.modelos.length);
+}
+
+/**
+ * Grupos por âmbito, na ordem de AMBITOS, cada um com as suas áreas:
+ * [{ ambito, nome, dica, modelos, areas: [{ area, nome, modelos }] }].
+ */
+export function agruparPorAmbito(modelos) {
+    return AMBITOS.map(([ambito, nome, dica]) => {
+        const ms = modelos.filter((m) => m.ambito === ambito);
+        return { ambito, nome, dica, modelos: ms, areas: agrupar(ms) };
+    }).filter((g) => g.modelos.length);
 }
 
 /** Referências (instituição ou lei) presentes, em ordem alfabética, com a contagem. */
@@ -84,7 +99,7 @@ export function referencias(modelos) {
     return [...c].sort(([a], [b]) => a.localeCompare(b, 'pt-BR'));
 }
 
-export const filtroAtivo = (f) => !!(f.busca.trim() || f.area || f.porte || f.referencia || f.recurso);
+export const filtroAtivo = (f) => !!(f.busca.trim() || f.ambito || f.area || f.porte || f.referencia || f.recurso);
 
 /**
  * Trechos para destacar a busca: [{ t, marca }]. Casa sem acento, mas devolve o

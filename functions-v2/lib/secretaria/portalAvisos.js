@@ -68,13 +68,16 @@ async function avisarDoMovimento(db, procId, proc, seq, autorUid) {
         if (!(proc.partes_uids || []).length)
             return;
         const mov = (await ref.collection('movimentos').doc(String(seq).padStart(6, '0')).get()).data();
-        if (!mov || !(0, autos_2.visivelParaPartes)(mov))
+        const so = (0, autos_2.polosQueVeem)(mov === null || mov === void 0 ? void 0 : mov.dados);
+        if (!mov || !(0, autos_2.visivelParaPartes)(Object.assign(Object.assign({}, mov), { dados: Object.assign(Object.assign({}, (mov.dados || {})), { visivel_polos: undefined }) })))
             return;
         if (['convite', 'habilitacao', 'acesso_revogado'].includes(mov.tipo))
             return; // já têm e-mail próprio ou não interessam
         const org = (await db.collection('organizations').doc(proc.organization_id).get()).data();
         const dest = await destinatarios(db, proc, (pref) => pref === 'tudo' || (pref === 'prazos' && TIPOS_PRAZOS_DECISOES.includes(mov.tipo)));
         for (const { parte, email } of dest) {
+            if (so && !so.includes(String(parte.polo)))
+                continue; // restrito a outro polo
             if (autorUid && parte.uid === autorUid)
                 continue; // quem peticionou não precisa do aviso do próprio ato
             await (0, email_1.sendEmail)({

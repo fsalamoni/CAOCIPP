@@ -26,6 +26,7 @@ import { EditorCampos, EscolhaPagina } from './CamposProcesso';
 import { ItemOrdenavel, ListaOrdenavel } from './Ordenavel';
 import { PERFIS_DISPUTA } from '@/lib/certames';
 import { LIGAVEL_NO_FORM, camposLigaveis, podeLigar } from '@/lib/doProcesso';
+import { LevaAoPainel } from './IntegracaoPainel';
 
 // Editor do que cada fase do rito pede e de onde cada ato fica registrado.
 // Usado pela tela de rito (criar e alterar). Fundamento e exemplos:
@@ -302,11 +303,11 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase, f, i }) {
                 </>
             )}
             {!soOrienta(r) && <>
-            {daPartes(r) ? <ConfigDasPartes id={id} r={r} f={f} i={i} onChange={onChange} /> : (
+            {daPartes(r) ? <ConfigDasPartes id={id} r={r} f={f} i={i} onChange={onChange} /> : pede === 'quitacao' ? null : (
                 <EscolhaDestino id={`${id}-dest`} valor={dest} onChange={setDestino} acao={acao} fase={fase}
                     documento={pede === 'documento'} opcoes={pede === 'documento' ? DESTINOS_DOCUMENTO : Object.entries(DESTINO_INFO).map(([d, x]) => [d, x.rotulo])} />
             )}
-            {pede !== 'confirmar' && pede !== 'documento' && !daPartes(r) && (
+            {pede !== 'confirmar' && pede !== 'documento' && pede !== 'quitacao' && !daPartes(r) && (
                 <div className="grid sm:grid-cols-2 gap-2">
                     <div>
                         <Label htmlFor={`${id}-rot`}>Nome do dado</Label>
@@ -319,10 +320,37 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase, f, i }) {
                             {r?.modulo === 'paginas' && <div className="mt-2"><EscolhaPagina id={`${id}-pag`} paginas={paginas} value={r?.pagina} onChange={(v) => set({ pagina: v })} /></div>}
                             {!ligadas?.[r?.modulo || 'consultas'] && <p className="mt-1 text-xs text-amber-800 dark:text-amber-200">A integração com este módulo está desligada: ligue em "Integrações com outros módulos", na configuração do Processo Eletrônico, para salvar o rito.</p>}
                         </div>
+                    ) : pede === 'derivado' ? (
+                        <div>
+                            <Label htmlFor={`${id}-der`}>Tipo de processo ou rito sugerido</Label>
+                            <Input id={`${id}-der`} className="mt-1" value={r?.derivado?.tipo || ''} maxLength={80} placeholder="Opcional: o nome do tipo ou do rito"
+                                onChange={(e) => set({ derivado: e.target.value ? { tipo: e.target.value } : undefined })} />
+                        </div>
                     ) : pede === 'lista' ? (
                         <OpcoesDaLista id={`${id}-op`} opcoes={r?.opcoes || []} onChange={(opcoes) => set({ opcoes })} />
                     ) : null}
                 </div>
+            )}
+            {pede === 'cronograma' && (
+                <p className="text-xs text-slate-600 dark:text-slate-400">
+                    Na tela do processo, a ação mostra o botão &quot;Montar cronograma&quot;: quem cumpre gera as parcelas (quantidade, primeiro vencimento, periodicidade e valor) ou inclui as obrigações uma a uma.
+                    Cada obrigação vira um prazo do processo, com alerta de vencimento. A parte a vê no portal e responde a ela com o comprovante; quem conduz o processo a encerra como cumprida.
+                    Para esperar o cumprimento de todas numa fase adiante, use &quot;Esperar o cumprimento do cronograma&quot;.
+                </p>
+            )}
+            {pede === 'quitacao' && (
+                <p className="text-xs text-slate-600 dark:text-slate-400">
+                    Esta ação não se marca à mão: ela se cumpre sozinha quando todas as obrigações do cronograma do processo estiverem cumpridas, e mostra o andamento enquanto isso (quantas cumpridas, quantas atrasadas, a próxima).
+                    Obrigatória, ela impede que a fase seja concluída antes do cumprimento integral. O cronograma nasce de uma ação &quot;Registrar um cronograma de obrigações&quot; ou do botão &quot;Cronograma&quot; da tela do processo.
+                </p>
+            )}
+            {pede === 'derivado' && (
+                <p className="text-xs text-slate-600 dark:text-slate-400">
+                    Na tela do processo, a ação mostra o botão &quot;Abrir processo&quot;, que leva ao &quot;Novo processo&quot; com este processo como origem.
+                    Se o órgão tem um só tipo de processo com o nome sugerido, ou que usa o rito com esse nome, ele já vem escolhido; quem abre pode trocar.
+                    Criado o processo, a ação se cumpre sozinha, com o número dele. Se o processo já existia, &quot;Já existe&quot; deixa escolher entre os ligados a este.
+                    Com duas ações destas pendentes na fase, a sugestão diz qual delas o processo novo cumpre.
+                </p>
             )}
             {pede === 'formulario' && (
                 <EditorCampos campos={r?.campos || []} onChange={(campos) => set({ campos })} max={MAX_CAMPOS_ACAO} paraAcao prefixo={`${id}-fc`} />
@@ -331,6 +359,7 @@ function ConfigAcao({ id, acao, r, modelos, onChange, fase, f, i }) {
                 <CamposExigencia id={`${id}-doc`} e={r.documento} modelos={modelos} onChange={(d) => onChange({ ...r, documento: { ...d, descricao: acao } })} />
             )}
             {podeLigar(r) && <VemDoProcesso id={id} r={r} set={set} />}
+            <LevaAoPainel id={id} r={r} set={set} />
             <div>
                 <Label htmlFor={`${id}-aj`}>Orientação a quem cumpre</Label>
                 <Input id={`${id}-aj`} className="mt-1" value={r?.ajuda || ''} maxLength={200} placeholder="Opcional: aparece abaixo da ação, na tela do processo"

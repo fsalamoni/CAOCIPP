@@ -41,6 +41,9 @@ import { resumoAndamento, textoAvanco } from '@/lib/andamentoFase';
 import { notaDoPrazo, prazoAbertoDaAcao } from '@/lib/efeitosFase';
 import { atorNoProcesso, podeQuem, podeReserva, resumoPermissoes, textoQuem, textoReserva, unidadeDecide, unidadeExpede } from '@/lib/permissoesFase';
 import { RegistroContexto } from './SeletorRegistro';
+import { CronogramaDialog, ResumoCronograma } from './Cronograma';
+import { QUALIDADES, exigePoderes, faltaNaRepresentacao, qualificacao } from '@/lib/representacao';
+import { reais, situacaoDasObrigacoes } from '@/lib/cronograma';
 import { ligada, nomeDoCampo } from '@/lib/doProcesso';
 import { FORMAS, ROTULO_DESTINO, acaoAtiva, exigeDoDocumento, alternativaCumprida, soOrienta, destinoDaAcao, destinoDaMudanca, faltaNaFase, niveisDaFase, partesDaCondicao, pedidoDaAcao, pendentesDaFase, recomendadosNaFase, respostasDoProcesso, saidaPadrao, saidasComCondicao, situacaoDaFase, sugeridas, textoCondicao } from '@/lib/exigencias';
 import { AcaoDaFase, RegistrarAcao } from './AcoesNoProcesso';
@@ -86,6 +89,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     const [leitura, setLeitura] = useState(null); // id do documento aberto no leitor contínuo
     const [confirmar, setConfirmar] = useState(null); // {titulo, texto, rotulo, fn}: ato que não se desfaz
     const [vista, setVista] = useState(null); // capa | andamento | autos | eventos (null = padrão do perfil)
+    const [cronograma, setCronograma] = useState(null); // cronograma de obrigações a registrar: {idx?, titulo, version}
     const [registrar, setRegistrar] = useState(null); // ação da fase que pede um dado: {idx, acao, r, fase}
     const pendenciasRef = useRef(null);
     const eventosRef = useRef(null);
@@ -693,7 +697,9 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                             nota={alternativaCumprida(faseAtual, i, feitas, respostas) ? 'Dispensada: a alternativa a esta ação já foi cumprida.' : notaDoProcesso(i, r) || notaDoPrazo(prazoAbertoDaAcao(p.prazos, faseAtual.id, i), hoje)}
                                             onMarcar={(feita) => mov('marcarAcao', { acao_idx: i, feita })}
                                             certame={r?.pede === 'disputa' && p.certame?.fase_id === faseAtual.id && p.certame?.acao_idx === i ? p.certame : null}
-                                            onRegistrar={() => (r?.pede === 'disputa' ? setDisputa(true) : setRegistrar({ idx: i, acao: a, r, fase: p.fase_nome, version: p.version,
+                                            onAbrirDerivado={estado.minhasUnidades.length > 0 ? () => navigate(`/ProcessoEletronico?org=${orgId}&de=pe:${procId}`, { state: { semente: { modulo: 'pe', id: procId, numero: p.numero, tipo_nome: r?.derivado?.tipo || '' } } }) : undefined}
+                                            cronograma={r?.pede === 'quitacao' ? situacaoDasObrigacoes(p.prazos, hoje) : null}
+                                            onRegistrar={() => (r?.pede === 'disputa' ? setDisputa(true) : r?.pede === 'cronograma' ? setCronograma({ idx: i, titulo: a, version: p.version }) : setRegistrar({ idx: i, acao: a, r, fase: p.fase_nome, version: p.version, orgId, procId,
                                                 proclamado: r?.pede === 'julgamento' ? p.sessao?.proclamado || null : null,
                                                 membros: r?.pede === 'julgamento' ? membrosDoJulgamento(estado, p.unidade_atual, new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })) : [] }))}
                                             onDesfazer={desfazer} />
@@ -850,10 +856,12 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                 <div className="flex gap-2">
                                     <Button size="sm" variant="outline" className="gap-1" disabled={!podeMexer || ocupado} onClick={() => setAcao({ tipo: 'pendencia' })}><AlertCircle className="w-4 h-4" /> Pendência</Button>
                                     <Button size="sm" variant="outline" className="gap-1" disabled={!podeMexer || ocupado} onClick={() => setAcao({ tipo: 'prazo' })}><CalendarClock className="w-4 h-4" /> Prazo</Button>
+                                    <Button size="sm" variant="outline" className="gap-1" disabled={!podeMexer || ocupado} onClick={() => setCronograma({ titulo: 'Cronograma de obrigações' })}><ListChecks className="w-4 h-4" /> Cronograma</Button>
                                 </div>
                             )}
                         </CardHeader>
                         <CardContent className="space-y-2 text-sm">
+                            <ResumoCronograma prazos={p.prazos} hoje={hoje} />
                             {p.fase_suspensa && <p className="text-amber-700 dark:text-amber-400 font-medium">Fase interrompida até o decisor apreciar a pendência.</p>}
                             {pendenciasAbertas.map((x) => {
                                 const dias = diasDesde(x.aberta_em);
@@ -872,7 +880,8 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                     </div>
                                 );
                             })}
-                            {p.prazos.filter((x) => x.status === 'aberto').map((x) => {
+                            {(() => {
+                              const linha = (x) => {
                                 const vencido = hoje > x.vence_em;
                                 return (
                                     <div key={x.id} className="flex flex-wrap items-center gap-2 py-2 border-b last:border-0 border-slate-100 dark:border-slate-800">
@@ -880,15 +889,30 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                         <div className="flex-1 min-w-[10rem]">
                                             <p>{x.descricao}{x.destinatario ? ` · ${x.destinatario}` : ''}</p>
                                             <p className={`text-xs ${vencido ? 'text-red-700 dark:text-red-400 font-medium' : 'text-slate-600 dark:text-slate-400'}`}>
-                                                {x.dias} dias {x.contagem === 'uteis' ? 'úteis' : 'corridos'} · {vencido ? 'venceu' : 'vence'} em {x.vence_em.split('-').reverse().join('/')}
+                                                {x.obrigacao ? `Obrigação${x.valor ? ` de ${reais(x.valor)}` : ''}` : `${x.dias} dias ${x.contagem === 'uteis' ? 'úteis' : 'corridos'}`} · {vencido ? 'venceu' : 'vence'} em {x.vence_em.split('-').reverse().join('/')}
                                                 {x.ajustes?.length ? ` · ${x.ajustes.map((a) => `${a.tipo === 'prorrogacao' ? 'prorrogado' : 'devolvido'} por ${a.dias}`).join(', ')}` : ''}
                                             </p>
                                         </div>
                                         {posse && <Button size="sm" variant="outline" disabled={ocupado || arquivado} onClick={() => setAcao({ tipo: 'ajustarPrazo', prazo: x, modo: vencido ? 'devolverPrazo' : 'prorrogarPrazo' })}>{vencido ? 'Devolver' : 'Prorrogar'}</Button>}
-                                        {posse && <Button size="sm" variant="outline" disabled={ocupado || arquivado} onClick={() => setAcao({ tipo: 'encerrarPrazo', prazo: x })}>Encerrar</Button>}
+                                        {posse && <Button size="sm" variant="outline" disabled={ocupado || arquivado} onClick={() => setAcao({ tipo: 'encerrarPrazo', prazo: x })}>{x.obrigacao ? 'Cumprida' : 'Encerrar'}</Button>}
                                     </div>
                                 );
-                            })}
+                              };
+                              const abertos = p.prazos.filter((x) => x.status === 'aberto');
+                              const obrig = abertos.filter((x) => x.obrigacao).sort((a, b) => a.vence_em.localeCompare(b.vence_em));
+                              return (
+                                <>
+                                    {abertos.filter((x) => !x.obrigacao).map(linha)}
+                                    {obrig.slice(0, 4).map(linha)}
+                                    {obrig.length > 4 && (
+                                        <details>
+                                            <summary className="cursor-pointer py-2 text-slate-600 dark:text-slate-300">Ver as demais {obrig.length - 4} obrigações do cronograma</summary>
+                                            {obrig.slice(4).map(linha)}
+                                        </details>
+                                    )}
+                                </>
+                              );
+                            })()}
                             {pendenciasAbertas.length === 0 && !p.prazos.some((x) => x.status === 'aberto') && <p className="text-slate-600">Nenhuma pendência ou prazo aberto.</p>}
                             {noGabinete && p.pendencias.some((x) => x.status === 'resolvida') && (
                                 <details className="pt-1">
@@ -937,7 +961,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                                 <ul className="pl-4 border-l-2 border-slate-200 dark:border-slate-700 space-y-1">
                                                     {x.representantes.map((r, k) => (
                                                         <li key={k} className="flex flex-wrap items-center gap-2 text-xs">
-                                                            <span className="flex-1 min-w-[10rem]">{r.nome}, representante{r.email ? ` · ${r.email}` : ''}</span>
+                                                            <span className="flex-1 min-w-[10rem]">{r.nome}, {qualificacao(r) || 'representante'}{r.email ? ` · ${r.email}` : ''}</span>
                                                             {r.portal === 'ativo' && <Badge variant="secondary">Acompanha pelo portal</Badge>}
                                                             {r.portal === 'convidado' && <Badge variant="outline">Convite pendente</Badge>}
                                                             {r.portal !== 'ativo' && <Button size="sm" variant="outline" disabled={!podeMexer || ocupado} onClick={() => setAcao({ tipo: 'convidar', idx: i, parte: x, representante: r, representante_idx: k })}>{r.portal ? 'Novo convite' : 'Convidar'}</Button>}
@@ -983,6 +1007,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                 </div>
                                 {d.peticao && <Badge variant="secondary">Petição da parte{d.peticao_tipo ? `: ${d.peticao_tipo}` : ''}</Badge>}
                                 {!d.visivel_partes && <Badge variant="outline">Fora do portal</Badge>}
+                                {d.visivel_partes && d.visivel_polos?.length > 0 && <Badge variant="outline">No portal, só {d.visivel_polos.map((x) => nomePolo(p.nomes_polos, x)).join(' e ')}</Badge>}
                                 {d.versoes > 0 && <Button variant="ghost" size="sm" className="gap-1" disabled={ocupado} onClick={() => setVersoesDe(d)} title="Redações anteriores, de antes da revisão (só a equipe vê)"><History className="w-4 h-4" aria-hidden /> <span className="hidden sm:inline">Versões</span><span className="sr-only sm:hidden">Versões de {d.titulo}</span> ({d.versoes})</Button>}
                                 <Button variant="ghost" size="sm" disabled={ocupado} onClick={() => verNosAutos(d)} aria-label={`Ver ${d.titulo} nos autos`} title="Ver nos autos (PDF com folhas)"><Eye className="w-4 h-4" /></Button>
                                 {d.origem === 'upload' && <Button variant="ghost" size="sm" disabled={ocupado} onClick={() => baixarOriginal(d)} aria-label={`Baixar o arquivo original de ${d.titulo}`} title="Baixar o arquivo original"><Download className="w-4 h-4" /></Button>}
@@ -1025,6 +1050,14 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
             </TabsContent>
             </Tabs>
 
+            <CronogramaDialog alvo={cronograma} partes={p.partes || []} ocupado={ocupado} onFechar={() => setCronograma(null)}
+                onEnviar={async (valor) => {
+                    const ok = cronograma.idx === undefined
+                        ? await mov('abrirCronograma', valor, 'Cronograma registrado')
+                        : await mov('marcarAcao', { acao_idx: cronograma.idx, feita: true, valor, version: cronograma.version }, 'Cronograma registrado');
+                    if (ok) setCronograma(null);
+                    return ok;
+                }} />
             <RegistrarAcao alvo={registrar} ocupado={ocupado} onFechar={() => setRegistrar(null)}
                 onEnviar={async (valor) => { const ok = await mov('marcarAcao', { acao_idx: registrar.idx, feita: true, valor, version: registrar.version }, 'Ação registrada'); if (ok) setRegistrar(null); return ok; }} />
 
@@ -1219,13 +1252,14 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
     const [dias, setDias] = useState('15');
     const [contagem, setContagem] = useState('uteis');
     const [destinatario, setDestinatario] = useState('');
+    const [rep, setRep] = useState({ qualidade: '', inscricao: '', poderes: false }); // representante novo: qualidade, inscrição e procuração conferida
     const [assinar, setAssinar] = useState(true);
     const [resolve, setResolve] = useState('');
     const [pdfPend, setPdfPend] = useState(null); // {url} do documento da pendência em apreciação
     const [atende, setAtende] = useState(null); // juntada: exigências marcadas (null = as que o sistema reconhece)
     const [levar, setLevar] = useState(null); // remessa: minutas que seguem (null = todas)
     const tipo = acao?.tipo;
-    const reset = () => { setValor(''); setMotivo(''); setDestinatario(''); setVisivel('sim'); setAssinar(true); setResolve(''); setAtende(null); setLevar(null); onClose(); };
+    const reset = () => { setValor(''); setMotivo(''); setDestinatario(''); setVisivel('sim'); setAssinar(true); setResolve(''); setAtende(null); setLevar(null); setRep({ qualidade: '', inscricao: '', poderes: false }); onClose(); };
     const pendenciasAbertas = p.pendencias.filter((x) => x.status === 'aberta');
     const faseDoProc = p.fases.find((f) => f.id === p.fase_atual);
     const resp = respostasDoProcesso(p);
@@ -1254,6 +1288,8 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
     const semDesvio = pm?.desviar && !podeReserva(pm.desviar, ator) ? `Na fase ${p.fase_nome}, só ${textoReserva(pm.desviar)} segue por caminho fora do previsto no rito.` : null;
     const semSituacao = pm?.situacao && !podeReserva(pm.situacao, ator) ? `Pelo rito, na fase ${p.fase_nome} só ${textoReserva(pm.situacao)} arquiva, sobresta ou reativa o processo.` : null;
     let bloqueio = null;
+    // Polos com parte ativa: com mais de um, a juntada pode ficar visível a um só.
+    const polosAtivos = [...new Set((p.partes || []).filter((x) => !x.retirada).map((x) => x.polo))];
     const avisoDispensa = (exigPendentes.length > 0 || recomendados.length > 0) && (
         <>
             {exigPendentes.length > 0 && (
@@ -1353,12 +1389,12 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
         );
         enviar = () => mov(acao.modo, { prazo_id: pz.id, dias: Number(dias), motivo }, devolve ? 'Prazo devolvido' : 'Prazo prorrogado');
     } else if (tipo === 'encerrarPrazo') {
-        titulo = 'Encerrar prazo';
+        titulo = acao.prazo.obrigacao ? 'Encerrar obrigação' : 'Encerrar prazo';
         exigeValor = true;
         campo = (
             <>
                 <p className="text-sm text-slate-700 dark:text-slate-300">{acao.prazo.descricao} · vence {acao.prazo.vence_em.split('-').reverse().join('/')}</p>
-                <NativeSelect label="Resultado" value={valor} onChange={setValor} options={[['', 'Escolha…'], ['cumprido', 'Cumprido'], ['cancelado', 'Cancelado']]} />
+                <NativeSelect label="Resultado" value={valor} onChange={setValor} options={[['', 'Escolha…'], ['cumprido', acao.prazo.obrigacao ? 'Cumprida (comprovante conferido)' : 'Cumprido'], ['cancelado', acao.prazo.obrigacao ? 'Cancelada (deixou de ser devida)' : 'Cancelado']]} />
             </>
         );
         enviar = () => mov('encerrarPrazo', { prazo_id: acao.prazo.id, resultado: valor, motivo }, 'Prazo encerrado');
@@ -1392,11 +1428,12 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
                 {!resolve && <NativeSelect label="Pendência para o decisor" value={valor} onChange={setValor} options={[['', 'Não abrir'], ['sim', 'Abrir pendência, a fase segue'], ['interrompe', 'Abrir pendência e interromper a fase']]} />}
                 {exigAutos.some((e) => e.partes === false && marcadas.includes(e.chave))
                     ? <p className="text-sm">Portal das partes: <b>só para a equipe</b>, como o rito pede para este documento.</p>
-                    : <NativeSelect label="Portal das partes" value={visivel} onChange={setVisivel} options={[['sim', 'Visível às partes'], ['nao', 'Só para a equipe']]} />}
+                    : <NativeSelect label="Portal das partes" value={visivel} onChange={setVisivel}
+                        options={[['sim', polosAtivos.length > 1 ? 'Visível a todas as partes' : 'Visível às partes'], ...(polosAtivos.length > 1 ? polosAtivos.map((x) => [`polo:${x}`, `Só para ${nomePolo(p.nomes_polos, x)} (e a equipe)`]) : []), ['nao', 'Só para a equipe']]} />}
             </>
         );
         enviar = () => doc('juntar', {
-            docId: acao.documento.id, version: p.version, pendencia: resolve ? 'nao' : (valor || 'nao'), visivel_partes: visivel === 'sim',
+            docId: acao.documento.id, version: p.version, pendencia: resolve ? 'nao' : (valor || 'nao'), visivel_partes: visivel !== 'nao', ...(visivel.startsWith('polo:') ? { visivel_polos: [visivel.slice(5)] } : {}),
             assinar: !acao.assinei && assinar, ...(resolve ? { resolve_pendencia_id: resolve } : {}),
             ...(exigAutos.length ? { atende: marcadas } : {}),
         },resolve ? 'Documento juntado e pendência decidida' : 'Documento juntado aos autos');
@@ -1436,15 +1473,34 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
         const alvo = acao.representante || (acao.novoRep ? null : acao.parte);
         titulo = acao.novoRep ? `Convidar um representante de ${acao.parte.nome}` : `Convidar ${alvo.nome} para o portal das partes`;
         exigeValor = !!acao.novoRep;
+        const faltaRep = acao.novoRep ? faltaNaRepresentacao(rep) : '';
+        if (faltaRep) bloqueio = true;
         campo = (
             <div className="space-y-3">
                 {acao.novoRep && (
                     <div>
                         <Label htmlFor="conv-nome">Nome do representante</Label>
-                        <Input id="conv-nome" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="Advogado, procurador, preposto…" autoFocus />
+                        <Input id="conv-nome" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="Nome completo" autoFocus />
+                    </div>
+                )}
+                {acao.novoRep && (
+                    <div className="grid sm:grid-cols-2 gap-3">
+                        <NativeSelect id="conv-qual" label="Representa a parte como" value={rep.qualidade} onChange={(v) => setRep({ ...rep, qualidade: v })}
+                            options={[['', 'Não informar'], ...QUALIDADES.map(([q, n]) => [q, n])]} />
+                        <div>
+                            <Label htmlFor="conv-insc">{rep.qualidade === 'advogado' ? 'Inscrição na OAB (obrigatória)' : 'Inscrição ou matrícula'}</Label>
+                            <Input id="conv-insc" value={rep.inscricao} maxLength={40} onChange={(e) => setRep({ ...rep, inscricao: e.target.value })} placeholder={rep.qualidade === 'advogado' ? 'Ex.: OAB/RS 12.345' : 'Opcional'} />
+                        </div>
+                        {exigePoderes(rep.qualidade) && (
+                            <label className="sm:col-span-2 flex items-start gap-2 text-sm">
+                                <input type="checkbox" className="mt-1" checked={rep.poderes} onChange={(e) => setRep({ ...rep, poderes: e.target.checked })} />
+                                <span>Conferi a procuração ou o ato de representação, que está nos autos ou foi apresentado. <span className="text-slate-600 dark:text-slate-400">Sem isso, o acesso não é dado.</span></span>
+                            </label>
+                        )}
                     </div>
                 )}
                 {(acao.novoRep || acao.representante) && <p className="text-xs text-slate-600 dark:text-slate-400">O representante tem a própria conta e vê o processo como {acao.parte.nome}; o que ele protocolar sai em nome da parte, assinado por ele.</p>}
+                {faltaRep && <p role="status" className="text-xs text-amber-800 dark:text-amber-200">{faltaRep}</p>}
                 <div>
                     <Label htmlFor="conv-email">E-mail para envio do convite</Label>
                     <Input id="conv-email" type="email" value={destinatario} onChange={(e) => setDestinatario(e.target.value)} placeholder={alvo?.email || 'Opcional: sem e-mail, você copia o link'} />
@@ -1452,7 +1508,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
             </div>
         );
         enviar = () => convidar(acao.idx, destinatario.trim() || alvo?.email || '',
-            acao.novoRep ? { representante: { nome: valor.trim(), email: destinatario.trim() } } : acao.representante ? { representante_idx: acao.representante_idx } : {});
+            acao.novoRep ? { representante: { nome: valor.trim(), email: destinatario.trim(), ...(rep.qualidade ? { qualidade: rep.qualidade, inscricao: rep.inscricao.trim(), poderes: rep.poderes } : {}) } } : acao.representante ? { representante_idx: acao.representante_idx } : {});
     }
     if (tipo === 'tramitar' || tipo === 'devolver') {
         const devolver = tipo === 'devolver';
@@ -1601,7 +1657,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
                 <DialogFooter className="flex-row flex-wrap gap-2">
                     {rodape}
                     <Button variant="outline" onClick={reset}>Cancelar</Button>
-                    <Button disabled={ocupado || diasInvalidos || !!bloqueio || (exigeValor && !valor && !acao?.destino && !acao?.fase_id && !acao?.status && tipo !== 'devolver') || (exigeTexto && !motivo.trim())} onClick={async () => { if (await enviar() === false) return; setValor(''); setMotivo(''); setDestinatario(''); setVisivel('sim'); setResolve(''); setAtende(null); setLevar(null); }}>
+                    <Button disabled={ocupado || diasInvalidos || !!bloqueio || (exigeValor && !valor && !acao?.destino && !acao?.fase_id && !acao?.status && tipo !== 'devolver') || (exigeTexto && !motivo.trim())} onClick={async () => { if (await enviar() === false) return; setValor(''); setMotivo(''); setDestinatario(''); setVisivel('sim'); setResolve(''); setAtende(null); setLevar(null); setRep({ qualidade: '', inscricao: '', poderes: false }); }}>
                         {ocupado && <Loader2 className="w-4 h-4 animate-spin mr-2" />} {tipo === 'resolver' ? 'Registrar a decisão' : 'Confirmar'}
                     </Button>
                 </DialogFooter>

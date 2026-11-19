@@ -29,6 +29,7 @@ export const AREAS = [
     ['etica', 'Ética e conselhos profissionais'],
     ['sancionador', 'Sancionador e fiscalização'],
     ['contratacoes', 'Contratações e contratos'],
+    ['parcerias', 'Parcerias, convênios e cooperação'],
     ['atendimento', 'Atendimento, ouvidoria e transparência'],
     ['ministerio_publico', 'Ministério Público (não penal)'],
     ['gestao', 'Gestão interna e pessoas'],
@@ -36,7 +37,21 @@ export const AREAS = [
     ['advocacia_publica', 'Advocacia pública e consultoria'],
 ];
 export const PORTES = [['curto', 'Curto'], ['medio', 'Médio'], ['longo', 'Longo']];
-export const nomeArea = (id) => AREAS.find(([a]) => a === id)?.[1] || id;
+/**
+ * Âmbito: de quem é a norma que o modelo segue. É a primeira pergunta de quem
+ * procura um modelo ("serve para o meu órgão?"); a área diz o assunto. O âmbito
+ * de cada modelo fica em AMBITO_DO_MODELO (src/lib/bibliotecaRitos.js).
+ */
+export const AMBITOS = [
+    ['mprs', 'Ministério Público do RS', 'Normas próprias do MPRS (provimentos, ordens de serviço e resoluções), somadas às nacionais e estaduais.'],
+    ['estadual_rs', 'Estado do Rio Grande do Sul', 'Leis, decretos e instruções do Estado do RS: valem para os órgãos e entidades estaduais.'],
+    ['federal', 'União e órgãos federais', 'Leis, decretos e portarias que regem os órgãos e entidades federais.'],
+    ['ministerio_publico', 'Ministério Público em geral', 'Resoluções do CNMP e leis nacionais: servem a qualquer Ministério Público.'],
+    ['conselhos', 'Conselhos e entidades de classe', 'OAB, CAU e demais conselhos profissionais, com os seus códigos e regimentos.'],
+    ['nacional', 'Qualquer órgão ou entidade', 'Leis nacionais ou rito genérico: serve a qualquer esfera, com os ajustes da norma local.'],
+];
+export const nomeAmbito = (id) => AMBITOS.find(([a]) => a === id)?.[1] || id;
+export const nomeArea =(id) => AREAS.find(([a]) => a === id)?.[1] || id;
 export const nomePorte = (id) => PORTES.find(([p]) => p === id)?.[1] || id;
 
 /** Construtores de ação: `{ texto, regra }`. `extra` soma obrigatoria, quem, destino, partes, prazo_dias, se, ou, ajuda... */
@@ -52,6 +67,12 @@ export const A = {
     numero: (texto, extra) => com(texto, { pede: 'numero' }, extra),
     texto: (texto, extra) => com(texto, { pede: 'texto' }, extra),
     textoLongo: (texto, extra) => com(texto, { pede: 'texto_longo' }, extra),
+    /** Abrir um processo que nasce deste: `tipo` é o nome do tipo de processo sugerido (opcional). Cumpre-se sozinha quando o processo é aberto. */
+    derivado: (texto, tipo, extra) => com(texto, { pede: 'derivado', ...(tipo ? { derivado: { tipo } } : {}) }, extra),
+    /** Registrar o cronograma de obrigações: cada parcela vira um prazo do processo, com alerta, e a parte comprova pelo portal. */
+    cronograma: (texto, extra) => com(texto, { pede: 'cronograma' }, extra),
+    /** Esperar o cumprimento do cronograma: cumpre-se sozinha quando todas as obrigações estiverem cumpridas. */
+    quitacao: (texto, extra) => com(texto, { pede: 'quitacao' }, extra),
     /** campos: [{ id, rotulo, tipo, obrigatorio, opcoes? }] */
     formulario: (texto, campos, extra) => com(texto, { pede: 'formulario', campos }, extra),
     /** Documento: tipo (ex.: "Despacho"), forma redigir | juntar | qualquer, nivel recomendado | opcional (ausente = obrigatório). */

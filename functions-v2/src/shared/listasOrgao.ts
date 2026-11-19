@@ -8,8 +8,16 @@
  */
 
 export interface ItemLista { id: string; nome: string; /** Nome masculino ("o edital"). Ausente = feminino. */ m?: true }
-export interface ListasOrgao { comunicacao?: ItemLista[]; audiencia?: ItemLista[]; origem?: ItemLista[] }
-export const LISTAS = ['comunicacao', 'audiencia', 'origem'] as const;
+export interface ListasOrgao { comunicacao?: ItemLista[]; audiencia?: ItemLista[]; origem?: ItemLista[]; peticao?: ItemLista[] }
+export const LISTAS = ['comunicacao', 'audiencia', 'origem', 'peticao'] as const;
+/** Tipos de petição que o portal das partes sempre oferece ("Outro" fica por último, depois dos do órgão). */
+export const TIPOS_PETICAO = ['Manifestação', 'Juntada de documento', 'Pedido de prazo', 'Pedido de urgência', 'Pedido de vista', 'Recurso', 'Outro'];
+/** Os tipos de petição que a parte escolhe: os do sistema, os do órgão e "Outro" no fim. */
+export function tiposDePeticao(listas: unknown): string[] {
+    const l = (listas && typeof listas === 'object' ? (listas as ListasOrgao).peticao : null) || [];
+    const doOrgao = (Array.isArray(l) ? l : []).map((x) => (typeof x?.nome === 'string' ? x.nome : '')).filter((n) => n && !TIPOS_PETICAO.includes(n));
+    return [...TIPOS_PETICAO.slice(0, -1), ...doOrgao, 'Outro'];
+}
 export type NomeLista = typeof LISTAS[number];
 export const MAX_ITENS_LISTA = 30;
 export const MAX_NOME_ITEM = 40;
@@ -58,14 +66,14 @@ export function itemDoRegistro(id: unknown, nome: unknown, m: unknown, onde: str
 /** Artigos do nome: "a"/"o", "da"/"do", "à"/"ao". */
 export const artigos = (m?: boolean) => (m ? { o: 'o', de: 'do', a: 'ao' } : { o: 'a', de: 'da', a: 'à' });
 
-const ROTULO_LISTA: Record<NomeLista, string> = { comunicacao: 'Espécies de comunicação', audiencia: 'Espécies de audiência', origem: 'Origens do processo' };
+const ROTULO_LISTA: Record<NomeLista, string> = { comunicacao: 'Espécies de comunicação', audiencia: 'Espécies de audiência', origem: 'Origens do processo', peticao: 'Tipos de petição' };
 
-/** As três listas saneadas; `sistema` traz os nomes que o sistema já tem em cada uma. Lança Error com mensagem. */
+/** As listas saneadas; `sistema` traz os nomes que o sistema já tem em cada uma. Lança Error com mensagem. */
 export function sanitizeListas(raw: unknown, sistema: Record<NomeLista, string[]>): ListasOrgao {
     const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
     const out: ListasOrgao = {};
     for (const k of LISTAS) {
-        const l = sanitizeLista(o[k], sistema[k], k !== 'origem', ROTULO_LISTA[k]);
+        const l = sanitizeLista(o[k], sistema[k] || [], k ==='comunicacao' || k === 'audiencia', ROTULO_LISTA[k]);
         if (l.length) out[k] = l;
     }
     return out;
@@ -98,6 +106,7 @@ export function listaDoTitulo(s: string): NomeLista | null {
     if (/^comunicac(ao|oes)$/.test(r)) return 'comunicacao';
     if (/^audiencias?$/.test(r)) return 'audiencia';
     if (/^orige(m|ns)$/.test(r)) return 'origem';
+    if (/^(peticao|peticoes|peticionamento)$/.test(r)) return 'peticao';
     return null;
 }
 

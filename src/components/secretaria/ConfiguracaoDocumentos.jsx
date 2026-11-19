@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Copy, Download, FileText, FileUp, ImagePlus, Loader2, Paperclip, Plus, Save, Trash2, X } from 'lucide-react';
+import { Copy, Download, Eye, FileDown, FileText, FileUp, ImagePlus, Loader2, Paperclip, Plus, Save, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,11 +10,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
-import { secConfig } from '@/services/secretariaService';
+import { baixarResposta, secConfig } from '@/services/secretariaService';
+import { VisualizadorPdf } from './RedacaoDocumento';
 import { baixarPacote, nomeArquivoPacote, pacoteDeDocumento } from '@/lib/pacoteModelos';
 import { NativeSelect, documentoDaUnidade } from './comum';
 import EditorDocumento, { CAMPOS_MODELO, CSS_FONTE, FONTES, prepararImagem } from './EditorDocumento';
 import { variaveisDisponiveis } from '@/lib/exigencias';
+import { PAGINAS_FAIXA, POSICOES_NUMERO, folhaCm, margensDe, resumoPagina, textoNumero } from '@/lib/layoutDocumento';
+import ConfigurarPagina from './LayoutDocumento';
 import ImportarModelo, { EditorOriginal, rotuloFormatoOriginal } from './ImportarModelo';
 import VersoesDialog from './VersoesDialog';
 import { CartaoComMenu, ConfirmarExclusao, Excluidos } from './Lixeira';
@@ -35,7 +38,21 @@ const paraForm = (d = {}) => ({
     rodape: d.rodape || '',
     fonte_padrao: d.fonte_padrao || 'serif',
     tamanho_padrao: d.tamanho_padrao || 12,
+    layout: d.layout || null,
 });
+
+/** Texto de exemplo para ver o papel timbrado na folha e no PDF. */
+const AMOSTRA = {
+    type: 'doc',
+    content: [
+        { type: 'heading', attrs: { level: 1, textAlign: 'center' }, content: [{ type: 'text', text: 'Despacho' }] },
+        { type: 'paragraph', content: [{ type: 'text', text: 'Trata-se de procedimento instaurado para apurar os fatos narrados na representação, com a observância do contraditório e da ampla defesa.' }] },
+        { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Fundamentação' }] },
+        ...Array.from({ length: 3 }, () => ({ type: 'paragraph', content: [{ type: 'text', text: 'Os autos foram instruídos com os documentos apresentados pelas partes. Cumpre registrar que as diligências foram realizadas nos prazos previstos, sem prejuízo das providências que se mostrarem necessárias.' }] })),
+        { type: 'paragraph', attrs: { textAlign: 'center' }, content: [{ type: 'text', text: 'Cidade, data.' }] },
+    ],
+};
+const resumoFaixa = (f, simples) => (f?.modo === 'proprio' ? 'editor completo' : f?.modo === 'nenhum' ? 'nenhum' : simples);
 
 /** Prévia em miniatura de uma folha com o papel timbrado. */
 export function PreviaFolha({ cfg }) {
@@ -64,8 +81,26 @@ export function PreviaFolha({ cfg }) {
  * Formulário de papel timbrado (cabeçalho, brasão, rodapé, fonte) com prévia.
  * Usado pelo órgão e pelas unidades com timbrado próprio.
  */
-export function FormTimbrado({ cfg, setCfg, idPrefixo = 'doc' }) {
+export function FormTimbrado({ cfg, setCfg, idPrefixo = 'doc', orgId, unidadeId = null }) {
     const brasaoRef = useRef(null);
+    const [pagina, setPagina] = useState(null); // aba aberta de "Página, cabeçalho e estilos"
+    const [pdf, setPdf] = useState(null);
+    const [gerando, setGerando] = useState(false);
+    // O editor do cabeçalho/rodapé guarda a função da primeira renderização: parte sempre do formulário atual.
+    const cfgRef = useRef(cfg);
+    cfgRef.current = cfg;
+    const l = cfg.layout || {};
+    const { w } = folhaCm(l);
+    const mg = margensDe(l);
+    const np = l.numero_pagina || {};
+    const simples = (cfg.cabecalho_linhas || []).some(Boolean) || cfg.brasao ? 'as linhas e o brasão acima' : 'vazio';
+    const verPdf = async () => {
+        setGerando(true);
+        try {
+            const r = await secConfig(orgId, 'previaModelo', { formato: 'pdf', modelo: { nome: 'papel-timbrado', unidade_id: unidadeId, conteudo: AMOSTRA }, timbrado: cfg });
+            setPdf({ ...r, titulo: 'Prévia do papel timbrado' });
+        } catch (e) { toast.error(e?.message || 'Não foi possível gerar a prévia'); } finally { setGerando(false); }
+    };
     const escolherBrasao = async (e) => {
         const f = e.target.files?.[0];
         e.target.value = '';
@@ -80,7 +115,7 @@ export function FormTimbrado({ cfg, setCfg, idPrefixo = 'doc' }) {
         <div className="grid lg:grid-cols-2 gap-5">
             <div className="space-y-3 min-w-0">
                 <fieldset className="space-y-2">
-                    <legend className="text-sm font-medium">Cabeçalho (até 4 linhas; a primeira em destaque)</legend>
+                    <legend className="text-sm font-medium">Cabeçalho simples (até 4 linhas; a primeira em destaque)</legend>
                     {cfg.cabecalho_linhas.map((l, i) => (
                         <Input key={i} aria-label={`Linha ${i + 1} do cabeçalho`} value={l} maxLength={120}
                             placeholder={['Ex.: Ministério Público do Estado', 'Ex.: Promotoria de Justiça de …', 'Ex.: Secretaria', 'Ex.: endereço ou contato'][i]}
@@ -93,16 +128,49 @@ export function FormTimbrado({ cfg, setCfg, idPrefixo = 'doc' }) {
                     <input ref={brasaoRef} type="file" accept="image/png,image/jpeg" className="sr-only" tabIndex={-1} onChange={escolherBrasao} />
                     <span className="text-xs text-slate-600">PNG ou JPG, até 300 KB</span>
                 </div>
-                <div><Label htmlFor={`${idPrefixo}-rodape`}>Rodapé</Label><Input id={`${idPrefixo}-rodape`} value={cfg.rodape} maxLength={200} onChange={(e) => setCfg({ ...cfg, rodape: e.target.value })} placeholder="Ex.: Rua …, nº … · telefone · e-mail" /></div>
+                <div><Label htmlFor={`${idPrefixo}-rodape`}>Rodapé simples</Label><Input id={`${idPrefixo}-rodape`} value={cfg.rodape} maxLength={200} onChange={(e) => setCfg({ ...cfg, rodape: e.target.value })} placeholder="Ex.: Rua …, nº … · telefone · e-mail" /></div>
                 <div className="grid grid-cols-2 gap-3">
                     <NativeSelect id={`${idPrefixo}-fonte`} label="Fonte padrão" value={cfg.fonte_padrao} onChange={(v) => setCfg({ ...cfg, fonte_padrao: v })} options={FONTES.filter(([v]) => v)} />
                     <NativeSelect id={`${idPrefixo}-tam`} label="Tamanho padrão" value={String(cfg.tamanho_padrao)} onChange={(v) => setCfg({ ...cfg, tamanho_padrao: Number(v) })} options={[9, 10, 11, 12, 13, 14, 16].map((t) => [String(t), `${t} pt`])} />
                 </div>
+                <fieldset className="rounded-md border border-slate-300 dark:border-slate-700 p-3 space-y-2">
+                    <legend className="text-sm font-medium px-1">Página, cabeçalho, rodapé e estilos</legend>
+                    <p className="text-xs text-slate-600 dark:text-slate-400">
+                        As mesmas ferramentas dos modelos, para todos os documentos com este timbrado. Cada modelo ou documento pode mudar por cima.
+                    </p>
+                    <ul className="text-xs text-slate-700 dark:text-slate-300 space-y-0.5">
+                        <li><span className="font-medium">Página:</span> {resumoPagina(l)}</li>
+                        <li><span className="font-medium">Cabeçalho:</span> {resumoFaixa(l.cabecalho, simples)}{l.cabecalho?.paginas && l.cabecalho.paginas !== 'todas' ? ` (${(PAGINAS_FAIXA.find(([v]) => v === l.cabecalho.paginas) || [])[1]?.toLowerCase()})` : ''}</li>
+                        <li><span className="font-medium">Rodapé:</span> {resumoFaixa(l.rodape, cfg.rodape ? 'o texto acima' : 'vazio')}{l.rodape?.paginas && l.rodape.paginas !== 'todas' ? ` (${(PAGINAS_FAIXA.find(([v]) => v === l.rodape.paginas) || [])[1]?.toLowerCase()})` : ''}</li>
+                        <li><span className="font-medium">Número de página:</span> {np.posicao === 'nenhum' ? 'sem número' : `${(POSICOES_NUMERO.find(([v]) => v === (np.posicao || 'rodape-direita')) || [])[1]?.toLowerCase()}, "${textoNumero(np.formato, 1, 5)}"`}</li>
+                        <li><span className="font-medium">Estilos:</span> {Object.keys(l.estilos || {}).length + (l.proprios || []).length ? `${Object.keys(l.estilos || {}).length} ajustado(s), ${(l.proprios || []).length} próprio(s)` : 'os do SIGO'}</li>
+                    </ul>
+                    <div className="flex flex-wrap gap-2">
+                        <Button type="button" size="sm" variant="outline" onClick={() => setPagina('pagina')}>Papel e margens</Button>
+                        <Button type="button" size="sm" variant="outline" onClick={() => setPagina('faixas')}>Cabeçalho, rodapé e número</Button>
+                        <Button type="button" size="sm" variant="outline" onClick={() => setPagina('estilos')}>Estilos e numeração</Button>
+                    </div>
+                </fieldset>
             </div>
             <div className="min-w-0">
-                <p className="text-sm font-medium mb-2">Prévia da folha</p>
-                <PreviaFolha cfg={cfg} />
+                <div className="flex items-center gap-2 mb-2">
+                    <p className="text-sm font-medium flex-1">Prévia da folha</p>
+                    {orgId && (
+                        <Button type="button" size="sm" variant="outline" className="gap-1" disabled={gerando} title="Como sai no PDF dos autos, folha por folha, antes de salvar" onClick={verPdf}>
+                            {gerando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" aria-hidden />} Ver em PDF
+                        </Button>
+                    )}
+                </div>
+                <div className="h-[460px] sm:h-[560px] overflow-hidden rounded-md">
+                    <div className="h-[200%] origin-top-left" style={{ zoom: 0.5 }}>
+                        <EditorDocumento somenteLeitura previa conteudo={AMOSTRA} config={cfg} rotulo="Exemplo de documento com o papel timbrado" />
+                    </div>
+                </div>
             </div>
+            <ConfigurarPagina aberto={!!pagina} aba={pagina || 'pagina'} onAba={setPagina} layout={l} modoTimbrado
+                onMudar={(novo) => setCfg({ ...cfgRef.current, layout: novo })} onFechar={() => setPagina(null)}
+                fontes={FONTES} cssFonte={CSS_FONTE} editor={null} config={cfg} campos={CAMPOS_MODELO} EditorFaixa={EditorDocumento} larguraUtil={w - mg.esq - mg.dir} />
+            <VisualizadorPdf pdf={pdf} onFechar={() => setPdf(null)} />
         </div>
     );
 }
@@ -137,7 +205,7 @@ export default function ConfiguracaoDocumentos({ orgId, estado, pedido = null, o
                     <CardDescription>Vale para todas as unidades que não tiverem timbrado próprio, na tela e no PDF que entra nos autos. Petições das partes não levam timbre.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <FormTimbrado cfg={cfg} setCfg={setCfg} />
+                    <FormTimbrado cfg={cfg} setCfg={setCfg} orgId={orgId} />
                     <div className="max-w-xl">
                         <Label htmlFor="doc-tipos">Tipos de documento do órgão (um por linha)</Label>
                         <Textarea id="doc-tipos" rows={6} value={tiposTexto} onChange={(e) => setTiposTexto(e.target.value)} placeholder={'Despacho\nDecisão\nCertidão\n…'} />
@@ -200,7 +268,7 @@ export function DocumentosDaUnidade({ orgId, estado, unidade }) {
                     <span><span className="font-medium">Timbrado próprio da unidade</span><span className="block text-slate-600">Para documentos redigidos por esta unidade.</span></span>
                 </label>
             </fieldset>
-            {dados.proprio && <FormTimbrado cfg={dados.cfg} setCfg={(cfg) => setDados({ ...dados, cfg })} idPrefixo={`un-${unidade.id}`} />}
+            {dados.proprio && <FormTimbrado cfg={dados.cfg} setCfg={(cfg) => setDados((d) => ({ ...d, cfg }))} idPrefixo={`un-${unidade.id}`} orgId={orgId} unidadeId={unidade.id} />}
             <div className="max-w-xl">
                 <Label htmlFor={`un-tipos-${unidade.id}`}>Tipos de documento próprios (um por linha)</Label>
                 <Textarea id={`un-tipos-${unidade.id}`} rows={4} value={dados.tipos} onChange={(e) => setDados({ ...dados, tipos: e.target.value })} placeholder={'Ex.: Parecer técnico\nNota de assessoria'} />
@@ -306,6 +374,8 @@ export function ListaModelos({ orgId, estado, unidadeId, orgaoId = null, semCart
 
 function EditorModelo({ modelo, setModelo, orgId, estado, onSalvo }) {
     const [salvando, setSalvando] = useState(false);
+    const [previa, setPrevia] = useState(null); // 'pdf' | 'docx' em andamento
+    const [pdf, setPdf] = useState(null);
     const camposModelo = useMemo(() => [...CAMPOS_MODELO, ...variaveisDisponiveis(estado, CAMPOS_MODELO.map(([k]) => k))], [estado]);
     const conteudo = useRef(null);
     const sujo = useRef(false);
@@ -327,6 +397,16 @@ function EditorModelo({ modelo, setModelo, orgId, estado, onSalvo }) {
             onSalvo();
         } catch (e) { toast.error(e?.message || 'Não foi possível salvar'); } finally { setSalvando(false); }
     };
+    // Como o modelo sai nos autos (timbrado, cabeçalho, rodapé, número de página) ou no Word, sem salvar.
+    const verPrevia = async (formato) => {
+        setPrevia(formato);
+        try {
+            const texto = conteudo.current || modelo.conteudo || { type: 'doc', content: [{ type: 'paragraph' }] };
+            const r = await secConfig(orgId, 'previaModelo', { formato, modelo: { nome: modelo.nome, unidade_id: modelo.unidade_id || null, orgao_id: modelo.orgao_id || null, conteudo: texto } });
+            if (formato === 'pdf') setPdf({ ...r, titulo: `Prévia: ${modelo.nome || 'modelo'}` });
+            else baixarResposta(r);
+        } catch (e) { toast.error(e?.message || 'Não foi possível gerar a prévia'); } finally { setPrevia(null); }
+    };
     return (
         <Dialog open onOpenChange={(o) => !o && fechar()}>
             <DialogContent className="max-w-none w-screen h-[100dvh] sm:w-[96vw] sm:h-[96vh] sm:max-w-[1240px] p-0 gap-0 flex flex-col overflow-hidden sm:rounded-lg [&>button:last-child]:hidden">
@@ -340,7 +420,13 @@ function EditorModelo({ modelo, setModelo, orgId, estado, onSalvo }) {
                     </select>
                     <Input aria-label="Descrição" placeholder="Para que serve (opcional)" value={modelo.descricao || ''} onChange={(e) => setModelo({ ...modelo, descricao: e.target.value })} className="h-9 flex-1 min-w-[12rem]" />
                     <label className="flex items-center gap-2 text-sm"><Checkbox checked={modelo.ativo !== false} onCheckedChange={(c) => setModelo({ ...modelo, ativo: c === true })} /> Ativo</label>
-                    <div className="flex gap-2 ml-auto">
+                    <div className="flex flex-wrap gap-2 ml-auto">
+                        <Button size="sm" variant="outline" className="gap-1" disabled={!!previa} title="Como o modelo sai no PDF dos autos, com timbrado, cabeçalho, rodapé e número de página" onClick={() => verPrevia('pdf')}>
+                            {previa === 'pdf' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" aria-hidden />} Prévia em PDF
+                        </Button>
+                        <Button size="sm" variant="ghost" className="gap-1" disabled={!!previa} title="Baixa o modelo em Word (.docx), para conferir no Word ou no LibreOffice" onClick={() => verPrevia('docx')}>
+                            {previa === 'docx' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" aria-hidden />} Word
+                        </Button>
                         {modelo.id && <VersoesDialog orgId={orgId} colecao="modelo" id={modelo.id} nome={modelo.nome} estado={estado} onRestaurado={() => { onSalvo(); setModelo(null); }} />}
                         {modelo.id && (
                             <Button size="sm" variant="ghost" className="gap-1" title="Cria uma cópia deste modelo, para ajustar e salvar"
@@ -356,6 +442,7 @@ function EditorModelo({ modelo, setModelo, orgId, estado, onSalvo }) {
                     <EditorDocumento key={modelo._k} conteudo={modelo.conteudo} config={docCfg} campos={camposModelo}
                         onChange={(j) => { conteudo.current = j; sujo.current = true; }} onSalvar={salvar} autoFocus rotulo="Texto do modelo" />
                 </div>
+                <VisualizadorPdf pdf={pdf} onFechar={() => setPdf(null)} />
             </DialogContent>
         </Dialog>
     );

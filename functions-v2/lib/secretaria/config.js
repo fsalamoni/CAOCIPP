@@ -26,7 +26,7 @@ const comunicacoes_1 = require("../shared/comunicacoes");
 const audiencias_1 = require("../shared/audiencias");
 const listasOrgao_1 = require("../shared/listasOrgao");
 /** Nomes que o sistema já tem em cada lista do órgão (não se repetem). */
-const SISTEMA_LISTAS = { comunicacao: Object.values(comunicacoes_1.ESPECIES), audiencia: Object.values(audiencias_1.ESPECIES_AUDIENCIA), origem: Object.values(secretaria_1.ROTULO_ORIGEM) };
+const SISTEMA_LISTAS = { comunicacao: Object.values(comunicacoes_1.ESPECIES), audiencia: Object.values(audiencias_1.ESPECIES_AUDIENCIA), origem: Object.values(secretaria_1.ROTULO_ORIGEM), peticao: listasOrgao_1.TIPOS_PETICAO };
 const orgaos_1 = require("../shared/orgaos");
 const orgaos_2 = require("./orgaos");
 const documentoConfig_1 = require("./documentoConfig");
@@ -35,6 +35,7 @@ const conversao_1 = require("./conversao");
 const listasArquivo_1 = require("./listasArquivo");
 const modulos_1 = require("../shared/modulos");
 const situacaoRegistro_1 = require("../shared/situacaoRegistro");
+const painelModulos_1 = require("../shared/painelModulos");
 const registroCriado_1 = require("../shared/registroCriado");
 const unidades_1 = require("./unidades");
 const migrarRito_1 = require("./migrarRito");
@@ -154,13 +155,23 @@ const modulosDoRito = (r) => new Set((Array.isArray(r === null || r === void 0 ?
     return [
         // A fase que conduz a situação de um registro (consulta, expediente) também usa o módulo.
         ...(((_a = f.situacao_registro) === null || _a === void 0 ? void 0 : _a.modulo) ? [String(f.situacao_registro.modulo)] : []),
-        ...(f.acoes_regras || []).flatMap((x) => ((x === null || x === void 0 ? void 0 : x.pede) === 'registro' && x.modulo ? [String(x.modulo)] : (x === null || x === void 0 ? void 0 : x.pede) === 'formulario' ? [...modulosDoForm(x)] : [])),
+        ...(f.acoes_regras || []).flatMap((x) => {
+            var _a;
+            return [
+                ...((x === null || x === void 0 ? void 0 : x.pede) === 'registro' && x.modulo ? [String(x.modulo)] : (x === null || x === void 0 ? void 0 : x.pede) === 'formulario' ? [...modulosDoForm(x)] : []),
+                // "Leva ao painel": a ação escreve no registro do módulo.
+                ...(((_a = x === null || x === void 0 ? void 0 : x.ao_registro) === null || _a === void 0 ? void 0 : _a.modulo) ? [String(x.ao_registro.modulo)] : []),
+            ];
+        }),
     ];
 }));
-/** Rito que conduz registros de páginas próprias: a página e as fases que ele cita têm de existir. */
+/** Rito que conduz registros de páginas próprias (ou leva dados a eles): a página, as fases e os campos que ele cita têm de existir. */
 async function exigirPaginas(c, rito) {
     const fases = (Array.isArray(rito === null || rito === void 0 ? void 0 : rito.fases) ? rito.fases : []);
-    const ids = [...new Set(fases.filter((f) => { var _a; return ((_a = f.situacao_registro) === null || _a === void 0 ? void 0 : _a.modulo) === 'paginas'; }).map((f) => String(f.situacao_registro.pagina)))];
+    const ids = [...new Set([
+            ...fases.filter((f) => { var _a; return ((_a = f.situacao_registro) === null || _a === void 0 ? void 0 : _a.modulo) === 'paginas'; }).map((f) => String(f.situacao_registro.pagina)),
+            ...fases.flatMap((f) => (f.acoes_regras || []).filter((r) => { var _a; return ((_a = r === null || r === void 0 ? void 0 : r.ao_registro) === null || _a === void 0 ? void 0 : _a.modulo) === 'paginas'; }).map((r) => String(r.ao_registro.pagina))),
+        ])];
     if (!ids.length)
         return;
     const tipos = {};
@@ -168,14 +179,16 @@ async function exigirPaginas(c, rito) {
         const d = (await c.db.collection('entityTypes').doc(id).get()).data();
         tipos[id] = d && d.organization_id === c.orgId ? d : null;
     }
-    const erros = (0, situacaoRegistro_1.fasesDePaginaInvalidas)(fases, tipos);
+    const erros = [...(0, situacaoRegistro_1.fasesDePaginaInvalidas)(fases, tipos), ...(0, painelModulos_1.aoRegistroInvalido)(fases, tipos)];
     if (erros.length)
         throw new https_1.HttpsError('failed-precondition', erros[0]);
 }
 /** De onde o tipo pode nascer ("Criar processo eletrônico" no outro módulo ou "Novo processo derivado"). */
 const nascerDe = (v) => [...new Set(Array.isArray(v) ? v.filter(modulos_1.ehModuloOrigem) : [])];
 /** Módulos que o tipo usa: os dos campos, os de onde pode nascer e a página onde cria o registro. */
-const modulosDoTipo = (t) => new Set([...modulosDoForm(t === null || t === void 0 ? void 0 : t.formulario), ...nascerDe(t === null || t === void 0 ? void 0 : t.pode_nascer_de).filter((m) => m !== 'pe'), ...((0, registroCriado_1.sanitizeCriaRegistro)(t === null || t === void 0 ? void 0 : t.cria_registro) ? ['paginas'] : [])]);
+const modulosDoTipo = (t) => new Set([...modulosDoForm(t === null || t === void 0 ? void 0 : t.formulario), ...nascerDe(t === null || t === void 0 ? void 0 : t.pode_nascer_de).filter((m) => m !== 'pe'), ...criaEm((0, registroCriado_1.sanitizeCriaRegistro)(t === null || t === void 0 ? void 0 : t.cria_registro))]);
+/** Módulo onde o tipo cria o registro na autuação (a página própria ou a consulta e o expediente). */
+const criaEm = (cr) => (!cr ? [] : [cr.modulo || 'paginas']);
 /** Módulo novo no tipo ou no rito precisa da integração ligada (o que já estava gravado segue valendo). */
 async function exigirIntegracoes(c, usados, antes) {
     const novos = [...usados].filter((m) => !antes.has(m));
@@ -188,7 +201,7 @@ async function exigirIntegracoes(c, usados, antes) {
     }
 }
 exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, async (request) => {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u;
     const auth = (0, context_1.exigirAuth)(request);
     const p = request.data || {};
     // Convite de equipe: quem aceita pode ainda não ser membro do órgão.
@@ -403,6 +416,42 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
             const msg = e instanceof Error ? e.message : '';
             throw new https_1.HttpsError('invalid-argument', msg && msg.length < 300 ? msg : 'Não foi possível ler o arquivo');
         }
+    }
+    // Prévia do modelo como sai nos autos (PDF com marca d'água) ou em Word, sem salvar nada.
+    if (p.action === 'previaModelo') {
+        const m = (p.modelo && typeof p.modelo === 'object' ? p.modelo : {});
+        const unidadeId = m.unidade_id ? String(m.unidade_id) : null;
+        if (unidadeId)
+            (0, context_1.exigirGestor)(c, unidadeId);
+        else
+            (0, context_1.exigirAdminDoOrgao)(c, m.orgao_id || null);
+        let conteudo = null;
+        try {
+            conteudo = (0, documento_1.sanitizeDoc)(m.conteudo);
+        }
+        catch (e) {
+            (0, context_1.erroUsuario)(e);
+        }
+        const { lerConfigDocumento } = await Promise.resolve().then(() => require('./autos'));
+        let cfg = await lerConfigDocumento(db, orgId, unidadeId || undefined);
+        // Prévia do papel timbrado ainda não salvo (tela do timbrado do órgão ou da unidade).
+        const timbrado = p.timbrado;
+        if (timbrado) {
+            try {
+                cfg = Object.assign(Object.assign({}, cfg), (0, documentoConfig_1.sanitizeDocumentoConfig)(timbrado));
+            }
+            catch (e) {
+                (0, context_1.erroUsuario)(e);
+            }
+        }
+        const nome = (0, secretaria_1.texto)(m.nome, 60).replace(/[^\p{L}\p{N} _-]+/gu, '') || 'modelo';
+        if (p.formato === 'docx') {
+            const { docParaDocx } = await Promise.resolve().then(() => require('./docxExportar'));
+            return { base64: (await docParaDocx(conteudo, cfg, { titulo: nome })).toString('base64'), nome: `${nome}.docx`, mime: conversao_1.MIME_DOCX };
+        }
+        const { renderizarDocumento } = await Promise.resolve().then(() => require('./pdfDocumento'));
+        const r = await renderizarDocumento(conteudo, cfg, { marcaDagua: 'MODELO' });
+        return { base64: r.buffer.toString('base64'), nome: `${nome}.pdf`, mime: 'application/pdf', paginas: r.paginas };
     }
     if (p.action === 'salvarModelo') {
         const m = (p.modelo && typeof p.modelo === 'object' ? p.modelo : {});
@@ -754,7 +803,7 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         }
         await db.collection(context_1.COL.config).doc(orgId).set({ organization_id: orgId, listas, updated_at: agora, updated_by: auth.uid }, { merge: true });
         const importado = (0, secretaria_1.texto)(p.arquivo_nome, 160);
-        await audit('SECRETARIA_LISTAS', Object.assign({ comunicacao: ((_m = listas.comunicacao) === null || _m === void 0 ? void 0 : _m.length) || 0, audiencia: ((_o = listas.audiencia) === null || _o === void 0 ? void 0 : _o.length) || 0, origem: ((_p = listas.origem) === null || _p === void 0 ? void 0 : _p.length) || 0 }, (importado ? { importado_de: importado, itens_importados: Math.max(0, Math.min(listasOrgao_1.MAX_ITENS_PROPOSTA, Number(p.itens_importados) || 0)) } : {})));
+        await audit('SECRETARIA_LISTAS', Object.assign({ comunicacao: ((_m = listas.comunicacao) === null || _m === void 0 ? void 0 : _m.length) || 0, audiencia: ((_o = listas.audiencia) === null || _o === void 0 ? void 0 : _o.length) || 0, origem: ((_p = listas.origem) === null || _p === void 0 ? void 0 : _p.length) || 0, peticao: ((_q = listas.peticao) === null || _q === void 0 ? void 0 : _q.length) || 0 }, (importado ? { importado_de: importado, itens_importados: Math.max(0, Math.min(listasOrgao_1.MAX_ITENS_PROPOSTA, Number(p.itens_importados) || 0)) } : {})));
         return { success: true };
     }
     if (p.action === 'lerListas') {
@@ -911,9 +960,19 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
                     (0, context_1.erroUsuario)(e);
                 }
             }
+            // Painel gerado do rito na revisão: o tipo já nasce criando o registro na autuação (só página própria do órgão).
+            const criaRegistro = (0, registroCriado_1.sanitizeCriaRegistro)(tp.cria_registro);
+            if (criaRegistro) {
+                if (criaRegistro.modulo)
+                    throw new https_1.HttpsError('invalid-argument', 'Ao implantar, o tipo só pode criar registro em página própria. Ajuste no tipo de processo depois.');
+                const pg = (await db.collection('entityTypes').doc(criaRegistro.pagina).get()).data();
+                const erros = (0, registroCriado_1.errosCriaRegistro)(criaRegistro, pg && pg.organization_id === orgId ? pg : null, formulario || { campos: [] });
+                if (erros.length)
+                    throw new https_1.HttpsError('invalid-argument', erros[0]);
+            }
             const ref = db.collection(context_1.COL.tipos).doc();
             tipoId = ref.id;
-            batch.set(ref, Object.assign(Object.assign({}, (formulario ? { formulario } : {})), { nome: (0, secretaria_1.texto)(tp.nome), sigla: (0, secretaria_1.texto)(tp.sigla, 12), descricao: (0, secretaria_1.texto)(tp.descricao, secretaria_1.MAX_TEXTO_LONGO), rito_id: ritoRef.id, sigilo_padrao: tp.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', unidade_inicial: ((_q = rito.fases[0]) === null || _q === void 0 ? void 0 : _q.unidade_id) || null, ativo: true, organization_id: orgId, created_at: agora, created_by: auth.uid, updated_at: agora, updated_by: auth.uid }));
+            batch.set(ref, Object.assign(Object.assign(Object.assign({}, (formulario ? { formulario } : {})), (criaRegistro ? { cria_registro: criaRegistro } : {})), { nome: (0, secretaria_1.texto)(tp.nome), sigla: (0, secretaria_1.texto)(tp.sigla, 12), descricao: (0, secretaria_1.texto)(tp.descricao, secretaria_1.MAX_TEXTO_LONGO), rito_id: ritoRef.id, sigilo_padrao: tp.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', unidade_inicial: ((_r = rito.fases[0]) === null || _r === void 0 ? void 0 : _r.unidade_id) || null, ativo: true, organization_id: orgId, created_at: agora, created_by: auth.uid, updated_at: agora, updated_by: auth.uid }));
         }
         await batch.commit();
         await audit(editarId ? 'SECRETARIA_RITO_SALVO' : 'SECRETARIA_RITO_IMPLANTADO', {
@@ -936,13 +995,13 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         if (p.id) {
             const ref = col.doc(p.id);
             const snap = await ref.get();
-            if (!snap.exists || ((_r = snap.data()) === null || _r === void 0 ? void 0 : _r.organization_id) !== orgId || ((_s = snap.data()) === null || _s === void 0 ? void 0 : _s.excluido) === true)
+            if (!snap.exists || ((_s = snap.data()) === null || _s === void 0 ? void 0 : _s.organization_id) !== orgId || ((_t = snap.data()) === null || _t === void 0 ? void 0 : _t.excluido) === true)
                 throw new https_1.HttpsError('not-found', 'Rito não encontrado');
             await exigirIntegracoes(c, modulosDoRito(rito), modulosDoRito(snap.data()));
             // Processos guardam a cópia das fases com que foram autuados; mudar
             // o rito só vale para os próximos. A versão anterior fica guardada.
             await guardarVersao(ref, snap.data(), CAMPOS_RITO);
-            await ref.update(Object.assign(Object.assign({}, rito), { ativo: p.ativo !== false, versao: (Number((_t = snap.data()) === null || _t === void 0 ? void 0 : _t.versao) || 1) + 1, updated_at: agora, updated_by: auth.uid }));
+            await ref.update(Object.assign(Object.assign({}, rito), { ativo: p.ativo !== false, versao: (Number((_u = snap.data()) === null || _u === void 0 ? void 0 : _u.versao) || 1) + 1, updated_at: agora, updated_by: auth.uid }));
         }
         else {
             const qtd = (await col.where('organization_id', '==', orgId).select('excluido').get()).docs.filter((d) => d.data().excluido !== true).length;
@@ -1012,8 +1071,9 @@ exports.secretariaConfig = (0, https_1.onCall)({ region: context_1.REGION }, asy
         // "Criar registro na autuação": página do órgão, campos que existem e fonte para o que a página exige.
         const criaRegistro = (0, registroCriado_1.sanitizeCriaRegistro)(t.cria_registro);
         if (criaRegistro) {
-            const pg = (await db.collection('entityTypes').doc(criaRegistro.pagina).get()).data();
-            const erros = (0, registroCriado_1.errosCriaRegistro)(criaRegistro, pg && pg.organization_id === orgId ? pg : null, formulario);
+            // Consulta ou expediente: os campos são os do módulo (o número e quem pediu são obrigatórios).
+            const pg = criaRegistro.modulo ? (0, painelModulos_1.defDaCriacao)(criaRegistro.modulo) : (await db.collection('entityTypes').doc(criaRegistro.pagina).get()).data();
+            const erros = (0, registroCriado_1.errosCriaRegistro)(criaRegistro, pg && (criaRegistro.modulo || pg.organization_id === orgId) ? pg : null, formulario);
             if (erros.length)
                 throw new https_1.HttpsError('invalid-argument', erros[0]);
         }

@@ -6,7 +6,7 @@ import { ETAPAS, RECEITAS, TEMAS, PERGUNTAS_MODELO, buscarReceitas, sugerirModel
 
 const MODELOS = bibliotecaDeModelos();
 const ids = new Set(MODELOS.map((m) => m.id));
-const PARTES_DO_GUIA = 20;
+const PARTES_DO_GUIA = 22;
 const perguntas = ETAPAS.flatMap((e) => e.perguntas);
 
 test('toda etapa tem objetivo, passos, perguntas e o que conferir', () => {
@@ -60,6 +60,12 @@ test('sugerirModelos respeita as respostas', () => {
 
     const defesa = sugerirModelos(MODELOS, { defesa: 'sim', area: 'correcional' }, 50).modelos;
     assert.ok(defesa.length && defesa.every((m) => usaRecurso(m, 'resposta') && m.area === 'correcional'));
+
+    // Âmbito: os do próprio órgão vêm primeiro, depois os de norma geral; nunca os de outro âmbito.
+    const mprs = sugerirModelos(MODELOS, { ambito: 'mprs', area: 'parcerias' }, 50).modelos;
+    assert.deepEqual(mprs.map((m) => m.id).sort(), ['parceria-acompanhamento-mprs', 'parceria-formalizacao-mprs']);
+    const rs = sugerirModelos(MODELOS, { ambito: 'estadual_rs' }, 100).modelos;
+    assert.ok(rs[0].ambito === 'estadual_rs' && rs.every((m) => ['estadual_rs', 'nacional'].includes(m.ambito)));
 
     const curtos = sugerirModelos(MODELOS, { porte: 'curto' }, 50).modelos;
     assert.ok(curtos.length && curtos.every((m) => m.porte === 'curto'));

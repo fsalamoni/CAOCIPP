@@ -28,6 +28,7 @@ export function paginasCitadas(rito: Rito, formulario?: unknown): string[] {
         if (f.situacao_registro?.modulo === 'paginas' && f.situacao_registro.pagina) ids.add(f.situacao_registro.pagina);
         for (const r of f.acoes_regras || []) {
             if (r?.modulo === 'paginas' && r.pagina) ids.add(r.pagina);
+            if (r?.ao_registro?.modulo === 'paginas' && r.ao_registro.pagina) ids.add(r.ao_registro.pagina);
             deCampos(r?.campos);
         }
     }
@@ -100,7 +101,7 @@ export function pacoteDoRito(rito: Rito, ctx: {
     const fasesPg = fases.map((f) => ({
         ...f,
         ...(f.situacao_registro ? { situacao_registro: pg(f.situacao_registro) } : {}),
-        ...(f.acoes_regras ? { acoes_regras: f.acoes_regras.map((r) => (r ? { ...pg(r), ...(r.campos ? { campos: comPaginas(r.campos) } : {}) } : r)) } : {}),
+        ...(f.acoes_regras ? { acoes_regras: f.acoes_regras.map((r) => (r ? { ...pg(r), ...(r.campos ? { campos: comPaginas(r.campos) } : {}), ...(r.ao_registro ? { ao_registro: pg(r.ao_registro) } : {}) } : r)) } : {}),
     }));
     const form = obj(ctx.tipo?.formulario);
     const tipo = ctx.tipo ? {

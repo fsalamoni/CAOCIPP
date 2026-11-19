@@ -81,6 +81,8 @@ export interface Formulario {
     polos: string[];
     /** Nome de cada polo neste tipo (vazio = o de sempre): Denunciante, Acusado, Licitante... */
     nomes_polos: Partial<Record<string, string>>;
+    /** Petição da parte fica visível só ao polo dela (e à equipe). */
+    peticoes_por_polo?: true;
     campos: CampoDef[];
 }
 export type Valor = string | number | boolean | string[];
@@ -123,6 +125,7 @@ const padroesDe = (f: Record<string, unknown>) => ({
     assunto: usoDe('assunto', f.assunto), descricao: usoDe('descricao', f.descricao), partes: usoDe('partes', f.partes),
     origem: usoDe('origem', f.origem), sigilo: usoDe('sigilo', f.sigilo), urgencia: usoDe('urgencia', f.urgencia), unidade: usoDe('unidade', f.unidade),
     rotulos: textos(f.rotulos, 60), ajudas: textos(f.ajudas, 200), polos: polosDe(f.polos), nomes_polos: nomesPolosDe(f.nomes_polos, polosDe(f.polos)),
+    ...(f.peticoes_por_polo === true ? { peticoes_por_polo: true as const } : {}),
 });
 
 /** Nome do campo padrão neste formulário. */

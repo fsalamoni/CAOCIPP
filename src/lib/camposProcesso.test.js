@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { abaDoRegistro, camposDaOrigem, faltando, formularioDe, formularioPadrao, novoCampo, problemasFormulario, registrosLigados, rotuloDe, valorTexto, valoresDe } from './camposProcesso.js';
+import { abaDoRegistro, camposDaOrigem, faltando, formularioDe, formularioPadrao, novoCampo, paineisSemRegistro, problemasFormulario, registrosLigados, rotuloDe, valorTexto, valoresDe } from './camposProcesso.js';
 
 test('página própria: abre na lista do tipo e entra nos registros ligados', () => {
     assert.equal(abaDoRegistro({ modulo: 'paginas', id: 'r1', pagina: 'tp1' }), 'clist:tp1');
@@ -157,4 +157,11 @@ test('registrosLigados junta origem, campos e ações sem repetir e ignora proce
     assert.equal(r[1].restrito, true);
     assert.deepEqual(r[2].de, ['Júri (Instrução)']);
     assert.deepEqual(registrosLigados({ campos: [] }), []);
+});
+
+test('painel que o rito conduz sem registro ligado', () => {
+    const fases = [{ id: 'a', situacao_registro: { modulo: 'consultas', ao_entrar: 'Pendente' } }, { id: 'b', acoes_regras: [{ pede: 'texto', ao_registro: { modulo: 'paginas', pagina: 'tp', campo: 'x' } }] }];
+    assert.deepEqual(paineisSemRegistro({ fases }), [{ modulo: 'consultas' }, { modulo: 'paginas', pagina: 'tp' }]);
+    assert.deepEqual(paineisSemRegistro({ fases, registro_criado: { modulo: 'consultas', id: 'c1', numero: '1' }, vinculos: ['paginas:r1'] }), []);
+    assert.deepEqual(paineisSemRegistro({ fases: [{ id: 'x' }] }), []);
 });

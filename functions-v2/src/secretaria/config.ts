@@ -9,10 +9,10 @@ import { codigoDe, codigosRepetidos, numeracaoDe, numeracaoTipoDe, sanitizeNumer
 import { COL, REGION, administraOrgao, carregarContexto, erroUsuario, exigirAdmin, exigirAdminDoOrgao, exigirAuth, exigirGestor } from './context';
 import { ESPECIES, cienciaDias, sanitizeTextosProntos, textosProntosDe } from '../shared/comunicacoes';
 import { ESPECIES_AUDIENCIA } from '../shared/audiencias';
-import { MAX_ITENS_PROPOSTA, listasDe, sanitizeListas } from '../shared/listasOrgao';
+import { MAX_ITENS_PROPOSTA, TIPOS_PETICAO, listasDe, sanitizeListas } from '../shared/listasOrgao';
 
 /** Nomes que o sistema já tem em cada lista do órgão (não se repetem). */
-const SISTEMA_LISTAS = { comunicacao: Object.values(ESPECIES), audiencia: Object.values(ESPECIES_AUDIENCIA), origem: Object.values(ROTULO_ORIGEM) };
+const SISTEMA_LISTAS = { comunicacao: Object.values(ESPECIES), audiencia: Object.values(ESPECIES_AUDIENCIA), origem: Object.values(ROTULO_ORIGEM), peticao: TIPOS_PETICAO };
 import { emArvore, orgaosDe, sanitizeCompetencias } from '../shared/orgaos';
 import { criarEstrutura, lerOrgaos, removerOrgao, salvarOrgao } from './orgaos';
 import { sanitizeDocumentoConfig } from './documentoConfig';
@@ -21,6 +21,7 @@ import { MIME_DOCX } from './conversao';
 import { MIMES_LISTAS, propostaDoArquivo } from './listasArquivo';
 import { MODULOS, ROTULO_MODULO, ehModuloOrigem, integracoesDe, integracoesGravadas, lerFlags, modulosAtivos } from '../shared/modulos';
 import { SituacaoRegistro, fasesDePaginaInvalidas } from '../shared/situacaoRegistro';
+import { AoRegistro, aoRegistroInvalido, defDaCriacao } from '../shared/painelModulos';
 import { PaginaDef, errosCriaRegistro, sanitizeCriaRegistro } from '../shared/registroCriado';
 import type { Contexto } from './context';
 import {
@@ -137,7 +138,7 @@ const RITO_PADRAO = {
 };
 
 type Acao = 'estado' | 'ativar' | 'salvarUnidade' | 'salvarRito' | 'salvarPreferencias' | 'salvarTipo' | 'salvarNumeracao' | 'salvarCodigos'
-    | 'salvarDocumentoConfig' | 'salvarModelo' | 'obterModelo' | 'salvarCalendario'
+    | 'salvarDocumentoConfig' | 'salvarModelo' | 'obterModelo' | 'previaModelo' | 'salvarCalendario'
     | 'obterUnidadeDocumento' | 'salvarUnidadeDocumento' | 'convidarEquipe' | 'revogarConviteEquipe'
     | 'pedirLotacao' | 'decidirPedido' | 'verConviteEquipe' | 'aceitarConviteEquipe'
     | 'importarModelo' | 'baixarModelo' | 'extrairTextoRito' | 'aplicarPropostaRito'
@@ -175,24 +176,32 @@ interface ConfigRequest extends Record<string, unknown> {
 /** Módulos de onde o tipo (campos) ou o rito (ações) puxam registros. */
 const modulosDoForm = (f: { campos?: Array<{ tipo?: string; modulo?: string }> } | null | undefined) =>
     new Set((f?.campos || []).filter((x) => x.tipo === 'registro' && x.modulo).map((x) => String(x.modulo)));
-const modulosDoRito = (r: { fases?: unknown } | null | undefined) => new Set((Array.isArray(r?.fases) ? r!.fases as Array<{ situacao_registro?: { modulo?: string }; acoes_regras?: Array<{ pede?: string; modulo?: string; campos?: Array<{ tipo?: string; modulo?: string }> } | null> }> : [])
+type RegraUsa = { pede?: string; modulo?: string; campos?: Array<{ tipo?: string; modulo?: string }>; ao_registro?: AoRegistro } | null;
+const modulosDoRito = (r: { fases?: unknown } | null | undefined) => new Set((Array.isArray(r?.fases) ? r!.fases as Array<{ situacao_registro?: { modulo?: string }; acoes_regras?: RegraUsa[] }> : [])
     .flatMap((f) => [
         // A fase que conduz a situação de um registro (consulta, expediente) também usa o módulo.
         ...(f.situacao_registro?.modulo ? [String(f.situacao_registro.modulo)] : []),
-        ...(f.acoes_regras || []).flatMap((x) => (x?.pede === 'registro' && x.modulo ? [String(x.modulo)] : x?.pede === 'formulario' ? [...modulosDoForm(x)] : [])),
+        ...(f.acoes_regras || []).flatMap((x) => [
+            ...(x?.pede === 'registro' && x.modulo ? [String(x.modulo)] : x?.pede === 'formulario' ? [...modulosDoForm(x)] : []),
+            // "Leva ao painel": a ação escreve no registro do módulo.
+            ...(x?.ao_registro?.modulo ? [String(x.ao_registro.modulo)] : []),
+        ]),
     ]));
 
-/** Rito que conduz registros de páginas próprias: a página e as fases que ele cita têm de existir. */
+/** Rito que conduz registros de páginas próprias (ou leva dados a eles): a página, as fases e os campos que ele cita têm de existir. */
 async function exigirPaginas(c: Contexto, rito: { fases?: unknown } | null | undefined) {
-    const fases = (Array.isArray(rito?.fases) ? rito!.fases : []) as Array<{ nome?: string; situacao_registro?: SituacaoRegistro }>;
-    const ids = [...new Set(fases.filter((f) => f.situacao_registro?.modulo === 'paginas').map((f) => String(f.situacao_registro!.pagina)))];
+    const fases = (Array.isArray(rito?.fases) ? rito!.fases : []) as Array<{ nome?: string; situacao_registro?: SituacaoRegistro; acoes?: string[]; acoes_regras?: Array<{ ao_registro?: AoRegistro } | null> }>;
+    const ids = [...new Set([
+        ...fases.filter((f) => f.situacao_registro?.modulo === 'paginas').map((f) => String(f.situacao_registro!.pagina)),
+        ...fases.flatMap((f) => (f.acoes_regras || []).filter((r) => r?.ao_registro?.modulo === 'paginas').map((r) => String(r!.ao_registro!.pagina))),
+    ])];
     if (!ids.length) return;
     const tipos: Record<string, admin.firestore.DocumentData | null> = {};
     for (const id of ids) {
         const d = (await c.db.collection('entityTypes').doc(id).get()).data();
         tipos[id] = d && d.organization_id === c.orgId ? d : null;
     }
-    const erros = fasesDePaginaInvalidas(fases, tipos);
+    const erros = [...fasesDePaginaInvalidas(fases, tipos), ...aoRegistroInvalido(fases, tipos)];
     if (erros.length) throw new HttpsError('failed-precondition', erros[0]);
 }
 
@@ -200,7 +209,9 @@ async function exigirPaginas(c: Contexto, rito: { fases?: unknown } | null | und
 const nascerDe = (v: unknown): string[] => [...new Set(Array.isArray(v) ? v.filter(ehModuloOrigem) : [])];
 /** Módulos que o tipo usa: os dos campos, os de onde pode nascer e a página onde cria o registro. */
 const modulosDoTipo = (t: { formulario?: unknown; pode_nascer_de?: unknown; cria_registro?: unknown } | null | undefined) =>
-    new Set([...modulosDoForm(t?.formulario as never), ...nascerDe(t?.pode_nascer_de).filter((m) => m !== 'pe'), ...(sanitizeCriaRegistro(t?.cria_registro) ? ['paginas'] : [])]);
+    new Set([...modulosDoForm(t?.formulario as never), ...nascerDe(t?.pode_nascer_de).filter((m) => m !== 'pe'), ...criaEm(sanitizeCriaRegistro(t?.cria_registro))]);
+/** Módulo onde o tipo cria o registro na autuação (a página própria ou a consulta e o expediente). */
+const criaEm = (cr: ReturnType<typeof sanitizeCriaRegistro>): string[] => (!cr ? [] : [cr.modulo || 'paginas']);
 
 /** Módulo novo no tipo ou no rito precisa da integração ligada (o que já estava gravado segue valendo). */
 async function exigirIntegracoes(c: Contexto, usados: Set<string>, antes: Set<string>) {
@@ -416,6 +427,28 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             const msg = e instanceof Error ? e.message : '';
             throw new HttpsError('invalid-argument', msg && msg.length < 300 ? msg : 'Não foi possível ler o arquivo');
         }
+    }
+
+    // Prévia do modelo como sai nos autos (PDF com marca d'água) ou em Word, sem salvar nada.
+    if (p.action === 'previaModelo') {
+        const m = (p.modelo && typeof p.modelo === 'object' ? p.modelo : {}) as Record<string, unknown>;
+        const unidadeId = m.unidade_id ? String(m.unidade_id) : null;
+        if (unidadeId) exigirGestor(c, unidadeId); else exigirAdminDoOrgao(c, m.orgao_id || null);
+        let conteudo = null;
+        try { conteudo = sanitizeDoc(m.conteudo); } catch (e) { erroUsuario(e); }
+        const { lerConfigDocumento } = await import('./autos');
+        let cfg = await lerConfigDocumento(db, orgId, unidadeId || undefined);
+        // Prévia do papel timbrado ainda não salvo (tela do timbrado do órgão ou da unidade).
+        const timbrado = (p as { timbrado?: unknown }).timbrado;
+        if (timbrado) { try { cfg = { ...cfg, ...sanitizeDocumentoConfig(timbrado) }; } catch (e) { erroUsuario(e); } }
+        const nome = texto(m.nome, 60).replace(/[^\p{L}\p{N} _-]+/gu, '') || 'modelo';
+        if (p.formato === 'docx') {
+            const { docParaDocx } = await import('./docxExportar');
+            return { base64: (await docParaDocx(conteudo!, cfg, { titulo: nome })).toString('base64'), nome: `${nome}.docx`, mime: MIME_DOCX };
+        }
+        const { renderizarDocumento } = await import('./pdfDocumento');
+        const r = await renderizarDocumento(conteudo!, cfg, { marcaDagua: 'MODELO' });
+        return { base64: r.buffer.toString('base64'), nome: `${nome}.pdf`, mime: 'application/pdf', paginas: r.paginas };
     }
 
     if (p.action === 'salvarModelo') {
@@ -717,7 +750,7 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         await db.collection(COL.config).doc(orgId).set({ organization_id: orgId, listas, updated_at: agora, updated_by: auth.uid }, { merge: true });
         const importado = texto(p.arquivo_nome, 160);
         await audit('SECRETARIA_LISTAS', {
-            comunicacao: listas!.comunicacao?.length || 0, audiencia: listas!.audiencia?.length || 0, origem: listas!.origem?.length || 0,
+            comunicacao: listas!.comunicacao?.length || 0, audiencia: listas!.audiencia?.length || 0, origem: listas!.origem?.length || 0, peticao: listas!.peticao?.length || 0,
             ...(importado ? { importado_de: importado, itens_importados: Math.max(0, Math.min(MAX_ITENS_PROPOSTA, Number(p.itens_importados) || 0)) } : {}),
         });
         return { success: true };
@@ -859,10 +892,18 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
             // Modelo da biblioteca: o tipo nasce com os polos e os nomes que o processo usa.
             let formulario;
             if (tp.formulario) { try { formulario = sanitizeFormulario(tp.formulario); } catch (e) { erroUsuario(e); } }
+            // Painel gerado do rito na revisão: o tipo já nasce criando o registro na autuação (só página própria do órgão).
+            const criaRegistro = sanitizeCriaRegistro(tp.cria_registro);
+            if (criaRegistro) {
+                if (criaRegistro.modulo) throw new HttpsError('invalid-argument', 'Ao implantar, o tipo só pode criar registro em página própria. Ajuste no tipo de processo depois.');
+                const pg = (await db.collection('entityTypes').doc(criaRegistro.pagina).get()).data();
+                const erros = errosCriaRegistro(criaRegistro, pg && pg.organization_id === orgId ? (pg as PaginaDef) : null, formulario || { campos: [] });
+                if (erros.length) throw new HttpsError('invalid-argument', erros[0]);
+            }
             const ref = db.collection(COL.tipos).doc();
             tipoId = ref.id;
             batch.set(ref, {
-                ...(formulario ? { formulario } : {}),
+                ...(formulario ? { formulario } : {}), ...(criaRegistro ? { cria_registro: criaRegistro } : {}),
                 nome: texto(tp.nome), sigla: texto(tp.sigla, 12), descricao: texto(tp.descricao, MAX_TEXTO_LONGO), rito_id: ritoRef.id,
                 sigilo_padrao: tp.sigilo_padrao === 'restrito' ? 'restrito' : 'normal', unidade_inicial: rito.fases[0]?.unidade_id || null,
                 ativo: true, organization_id: orgId, created_at: agora, created_by: auth.uid, updated_at: agora, updated_by: auth.uid,
@@ -948,8 +989,9 @@ export const secretariaConfig = onCall<ConfigRequest>({ region: REGION }, async 
         // "Criar registro na autuação": página do órgão, campos que existem e fonte para o que a página exige.
         const criaRegistro = sanitizeCriaRegistro(t.cria_registro);
         if (criaRegistro) {
-            const pg = (await db.collection('entityTypes').doc(criaRegistro.pagina).get()).data();
-            const erros = errosCriaRegistro(criaRegistro, pg && pg.organization_id === orgId ? (pg as PaginaDef) : null, formulario!);
+            // Consulta ou expediente: os campos são os do módulo (o número e quem pediu são obrigatórios).
+            const pg = criaRegistro.modulo ? defDaCriacao(criaRegistro.modulo) : (await db.collection('entityTypes').doc(criaRegistro.pagina).get()).data();
+            const erros = errosCriaRegistro(criaRegistro, pg && (criaRegistro.modulo || (pg as admin.firestore.DocumentData).organization_id === orgId) ? (pg as PaginaDef) : null, formulario!);
             if (erros.length) throw new HttpsError('invalid-argument', erros[0]);
         }
         const dados = {

@@ -14,6 +14,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.secretariaPortal = exports.COL_ACESSOS = exports.AVISOS_PARTE = exports.TIPOS_PETICAO_PORTAL = exports.MOVIMENTOS_INTERNOS = void 0;
 exports.nomeParaPartes = nomeParaPartes;
 const admin = require("firebase-admin");
+const listasOrgao_1 = require("../shared/listasOrgao");
+const representacao_1 = require("../shared/representacao");
+const cronograma_1 = require("../shared/cronograma");
 const numeracao_1 = require("../shared/numeracao");
 const firestore_1 = require("firebase-admin/firestore");
 const https_1 = require("firebase-functions/v2/https");
@@ -59,7 +62,9 @@ var autos_3 = require("../shared/autos");
 Object.defineProperty(exports, "MOVIMENTOS_INTERNOS", { enumerable: true, get: function () { return autos_3.MOVIMENTOS_INTERNOS; } });
 const TIPOS_PETICAO = { 'application/pdf': 'pdf', 'image/png': 'png', 'image/jpeg': 'jpg', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx' };
 /** Tipos de petição oferecidos no portal; o texto vai no título e no movimento. */
-exports.TIPOS_PETICAO_PORTAL = ['Manifestação', 'Juntada de documento', 'Pedido de prazo', 'Pedido de urgência', 'Pedido de vista', 'Recurso', 'Outro'];
+exports.TIPOS_PETICAO_PORTAL = listasOrgao_1.TIPOS_PETICAO;
+/** Tipos de petição do órgão do processo (os do sistema e os da lista do órgão). */
+const tiposDoOrgao = async (db, orgId) => { var _a, _b; return (0, listasOrgao_1.tiposDePeticao)((_b = (_a = (await db.collection(context_1.COL.config).doc(String(orgId)).get().catch(() => null))) === null || _a === void 0 ? void 0 : _a.data()) === null || _b === void 0 ? void 0 : _b.listas); };
 exports.AVISOS_PARTE = ['tudo', 'prazos', 'nenhum'];
 /** Dados do portal por conta de parte: último acesso a cada processo e preferência de aviso. */
 exports.COL_ACESSOS = 'secPortalAcessos';
@@ -136,7 +141,7 @@ function parteDoUsuario(proc, uid) {
     for (const p of partes) {
         const r = (p.representantes || []).find((x) => x.uid === uid);
         if (r)
-            return { nome: p.nome, polo: p.polo, nome_polo: np(p.polo), como: 'representante', representante: r.nome, assina: `${r.nome}, representante de ${p.nome}`, rotulo: `${r.nome}, representante de ${p.nome} (${np(p.polo)})` };
+            return { nome: p.nome, polo: p.polo, nome_polo: np(p.polo), como: 'representante', representante: r.nome, assina: `${(0, representacao_1.nomeQualificado)(r)}, representante de ${p.nome}`, rotulo: `${(0, representacao_1.nomeQualificado)(r)}, representante de ${p.nome} (${np(p.polo)})` };
     }
     return undefined;
 }
@@ -147,13 +152,16 @@ async function pedidosDaParte(db, sessaoId, procId, uid) {
         .map((x) => ({ id: x.id, tipo: x.tipo, nome_tipo: sessoes_1.NOME_PEDIDO[x.tipo], texto: x.texto, link: x.link, em: x.em, situacao: x.situacao, motivo: x.motivo || '' }));
 }
 exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memory: '512MiB' }, (0, context_2.comSinal)(async (request) => {
-    var _a, _b, _c, _d, _e, _f, _g;
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
     const auth = (0, context_1.exigirAuth)(request);
     const p = request.data || {};
     const db = admin.firestore();
     const uid = auth.uid;
     const nomeConta = String(auth.token.name || auth.token.email || 'Parte');
     await (0, vinculo_1.exigirContaLiberada)(db, uid);
+    // Parte de arquivo grande, de qualquer tela (equipe ou portal): só a área de espera da própria conta.
+    if (p.action === 'enviarParte')
+        return (0, arquivos_1.gravarParte)(p, uid);
     // Fornecedor em disputa de preços (S11): não é parte e não vê os autos.
     if (typeof p.action === 'string' && certames_1.ACOES_FORNECEDOR.includes(p.action))
         return (0, certames_1.acaoFornecedor)(db, auth, p);
@@ -196,8 +204,8 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
                     throw new https_1.HttpsError('failed-precondition', 'Este representante já está vinculado a outra conta');
                 reps[ridx] = Object.assign(Object.assign({}, rep), { uid, habilitada_em: new Date().toISOString(), conta: nomeConta });
                 partes[conv.parte_idx] = Object.assign(Object.assign({}, parte), { representantes: reps });
-                rotulo = `${rep.nome}, representante de ${parte.nome} (${(0, camposProcesso_1.nomeDoPolo)(proc.nomes_polos, parte.polo)}),`;
-                assina = `${rep.nome}, representante de ${parte.nome}`;
+                rotulo = `${(0, representacao_1.nomeQualificado)(rep)}, representante de ${parte.nome} (${(0, camposProcesso_1.nomeDoPolo)(proc.nomes_polos, parte.polo)}),`;
+                assina = `${(0, representacao_1.nomeQualificado)(rep)}, representante de ${parte.nome}`;
             }
             else {
                 if (parte.uid && parte.uid !== uid)
@@ -269,7 +277,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             const visto = acessos[d.id] || '';
             const ultimo = ultimoPublico(x);
             const novidades = !!ultimo && ultimo.em > visto;
-            const meusPrazos = prazosDaParte(x, parte);
+            const meusPrazos = (0, cronograma_1.prazosEmFoco)(prazosDaParte(x, parte), hoje);
             const minhasPeticoes = (x.pendencias || []).filter((q) => q.tipo === 'peticao' && q.status === 'aberta' && String(q.aberta_por || '').startsWith(`${parte === null || parte === void 0 ? void 0 : parte.nome} (`));
             for (const pr of meusPrazos) {
                 paraVoce.push({ tipo: 'prazo', processoId: d.id, numero: x.numero, assunto: x.assunto, descricao: pr.descricao, vence_em: pr.vence_em, vencido: pr.vence_em < hoje, prazo_id: pr.id });
@@ -296,7 +304,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
         const [movs, docs] = await Promise.all([
             ref.collection('movimentos').orderBy('seq').get(),
             ref.collection('documentos').where('status', '==', 'juntado')
-                .select('ordem', 'titulo', 'tipo', 'juntado_em', 'origem', 'sha256', 'visivel_partes', 'folha_inicial', 'folha_final', 'codigo_verificacao', 'peticao', 'peticao_tipo', 'autor_uid').get(),
+                .select('ordem', 'titulo', 'tipo', 'juntado_em', 'origem', 'sha256', 'visivel_partes', 'visivel_polos', 'folha_inicial', 'folha_final', 'codigo_verificacao', 'peticao', 'peticao_tipo', 'autor_uid').get(),
         ]);
         const todos = movs.docs.map((d) => d.data());
         const parte = parteDoUsuario(data, uid);
@@ -305,7 +313,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
         // Marca o acesso para o "Para você" saber o que é novidade.
         await acessoRef.set({ processos: { [ref.id]: new Date().toISOString() }, email: auth.token.email || null }, { merge: true });
         const documentos = docs.docs.map((d) => (Object.assign({ id: d.id }, d.data())))
-            .filter((d) => d.visivel_partes !== false)
+            .filter((d) => (0, autos_2.documentoVisivel)(d, parte === null || parte === void 0 ? void 0 : parte.polo))
             .sort((a, b) => a.ordem - b.ordem);
         // Registro de outro módulo que hoje é restrito, anonimizado ou sumiu: as partes não veem mais.
         const camposPartes = (data.campos || [])
@@ -315,11 +323,11 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
         const aberta = (r) => !r || !fechadas.has(`${r.modulo}:${r.id}`);
         return {
             orgao: org.name || '',
-            processo: Object.assign(Object.assign({ id: ref.id, numero: data.numero, assunto: data.assunto, status: data.status, descricao: data.descricao, urgente: data.urgente === true, 
+            processo: Object.assign(Object.assign(Object.assign(Object.assign({ id: ref.id, numero: data.numero, assunto: data.assunto, status: data.status, descricao: data.descricao, urgente: data.urgente === true, 
                 // Só os campos que o órgão marcou para as partes verem.
                 campos: camposPartes.filter((x) => aberta(x.ref)).map((x) => (Object.assign({ rotulo: x.rotulo, tipo: x.tipo, valor: x.valor }, (x.formato ? { formato: x.formato } : {})))), fase_nome: nomeParaPartes(data, data.fase_atual) }, (((_d = (data.fases || []).find((x) => x.id === data.fase_atual)) === null || _d === void 0 ? void 0 : _d.explicacao_publica)
                 ? { fase_explicacao: data.fases.find((x) => x.id === data.fase_atual).explicacao_publica } : {})), { fase_atual: data.fase_atual, fases: fasesPublicas(data), partes: (data.partes || []).filter((x) => !x.retirada).map((x) => ({ nome: x.nome, polo: x.polo })), nomes_polos: data.nomes_polos || {}, prazos: prazosPublicos(data)
-                    .map((x) => ({ id: x.id, descricao: x.descricao, destinatario: x.destinatario || '', vence_em: x.vence_em, meu: prazosDaParte(data, parte).some((q) => q.id === x.id) })), minha_parte: parte, comunicacoes: comunicacoesDaConta(data, uid), 
+                    .map((x) => (Object.assign({ id: x.id, descricao: x.descricao, destinatario: x.destinatario || '', vence_em: x.vence_em, meu: prazosDaParte(data, parte).some((q) => q.id === x.id) }, (x.obrigacao === true ? Object.assign({ obrigacao: true }, (typeof x.valor === 'number' ? { valor: x.valor } : {})) : {})))) }), (data.peticoes_por_polo === true ? { peticoes_por_polo: true } : {})), { cronograma: (0, cronograma_1.situacaoDasObrigacoes)(data.prazos, (0, secretaria_1.hojeBrasil)()), minha_parte: parte, comunicacoes: comunicacoesDaConta(data, uid), 
                 // Audiências designadas a partir de hoje: ato público (a certidão está nos autos).
                 audiencias: (0, audiencias_1.audienciasFuturas)(data.audiencias, (0, secretaria_1.hojeBrasil)())
                     .map((a) => (Object.assign(Object.assign({ especie: a.especie }, (a.especie_nome ? { especie_nome: a.especie_nome } : {})), { data: a.data, hora: a.hora, modo: a.modo, local: a.local || '', link: a.link || '', participantes: a.participantes || [] }))), 
@@ -336,11 +344,11 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
                 // Dados do andamento que o rito mandou mostrar às partes.
                 informacoes: infosPartes.filter((i) => aberta(i.ref) && (i.refs || []).every(aberta))
                     .map((i) => ({ fase_nome: i.fase_nome, rotulo: i.rotulo, valor_texto: i.valor_texto, em: i.em })) }),
-            movimentos: todos.filter((m) => (0, autos_2.visivelParaPartes)(m))
+            movimentos: todos.filter((m) => (0, autos_2.visivelParaPartes)(m, parte === null || parte === void 0 ? void 0 : parte.polo))
                 .map((m) => (Object.assign({ seq: m.seq, tipo: m.tipo, descricao: m.descricao, em: m.em, autor_nome: m.autor_nome, hash: m.hash, novo: !!vistoEm && m.em > vistoEm }, (0, autos_2.extrasDoEvento)(m, new Map(documentos.map((d) => [d.id, d])))))),
             documentos: documentos.map((d) => ({ id: d.id, ordem: d.ordem, titulo: d.titulo, tipo: d.tipo, juntado_em: d.juntado_em, origem: d.origem, sha256: d.sha256, folha_inicial: d.folha_inicial || null, folha_final: d.folha_final || null, codigo_verificacao: d.codigo_verificacao || null, novo: !!vistoEm && d.juntado_em > vistoEm })),
             minhas_peticoes: peticoesDaParte(data, documentos, uid),
-            tipos_peticao: exports.TIPOS_PETICAO_PORTAL,
+            tipos_peticao: await tiposDoOrgao(db, data.organization_id),
             visto_em: vistoEm,
             cadeiaIntegra: (0, secretaria_1.verificarCadeia)(todos) === null,
         };
@@ -353,8 +361,9 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             ref.collection('documentos').where('status', '==', 'juntado').get(),
         ]);
         const todos = movs.docs.map((d) => d.data());
-        const movimentos = todos.filter((m) => (0, autos_2.visivelParaPartes)(m));
-        const documentos = docs.docs.map((d) => (Object.assign({ id: d.id }, d.data()))).filter((d) => d.visivel_partes !== false).sort((a, b) => a.ordem - b.ordem);
+        const poloDaParte = (_e = parteDoUsuario(proc, uid)) === null || _e === void 0 ? void 0 : _e.polo;
+        const movimentos = todos.filter((m) => (0, autos_2.visivelParaPartes)(m, poloDaParte));
+        const documentos = docs.docs.map((d) => (Object.assign({ id: d.id }, d.data()))).filter((d) => (0, autos_2.documentoVisivel)(d, poloDaParte)).sort((a, b) => a.ordem - b.ordem);
         // Folha de dados: só os campos e os dados do andamento que o órgão marcou para as partes,
         // sem registro de outro módulo que hoje é restrito, anonimizado ou sumiu (como em "obter").
         const camposPartes = (proc.campos || []).filter((x) => x.visivel_partes === true);
@@ -363,7 +372,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
         const aberta = (r) => !r || !fechadas.has(`${r.modulo}:${r.id}`);
         const bytes = await (0, exportar_1.montarPdfAutos)({
             db, orgId: proc.organization_id, orgNome: String(org.name || ''), ref, proc, movimentos, docs: documentos,
-            geradoPor: `${((_e = parteDoUsuario(proc, uid)) === null || _e === void 0 ? void 0 : _e.assina) || nomeConta} (parte)`, nomeUnidade: () => '', selecao: (0, exportar_1.selecaoOuErro)(p.selecao),
+            geradoPor: `${((_f = parteDoUsuario(proc, uid)) === null || _f === void 0 ? void 0 : _f.assina) || nomeConta} (parte)`, nomeUnidade: () => '', selecao: (0, exportar_1.selecaoOuErro)(p.selecao),
             campos: camposPartes.filter((x) => aberta(x.ref)),
             informacoes: infosPartes.filter((i) => aberta(i.ref) && (i.refs || []).every(aberta)),
         });
@@ -373,7 +382,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
         // Uma folha: situação atual e últimos movimentos públicos, com data e hora.
         const { ref, data: proc, org } = await lerComoParte(db, uid, p.processoId);
         const movs = (await ref.collection('movimentos').orderBy('seq', 'desc').limit(40).get()).docs.map((d) => d.data())
-            .filter((m) => (0, autos_2.visivelParaPartes)(m)).slice(0, 10);
+            .filter((m) => { var _a; return (0, autos_2.visivelParaPartes)(m, (_a = parteDoUsuario(proc, uid)) === null || _a === void 0 ? void 0 : _a.polo); }).slice(0, 10);
         const fase = nomeParaPartes(proc, proc.fase_atual);
         const situacao = { em_tramitacao: 'Em tramitação', sobrestado: 'Sobrestado', arquivado: 'Arquivado' }[proc.status] || proc.status;
         const parte = parteDoUsuario(proc, uid);
@@ -417,7 +426,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
     if (p.action === 'baixar' || p.action === 'pdf') {
         const { ref, data: proc } = await lerComoParte(db, uid, p.processoId);
         const d = (await ref.collection('documentos').doc(String(p.docId || '_')).get()).data();
-        if (!d || d.status !== 'juntado' || d.visivel_partes === false)
+        if (!d || d.status !== 'juntado' || !(0, autos_2.documentoVisivel)(d, (_g = parteDoUsuario(proc, uid)) === null || _g === void 0 ? void 0 : _g.polo))
             throw new https_1.HttpsError('not-found', 'Documento não encontrado');
         if (p.action === 'pdf')
             return (0, arquivos_1.entregar)(await (0, autos_1.pdfCarimbado)(db, proc.organization_id, ref.id, String(proc.numero), String(p.docId), d), `documento-${d.ordem}.pdf`, 'application/pdf', uid);
@@ -429,7 +438,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
     // S7: sustentação oral, preferência, destaque e esclarecimento de fato para a sessão em que o processo está pautado.
     if (p.action === 'pedidoSessao') {
         const { ref, data: proc } = await lerComoParte(db, uid, p.processoId);
-        const sid = String(((_f = proc.sessao) === null || _f === void 0 ? void 0 : _f.id) || '');
+        const sid = String(((_h = proc.sessao) === null || _h === void 0 ? void 0 : _h.id) || '');
         if (!sid)
             throw new https_1.HttpsError('failed-precondition', 'O processo não está pautado em sessão');
         const sref = db.collection(sessoes_2.COL_SESSOES).doc(sid);
@@ -459,7 +468,8 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
         return { ok: true, id: novo.id };
     }
     if (p.action === 'peticionar') {
-        const tipoPeticao = exports.TIPOS_PETICAO_PORTAL.includes(String(p.tipo)) ? String(p.tipo) : '';
+        const orgDaPeticao = (_j = (await db.collection(context_1.COL.processos).doc(String(p.processoId || '_')).get()).data()) === null || _j === void 0 ? void 0 : _j.organization_id;
+        const tipoPeticao = p.tipo && (await tiposDoOrgao(db, orgDaPeticao)).includes(String(p.tipo)) ? String(p.tipo) : '';
         const titulo = (0, secretaria_1.texto)(p.titulo) || tipoPeticao || 'Petição';
         const prazoId = (0, secretaria_1.texto)(p.prazo_id, 60);
         const corpo = (0, secretaria_1.texto)(p.texto, secretaria_1.MAX_TEXTO_LONGO * 10);
@@ -518,6 +528,8 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             var _a;
             const { data: proc, org } = await lerComoParte(db, uid, p.processoId, tx);
             const parte = parteDoUsuario(proc, uid);
+            // Tipo de processo em que cada polo vê só as próprias petições (ex.: tratativas de acordo).
+            const porPolo = proc.peticoes_por_polo === true ? { visivel_polos: [parte.polo] } : {};
             const folha = (await (0, autos_1.folhasDoProcesso)(tx, procRef, proc)) + 1;
             const ordem = (Number(proc.doc_seq) || 0) + 1;
             // Tempestividade: compara com prazos abertos para esta parte (ou sem destinatário).
@@ -540,10 +552,10 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
                 .flatMap((tipo) => (0, exigencias_1.reconhecer)(pendentes, { origem: buf ? 'upload' : 'editor', tipo, peticao: true })));
             const cumpridas = pendentes.filter((e) => chaves.has(e.chave));
             const mov = (0, context_1.registrarMovimento)(tx, c, procRef, proc, 'peticao', `Petição protocolada por ${parte.rotulo}: ${titulo}. Juntada como documento nº ${ordem}, ${(0, autos_1.textoFolhas)(folha, paginas)}.${tempest ? ` ${tempest}.` : ''} Pendência aberta para o decisor${interrompe ? ', com interrupção da fase' : ''}.`
-                + `${cumpridas.length ? ` Cumpre o exigido pelo rito: ${cumpridas.map((e) => e.descricao).join('; ')}.` : ''}`, Object.assign({ documento_id: docRef.id, ordem, folha_inicial: folha, paginas }, (cumpridas.length ? { exigencias: cumpridas.map((e) => e.chave) } : {})));
+                + `${cumpridas.length ? ` Cumpre o exigido pelo rito: ${cumpridas.map((e) => e.descricao).join('; ')}.` : ''}`, Object.assign(Object.assign({ documento_id: docRef.id, ordem, folha_inicial: folha, paginas }, porPolo), (cumpridas.length ? { exigencias: cumpridas.map((e) => e.chave) } : {})));
             const exig = fase ? (0, exigencias_1.camposDoCumprimento)(proc, fase.id, cumpridas, docRef.id, ordem) : {};
             const codigo = (0, autos_1.novoCodigo)();
-            const dadosDoc = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ titulo, tipo: 'Petição', origem: buf ? 'upload' : 'editor', peticao: true, status: 'juntado', ordem, fontes: autos_1.FONTES_ATUAIS }, (tipoPeticao ? { peticao_tipo: tipoPeticao } : {})), (prazoId ? { prazo_id: prazoId } : {})), (buf ? Object.assign({ mime: p.mime, nome_arquivo: (0, secretaria_1.texto)(p.nomeArquivo) || titulo, tamanho: buf.length, storage_path: path }, guardado) : { conteudo: conteudoDoc })), (pdf ? { pdf_path: pdf.path, pdf_sha256: pdf.sha256 } : {})), (buf && corpo ? { observacao: corpo } : {})), { paginas, folha_inicial: folha, folha_final: folha + paginas - 1, sha256: hashConteudo, unidade_origem: 'parte', autor_uid: uid, autor_nome: parte.assina, criado_em: agora, juntado_em: agora, juntado_por: uid, juntado_por_nome: `${parte.assina} (parte)`, visivel_partes: true, assinaturas: [{ uid, nome: parte.assina, em: agora, sha256: hashConteudo, nivel: 'simples' }], codigo_verificacao: codigo });
+            const dadosDoc = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ titulo, tipo: 'Petição', origem: buf ? 'upload' : 'editor', peticao: true, status: 'juntado', ordem, fontes: autos_1.FONTES_ATUAIS }, (tipoPeticao ? { peticao_tipo: tipoPeticao } : {})), (prazoId ? { prazo_id: prazoId } : {})), (buf ? Object.assign({ mime: p.mime, nome_arquivo: (0, secretaria_1.texto)(p.nomeArquivo) || titulo, tamanho: buf.length, storage_path: path }, guardado) : { conteudo: conteudoDoc })), (pdf ? { pdf_path: pdf.path, pdf_sha256: pdf.sha256 } : {})), (buf && corpo ? { observacao: corpo } : {})), { paginas, folha_inicial: folha, folha_final: folha + paginas - 1, sha256: hashConteudo, unidade_origem: 'parte', autor_uid: uid, autor_nome: parte.assina, criado_em: agora, juntado_em: agora, juntado_por: uid, juntado_por_nome: `${parte.assina} (parte)`, visivel_partes: true }), porPolo), { assinaturas: [{ uid, nome: parte.assina, em: agora, sha256: hashConteudo, nivel: 'simples' }], codigo_verificacao: codigo });
             tx.set(docRef, dadosDoc);
             tx.set(db.collection(context_1.COL.verificacao).doc(codigo), (0, autos_1.registroVerificacao)(proc.organization_id, String(org.name || ''), procRef.id, proc, docRef.id, dadosDoc));
             const pzA = (0, prazosFase_1.camposDosPrazosDasAcoes)(proc, exig, fase, `${parte.assina} (parte)`, pendencias, calendario);
@@ -572,7 +584,7 @@ exports.secretariaPortal = (0, https_1.onCall)({ region: context_1.REGION, memor
             if (sis)
                 await (0, processos_1.avancarSozinho)(sis, procRef.id);
         }
-        void (0, avisosEquipe_1.avisarPeticao)(db, procAntes, procRef.id, String(((_g = parteDoUsuario(procAntes, uid)) === null || _g === void 0 ? void 0 : _g.assina) || 'A parte'), titulo, tipoPeticao);
+        void (0, avisosEquipe_1.avisarPeticao)(db, procAntes, procRef.id, String(((_k = parteDoUsuario(procAntes, uid)) === null || _k === void 0 ? void 0 : _k.assina) || 'A parte'), titulo, tipoPeticao);
         return Object.assign({ success: true }, protocolado);
     }
     throw new https_1.HttpsError('invalid-argument', 'Ação desconhecida');

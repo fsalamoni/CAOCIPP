@@ -217,6 +217,10 @@ function registroDoProcesso(proc, modulo) {
     const o = (_a = proc.origem) === null || _a === void 0 ? void 0 : _a.ref;
     if ((o === null || o === void 0 ? void 0 : o.modulo) === modulo && o.id)
         return { id: String(o.id) };
+    // A consulta ou o expediente que a autuação criou vale logo depois da origem.
+    const cr = proc.registro_criado;
+    if ((cr === null || cr === void 0 ? void 0 : cr.modulo) === modulo && cr.id)
+        return { id: String(cr.id) };
     const ids = [...new Set((Array.isArray(proc.vinculos) ? proc.vinculos : []).map(String)
             .filter((v) => v.startsWith(`${modulo}:`)).map((v) => v.slice(modulo.length + 1)))];
     return ids.length === 1 ? { id: ids[0] } : { falta: ids.length ? 'varios' : 'nenhum' };
