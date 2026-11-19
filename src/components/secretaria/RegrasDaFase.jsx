@@ -245,12 +245,15 @@ function VemDoProcesso({ id, r, set }) {
     const ops = camposLigaveis(tipos, pede);
     const atual = r?.do_processo || '';
     const perdido = atual && !ops.some((o) => o.id === atual);
+    const soMarca = pede === 'confirmar';
+    // Ação que só se marca: o dado no processo a torna desnecessária (não há o que registrar).
+    const explicaDispensa = 'Quando o campo já está preenchido no processo (desde o "Novo processo" ou depois, ao corrigir os dados), a ação não é precisa: ela some da tela do processo, não é cobrada e não gera registro. Apagado o campo, ela volta a valer. Para dispensar uma ação de documento ou de dado pelo mesmo campo, use "Quando vale" com o campo "vazio".';
     return (
         <div className="sm:max-w-md">
-            <NativeSelect id={`${id}-vp`} label="Vem do processo" value={atual} onChange={(v) => set({ do_processo: v || undefined })}
-                options={[['', pede === 'confirmar' ? 'Não: alguém marca' : 'Não: quem cumpre informa'], ...ops.map((o) => [o.id, `${pede === 'confirmar' ? 'Feita quando preenchido: ' : ''}${o.rotulo}${o.tipo_nome && (tipos || []).length > 1 ? ` (${o.tipo_nome})` : ''}`]), ...(perdido ? [[atual, 'Campo que saiu do tipo (não cumpre mais)']] : [])]} />
+            <NativeSelect id={`${id}-vp`} label={soMarca ? 'Dispensada pelo processo' : 'Vem do processo'} value={atual} onChange={(v) => set({ do_processo: v || undefined })}
+                options={[['', soMarca ? 'Não: alguém marca' : 'Não: quem cumpre informa'], ...ops.map((o) => [o.id, `${soMarca ? 'Dispensada quando preenchido: ' : ''}${o.rotulo}${o.tipo_nome && (tipos || []).length > 1 ? ` (${o.tipo_nome})` : ''}`]), ...(perdido ? [[atual, 'Campo que saiu do tipo (não dispensa mais)']] : [])]} />
             <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                {atual ? explica : semTipos ? 'Ligue o rito a um tipo de processo para escolher um campo do "Novo processo" (assunto e descrição já servem).' : 'Para não pedir de novo o que o "Novo processo" já informa (ex.: o número no sistema de origem), escolha o campo.'}
+                {atual ? (soMarca ? explicaDispensa : explica) : soMarca && !semTipos ? 'Para não pedir o que o "Novo processo" já resolve (ex.: converter em PGEA quando o número já veio), escolha o campo: preenchido, a ação some.' : semTipos ? 'Ligue o rito a um tipo de processo para escolher um campo do "Novo processo" (assunto e descrição já servem).' : 'Para não pedir de novo o que o "Novo processo" já informa (ex.: o número no sistema de origem), escolha o campo.'}
             </p>
         </div>
     );

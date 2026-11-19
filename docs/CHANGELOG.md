@@ -5,6 +5,19 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 19/11/2026 — Ação dispensada pelo dado do processo some da tela
+- Na ação que só se marca, "Vem do processo" virou **Dispensada pelo
+  processo**: com o campo preenchido (ex.: número do PGEA informado na
+  autuação), a ação não é precisa. Ela some da tela, não é cobrada e não gera
+  registro, porque não houve ato. Apagado o campo, volta a valer.
+- Ação condicional que não vale neste processo deixou de aparecer apagada:
+  sai da lista. Se depende de resposta ainda não dada na fase, a tela diz
+  quantas podem aparecer.
+- Ação de dado cumprida sozinha com o valor do processo sai da lista e fica no
+  resumo "ações já resolvidas pelos dados do processo".
+- Condição por campo do processo passou a ler o campo de registro de outro
+  módulo como preenchido (antes contava como vazio).
+
 ### 17/11/2026 — Aditivos em Consultas e Expedientes
 - **Criar aditivo** na ficha de qualquer consulta ou expediente, em qualquer
   fase, ou direto do aviso de número já existente no cadastro. Pode haver

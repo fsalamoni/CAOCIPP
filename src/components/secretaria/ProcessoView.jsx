@@ -5,7 +5,7 @@ import MinhasAnotacoes from './MinhasAnotacoes';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
-    AlertCircle, ArrowLeft, Gavel, BookOpen, CalendarClock, CheckCircle2, ChevronDown, Circle, Download, Eye, FilePen, Info, Loader2, MoreHorizontal,
+    AlertCircle, ArrowLeft, Gavel, BookOpen, CalendarClock, CheckCircle2, ChevronDown, Download, Eye, FilePen, Info, Loader2, MoreHorizontal,
     PenLine, Plus, Send, ShieldCheck, ShieldAlert, Paperclip, Trash2, Undo2, UserPlus, Camera, Archive, Hourglass, History, ListChecks, Printer,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -42,7 +42,7 @@ import { notaDoPrazo, prazoAbertoDaAcao } from '@/lib/efeitosFase';
 import { atorNoProcesso, podeQuem, podeReserva, resumoPermissoes, textoQuem, textoReserva, unidadeDecide, unidadeExpede } from '@/lib/permissoesFase';
 import { RegistroContexto } from './SeletorRegistro';
 import { ligada, nomeDoCampo } from '@/lib/doProcesso';
-import { FORMAS, ROTULO_DESTINO, acaoAtiva, exigeDoDocumento, alternativaCumprida, soOrienta, destinoDaAcao, destinoDaMudanca, faltaNaFase, niveisDaFase, pedidoDaAcao, pendentesDaFase, recomendadosNaFase, respostasDoProcesso, saidaPadrao, saidasComCondicao, situacaoDaFase, sugeridas, textoCondicao } from '@/lib/exigencias';
+import { FORMAS, ROTULO_DESTINO, acaoAtiva, exigeDoDocumento, alternativaCumprida, soOrienta, destinoDaAcao, destinoDaMudanca, faltaNaFase, niveisDaFase, partesDaCondicao, pedidoDaAcao, pendentesDaFase, recomendadosNaFase, respostasDoProcesso, saidaPadrao, saidasComCondicao, situacaoDaFase, sugeridas, textoCondicao } from '@/lib/exigencias';
 import { AcaoDaFase, RegistrarAcao } from './AcoesNoProcesso';
 import { alvosDaComunicacao, comunicacoesDaAcao, situacaoDaResposta } from '@/lib/comunicacaoRito';
 import { audienciasFuturas, nomeAudiencia, textoDaAudiencia } from '@/lib/audiencias';
@@ -314,7 +314,8 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
         if (feitas.has(i)) return String(i) in autoDaFase ? 'Cumprida sozinha: o dado já consta do processo.' : '';
         const ids = r.do_processo ? [r.do_processo] : Object.values(r.do_processo_campos || {});
         const nomes = ids.map((id) => nomeDoCampo(estado.tipos, id)).filter(Boolean);
-        return nomes.length ? `Vem do processo: preenchido ${nomes.map((n) => `"${n}"`).join(', ')} nos dados, ela se cumpre sozinha.` : '';
+        const soMarca = pedidoDaAcao(r) === 'confirmar';
+        return nomes.length ? `${soMarca ? 'Dispensada' : 'Vem do processo'}: preenchido ${nomes.map((n) => `"${n}"`).join(', ')} nos dados, ela ${soMarca ? 'deixa de ser precisa e sai da lista' : 'se cumpre sozinha'}.` : '';
     };
     const temControlePendente = exigencias.some((e) => e.destino && !e.cumprida);
 
@@ -641,16 +642,18 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                         <ul className="space-y-1">
                             {faseAtual.acoes.map((a, i) => {
                                 const se = faseAtual.acoes_regras?.[i]?.se;
-                                // Ação condicional que não vale agora: fica à vista, apagada, dizendo quando passa a valer.
+                                // Ação que não vale neste processo (condição não atendida, ou dispensada pelo dado
+                                // que já veio do processo): não aparece. Quem trabalha vê só o que tem a fazer.
                                 // Ação de documento condicional já cumprida que deixou de valer (a resposta mudou): só o registro.
                                 const inativa = !acaoAtiva(faseAtual, i, respostas);
-                                if (inativa && (!feitas.has(i) || faseAtual.acoes_regras?.[i]?.documento)) {
+                                if (inativa && !feitas.has(i)) return null;
+                                // Cumprida sozinha com o dado que veio do processo: nada a fazer; vai para o resumo abaixo.
+                                if (feitas.has(i) && String(i) in autoDaFase) return null;
+                                if (inativa && faseAtual.acoes_regras?.[i]?.documento) {
                                     return (
                                         <li key={i} className="flex items-start gap-2 text-sm text-slate-500 dark:text-slate-400">
-                                            {feitas.has(i)
-                                                ? <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0 opacity-60" aria-hidden />
-                                                : <Circle className="w-4 h-4 mt-0.5 shrink-0 opacity-50" aria-hidden />}
-                                            <span><span>{a}</span> <span className="text-xs">· vale só se {textoCondicao(faseAtual, se, p.fases)}{feitas.has(i) ? ' (cumprida antes de a resposta mudar)' : ''}</span></span>
+                                            <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0 opacity-60" aria-hidden />
+                                            <span><span>{a}</span> <span className="text-xs">· {se ? `vale só se ${textoCondicao(faseAtual, se, p.fases)} ` : ''}(cumprida antes de a resposta mudar)</span></span>
                                         </li>
                                     );
                                 }
@@ -699,6 +702,23 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                             })}
                         </ul>
                     )}
+                    {(() => {
+                        // As que dependem de uma resposta desta fase podem aparecer depois: diz quantas, sem listar.
+                        const n = (faseAtual?.acoes || []).filter((a, i) => a?.trim() && !feitas.has(i) && !acaoAtiva(faseAtual, i, respostas)
+                            && partesDaCondicao(faseAtual.acoes_regras?.[i]?.se).some((x) => x.fase === undefined && x.dado === undefined)).length;
+                        return n > 0 && <p className="text-xs text-slate-600 dark:text-slate-400">{n === 1 ? 'Mais 1 ação pode aparecer' : `Mais ${n} ações podem aparecer`} conforme as respostas desta fase.</p>;
+                    })()}
+                    {(() => {
+                        const auto = (faseAtual?.acoes || []).map((a, i) => [a, i]).filter(([a, i]) => a?.trim() && feitas.has(i) && String(i) in autoDaFase);
+                        return auto.length > 0 && (
+                            <details className="text-xs text-slate-600 dark:text-slate-400">
+                                <summary className="cursor-pointer">{auto.length === 1 ? '1 ação já resolvida' : `${auto.length} ações já resolvidas`} pelos dados do processo</summary>
+                                <ul className="mt-1 space-y-0.5 pl-4 list-disc">
+                                    {auto.map(([a, i]) => { const info = infoDaAcao(i); return <li key={i}>{a}{info && !info.oculta && ['string', 'number'].includes(typeof info.valor) ? `: ${info.valor}` : ''}</li>; })}
+                                </ul>
+                            </details>
+                        );
+                    })()}
                     {p.consolidacao?.itens?.length > 0 && (
                         // Certidão conjunta: os atos esperam numa só certidão; quem tem o processo pode emiti-la antes.
                         <div className="flex flex-wrap items-center gap-2 rounded-md border border-indigo-200 dark:border-indigo-800 px-3 py-2 text-sm">

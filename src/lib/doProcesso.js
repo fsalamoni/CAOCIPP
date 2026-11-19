@@ -91,8 +91,8 @@ export function problemasDasLigacoes(fases, tipos) {
                 : [{ id: r.do_processo, aceita: LIGAVEL[pede] || [] }];
             for (const { id, aceita } of pares) {
                 const def = campoDoProcesso(tipos, id);
-                if (!def) out.push({ fase: f.id, idx: i, texto: `"${a.trim()}" vem de um campo que ${tipos.length === 1 ? 'este tipo de processo' : 'nenhum tipo de processo deste rito'} não tem: ela não se cumpre sozinha` });
-                else if (!aceita.includes(def.tipo)) out.push({ fase: f.id, idx: i, texto: `"${a.trim()}" vem de "${def.rotulo || id}", que é de outro tipo de dado: ela não se cumpre sozinha` });
+                if (!def) out.push({ fase: f.id, idx: i, texto: `"${a.trim()}" vem de um campo que ${tipos.length === 1 ? 'este tipo de processo' : 'nenhum tipo de processo deste rito'} não tem: ela não se cumpre nem se dispensa sozinha` });
+                else if (!aceita.includes(def.tipo)) out.push({ fase: f.id, idx: i, texto: `"${a.trim()}" vem de "${def.rotulo || id}", que é de outro tipo de dado: ela não se cumpre nem se dispensa sozinha` });
             }
         });
     }

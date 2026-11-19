@@ -34,6 +34,7 @@ exports.grupoDeAlternativas = grupoDeAlternativas;
 exports.alternativaCumprida = alternativaCumprida;
 exports.condicaoAtendida = condicaoAtendida;
 exports.valorAtende = valorAtende;
+exports.dispensadaPeloProcesso = dispensadaPeloProcesso;
 exports.acaoAtiva = acaoAtiva;
 exports.respostasDaFase = respostasDaFase;
 exports.destinoDoAto = destinoDoAto;
@@ -534,10 +535,20 @@ function valorAtende(x, v) {
     }
     return v !== undefined && x.valores.includes(v);
 }
+/**
+ * Ação que só se marca, ligada a um campo do processo ("Dispensada quando
+ * preenchido"): com o campo preenchido, ela não é precisa. Não aparece, não é
+ * cobrada e não gera registro; apagado o campo, volta a valer.
+ */
+function dispensadaPeloProcesso(r, resp) {
+    return !!(r === null || r === void 0 ? void 0 : r.do_processo) && !r.documento && (r.pede === undefined || r.pede === 'confirmar') && (resp === null || resp === void 0 ? void 0 : resp[`@campo:${r.do_processo}`]) !== undefined;
+}
 /** A ação vale agora (sem condição, ou com a resposta que ela pede, de ação que também vale)? */
 function acaoAtiva(f, i, resp) {
-    var _b, _c;
-    const se = (_c = (_b = f === null || f === void 0 ? void 0 : f.acoes_regras) === null || _b === void 0 ? void 0 : _b[i]) === null || _c === void 0 ? void 0 : _c.se;
+    var _b, _c, _d;
+    if (dispensadaPeloProcesso((_b = f === null || f === void 0 ? void 0 : f.acoes_regras) === null || _b === void 0 ? void 0 : _b[i], resp))
+        return false;
+    const se = (_d = (_c = f === null || f === void 0 ? void 0 : f.acoes_regras) === null || _c === void 0 ? void 0 : _c[i]) === null || _d === void 0 ? void 0 : _d.se;
     if (!se)
         return true;
     return [se, ...(se.e || [])].every((x) => !condicaoLocal(x) || x.acao < i) && condicaoAtendida(se, resp, f);
@@ -578,7 +589,16 @@ function respostasDaFase(proc) {
             // Múltipla escolha marcada: só conta como preenchida.
             out[`@campo:${c.id}`] = '@preenchido';
         }
+        else if (typeof (c === null || c === void 0 ? void 0 : c.id) === 'string' && c.id && c.valor && typeof c.valor === 'object' && !Array.isArray(c.valor)) {
+            // Registro de outro módulo escolhido: também só preenchido.
+            out[`@campo:${c.id}`] = '@preenchido';
+        }
     }
+    // Assunto e descrição, campos padrão do "Novo processo", para a ação que só se marca ligada a eles.
+    if (typeof proc.assunto === 'string' && proc.assunto.trim())
+        out['@campo:@assunto'] = '@preenchido';
+    if (typeof proc.descricao === 'string' && proc.descricao.trim())
+        out['@campo:@descricao'] = '@preenchido';
     return out;
 }
 /** Onde fica o ato durante a fase (valor estranho lê como o padrão). */

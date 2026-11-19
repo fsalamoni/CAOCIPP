@@ -436,8 +436,12 @@ export function respostasDoProcesso(p) {
             out[`@campo:${c.id}`] = typeof c.valor === 'boolean' ? (c.valor ? 'sim' : 'nao') : String(c.valor);
         } else if (typeof c?.id === 'string' && c.id && Array.isArray(c.valor) && c.valor.length) {
             out[`@campo:${c.id}`] = '@preenchido';
+        } else if (typeof c?.id === 'string' && c.id && c.valor && typeof c.valor === 'object' && !Array.isArray(c.valor)) {
+            out[`@campo:${c.id}`] = '@preenchido';
         }
     }
+    if (typeof p?.assunto === 'string' && p.assunto.trim()) out['@campo:@assunto'] = '@preenchido';
+    if (typeof p?.descricao === 'string' && p.descricao.trim()) out['@campo:@descricao'] = '@preenchido';
     return out;
 }
 
@@ -454,7 +458,10 @@ export const alternativaCumprida = (f, i, feitas, resp) => grupoDeAlternativas(f
 export const podeTerAlternativa = (r) => !r?.documento && !soOrienta(r);
 export const alternativasPossiveis = (f, i) => (f?.acoes || []).map((a, k) => [k, a])
     .filter(([k, a]) => k < i && a.trim() && podeTerAlternativa(f.acoes_regras?.[k]));
+/** Ação que só se marca, ligada a um campo do processo: com o campo preenchido, não é precisa (igual ao servidor). */
+export const dispensadaPeloProcesso = (r, resp) => !!r?.do_processo && !r.documento && (r.pede === undefined || r.pede === 'confirmar') && resp?.[`@campo:${r.do_processo}`] !== undefined;
 export const acaoAtiva = (f, i, resp) => {
+    if (dispensadaPeloProcesso(f?.acoes_regras?.[i], resp)) return false;
     const se = f?.acoes_regras?.[i]?.se;
     return !se || (partesDaCondicao(se).every((x) => !condicaoLocal(x) || x.acao < i) && condicaoAtendida(se, resp, f));
 };
