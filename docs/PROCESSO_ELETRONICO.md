@@ -553,6 +553,12 @@ Regras comuns:
   marcas e atributos: link só `http(s)`/`mailto`, imagem só data URL PNG/JPEG
   (até 1,5 MB cada), documento até 4 MB. Nada é interpretado como HTML.
   Minutas antigas em Delta continuam abrindo (`deltaParaDoc`).
+- **Envio do texto do editor:** o ProseMirror monta os `attrs` dos nós sem
+  protótipo (`Object.create(null)`) e o SDK do Firebase não sabe enviá-los
+  ("hasOwnProperty is not a function"). Toda chamada de `secretariaService.js`
+  passa o pedido por `paraEnvio` (`src/lib/paraEnvio.js`), que copia para
+  objetos comuns. Vale para minuta, modelo, timbrado e portal. Teste de tela:
+  `scripts/e2e-salvar-editor-tela.mjs`.
 - **Modelos:** o admin cria textos prontos com campos (`{{numero}}`,
   `{{partes}}`, `{{data_extenso}}` etc.) que se preenchem ao começar a redigir
   (no editor e no Word original). Além dos fixos, cada campo do tipo e cada
@@ -3276,7 +3282,8 @@ misturam dentro de um processo.
   andamento de uma folha (número, assunto, fase, situação, prazos abertos,
   último movimento, data e hora). Leitor contínuo (`LeitorAutos`) abre os
   documentos em sequência com lista lateral, anterior/próximo, setas do
-  teclado, marca de lido no navegador e Baixar; cada documento tem o link de
+  teclado, marca de lido no navegador e Baixar (enquanto se lê um documento,
+  o leitor já pede o PDF do seguinte); cada documento tem o link de
   conferência pública para copiar.
 - **Em que ponto está:** a fase atual e quantas etapas faltam até o fim pelo
   caminho mais curto do rito (`fases` públicas só com id, nome, prazo e

@@ -8,11 +8,13 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '@/config/firebase';
 import { logger } from '@/utils/logger';
+import { paraEnvio } from '@/lib/paraEnvio';
 
 async function call(name, payload, options) {
     try {
         const fn = httpsCallable(functions, name, options);
-        const result = await fn(payload);
+        // Texto do editor (minutas, modelos, timbrado) chega com objetos sem protótipo.
+        const result = await fn(paraEnvio(payload));
         return result.data;
     } catch (error) {
         logger.error(`Error calling ${name}:`, error);

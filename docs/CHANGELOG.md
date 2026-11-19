@@ -5,6 +5,17 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 19/11/2026 — Salvar minutas, modelos e timbrado de novo
+- **Correção:** salvar pelo editor (minuta, modelo, papel timbrado, cabeçalho
+  e rodapé no editor completo) falhava com "hasOwnProperty is not a
+  function" e nada era gravado. O editor monta atributos sem protótipo e o
+  SDK do Firebase não os envia; `paraEnvio` (`src/lib/paraEnvio.js`) agora
+  copia todo pedido do Processo Eletrônico para objetos comuns.
+- **Leitura dos autos:** o leitor contínuo já busca o próximo documento
+  enquanto o atual está aberto.
+- Teste de tela `scripts/e2e-salvar-editor-tela.mjs` salva pelo editor de
+  verdade (o `e2e-editor.mjs` chama as funções direto e não pegava o erro).
+
 ### 19/11/2026 — Ritos de parcerias e convênios, e biblioteca separada por âmbito
 - **Seis modelos novos**, na área nova "Parcerias, convênios e cooperação"
   (`src/lib/modelos/parcerias.js`): um rito de **formalização** (contato com

@@ -28,6 +28,15 @@ export default function LeitorAutos({ documentos, abertoId, onFechar, carregar, 
 
     useEffect(() => { setAtual(abertoId); }, [abertoId]);
 
+    /** PDF do documento, pedido uma vez só enquanto o leitor está aberto (o que falhou pode ser pedido de novo). */
+    const obter = (d) => {
+        if (!cache.current.has(d.id)) {
+            const pedido = carregar(d);
+            cache.current.set(d.id, pedido);
+            pedido.catch(() => cache.current.delete(d.id));
+        }
+        return cache.current.get(d.id);
+    };
     const idx = documentos.findIndex((d) => d.id === atual);
     const doc = documentos[idx];
 
@@ -40,9 +49,14 @@ export default function LeitorAutos({ documentos, abertoId, onFechar, carregar, 
             setPdf(pdf);
             if (chaveLido) setLidos((s) => { const n = new Set(s); n.add(doc.id); guardarLidos(chaveLido, n); return n; });
         };
-        if (cache.current.has(doc.id)) { mostrar(cache.current.get(doc.id)); return undefined; }
+        setPdf(null);
         setCarregando(true);
-        carregar(doc).then((pdf) => { cache.current.set(doc.id, pdf); mostrar(pdf); })
+        obter(doc).then((pdf) => {
+            mostrar(pdf);
+            // O próximo já vem enquanto a pessoa lê este (leitura em sequência sem espera).
+            const prox = documentos[idx + 1];
+            if (vivo && prox) obter(prox).catch(() => undefined);
+        })
             .catch((e) => vivo && setErro(e?.message || 'Não foi possível abrir o documento'))
             .finally(() => vivo && setCarregando(false));
         return () => { vivo = false; };
@@ -69,8 +83,8 @@ export default function LeitorAutos({ documentos, abertoId, onFechar, carregar, 
                     <span className="hidden sm:inline text-xs text-slate-600 tabular-nums">{idx + 1} de {documentos.length}</span>
                     <Button size="sm" variant="outline" disabled={idx <= 0} onClick={() => ir(idx - 1)} aria-label="Documento anterior"><ChevronLeft className="w-4 h-4" /></Button>
                     <Button size="sm" variant="outline" disabled={idx >= documentos.length - 1} onClick={() => ir(idx + 1)} aria-label="Próximo documento"><ChevronRight className="w-4 h-4" /></Button>
-                    {doc && cache.current.has(doc.id) && (
-                        <Button size="sm" variant="outline" className="gap-1" onClick={() => baixarResposta(cache.current.get(doc.id))} aria-label="Baixar o PDF"><Download className="w-4 h-4" aria-hidden /> <span className="hidden sm:inline">Baixar</span></Button>
+                    {doc && pdf && (
+                        <Button size="sm" variant="outline" className="gap-1" onClick={() => baixarResposta(pdf)} aria-label="Baixar o PDF"><Download className="w-4 h-4" aria-hidden /> <span className="hidden sm:inline">Baixar</span></Button>
                     )}
                     <Button size="sm" variant="ghost" onClick={onFechar} aria-label="Fechar"><X className="w-4 h-4" /></Button>
                 </div>
