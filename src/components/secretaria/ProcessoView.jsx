@@ -230,7 +230,8 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
         if (!file) return;
         if (file.size > MAX_MB * 1024 * 1024) { toast.error(`Arquivo acima de ${MAX_MB} MB`); return; }
         setNovoDoc(false);
-        setDetalhar([detalheInicial(file, tipoPadrao)]);
+        // Fase de elaboração: entra como minuta, sem escolha de juntar, guardar ou assinar.
+        setDetalhar([{ ...detalheInicial(file, tipoPadrao), ...(faseAtual?.elaboracao === true ? { destino: 'minuta' } : {}) }]);
     };
     const registrarDetalhados = (itens) => executar(async () => {
         const aviso = toast.loading('Enviando…');
@@ -401,6 +402,8 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
         }
     };
     const finalizaComDocumentos = faseAtual?.juntada_conjunta === true;
+    // Fase de elaboração: quem está nela só prepara minutas; assinar e juntar ficam com quem revisa.
+    const elaboracao = faseAtual?.elaboracao === true;
 
     const ultimoDoc = autos[autos.length - 1];
     const diasTramitando = diasDesde(p.autuado_em);
@@ -800,7 +803,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                             <CardHeader className="pb-2 flex-row flex-wrap items-center justify-between gap-2 space-y-0">
                                 <CardTitle className="text-base" title="Rascunhos da unidade: só entram nos autos quando alguém os junta">Minutas da unidade</CardTitle>
                                 <div className="flex flex-wrap gap-2">
-                                    {(finalizaComDocumentos ? minutas.length >= 1 : minutas.length >= 2) && (
+                                    {!elaboracao && (finalizaComDocumentos ? minutas.length >= 1 : minutas.length >= 2) && (
                                         <Button size="sm" variant={finalizaComDocumentos ? 'default' : 'outline'} className="gap-1" disabled={!podeMexer || ocupado} onClick={() => setConjunta(true)}
                                             title="Escolher, ordenar, assinar e juntar os documentos de uma vez">
                                             <ListChecks className="w-4 h-4" /> {finalizaComDocumentos ? rotuloFinalizar(faseAtual) : 'Juntar em conjunto'}
@@ -812,6 +815,9 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                             <CardContent className="space-y-2">
                                 {finalizaComDocumentos && minutas.length === 0 && podeMexer && (
                                     <p className="text-sm text-slate-700 dark:text-slate-300">Esta fase termina com o botão {rotuloFinalizar(faseAtual)}: redija ou anexe os documentos; depois escolha quais entram nos autos e em que ordem.</p>
+                                )}
+                                {elaboracao && (
+                                    <p className="text-sm text-slate-700 dark:text-slate-300">Fase de elaboração: redija ou anexe a minuta e os anexos. Eles entram como minuta e seguem com o processo na remessa; assinar e juntar aos autos fica com quem revisa.</p>
                                 )}
                                 {minutas.length === 0 && <p className="text-sm text-slate-600">Minutas ficam visíveis só para a sua unidade até a juntada, salvo as que seguem com o processo numa remessa.</p>}
                                 {minutas.map((d) => {
@@ -836,10 +842,10 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                                 : null}
                                             {d.origem !== 'editor' && <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => baixarOriginal(d)} aria-label={`Baixar o arquivo ${d.nome_arquivo || d.titulo}`} title="Baixar o arquivo original"><Download className="w-4 h-4" /></Button>}
                                             {d.versoes > 0 && <Button variant="ghost" size="sm" className="gap-1" disabled={ocupado} onClick={() => setVersoesDe(d)} title="Redações anteriores, de antes da revisão (só a equipe vê)"><History className="w-4 h-4" aria-hidden /> <span className="hidden sm:inline">Versões</span><span className="sr-only sm:hidden">Versões de {d.titulo}</span> ({d.versoes})</Button>}
-                                            <Button size="sm" variant="outline" className="gap-1" disabled={assinei || ocupado || !podeMexer} onClick={() => doc('assinar', { docId: d.id }, 'Documento assinado')}><PenLine className="w-4 h-4" /> {assinei ? 'Assinado' : 'Assinar'}</Button>
-                                            {membrosDaUnidade.length > 1 && <Button size="sm" variant="ghost" className="gap-1" disabled={ocupado || !podeMexer} onClick={() => setAcao({ tipo: 'pedirAssinatura', documento: d })} title="Pedir a assinatura de alguém da unidade"><UserPlus className="w-4 h-4" /> <span className="hidden sm:inline">Pedir assinatura</span></Button>}
-                                            <Button size="sm" disabled={ocupado || !podeMexer} onClick={() => setAcao({ tipo: 'juntar', documento: d, assinei })} title="Incluir nos autos, com numeração e data; não pode ser desfeito">Juntar</Button>
-                                            <Button size="sm" variant={temControlePendente ? 'outline' : 'ghost'} className="gap-1" disabled={ocupado || !podeMexer} onClick={() => setAcao({ tipo: 'guardar', documento: d })} title="Guardar no processo como documento de controle: fica com a equipe, fora dos autos e da impressão; não pode ser desfeito"><Archive className="w-4 h-4" /> <span className={temControlePendente ? '' : 'hidden sm:inline'}>Guardar fora dos autos</span></Button>
+                                            {!elaboracao && <Button size="sm" variant="outline" className="gap-1" disabled={assinei || ocupado || !podeMexer} onClick={() => doc('assinar', { docId: d.id }, 'Documento assinado')}><PenLine className="w-4 h-4" /> {assinei ? 'Assinado' : 'Assinar'}</Button>}
+                                            {!elaboracao && membrosDaUnidade.length > 1 && <Button size="sm" variant="ghost" className="gap-1" disabled={ocupado || !podeMexer} onClick={() => setAcao({ tipo: 'pedirAssinatura', documento: d })} title="Pedir a assinatura de alguém da unidade"><UserPlus className="w-4 h-4" /> <span className="hidden sm:inline">Pedir assinatura</span></Button>}
+                                            {!elaboracao && <Button size="sm" disabled={ocupado || !podeMexer} onClick={() => setAcao({ tipo: 'juntar', documento: d, assinei })} title="Incluir nos autos, com numeração e data; não pode ser desfeito">Juntar</Button>}
+                                            {!elaboracao && <Button size="sm" variant={temControlePendente ? 'outline' : 'ghost'} className="gap-1" disabled={ocupado || !podeMexer} onClick={() => setAcao({ tipo: 'guardar', documento: d })} title="Guardar no processo como documento de controle: fica com a equipe, fora dos autos e da impressão; não pode ser desfeito"><Archive className="w-4 h-4" /> <span className={temControlePendente ? '' : 'hidden sm:inline'}>Guardar fora dos autos</span></Button>}
                                             {/* Quem recebeu a minuta com o processo não apaga o trabalho da outra unidade. */}
                                             {(d.unidade_origem === p.unidade_atual || !posse) && <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => setConfirmar({ titulo: 'Excluir a minuta?', texto: `"${d.titulo}" será apagada de vez. Minuta não fica nos autos, então não há como recuperar.`, rotulo: 'Excluir minuta', fn: () => doc('excluirMinuta', { docId: d.id }, 'Minuta excluída') })} aria-label={`Excluir a minuta ${d.titulo}`}><Trash2 className="w-4 h-4" /></Button>}
                                         </div>
@@ -997,7 +1003,8 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                             <div key={d.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 border-b last:border-0 border-slate-100 dark:border-slate-800">
                                 <span className="font-mono text-xs w-8 text-slate-600">{d.ordem}</span>
                                 <div className="flex-1 min-w-[11rem]">
-                                    <button type="button" className="font-medium block max-w-full text-left break-words hover:underline" onClick={() => setLeitura(d.id)}>{d.titulo}</button>
+                                    <button type="button" className={`font-medium block max-w-full text-left break-words hover:underline ${d.desentranhado ? 'line-through decoration-slate-400' : ''}`} onClick={() => setLeitura(d.id)}>{d.titulo}</button>
+                                    {d.desentranhado && <p className="text-xs text-rose-800 dark:text-rose-200">Desentranhado em {dataHora(d.desentranhado.em)} por {d.desentranhado.por_nome}. Motivo: {d.desentranhado.motivo}. Nos autos e no portal fica só o aviso; a equipe ainda abre o original.</p>}
                                     <p className="text-xs text-slate-600 dark:text-slate-400">{[d.tipo, folhas(d), dataHora(d.juntado_em), d.assinaturas.length ? `assinado por ${d.assinaturas.map((a) => a.nome).join(', ')}` : 'sem assinatura'].filter(Boolean).join(' · ')}</p>
                                     {d.codigo_verificacao && (
                                         <a href={`/Conferir?c=${d.codigo_verificacao}`} target="_blank" rel="noreferrer" className="text-xs font-mono text-indigo-700 dark:text-indigo-300 hover:underline" title="Abrir a conferência pública deste documento">
@@ -1045,7 +1052,16 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
 
             <TabsContent value="eventos" className="mt-4">
                 <div ref={eventosRef} className="scroll-mt-4">
-                    <EventosAutos movimentos={movimentos} nomeUnidade={nomeUnidade} gerarPdf={(selecao) => secExportarPdf(orgId, procId, selecao)} />
+                    <EventosAutos movimentos={movimentos} nomeUnidade={nomeUnidade} gerarPdf={(selecao) => secExportarPdf(orgId, procId, selecao)}
+                        onExcluir={p.status === 'arquivado' ? undefined : (m) => setConfirmar(m.documento_id ? {
+                            titulo: `Desentranhar o documento do evento ${m.numero}?`, pedeMotivo: true, rotulo: 'Desentranhar',
+                            texto: 'O documento sai dos autos: no lugar fica um aviso com a justificativa, e a numeração de folhas e eventos não muda. Fica um termo nos autos. Podem desentranhar quem juntou, o gestor da unidade, o admin e a unidade que decide, com o processo.',
+                            fn: (motivo) => doc('desentranhar', { docId: m.documento_id, motivo, version: p.version }, 'Documento desentranhado'),
+                        } : {
+                            titulo: `Tornar sem efeito o evento ${m.numero}?`, pedeMotivo: true, rotulo: 'Tornar sem efeito',
+                            texto: 'O ato continua no histórico, marcado sem efeito, e uma certidão com a justificativa entra no mesmo lugar em que ele estava (autos ou registro interno). Para desfazer o que uma ação da fase atual fez, use Desfazer na própria ação. Podem fazer isso quem praticou o ato, o gestor da unidade, o admin e a unidade que decide, com o processo.',
+                            fn: (motivo) => doc('semEfeito', { seq: m.seq, motivo, version: p.version }, 'Ato tornado sem efeito'),
+                        })} />
                 </div>
             </TabsContent>
             </Tabs>
@@ -1081,7 +1097,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
             <NovoDocumento aberto={novoDoc} onFechar={() => setNovoDoc(false)} tipos={documentoDaUnidade(estado, p.unidade_atual).tipos_documento || []} tipoPadrao={tipoPadrao}
                 modelosDaFase={modelosDaFase} modelos={modelos} onModelo={usarModelo} onEmBranco={redigirEmBranco} onArquivo={detalharArquivo} ocupado={ocupado} />
             <DetalharDocumentos aberto={!!detalhar} itens={detalhar} tipos={documentoDaUnidade(estado, p.unidade_atual).tipos_documento || []}
-                exigencias={exigencias} ocupado={ocupado} onConfirmar={registrarDetalhados} onFechar={() => setDetalhar(null)} />
+                exigencias={exigencias} soMinuta={faseAtual?.elaboracao === true} ocupado={ocupado} onConfirmar={registrarDetalhados} onFechar={() => setDetalhar(null)} />
 
             <Dialog open={!!linkConvite} onOpenChange={(o) => !o && setLinkConvite(null)}>
                 <DialogContent className="max-h-[92vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">
@@ -1135,9 +1151,15 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
             <Dialog open={!!confirmar} onOpenChange={(o) => !o && setConfirmar(null)}>
                 <DialogContent className="max-w-md max-h-[92vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full">
                     <DialogHeader><DialogTitle>{confirmar?.titulo}</DialogTitle><DialogDescription>{confirmar?.texto}</DialogDescription></DialogHeader>
+                    {/* Exclusão dos autos: a justificativa vai ao termo. */}
+                    {confirmar?.pedeMotivo && (
+                        <Textarea value={confirmar.motivo || ''} onChange={(e) => setConfirmar({ ...confirmar, motivo: e.target.value })} rows={3} maxLength={500}
+                            aria-label="Justificativa" placeholder="Justificativa (vai ao termo, com seu nome)" />
+                    )}
                     <DialogFooter>
                         <Button variant="ghost" onClick={() => setConfirmar(null)}>Cancelar</Button>
-                        <Button variant="destructive" disabled={ocupado} onClick={() => { const f = confirmar.fn; setConfirmar(null); f(); }}>{confirmar?.rotulo}</Button>
+                        <Button variant="destructive" disabled={ocupado || (confirmar?.pedeMotivo && (confirmar.motivo || '').trim().length < 10)}
+                            onClick={() => { const { fn, motivo } = confirmar; setConfirmar(null); fn(motivo?.trim()); }}>{confirmar?.rotulo}</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -1523,7 +1545,8 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
         const faseNova = acao.fase_id ? p.fases.find((f) => f.id === acao.fase_id) : null;
         // Minutas com a unidade que remete; por padrão, todas seguem (ex.: a da assessoria para o gabinete).
         const minutasDaUnidade = minutas.filter((d) => d.unidade_origem === p.unidade_atual || (d.unidades_acesso || []).includes(p.unidade_atual));
-        const levarIds = levar ?? minutasDaUnidade.map((d) => d.id);
+        const elaboracao = p.fases.find((f) => f.id === p.fase_atual)?.elaboracao === true;
+        const levarIds = elaboracao ? minutasDaUnidade.map((d) => d.id) : levar ?? minutasDaUnidade.map((d) => d.id);
         const orgaoAtual = estado.unidades.find((u) => u.id === p.unidade_atual)?.orgao_id || null;
         const outroOrgao = !!uDest && (uDest.orgao_id || null) !== orgaoAtual && (estado.orgaos || []).length > 0;
         const rot = (u) => `${nomeOrgao(estado, u.orgao_id) ? `${nomeOrgao(estado, u.orgao_id)} › ` : ''}${u.nome} (${rotuloUnidade(u.tipo).toLowerCase()})${u.id === acao.destino ? ' · indicada pelo rito' : passou.includes(u.id) ? ' · já passou por aqui' : ''}`;
@@ -1537,12 +1560,15 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
                         <legend className="text-sm font-medium mb-1">Minutas que seguem com o processo</legend>
                         {minutasDaUnidade.map((d) => (
                             <label key={d.id} className="flex items-start gap-2 text-sm">
-                                <input type="checkbox" className="mt-1" checked={levarIds.includes(d.id)}
+                                <input type="checkbox" className="mt-1" checked={elaboracao || levarIds.includes(d.id)} disabled={elaboracao}
                                     onChange={(ev) => setLevar(ev.target.checked ? [...levarIds, d.id] : levarIds.filter((x) => x !== d.id))} />
                                 <span>{d.titulo} <span className="text-xs text-slate-600 dark:text-slate-400">({d.tipo})</span></span>
                             </label>
                         ))}
-                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">A unidade de destino poderá ler, revisar, assinar e juntar. Sua unidade continua vendo a minuta.</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                            {elaboracao ? 'Fase de elaboração: todas as minutas seguem com o processo, para quem revisa decidir o que vai aos autos. ' : ''}
+                            A unidade de destino poderá ler, revisar, assinar e juntar. Sua unidade continua vendo a minuta.
+                        </p>
                     </fieldset>
                 )}
                 <NativeSelect label="Destino" value={destino} onChange={setValor} options={[['', 'Escolha…'], ...opcoes.map((u) => [u.id, rot(u)])]} />

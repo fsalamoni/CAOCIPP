@@ -1589,6 +1589,48 @@ escreve a minuta, o gabinete corrige, assina e escolhe os anexos).
 - Testes: `functions-v2/test/revisaoMinuta.test.js` e
   `src/lib/juntadaConjunta.test.js`. Guia do rito, parte 10.
 
+### Fase de elaboração (19/11/2026)
+- **O que é** (`fase.elaboracao`, em Andamento automático: "Fase de
+  elaboração: quem está nela só prepara minutas"). Não combina com o botão
+  Finalizar nem com a fase final (`sanitizeRito` descarta).
+- **Na tela.** Arquivo anexado entra como minuta, sem a escolha de juntar,
+  guardar ou assinar (`DetalharDocumentos` com `soMinuta`). No card das
+  minutas somem Assinar, Pedir assinatura, Juntar, Guardar fora dos autos e
+  Juntar em conjunto. Na remessa, todas as minutas da unidade seguem (as
+  caixas ficam marcadas e travadas).
+- **No servidor** (`secretaria/documentos.ts`). `assinar`,
+  `pedirAssinatura`, `juntar` e `guardar` são recusados na fase. Ao criar
+  ou enviar a minuta, `cumpridaPelaMinuta` acha a exigência de documento
+  que ela atende (modelo ou tipo; sem tipo, a primeira livre) e grava o
+  cumprimento com um registro interno. `excluirMinuta` desfaz
+  (`semCumprimentoDaMinuta`). Em `tramitar`, as minutas acessíveis à
+  unidade entram na remessa mesmo sem a escolha.
+- No Rito Consultas CAOCIPP, a Análise é fase de elaboração.
+- Testes: `functions-v2/test/elaboracao.test.js`.
+
+### Desentranhamento e ato sem efeito (19/11/2026)
+- **Onde.** Aba Eventos: "Desentranhar" no evento da juntada (ou petição)
+  e "Tornar sem efeito" nos demais atos que admitem (`podeFicarSemEfeito`:
+  não autuação, remessa, conclusão, fase, situação, exclusão, restauração,
+  retificação, nem a própria anulação). Justificativa de 10 a 500 caracteres.
+- **Quem** (`podeExcluirDosAutos`): quem praticou (ou juntou), o gestor da
+  unidade onde se praticou (`unidade_juntada`, gravada na juntada desde
+  19/11/2026; antes, a unidade de origem da minuta), o admin do órgão e a
+  unidade que decide enquanto está com o processo.
+- **Como grava** (`documentos.ts`, ações `desentranhar` e `semEfeito`).
+  Desentranhar marca `desentranhado` no documento, registra o termo
+  `desentranhamento` com a visibilidade do documento, marca a conferência
+  pública (`desentranhado_em`) e devolve a pendente o que o documento
+  cumpria na fase em curso. Sem efeito registra a certidão `sem_efeito`
+  (`alvo_seq`, motivo) com a visibilidade e o caráter interno do alvo.
+- **Como aparece.** `extrasDoEvento` devolve `desentranhado`,
+  `sem_efeito` (número da certidão) e `pode_sem_efeito`. No PDF, o
+  documento desentranhado vira uma folha de aviso carimbada com as folhas
+  que ocupava; o termo do ato sem efeito leva "ATO SEM EFEITO: ver o evento
+  nº N"; índice e extrato marcam os dois. O portal lista o aviso e recusa
+  baixar o arquivo; a equipe ainda abre o original.
+- Testes: `functions-v2/test/elaboracao.test.js`.
+
 ### Impressão interna (14/11/2026)
 
 PDF de uso da equipe com o que fica **fora dos autos**. Serve às fases de

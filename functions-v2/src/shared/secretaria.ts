@@ -78,6 +78,13 @@ export interface Fase {
      * os documentos de uma vez (ex.: Finalizar revisão). É só o botão: cada juntada segue as regras de sempre.
      */
     juntada_conjunta?: true;
+    /**
+     * Fase de elaboração (ex.: Análise na assessoria): quem está nela só prepara.
+     * Documento redigido ou enviado entra como minuta, sem assinar, juntar nem
+     * guardar; as minutas seguem sozinhas com o processo na remessa, e quem
+     * revisa, na fase seguinte, decide o que entra nos autos.
+     */
+    elaboracao?: true;
     /** Unidade que cuida da fase (sugestão de tramitação ao entrar nela). */
     unidade_id?: string;
     /** Quem faz (cargo ou papel), ex.: "Analista", "Promotor". */
@@ -359,6 +366,8 @@ export function sanitizeRito(input: unknown): Rito {
             ...(final ? { final: true } : {}),
             ...(espera ? { espera: true as const } : {}),
             ...(fo.juntada_conjunta === true ? { juntada_conjunta: true as const } : {}),
+            // Elaboração e Finalizar se excluem: quem só prepara não junta.
+            ...(fo.elaboracao === true && fo.juntada_conjunta !== true && !final ? { elaboracao: true as const } : {}),
             ...(unidade ? { unidade_id: unidade } : {}),
             ...(agente ? { agente } : {}),
             ...(acoes.length ? { acoes } : {}),

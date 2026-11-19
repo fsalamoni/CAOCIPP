@@ -900,6 +900,36 @@ export function camposDoCumprimento(
     return out;
 }
 
+/**
+ * Fase de elaboração: a exigência de documento (para os autos) que a minuta
+ * recém-criada cumpre, ou nenhuma. Uma minuta cumpre uma exigência: a do
+ * mesmo modelo ou tipo; sem isso, a primeira que não pede tipo. Assinatura
+ * não é cobrada aqui: quem assina é quem revisa, na fase seguinte.
+ */
+export function cumpridaPelaMinuta(pendentes: Array<Exigencia & { chave: string }>, d: DocJuntado): (Exigencia & { chave: string }) | null {
+    const cabem = pendentes.filter((e) => !e.destino && atende(e, d));
+    return cabem.find((e) => (e.modelo_id && e.modelo_id === d.modelo_id) || igual(e.tipo, d.tipo))
+        || cabem.find((e) => !e.tipo && !e.modelo_id) || null;
+}
+
+/**
+ * A minuta saiu (excluída) antes de seguir: o que ela cumpria na fase volta a
+ * faltar, e a ação de documento ligada volta a ficar pendente.
+ */
+export function semCumprimentoDaMinuta(proc: { exigencias_cumpridas?: unknown; acoes_feitas?: unknown }, faseId: string, documentoId: string): Record<string, unknown> {
+    const todas = (proc.exigencias_cumpridas || {}) as Cumpridas;
+    const daFase = todas[faseId] || {};
+    const sai = Object.keys(daFase).filter((k) => (daFase[k] as { documento_id?: string })?.documento_id === documentoId);
+    if (!sai.length) return {};
+    const resto = Object.fromEntries(Object.entries(daFase).filter(([k]) => !sai.includes(k)));
+    const acoes = sai.filter((k) => /^a\d+$/.test(k)).map((k) => Number(k.slice(1)));
+    const feitasTodas = (proc.acoes_feitas || {}) as Record<string, number[]>;
+    return {
+        exigencias_cumpridas: { ...todas, [faseId]: resto },
+        ...(acoes.length ? { acoes_feitas: { ...feitasTodas, [faseId]: (feitasTodas[faseId] || []).filter((i) => !acoes.includes(i)) } } : {}),
+    };
+}
+
 /** Ao entrar numa fase (inclusive voltando a ela), o que ela exige recomeça: a rodada anterior fica nos movimentos. */
 export function camposAoEntrarNaFase(proc: { exigencias_cumpridas?: unknown; acoes_feitas?: unknown; acoes_respostas?: unknown }, faseId: string): Record<string, unknown> {
     const out: Record<string, unknown> = {};

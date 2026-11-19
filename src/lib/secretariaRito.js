@@ -422,16 +422,16 @@ export function ritoConsultas() {
                 ],
             },
             {
-                id: ana, nome: 'Análise', unidade: 'Assessoria', proximas: [rev, dil],
+                id: ana, nome: 'Análise', unidade: 'Assessoria', proximas: [rev, dil], elaboracao: true,
                 condicoes: { [rev]: 'minuta pronta', [dil]: 'depende de terceiros' },
                 situacao_registro: consulta('Pendente', 'Em elaboração'), registro_atos: interno,
-                orientacao: 'A consulta fica Pendente até um assessor assumir o processo. Nada desta fase entra nos autos: minutas, anexos e registros ficam com a equipe e saem na impressão interna, por seleção.',
+                orientacao: 'Fase de elaboração. A consulta fica Pendente até um assessor assumir o processo. A minuta do parecer e os anexos que o assessor redige ou anexa entram sozinhos como minuta e seguem com o processo para o Gabinete. Aqui não se assina nem se junta aos autos: quem revisa decide. Os registros desta fase ficam com a equipe e saem na impressão interna, por seleção.',
                 acoes: ['Assumir o processo', 'Redigir ou anexar a minuta do parecer', 'Anexar outros documentos, se houver', 'Encaminhar ao Gabinete'],
                 acoes_regras: [
                     { pede: 'orientacao', ajuda: 'Pelo botão Assumir. Quem assumiu e quando ficam só no sistema, e a consulta passa a Em elaboração.' },
-                    { ...dado, ajuda: 'Crie a minuta com o tipo Parecer e deixe como minuta: quem junta aos autos é o Gabinete, na revisão.' },
-                    { pede: 'orientacao', ajuda: 'Também como minuta. O Gabinete decide na revisão o que entra nos autos.' },
-                    { pede: 'orientacao', ajuda: 'Em Concluir e seguir, marque as minutas e os anexos que vão com o processo.' },
+                    { documento: { forma: 'qualquer', tipo: 'Parecer' }, ajuda: 'Redija no editor ou anexe o arquivo com o tipo Parecer: ele entra como minuta e já cumpre esta ação. Quem junta aos autos é o Gabinete, na revisão.' },
+                    { pede: 'orientacao', ajuda: 'Também entram como minuta e seguem com o processo. O Gabinete decide na revisão o que vai aos autos.' },
+                    { pede: 'orientacao', ajuda: 'Pelo botão Concluir e seguir: todas as minutas e anexos vão juntos para o Gabinete.' },
                 ],
             },
             {

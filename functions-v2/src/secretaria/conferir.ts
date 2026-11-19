@@ -59,6 +59,8 @@ export const secretariaConferir = onCall<{ codigo?: string }>({ region: REGION }
         nome_arquivo: v.nome_arquivo, juntado_em: v.juntado_em, juntado_por: v.juntado_por,
         folha_inicial: v.folha_inicial, folha_final: v.folha_final, paginas: v.paginas,
         assinaturas: v.assinaturas || [], sha256: v.sha256, pdf_sha256: v.pdf_sha256, peticao: v.peticao === true,
+        // Saiu dos autos depois: a conferência diz, para ninguém tomar a cópia como peça vigente.
+        desentranhado_em: v.desentranhado_em || null,
     };
 });
 

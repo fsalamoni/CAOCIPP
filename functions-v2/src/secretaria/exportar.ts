@@ -9,7 +9,7 @@ import { CampoValor } from '../shared/camposProcesso';
 import { InformacaoAndamento, informacoesDaFolha, informacoesDoAndamento } from '../shared/informacoes';
 import { secoesDaFolha, situacaoDaCapa } from '../shared/folhaDados';
 import {
-    Selecao, documentoDoEvento, documentoInterno, folhasDoEvento, numerarEventos, numeroDoEvento, origemEvento, registroInterno, sanitizeSelecao, sanitizeSelecaoInterna, selecionar, tituloEvento,
+    Selecao, documentoDoEvento, documentoInterno, eventosSemEfeito, folhasDoEvento, numerarEventos, numeroDoEvento, origemEvento, registroInterno, sanitizeSelecao, sanitizeSelecaoInterna, selecionar, tituloEvento,
 } from '../shared/autos';
 import { minutaAcessivel } from '../shared/secretaria';
 import { conteudoDoDocumento } from './autos';
@@ -150,14 +150,15 @@ async function folhaDadosPdf(o: OpcoesAutos, m: admin.firestore.DocumentData, ge
 }
 
 /** Página do ato de usuário que não juntou documento: o que foi feito, por quem e quando. */
-async function termoPdf(orgNome: string, numero: string, m: admin.firestore.DocumentData, unidade: string): Promise<Uint8Array> {
+async function termoPdf(orgNome: string, numero: string, m: admin.firestore.DocumentData, unidade: string, semEfeitoPor?: string): Promise<Uint8Array> {
     const pdf = await pdfLib().PDFDocument.create();
     const w = new Escritor(pdf, await pdf.embedFont(pdfLib().StandardFonts.Helvetica), await pdf.embedFont(pdfLib().StandardFonts.HelveticaBold), '');
     w.y -= 40;
     w.texto(orgNome || 'Órgão', { size: 11, bold: true, espaco: 2 });
     w.texto(`Processo nº ${numero}`, { size: 10, cor: [0.4, 0.4, 0.4], espaco: 36 });
     w.texto(tituloEvento(m as never).toUpperCase(), { size: 14, bold: true, espaco: 6 });
-    w.texto(`Evento nº ${m.numero_evento ?? m.seq}`, { size: 10, cor: [0.4, 0.4, 0.4], espaco: 24 });
+    w.texto(`Evento nº ${m.numero_evento ?? m.seq}`, { size: 10, cor: [0.4, 0.4, 0.4], espaco: semEfeitoPor ? 8 : 24 });
+    if (semEfeitoPor) w.texto(`ATO SEM EFEITO: ver o evento nº ${semEfeitoPor}.`, { size: 11, bold: true, cor: [0.7, 0.1, 0.1], espaco: 16 });
     w.texto(String(m.descricao), { size: 11, espaco: 24 });
     w.texto(`Praticado por ${m.autor_nome}${unidade ? `, ${unidade}` : ''}, em ${quandoBR(m.em)}.`, { size: 10, espaco: 30 });
     w.texto('Termo gerado pela plataforma a partir do registro do evento. A integridade é conferida pela cadeia de hash dos eventos do processo.', { size: 8, cor: [0.45, 0.45, 0.45], espaco: 4 });
@@ -174,6 +175,9 @@ export async function montarPdfAutos(o: OpcoesAutos): Promise<Uint8Array> {
     const numeros = numerarEventos(o.movimentos as never);
     const movimentos: admin.firestore.DocumentData[] = o.movimentos.map((m) => ({ ...m, numero_evento: numeroDoEvento(numeros, m.seq) }));
     const evQuebra = quebra === null ? null : numeroDoEvento(numeros, quebra);
+    // Ato que outro tornou sem efeito: a página continua, com o aviso e o número da certidão.
+    const anulados = eventosSemEfeito(o.movimentos as never);
+    const semEfeitoPor = (m: admin.firestore.DocumentData) => { const s = anulados.get(m.seq); return s === undefined ? undefined : numeroDoEvento(numeros, s); };
     const unid = (id: unknown) => { const n = o.nomeUnidade(String(id || '')); return n ? ` (${n})` : ''; };
     const pdf = await pdfLib().PDFDocument.create();
     pdf.setTitle(`Processo ${proc.numero}`);
@@ -225,7 +229,15 @@ export async function montarPdfAutos(o: OpcoesAutos): Promise<Uint8Array> {
     let folhaLegado = 1; // processos anteriores às folhas gravadas
     const anexarDocumento = async (d: admin.firestore.DocumentData, corte?: [number, number]) => {
         let bytes: Uint8Array;
-        if (d.origem === 'upload' && bytesAnexos + pesoNoPdf(d) > LIMITE_ANEXOS_BYTES) {
+        const des = d.desentranhado as { em?: string; por_nome?: string; motivo?: string; evento_seq?: number } | undefined;
+        if (des) {
+            // Desentranhado: uma folha de aviso no lugar, com as folhas que ele ocupava (a numeração não muda).
+            bytes = await folhaSimples(`Documento nº ${d.ordem} desentranhado`, [
+                `${String(d.titulo)} (${String(d.tipo)})${typeof d.folha_inicial === 'number' ? `, ${textoFolhas(d.folha_inicial, Number(d.paginas) || 1)}` : ''}.`,
+                `Desentranhado em ${quandoBR(des.em)} por ${des.por_nome || ''}${des.evento_seq ? `, no evento nº ${numeroDoEvento(numeros, des.evento_seq)}` : ''}.`,
+                `Motivo: ${des.motivo || ''}`,
+            ]);
+        } else if (d.origem === 'upload' && bytesAnexos + pesoNoPdf(d) > LIMITE_ANEXOS_BYTES) {
             bytes = await folhaSimples(String(d.titulo), [
                 'Arquivo não incorporado: o PDF único dos autos passou do limite de tamanho.',
                 'Baixe o documento avulso ou gere o PDF em partes; o hash abaixo permite conferir o original.',
@@ -237,6 +249,12 @@ export async function montarPdfAutos(o: OpcoesAutos): Promise<Uint8Array> {
         }
         const gravada = typeof d.folha_inicial === 'number';
         const folha = gravada ? d.folha_inicial : folhaLegado;
+        if (des) {
+            const ate = folha + (Number(d.paginas) || 1) - 1;
+            await anexarCarimbado(pdf, bytes, { processo: String(proc.numero), folha, ordem: d.ordem, titulo: `${String(d.titulo)} (desentranhado)`, rotuloFolhas: ate > folha ? `fls. ${folha} a ${ate}` : undefined });
+            if (!gravada) folhaLegado += Number(d.paginas) || 1;
+            return;
+        }
         const codigo = d.codigo_verificacao || await garantirCodigo(o.db, o.orgId, o.ref.id, String(proc.numero), d.id);
         const qtd = await anexarCarimbado(pdf, bytes, {
             processo: String(proc.numero), folha, ordem: d.ordem, titulo: String(d.titulo),
@@ -258,7 +276,7 @@ export async function montarPdfAutos(o: OpcoesAutos): Promise<Uint8Array> {
         const info = { processo: String(proc.numero), folha: typeof m.folha === 'number' ? m.folha : null, titulo: tituloEvento(m as never) };
         // A autuação é a folha de dados do processo; os demais atos sem documento, um termo de uma folha.
         if (m.tipo === 'autuacao') await anexarCarimbado(pdf, await folhaDadosPdf(o, m, geradoEm, integridade), { ...info, mesmaFolha: true });
-        else await anexarCarimbado(pdf, await termoPdf(String(o.orgNome || ''), String(proc.numero), m, o.nomeUnidade(String(m.unidade_id || ''))), info);
+        else await anexarCarimbado(pdf, await termoPdf(String(o.orgNome || ''), String(proc.numero), m, o.nomeUnidade(String(m.unidade_id || '')), semEfeitoPor(m)), info);
     };
     // A folha de dados (evento 1) vem logo depois da capa: é a segunda folha do processo impresso.
     const autuacao = atos[0]?.tipo === 'autuacao' ? atos[0] : null;
@@ -271,7 +289,7 @@ export async function montarPdfAutos(o: OpcoesAutos): Promise<Uint8Array> {
         for (const m of atos) {
             const d = docsPorId.get(documentoDoEvento(m as never) || '');
             w.texto(`Evento ${m.numero_evento} · ${quandoBR(m.em)} · ${m.autor_nome}${unid(m.unidade_id)}${folhasTxt(m) ? ` · ${folhasTxt(m)}` : ''}`, { bold: true, size: 9, espaco: 0 });
-            w.texto(d ? `Doc. nº ${d.ordem}: ${d.titulo} (${d.tipo})` : `${tituloEvento(m as never)}. ${m.descricao}`, { size: 9, espaco: 0 });
+            w.texto(d ? `Doc. nº ${d.ordem}: ${d.titulo} (${d.tipo})${d.desentranhado ? ' — DESENTRANHADO' : ''}` : `${tituloEvento(m as never)}. ${m.descricao}${semEfeitoPor(m) ? ` — SEM EFEITO (evento ${semEfeitoPor(m)})` : ''}`, { size: 9, espaco: 0 });
             w.texto(`hash ${m.hash}`, { size: 6, cor: [0.5, 0.5, 0.5], espaco: 6 });
         }
     }
@@ -288,7 +306,7 @@ export async function montarPdfAutos(o: OpcoesAutos): Promise<Uint8Array> {
         w.texto('Registros automáticos, de controle interno e os que o rito deixa fora dos autos, em ordem cronológica. Não ocupam folhas dos autos.', { size: 8, cor: [0.45, 0.45, 0.45], espaco: 10 });
         for (const m of sistema) {
             w.texto(`Evento ${m.numero_evento} · ${quandoBR(m.em)} · ${m.autor_nome}${unid(m.unidade_id)}`, { bold: true, size: 9, espaco: 0 });
-            w.texto(String(m.descricao), { size: 9, espaco: 0 });
+            w.texto(`${String(m.descricao)}${semEfeitoPor(m) ? ` — SEM EFEITO (evento ${semEfeitoPor(m)})` : ''}`, { size: 9, espaco: 0 });
             w.texto(`hash ${m.hash}`, { size: 6, cor: [0.5, 0.5, 0.5], espaco: 6 });
         }
     }

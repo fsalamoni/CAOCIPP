@@ -16,7 +16,7 @@ import { FONTES_ATUAIS, caminhoPdf, conteudoDoDocumento, folhasDoProcesso, novoC
 import { entregar, gravarOriginal, gravarParte, lerArquivoEnviado, lerOriginal } from './arquivos';
 import { renderizarDocumento, textoParaDoc } from './pdfDocumento';
 import { montarPdfAutos, selecaoOuErro } from './exportar';
-import { documentoVisivel, extrasDoEvento, numerarEventos, visivelParaPartes } from '../shared/autos';
+import { documentoVisivel, eventosSemEfeito, extrasDoEvento, numerarEventos, visivelParaPartes } from '../shared/autos';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { avisarPeticao } from './avisosEquipe';
 import { Comunicacao, destinatario, nomeDaEspecie, textoPrazo } from '../shared/comunicacoes';
@@ -341,6 +341,7 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
         const todos = movs.docs.map((d) => d.data());
         // Numeração dos autos: a parte vê só os públicos, numerados sem saltos.
         const numerosPortal = numerarEventos(todos as never);
+        const anuladosPortal = eventosSemEfeito(todos as never);
         const parte = parteDoUsuario(data, uid);
         const acessoRef = db.collection(COL_ACESSOS).doc(uid);
         const vistoEm = ((await acessoRef.get()).data()?.processos || {})[ref.id] || null;
@@ -397,8 +398,8 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
             },
             // Restrito a um polo: a parte desse polo o vê com número subsidiário (5.1); os inteiros seguem sem salto.
             movimentos: todos.filter((m) => visivelParaPartes(m as never, parte?.polo))
-                .map((m) => ({ seq: m.seq, tipo: m.tipo, descricao: m.descricao, em: m.em, autor_nome: m.autor_nome, hash: m.hash, novo: !!vistoEm && m.em > vistoEm, ...extrasDoEvento(m as never, new Map(documentos.map((d) => [d.id, d])), numerosPortal) })),
-            documentos: documentos.map((d) => ({ id: d.id, ordem: d.ordem, titulo: d.titulo, tipo: d.tipo, juntado_em: d.juntado_em, origem: d.origem, sha256: d.sha256, folha_inicial: d.folha_inicial || null, folha_final: d.folha_final || null, codigo_verificacao: d.codigo_verificacao || null, novo: !!vistoEm && d.juntado_em > vistoEm })),
+                .map((m) => ({ seq: m.seq, tipo: m.tipo, descricao: m.descricao, em: m.em, autor_nome: m.autor_nome, hash: m.hash, novo: !!vistoEm && m.em > vistoEm, ...extrasDoEvento(m as never, new Map(documentos.map((d) => [d.id, d])), numerosPortal, anuladosPortal) })),
+            documentos: documentos.map((d) => ({ id: d.id, ordem: d.ordem, titulo: d.titulo, tipo: d.tipo, juntado_em: d.juntado_em, origem: d.origem, sha256: d.sha256, folha_inicial: d.folha_inicial || null, folha_final: d.folha_final || null, codigo_verificacao: d.codigo_verificacao || null, ...(d.desentranhado ? { desentranhado: { em: d.desentranhado.em, motivo: d.desentranhado.motivo } } : {}), novo: !!vistoEm && d.juntado_em > vistoEm })),
             minhas_peticoes: peticoesDaParte(data, documentos, uid),
             tipos_peticao: await tiposDoOrgao(db, data.organization_id),
             visto_em: vistoEm,
@@ -482,6 +483,8 @@ export const secretariaPortal = onCall<PortalRequest>({ region: REGION, memory: 
         const { ref, data: proc } = await lerComoParte(db, uid, p.processoId);
         const d = (await ref.collection('documentos').doc(String(p.docId || '_')).get()).data();
         if (!d || d.status !== 'juntado' || !documentoVisivel(d, parteDoUsuario(proc, uid)?.polo)) throw new HttpsError('not-found', 'Documento não encontrado');
+        // Desentranhado: saiu dos autos; a parte vê o aviso, não o conteúdo.
+        if (d.desentranhado) throw new HttpsError('failed-precondition', `O documento nº ${d.ordem} foi desentranhado dos autos. Motivo: ${d.desentranhado.motivo || ''}`);
         if (p.action === 'pdf') return entregar(await pdfCarimbado(db, proc.organization_id, ref.id, String(proc.numero), String(p.docId), d), `documento-${d.ordem}.pdf`, 'application/pdf', uid);
         if (d.origem === 'editor') return { origem: 'editor', titulo: d.titulo, conteudo: await conteudoDoDocumento(d) };
         const arq = await entregar(await lerOriginal(d), String(d.nome_arquivo || d.titulo), String(d.mime), uid);

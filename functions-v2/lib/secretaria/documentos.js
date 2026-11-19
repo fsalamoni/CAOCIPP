@@ -71,6 +71,11 @@ exports.secretariaDocumento = (0, https_1.onCall)(
             throw new https_1.HttpsError('not-found', 'Documento não encontrado');
         await (0, sessoes_1.registrarLeitura)(c, procRef, proc, `Leu o documento ${d.ordem ? `nº ${d.ordem}, ` : ''}${String(d.titulo || '')}`);
     }
+    // Fase de elaboração: quem está nela só prepara; assinar, juntar e guardar cabem a quem revisa, na fase seguinte.
+    const faseDoProc = (proc.fases || []).find((f) => f.id === proc.fase_atual);
+    if ((faseDoProc === null || faseDoProc === void 0 ? void 0 : faseDoProc.elaboracao) === true && ['assinar', 'pedirAssinatura', 'juntar', 'guardar'].includes(String(p.action))) {
+        throw new https_1.HttpsError('failed-precondition', `Na fase ${faseDoProc.nome || 'atual'} só se elaboram minutas: assinar e decidir o que entra nos autos cabem a quem revisa, na fase seguinte.`);
+    }
     // Feriados locais e recesso, se o ato puder abrir prazo de ação.
     const calendario = ['juntar', 'guardar'].includes(String(p.action)) ? await (0, context_1.calendarioDasAcoes)(c.db, c.orgId, proc) : undefined;
     const docsCol = procRef.collection('documentos');
@@ -195,6 +200,24 @@ exports.secretariaDocumento = (0, https_1.onCall)(
         const nome = `${String(doc.titulo).replace(/[^\p{L}\p{N} _-]+/gu, '').slice(0, 60) || 'documento'}.docx`;
         return (0, arquivos_1.entregar)(buf, nome, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', auth.uid);
     }
+    // Fase de elaboração: a minuta recém-criada cumpre a ação de documento que a pede (registro só da equipe).
+    const cumprirComMinuta = async (docId, d) => {
+        if ((faseDoProc === null || faseDoProc === void 0 ? void 0 : faseDoProc.elaboracao) !== true)
+            return null;
+        return c.db.runTransaction(async (tx) => {
+            const atual = (await tx.get(procRef)).data() || {};
+            const fase = (atual.fases || []).find((f) => f.id === atual.fase_atual);
+            if ((fase === null || fase === void 0 ? void 0 : fase.elaboracao) !== true)
+                return null;
+            const pendentes = (0, exigencias_1.pendentesDaFase)(fase, atual.exigencias_cumpridas, (0, exigencias_1.respostasDaFase)(atual));
+            const e = (0, exigencias_1.cumpridaPelaMinuta)(pendentes, { origem: d.origem, tipo: d.tipo, modelo_id: d.modelo_id, assinaturas: 0, atribuicoes: [] });
+            if (!e)
+                return null;
+            const mi = (0, context_1.registrarInternos)(tx, c, procRef, atual, [`Minuta preparada: ${d.titulo} (${d.tipo}). Cumpre "${e.descricao}"; segue com o processo para a revisão.`]);
+            tx.update(procRef, Object.assign(Object.assign({}, mi), (0, exigencias_1.camposDoCumprimento)(atual, fase.id, [e], docId, null)));
+            return e.chave;
+        });
+    };
     if (p.action === 'criarMinuta' || p.action === 'upload') {
         (0, context_1.exigirPosse)(c, proc);
         const titulo = (0, secretaria_1.texto)(p.titulo) || (p.action === 'upload' ? (0, secretaria_1.texto)(p.nomeArquivo) : '');
@@ -213,7 +236,8 @@ exports.secretariaDocumento = (0, https_1.onCall)(
             const hash = (0, secretaria_1.sha256)((0, secretaria_1.jsonCanonico)(conteudo));
             const campos = (0, arquivos_1.semApagar)(await (0, arquivos_1.camposDoConteudo)(caminhoArquivo(c.orgId, procRef.id, ref.id), conteudo, hash));
             await ref.set(Object.assign(Object.assign(Object.assign(Object.assign({}, base), { origem: 'editor' }), campos), { sha256: hash }));
-            return { success: true, id: ref.id };
+            const cumpriu = await cumprirComMinuta(ref.id, Object.assign(Object.assign({}, base), { origem: 'editor' }));
+            return Object.assign({ success: true, id: ref.id }, (cumpriu ? { cumpre: cumpriu } : {}));
         }
         const mime = String(p.mime || '');
         if (!secretaria_1.TIPOS_ARQUIVO_PERMITIDOS[mime])
@@ -247,7 +271,8 @@ exports.secretariaDocumento = (0, https_1.onCall)(
                 await bucket.file(leitura.leitura_path).delete({ ignoreNotFound: true }).catch(() => undefined);
             throw e;
         }
-        return { success: true, id: ref.id };
+        const cumpriu = await cumprirComMinuta(ref.id, Object.assign(Object.assign({}, base), { origem: 'upload' }));
+        return Object.assign({ success: true, id: ref.id }, (cumpriu ? { cumpre: cumpriu } : {}));
     }
     if (p.action === 'editarMinuta') {
         (0, context_1.exigirPosse)(c, proc);
@@ -304,6 +329,10 @@ exports.secretariaDocumento = (0, https_1.onCall)(
             throw new https_1.HttpsError('failed-precondition', 'Esta minuta seguiu com o processo para outra unidade. Ela só pode ser excluída quando o processo voltar à sua unidade.');
         }
         await c.db.recursiveDelete(ref); // com as redações anteriores
+        // A minuta cumpria a ação de documento da fase (elaboração): ela volta a faltar.
+        const desfeito = (0, exigencias_1.semCumprimentoDaMinuta)(proc, String(proc.fase_atual), ref.id);
+        if (Object.keys(desfeito).length)
+            await procRef.update(desfeito);
         // Minuta do acórdão excluída pela unidade: volta ao redator, que corrige e envia de novo (S6).
         if (doc.acordao_sessao_id && ((_a = proc.acordao) === null || _a === void 0 ? void 0 : _a.documento_id) === ref.id) {
             const sem = { 'acordao.enviado_em': firestore_1.FieldValue.delete(), 'acordao.documento_id': firestore_1.FieldValue.delete() };
@@ -475,7 +504,9 @@ exports.secretariaDocumento = (0, https_1.onCall)(
             const mov = (0, context_1.registrarMovimento)(tx, c, pr, atual, 'juntada', `Juntado o documento nº ${ordem}: ${doc.titulo} (${doc.tipo}), ${(0, autos_2.textoFolhas)(folha, paginas)}.${(0, exports.textoDescritivo)(doc)}${assin ? ` Assinado por ${assin}.` : ''}${pend.length ? ` Pendência aberta para o decisor${pend[0].interrompe ? ', com interrupção da fase' : ''}.` : ''}${resolvida ? ` Decide a pendência${resolvida.tipo === 'manual' ? '' : `: ${resolvida.descricao}`}.` : ''}`
                 + `${cumpridas.length ? ` Cumpre o exigido pelo rito: ${cumpridas.map((e) => e.descricao).join('; ')}.` : ''}`, Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ documento_id: ref.id, ordem, sha256: doc.sha256, visivel_partes: visivel }, marcaPolos), { folha_inicial: folha, paginas }), (pdf ? { pdf_sha256: pdf.sha256 } : {})), (resolvida ? { pendencia_id: resolvida.id } : {})), (cumpridas.length ? { exigencias: cumpridas.map((e) => e.chave) } : {})));
             const exig = fase ? (0, exigencias_1.camposDoCumprimento)(atual, fase.id, cumpridas, ref.id, ordem) : {};
-            const juntado = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ status: 'juntado', ordem, visivel_partes: visivel }, marcaPolos), { juntado_em: agoraIso, juntado_por: auth.uid, juntado_por_nome: c.userName }), (antes.origem === 'editor' || !(0, autos_2.ehLegado)(antes) ? { fontes: autos_2.FONTES_ATUAIS } : {})), { paginas, folha_inicial: folha, folha_final: folha + paginas - 1 }), (pdf ? { pdf_path: pdf.path, pdf_sha256: pdf.sha256 } : {}));
+            const juntado = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ status: 'juntado', ordem, visivel_partes: visivel }, marcaPolos), { juntado_em: agoraIso, juntado_por: auth.uid, juntado_por_nome: c.userName, 
+                // Onde se juntou: o gestor dessa unidade pode desentranhar.
+                unidade_juntada: String(atual.unidade_atual || '') }), (antes.origem === 'editor' || !(0, autos_2.ehLegado)(antes) ? { fontes: autos_2.FONTES_ATUAIS } : {})), { paginas, folha_inicial: folha, folha_final: folha + paginas - 1 }), (pdf ? { pdf_path: pdf.path, pdf_sha256: pdf.sha256 } : {}));
             const codigo = (0, autos_2.novoCodigo)();
             tx.set(c.db.collection(context_1.COL.verificacao).doc(codigo), (0, autos_2.registroVerificacao)(c.orgId, String(c.org.name || ''), pr.id, atual, ref.id, Object.assign(Object.assign({}, doc), juntado)));
             tx.update(ref, Object.assign(Object.assign({}, juntado), { codigo_verificacao: codigo }));
@@ -532,6 +563,60 @@ exports.secretariaDocumento = (0, https_1.onCall)(
         });
         const { tentar } = r, feito = __rest(r, ["tentar"]);
         return comAvanco(feito, tentar);
+    }
+    if (p.action === 'desentranhar' || p.action === 'semEfeito') {
+        // Exclusão dos autos com justificativa. Nada se apaga: o documento sai das
+        // folhas (fica um aviso no lugar) e o ato fica marcado sem efeito, por termo.
+        const motivo = (0, secretaria_1.texto)(p.motivo, 500);
+        if (motivo.length < 10)
+            throw new https_1.HttpsError('invalid-argument', 'Escreva a justificativa (ao menos 10 caracteres)');
+        const r = await c.db.runTransaction(async (tx) => {
+            const { ref: pr, data: atual } = await (0, context_1.lerProcesso)(c, p.processoId, tx);
+            (0, context_1.conferirVersao)(atual, p.version);
+            if (atual.status === 'arquivado')
+                throw new https_1.HttpsError('failed-precondition', 'Processo arquivado');
+            const decisorComPosse = (0, secretaria_2.podeAgir)(atual, c.ctx) && (0, secretaria_2.unidadeDecide)(c.unidades.find((u) => u.id === atual.unidade_atual));
+            const quem = { uid: auth.uid, isAdmin: c.ctx.isAdmin, gestorDe: c.gestorDe, decisorComPosse };
+            const negar = () => { throw new https_1.HttpsError('permission-denied', 'Só quem praticou o ato, o gestor da unidade, o admin ou a unidade que decide, com o processo, podem excluí-lo dos autos'); };
+            if (p.action === 'desentranhar') {
+                const { ref, doc } = await lerDoc(tx);
+                if (doc.status !== 'juntado')
+                    throw new https_1.HttpsError('failed-precondition', 'Só se desentranha documento juntado aos autos');
+                if (doc.desentranhado)
+                    throw new https_1.HttpsError('already-exists', 'O documento já foi desentranhado');
+                if (!(0, autos_1.podeExcluirDosAutos)(quem, { autor_uid: doc.juntado_por, unidade_id: doc.unidade_juntada || doc.unidade_origem }))
+                    negar();
+                const fls = (0, autos_2.textoFolhas)(Number(doc.folha_inicial) || 0, Number(doc.paginas) || 1);
+                const mov = (0, context_1.registrarMovimento)(tx, c, pr, atual, 'desentranhamento', `Desentranhado o documento nº ${doc.ordem}: ${doc.titulo} (${doc.tipo})${doc.folha_inicial ? `, ${fls}` : ''}. Motivo: ${motivo.replace(/\.$/, '')}. O documento sai dos autos; no lugar fica este aviso, e a numeração não muda.`, Object.assign({ documento_alvo: ref.id, ordem_alvo: doc.ordem, motivo, visivel_partes: doc.visivel_partes !== false }, (doc.visivel_polos ? { visivel_polos: doc.visivel_polos } : {})));
+                tx.update(ref, { desentranhado: { em: agoraIso, por: auth.uid, por_nome: c.userName, motivo, evento_seq: mov.mov_seq } });
+                if (doc.codigo_verificacao)
+                    tx.set(c.db.collection(context_1.COL.verificacao).doc(String(doc.codigo_verificacao)), { desentranhado_em: agoraIso }, { merge: true });
+                // O que ele cumpria na fase em curso volta a faltar.
+                const desfeito = (0, exigencias_1.semCumprimentoDaMinuta)(atual, String(atual.fase_atual || ''), ref.id);
+                tx.update(pr, Object.assign(Object.assign({}, mov), desfeito));
+                return { version: mov.version, visivel: doc.visivel_partes !== false };
+            }
+            const seq = Number(p.seq);
+            const ms = await tx.get(pr.collection('movimentos').doc(String(seq).padStart(6, '0')));
+            const alvo = ms.data();
+            if (!alvo || !Number.isInteger(seq))
+                throw new https_1.HttpsError('not-found', 'Evento não encontrado');
+            if (!(0, autos_1.podeFicarSemEfeito)(alvo))
+                throw new https_1.HttpsError('failed-precondition', 'Este evento não fica sem efeito por certidão: documento juntado sai por desentranhamento, e remessa, fase e situação se corrigem com novo ato');
+            const ja = await tx.get(pr.collection('movimentos').where('tipo', '==', 'sem_efeito').where('dados.alvo_seq', '==', seq).limit(1));
+            if (!ja.empty)
+                throw new https_1.HttpsError('already-exists', 'O evento já está sem efeito');
+            if (!(0, autos_1.podeExcluirDosAutos)(quem, alvo))
+                negar();
+            const dAlvo = (alvo.dados || {});
+            // A certidão vai aonde o ato foi: nos autos, para as partes que o viam; interno, só no sistema.
+            const mov = (0, context_1.registrarMovimento)(tx, c, pr, atual, 'sem_efeito', `Certifico que fica sem efeito o ato "${String(alvo.descricao || '').slice(0, 200)}", praticado por ${alvo.autor_nome} em ${new Date(String(alvo.em)).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}. Motivo: ${motivo.replace(/\.$/, '')}.`, Object.assign(Object.assign({ alvo_seq: seq, motivo, visivel_partes: dAlvo.visivel_partes !== false && (0, autos_1.visivelParaPartes)(alvo) }, (dAlvo.visivel_polos ? { visivel_polos: dAlvo.visivel_polos } : {})), (dAlvo.interno === true ? { interno: true } : {})));
+            tx.update(pr, mov);
+            return { version: mov.version, visivel: (0, autos_1.visivelParaPartes)(alvo) };
+        });
+        if (r.visivel)
+            void (0, portalAvisos_1.avisarPartesDoMovimento)(c.db, procRef.id, undefined, 1);
+        return { version: r.version };
     }
     throw new https_1.HttpsError('invalid-argument', 'Ação desconhecida');
 }));

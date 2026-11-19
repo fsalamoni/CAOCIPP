@@ -8,7 +8,7 @@ import {
     hojeBrasil, lotacoesDe, MAX_MINUTAS_REMESSA, minutaAcessivel, podeAgir, podeExcluirProcesso, podeVer, saidaAutomatica, saidasDoProcesso, Espera, Origem, RefOrigem, ehParte, sanitizeOrigem, sha256, texto, unidadeDecide, verificarCadeia,
 } from '../shared/secretaria';
 import { auditar } from './config';
-import { extrasDoEvento, numerarEventos, urgentesPrimeiro } from '../shared/autos';
+import { eventosSemEfeito, extrasDoEvento, numerarEventos, urgentesPrimeiro } from '../shared/autos';
 import {
     Consolidacao, Cumpridas, ItemCertidao, MAX_ITEM_CERTIDAO, RegraAcao, cabeNaCertidao, textoDoItem, acoesObrigatoriasPendentes, camposAoEntrarNaFase, destinoDaAcao,
     destinoDoMovimento, deveEmitir, grupoDe, marcasDoDestino, marcasNaFase, mudancaNaCertidao, partesVeem, pedidoDaAcao, documentosQueFaltam, textoCertidao,
@@ -1046,6 +1046,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, comSin
         const movimentos = movsBrutos.map((m) => semReservado(m, quemLe));
         // Numeração dos autos: públicos em sequência, internos subsidiários (5.1).
         const numerosEventos = numerarEventos(movsBrutos as never);
+        const anuladosEv = eventosSemEfeito(movsBrutos as never);
         const posse = podeAgir(data as never, c.ctx);
         const documentos = docs.docs
             .map((d) => ({ id: d.id, ...d.data() } as admin.firestore.DocumentData))
@@ -1121,7 +1122,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, comSin
                 julgamento_em_curso: data.julgamento_em_curso ? { relator_nome: data.julgamento_em_curso.relator_nome || '', manter_votos: data.julgamento_em_curso.manter_votos === true } : null,
             },
             hoje: hojeBrasil(),
-            movimentos: movimentos.map((m) => ({ ...m, ...extrasDoEvento(m as never, new Map(documentos.map((d) => [d.id, d])), numerosEventos) })),
+            movimentos: movimentos.map((m) => ({ ...m, ...extrasDoEvento(m as never, new Map(documentos.map((d) => [d.id, d])), numerosEventos, anuladosEv) })),
             documentos,
             informacoes: informacoes.map((i) => ([i.ref, ...(i.refs || [])].some(fechada)
                 ? { ...i, restrito: true, ref: marcar(i.ref), ...(i.refs ? { refs: i.refs.map(marcar) } : {}) } : i)),
@@ -1558,7 +1559,12 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             const orgaos = entreOrgaos ? await lerOrgaos(db, orgId, tx) : [];
             const com = (nome: string, orgaoId: unknown) => (nomeOrgao(orgaos, orgaoId) ? `${nomeOrgao(orgaos, orgaoId)} › ${nome}` : nome);
             // Minutas que seguem com o processo (ex.: a da assessoria para o gabinete revisar e assinar).
-            const idsMinutas = [...new Set((Array.isArray(p.minutas) ? p.minutas : []).map(String))].slice(0, MAX_MINUTAS_REMESSA);
+            // Saindo da fase de elaboração, todas as minutas da unidade seguem sozinhas: quem revisa decide o que entra nos autos.
+            const daElaboracao = fases.find((f) => f.id === data.fase_atual)?.elaboracao === true
+                ? (await tx.get(ref.collection('documentos').where('status', '==', 'minuta'))).docs
+                    .filter((s) => minutaAcessivel(s.data(), [String(data.unidade_atual)])).map((s) => s.id)
+                : [];
+            const idsMinutas = [...new Set([...daElaboracao, ...(Array.isArray(p.minutas) ? p.minutas : []).map(String)])].slice(0, MAX_MINUTAS_REMESSA);
             const minutas = await Promise.all(idsMinutas.map((id) => tx.get(ref.collection('documentos').doc(id))));
             for (const s of minutas) {
                 const d = s.data();
