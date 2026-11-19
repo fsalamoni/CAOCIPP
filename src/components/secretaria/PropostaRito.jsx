@@ -22,7 +22,8 @@ import { arquivoParaBase64, secConfig } from '@/services/secretariaService';
 import { deRito, montarPayload, propostaDeAbas, propostaDeConteudo, propostaDeDiagramas, propostaDeTexto, sem, tipoDocumentoDe, vincularProposta } from '@/lib/propostaRito';
 import { copiarFases, ehEspera, modelosDeRito, novoIdFase, origensDaEspera, problemasDoFluxo, ritoParaMermaid, ritoParaTabela } from '@/lib/secretariaRito';
 import { MAX_CAMPOS_ACAO, condicaoIncompleta, problemaDaCondicao, registroComOutros, remapearDeOutraFase, saidaPadrao, textoCondicao, tirarDoGrupo } from '@/lib/exigencias';
-import { MODULOS, integracoesLigadas, problemasFormulario } from '@/lib/camposProcesso';
+import { MODULOS, ROTULO_MODULO, integracoesLigadas, problemasFormulario } from '@/lib/camposProcesso';
+import { semPaineisDesligados } from '@/lib/painelModulos';
 import { ItemOrdenavel, ListaOrdenavel } from './Ordenavel';
 import FluxoRito from './FluxoRito';
 import { AcoesDaFase, CondicaoContexto, CondicaoPorResposta, RegistroEDocumentos } from './RegrasDaFase';
@@ -319,7 +320,14 @@ export default function PropostaRito({ aberto, orgId, estado, rito = null, copia
     // Editando, "Substituir fases" reabre o início: troca só as fases, o rito segue o mesmo.
     const [trocar, setTrocar] = useState(false);
     const manter = () => ({ id: p.id, versao: p.versao, ativo: p.ativo, nome: p.nome, descricao: p.descricao, exigir_tipo: p.exigir_tipo });
-    const comecar = (r, criarTipo = true) => {
+    const comecar = (modelo, criarTipo = true) => {
+        // Modelo já ligado a um painel do sistema que este órgão não usa: chega sem a ligação, com aviso.
+        const [fasesSemPainel, foraDoOrgao] = semPaineisDesligados(modelo.fases, integracoesLigadas(estado));
+        const r = foraDoOrgao.length ? { ...modelo, fases: fasesSemPainel } : modelo;
+        if (foraDoOrgao.length) {
+            const nomes = foraDoOrgao.map((m) => ROTULO_MODULO[m] || m).join(' e ');
+            toast.info(`Este modelo vem ligado ao painel de ${nomes}, mas essa integração está desligada neste órgão: o rito foi carregado sem a ligação e funciona igual. Para usar o painel, ligue ${nomes} em "Integrações com outros módulos" e escolha o modelo de novo.`, { duration: 15000 });
+        }
         // Modelo que cita unidades pelo nome: casa com as do órgão ou propõe criar, como num arquivo importado.
         const base = r.fases.some((f) => f.unidade) ? { exigir_tipo: false, ...vincularProposta(r, estado) } : deRito(r);
         if (trocar) { editarP({ ...base, ...manter() }, true); setTrocar(false); setConfirmar(false); return; }

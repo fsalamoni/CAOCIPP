@@ -3,8 +3,8 @@ import { BookOpen, ChevronDown, ChevronRight, Flag, Search, Users, X } from 'luc
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { AREAS, PORTES, bibliotecaDeModelos, nomeArea, nomePorte } from '@/lib/bibliotecaRitos';
-import { FILTRO_VAZIO, ORDENS, RECURSOS_FILTRO, usaRecurso, agrupar, filtrar, filtroAtivo, ordenar, recursosEmTexto, referencias, temPartes, trechos } from '@/lib/bibliotecaFiltro';
+import { AMBITOS, AREAS, PORTES, bibliotecaDeModelos, nomeAmbito, nomeArea, nomePorte } from '@/lib/bibliotecaRitos';
+import { FILTRO_VAZIO, ORDENS, RECURSOS_FILTRO, usaRecurso, agrupar, agruparPorAmbito, filtrar, filtroAtivo, ordenar, recursosEmTexto, referencias, temPartes, trechos } from '@/lib/bibliotecaFiltro';
 import { NativeSelect } from './comum';
 
 const CHAVE_ABERTA = 'sigo.biblioteca.aberta';
@@ -18,7 +18,7 @@ function Destaque({ texto, busca }) {
         : <React.Fragment key={i}>{p.t}</React.Fragment>));
 }
 
-function Modelo({ m, busca, aberto, comArea, onAlternar, onUsar }) {
+function Modelo({ m, busca, aberto, comArea, comAmbito, onAlternar, onUsar }) {
     const det = `modelo-${m.id}-detalhes`;
     const recursos = recursosEmTexto(m);
     const partes = temPartes(m) ? m.tipo.polos.map((x) => m.tipo.nomes_polos?.[x] || x) : [];
@@ -32,6 +32,7 @@ function Modelo({ m, busca, aberto, comArea, onAlternar, onUsar }) {
                         <span className="min-w-0">
                             <span className="block font-medium text-sm text-slate-900 dark:text-slate-100"><Destaque texto={m.nome} busca={busca} /></span>
                             <span className="mt-1 flex flex-wrap items-center gap-1">
+                                {comAmbito && <Badge variant="secondary" className="text-[11px] font-normal">{nomeAmbito(m.ambito)}</Badge>}
                                 {comArea && <Badge variant="secondary" className="text-[11px] font-normal">{nomeArea(m.area)}</Badge>}
                                 <Badge variant="outline" className="text-[11px] font-normal">{nomePorte(m.porte)} · {m.fases.length} fases</Badge>
                                 {m.referencia && <Badge variant="outline" className="text-[11px] font-normal border-indigo-200 text-indigo-700 dark:border-indigo-800 dark:text-indigo-300"><Destaque texto={m.referencia} busca={busca} /></Badge>}
@@ -47,6 +48,7 @@ function Modelo({ m, busca, aberto, comArea, onAlternar, onUsar }) {
                 <div id={det} className="space-y-2 border-t border-slate-100 dark:border-slate-800 px-3 py-2.5 text-xs text-slate-700 dark:text-slate-300">
                     <p><Destaque texto={m.descricao} busca={busca} /></p>
                     <p><b>Quando usar:</b> <Destaque texto={m.quando} busca={busca} /></p>
+                    <p><b>Âmbito:</b> {nomeAmbito(m.ambito)}. <b>Área:</b> {nomeArea(m.area)}.</p>
                     <p><b>Base:</b> <Destaque texto={m.base} busca={busca} /></p>
                     {partes.length > 0 && <p><b>Partes:</b> {partes.join(', ')}. A revisão propõe criar o tipo de processo com esses polos.</p>}
                     {recursos.length > 0 && <p><b>O que o rito faz:</b> {recursos.join('; ')}.</p>}
@@ -75,8 +77,9 @@ function Modelo({ m, busca, aberto, comArea, onAlternar, onUsar }) {
 }
 
 /**
- * Biblioteca de modelos de processo, por área: seção colapsável, com busca (sem
- * acentos, com destaque), filtros (área, porte, inspiração) e ordem.
+ * Biblioteca de modelos de processo, por âmbito (de quem é a norma) e, dentro
+ * dele, por área: seção colapsável, com busca (sem acentos, com destaque),
+ * filtros (âmbito, área, porte, inspiração, recurso) e ordem.
  * Os grupos ficam fechados até haver filtro; o órgão revisa tudo antes de implantar.
  */
 export default function BibliotecaModelos({ onEscolher }) {
@@ -85,7 +88,7 @@ export default function BibliotecaModelos({ onEscolher }) {
     const uid = useId();
     const [aberta, setAberta] = useState(lerAberta);
     const [f, setF] = useState(FILTRO_VAZIO);
-    const [ordem, setOrdem] = useState('area');
+    const [ordem, setOrdem] = useState('ambito');
     const [grupos, setGrupos] = useState({});
     const [detalhe, setDetalhe] = useState(() => new Set());
     const ativo = filtroAtivo(f);
@@ -95,11 +98,14 @@ export default function BibliotecaModelos({ onEscolher }) {
     const alternarDetalhe = (id) => setDetalhe((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
     const areas = AREAS.filter(([a]) => modelos.some((m) => m.area === a));
+    const ambitos = AMBITOS.filter(([a]) => modelos.some((m) => m.ambito === a));
     const refs = referencias(modelos);
     const achados = filtrar(modelos, f);
-    const agrupado = ordem === 'area';
+    const porAmbito = ordem === 'ambito';
+    const agrupado = porAmbito || ordem === 'area';
     const lista = ordenar(achados, agrupado && f.busca.trim() ? 'relevancia' : ordem, f.busca);
-    const gs = agrupado ? agrupar(lista) : [];
+    // Grupo: { area: chave do grupo, nome, dica, modelos, areas (só por âmbito) }.
+    const gs = !agrupado ? [] : porAmbito ? agruparPorAmbito(lista).map((g) => ({ ...g, area: g.ambito })) : agrupar(lista);
     const grupoAberto = (a) => grupos[a] ?? (ativo || gs.length === 1);
     const todosAbertos = gs.length > 0 && gs.every((g) => grupoAberto(g.area));
 
@@ -109,7 +115,7 @@ export default function BibliotecaModelos({ onEscolher }) {
         onEscolher(r);
     };
     const item = (m) => (
-        <Modelo key={m.id} m={m} busca={f.busca} aberto={detalhe.has(m.id)} comArea={!agrupado} onAlternar={() => alternarDetalhe(m.id)} onUsar={() => escolher(m.id)} />
+        <Modelo key={m.id} m={m} busca={f.busca} aberto={detalhe.has(m.id)} comArea={!agrupado} comAmbito={!porAmbito} onAlternar={() => alternarDetalhe(m.id)} onUsar={() => escolher(m.id)} />
     );
 
     return (
@@ -122,10 +128,16 @@ export default function BibliotecaModelos({ onEscolher }) {
                         <BookOpen className="w-4 h-4 text-indigo-600" aria-hidden /> Biblioteca de modelos de processo
                     </button>
                 </h3>
-                <span className="text-xs text-slate-600 dark:text-slate-400">{modelos.length} modelos em {areas.length} áreas</span>
+                <span className="text-xs text-slate-600 dark:text-slate-400">{modelos.length} modelos em {ambitos.length} âmbitos e {areas.length} áreas</span>
             </div>
             {!aberta && (
                 <div className="flex flex-wrap gap-1.5 px-3 pb-3">
+                    {ambitos.map(([a, nome]) => (
+                        <button key={a} type="button" onClick={() => { setF({ ...FILTRO_VAZIO, ambito: a }); setGrupos({}); alternarAberta(true); }}
+                            className="rounded-full border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950 px-2.5 py-0.5 text-xs hover:border-indigo-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
+                            {nome} <span className="text-slate-500 dark:text-slate-400">{modelos.filter((m) => m.ambito === a).length}</span>
+                        </button>
+                    ))}
                     {areas.map(([a, nome]) => (
                         <button key={a} type="button" onClick={() => { setF({ ...FILTRO_VAZIO, area: a }); setGrupos({}); alternarAberta(true); }}
                             className="rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-0.5 text-xs hover:border-indigo-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
@@ -138,7 +150,8 @@ export default function BibliotecaModelos({ onEscolher }) {
                 <div id={`${uid}-corpo`} className="space-y-3 px-3 pb-3">
                     <p className="text-xs text-slate-600 dark:text-slate-300">
                         Processos completos, com base na lei ou na norma de cada instituição: fases, unidades, prazos, comunicações às partes, audiências,
-                        documentos e saídas. O modelo é só o ponto de partida: tudo se ajusta antes de implantar. Nenhum modelo é penal.
+                        documentos e saídas. Estão separados por âmbito (de quem é a norma: MPRS, Estado do RS, União, Ministério Público em geral, conselhos ou qualquer órgão)
+                        e, dentro dele, por área. O modelo é só o ponto de partida: tudo se ajusta antes de implantar. Nenhum modelo é penal.
                     </p>
                     <div className="space-y-2">
                         <div className="relative">
@@ -152,7 +165,9 @@ export default function BibliotecaModelos({ onEscolher }) {
                                 </button>
                             )}
                         </div>
-                        <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 items-end">
+                        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2 items-end">
+                            <NativeSelect id="biblioteca-ambito" label="Âmbito" value={f.ambito} onChange={(v) => mudar('ambito', v)}
+                                options={[['', 'Todos os âmbitos'], ...ambitos.map(([a, n]) => [a, `${n} (${modelos.filter((m) => m.ambito === a).length})`])]} />
                             <NativeSelect id="biblioteca-area" label="Área" value={f.area} onChange={(v) => mudar('area', v)}
                                 options={[['', 'Todas as áreas'], ...areas.map(([a, n]) => [a, `${n} (${modelos.filter((m) => m.area === a).length})`])]} />
                             <NativeSelect id="biblioteca-porte" label="Porte" value={f.porte} onChange={(v) => mudar('porte', v)} options={[['', 'Todos os portes'], ...PORTES]} />
@@ -170,7 +185,7 @@ export default function BibliotecaModelos({ onEscolher }) {
                             {agrupado && gs.length > 1 && (
                                 <Button variant="ghost" size="sm" className="ml-auto h-6 px-2 text-xs"
                                     onClick={() => setGrupos(Object.fromEntries(gs.map((g) => [g.area, !todosAbertos])))}>
-                                    {todosAbertos ? 'Recolher todas as áreas' : 'Abrir todas as áreas'}
+                                    {porAmbito ? (todosAbertos ? 'Recolher todos os âmbitos' : 'Abrir todos os âmbitos') : (todosAbertos ? 'Recolher todas as áreas' : 'Abrir todas as áreas')}
                                 </Button>
                             )}
                         </div>
@@ -195,8 +210,25 @@ export default function BibliotecaModelos({ onEscolher }) {
                                                 <Badge variant="secondary" className="text-[11px]">{g.modelos.length}</Badge>
                                             </button>
                                         </h4>
-                                        {!ab && <div className="px-9 pb-2 -mt-1"><p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1">{g.modelos.map((m) => m.nome).join(' · ')}</p></div>}
-                                        {ab && <ul id={gid} className="grid items-start gap-2 px-2 pb-2 lg:grid-cols-2">{g.modelos.map(item)}</ul>}
+                                        {!ab && (
+                                            <div className="px-9 pb-2 -mt-1">
+                                                <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
+                                                    {g.areas ? `${g.dica} Áreas: ${g.areas.map((a) => `${a.nome} (${a.modelos.length})`).join(' · ')}` : g.modelos.map((m) => m.nome).join(' · ')}
+                                                </p>
+                                            </div>
+                                        )}
+                                        {ab && !g.areas && <ul id={gid} className="grid items-start gap-2 px-2 pb-2 lg:grid-cols-2">{g.modelos.map(item)}</ul>}
+                                        {ab && g.areas && (
+                                            <div id={gid} className="space-y-2 px-2 pb-2">
+                                                <p className="px-1 text-xs text-slate-600 dark:text-slate-300">{g.dica}</p>
+                                                {g.areas.map((a) => (
+                                                    <section key={a.area} aria-label={`${g.nome}: ${a.nome}`}>
+                                                        <h5 className="px-1 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{a.nome} <span className="font-normal">({a.modelos.length})</span></h5>
+                                                        <ul className="grid items-start gap-2 lg:grid-cols-2">{a.modelos.map(item)}</ul>
+                                                    </section>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })}

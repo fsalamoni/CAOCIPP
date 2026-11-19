@@ -419,6 +419,31 @@ export function painelDoRito(fases, [singular, plural]) {
     return { def, colunas, dados };
 }
 
+/**
+ * Modelo da biblioteca que já vem ligado a um painel do sistema (o de parcerias
+ * do MPRS): se a integração está desligada no órgão, o rito chega sem as regras
+ * de coluna e sem o "Leva ao painel", em vez de chegar com pendência que impede
+ * implantar. Devolve [fases, módulos tirados].
+ */
+export function semPaineisDesligados(fases, ligadas) {
+    const fora = new Set();
+    const desligado = (x) => {
+        const off = !!x?.modulo && !ligadas?.[x.modulo];
+        if (off) fora.add(x.modulo);
+        return off;
+    };
+    const novas = (fases || []).map((f) => {
+        const { situacao_registro: sit, ...resto } = f;
+        const regras = (f.acoes_regras || []).map((r) => {
+            if (!r || !desligado(r.ao_registro)) return r;
+            const { ao_registro: _fora, ...semPainel } = r;
+            return semPainel;
+        });
+        return { ...(desligado(sit) ? resto : f), ...(f.acoes_regras ? { acoes_regras: regras } : {}) };
+    });
+    return [fora.size ? novas : fases, [...fora]];
+}
+
 /** As fases do rito ligadas à página gerada (`pagina`: o id que o servidor devolveu). */
 export function ligarAoPainelGerado(fases, gerado, pagina) {
     const coluna = Object.fromEntries(gerado.colunas.map((c) => [c.fase, c.key]));

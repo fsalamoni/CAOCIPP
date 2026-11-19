@@ -20,11 +20,12 @@ import { modelos as patrimonio } from './modelos/patrimonio.js';
 import { modelos as mprs } from './modelos/mprs_administrativo.js';
 import { modelos as esferas } from './modelos/esferas.js';
 import { modelos as improbidade } from './modelos/improbidade.js';
+import { modelos as parcerias } from './modelos/parcerias.js';
 
-export { A, AREAS, PORTES, montar, nomeArea, nomePorte, quando } from './modelos/dsl.js';
+export { A, AMBITOS, AREAS, PORTES, montar, nomeAmbito, nomeArea, nomePorte, quando } from './modelos/dsl.js';
 
 /** Funções dos modelos, na ordem em que aparecem (cada chamada gera ids novos). */
-export const MODELOS = [...geral, ...correcional, ...etica, ...sancionador, ...contratacoes, ...gestaoContratual, ...contratos, ...atendimento, ...ministerio_publico, ...conselhos, ...mp_extrajudicial, ...improbidade, ...uniao, ...colegiados, ...patrimonio, ...mprs, ...esferas];
+export const MODELOS = [...geral, ...correcional, ...etica, ...sancionador, ...contratacoes, ...gestaoContratual, ...contratos, ...parcerias, ...atendimento, ...ministerio_publico, ...conselhos, ...mp_extrajudicial, ...improbidade, ...uniao, ...colegiados, ...patrimonio, ...mprs, ...esferas];
 
 /**
  * Nome do painel e da planilha de acompanhamento que cada modelo propõe
@@ -52,6 +53,12 @@ export const PAINEIS = {
     'gestao-contrato': ['Contrato', 'Contratos'],
     'recebimento-pagamento': ['Pagamento', 'Pagamentos'],
     'parceria-osc': ['Parceria', 'Parcerias com OSC'],
+    'parceria-formalizacao-mprs': ['Proposta de parceria', 'Propostas de convênios e parcerias'],
+    'parceria-acompanhamento-mprs': ['Parceria em execução', 'Convênios e parcerias em execução'],
+    'parceria-formalizacao-rs': ['Proposta de convênio', 'Propostas de convênios e parcerias'],
+    'parceria-acompanhamento-rs': ['Convênio em execução', 'Convênios e parcerias em execução'],
+    'parceria-formalizacao-federal': ['Proposta de instrumento', 'Propostas de convênios e acordos'],
+    'parceria-acompanhamento-federal': ['Instrumento em execução', 'Convênios e acordos em execução'],
     ouvidoria: ['Manifestação', 'Manifestações de ouvidoria'],
     'acesso-informacao': ['Pedido de informação', 'Pedidos de acesso à informação'],
     'tomada-contas-especial': ['Tomada de contas', 'Tomadas de contas especiais'],
@@ -96,6 +103,29 @@ export const PAINEIS = {
     'anpc-completo-mprs': ['Acordo de não persecução', 'Acordos de não persecução civil'],
 };
 
+/**
+ * Âmbito de cada modelo (os âmbitos estão em AMBITOS, no dsl.js): de quem é a
+ * norma que ele segue. Todo modelo tem o seu (o teste exige): modelo novo
+ * entra aqui, na linha do seu âmbito.
+ */
+const MODELOS_POR_AMBITO = {
+    mprs: ['parceria-formalizacao-mprs', 'parceria-acompanhamento-mprs', 'revisao-arquivamento-csmp', 'destinacao-bens-valores-mprs', 'cadastro-entidade-mprs',
+        'triagem-patrimonio-publico-mprs', 'correicao-corregedoria-mp', 'inquerito-civil-improbidade-mprs', 'anpc-tratativas-mprs', 'anpc-acompanhamento-mprs',
+        'anpc-completo-mprs', 'gestao-contratual-mprs', 'descumprimento-contratual-mprs', 'gestao-patrimonio-mprs'],
+    estadual_rs: ['parceria-formalizacao-rs', 'parceria-acompanhamento-rs', 'sancao-fornecedor-rs', 'bens-inserviveis-rs'],
+    federal: ['parceria-formalizacao-federal', 'parceria-acompanhamento-federal', 'parceria-osc', 'sindicancia-investigativa', 'pad-ordinario', 'pad-sumario',
+        'tac-disciplinar', 'par-pessoa-juridica', 'acordo-leniencia', 'sindicancia-patrimonial', 'juizo-admissibilidade-correcional',
+        'processo-disciplinar-empregado-publico', 'comissao-etica-publica', 'processo-fiscal', 'conciliacao-ccaf', 'acordo-transacao-uniao',
+        'cobranca-divida-ativa-nao-tributaria', 'bens-inserviveis-federal', 'tomada-contas-especial', 'beneficio-servidor'],
+    ministerio_publico: ['noticia-de-fato', 'procedimento-administrativo-mp', 'procedimento-preparatorio', 'inquerito-civil', 'compromisso-ajustamento-conduta',
+        'recomendacao-mp', 'audiencia-publica-mp'],
+    conselhos: ['etico-profissional', 'disciplinar-entidade-classe', 'ted-oab-rs', 'revisao-disciplinar-oab', 'reabilitacao-oab', 'etico-disciplinar-cau', 'fiscalizacao-cau'],
+    nacional: ['pa-geral', 'recurso-colegiado', 'sancao-fornecedor', 'auto-de-infracao', 'multa-transito', 'licitacao', 'contratacao-direta', 'compra-privada',
+        'gestao-contratual-completa', 'gestao-contrato', 'recebimento-pagamento', 'ouvidoria', 'acesso-informacao', 'consulta-interna', 'deliberacao-normativa',
+        'gestao-patrimonio'],
+};
+export const AMBITO_DO_MODELO = Object.fromEntries(Object.entries(MODELOS_POR_AMBITO).flatMap(([a, ids]) => ids.map((id) => [id, a])));
+
 export function bibliotecaDeModelos() {
-    return MODELOS.map((m) => m()).map((m) => ({ ...m, painel: PAINEIS[m.id] }));
+    return MODELOS.map((m) => m()).map((m) => ({ ...m, ambito: AMBITO_DO_MODELO[m.id], painel: PAINEIS[m.id] }));
 }

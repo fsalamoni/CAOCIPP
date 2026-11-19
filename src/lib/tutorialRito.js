@@ -356,6 +356,9 @@ export const RECEITAS = [
     { tema: 'contratacao', quero: 'Acompanhar o contrato da assinatura ao encerramento, com aditivos, reajuste e pagamentos', use: 'O modelo de gestão contratual completa; no MPRS, o que segue os Provimentos 104/2023 e 05/2023-PGJ. Um processo por contrato.', onde: 'Biblioteca, área Contratações e contratos.', parte: 16, modelos: ['gestao-contratual-completa', 'gestao-contratual-mprs'] },
     { tema: 'contratacao', quero: 'Controlar bens: tombamento, carga, inventário e baixa', use: 'O modelo de gestão de bens patrimoniais; no MPRS, o de bens móveis pelo Provimento 55/2022-PGJ. Um processo por bem ou lote.', onde: 'Biblioteca, área Gestão interna e pessoas.', parte: 16, modelos: ['gestao-patrimonio', 'gestao-patrimonio-mprs'] },
     { tema: 'contratacao', quero: 'Dar destino a bens que não servem mais: transferir, doar, leiloar ou descartar', use: 'O modelo de bens móveis inservíveis da sua esfera: administração federal (Decreto 12.785/2025) ou Executivo do RS (Decreto 57.408/2023 e Programa Sustentare). Um processo por lote.', onde: 'Biblioteca, área Gestão interna e pessoas.', parte: 16, modelos: ['bens-inserviveis-federal', 'bens-inserviveis-rs'] },
+    { tema: 'contratacao', quero: 'Firmar convênio, termo de cooperação, acordo de cooperação técnica ou parceria', use: 'O modelo de formalização do seu âmbito (MPRS, Estado do RS ou União): do contato com os partícipes, do problema e do estudo técnico à assinatura e à publicação. Ele pergunta o instrumento e mostra o que vale para cada um. Com organização da sociedade civil na esfera federal, o modelo de parceria da Lei 13.019.', onde: 'Biblioteca, área Parcerias, convênios e cooperação.', parte: 22, modelos: ['parceria-formalizacao-mprs', 'parceria-formalizacao-rs', 'parceria-formalizacao-federal', 'parceria-osc'] },
+    { tema: 'contratacao', quero: 'Acompanhar e fiscalizar a execução de um convênio ou parceria até o fim da vigência', use: 'O modelo de acompanhamento do seu âmbito: plano de trabalho como cronograma, registro de cada período, relatório anual, aditivo, renovação, irregularidade, prestação de contas e encerramento. Abra como processo derivado da formalização.', onde: 'Biblioteca, área Parcerias, convênios e cooperação.', parte: 22, modelos: ['parceria-acompanhamento-mprs', 'parceria-acompanhamento-rs', 'parceria-acompanhamento-federal'] },
+    { tema: 'contratacao', quero: 'Que o processo da parceria mova o cartão no Painel de Parcerias e preencha a ficha', use: 'O modelo de formalização do MPRS já vem ligado: cada fase põe a parceria na coluna certa e as ações levam os dados que a coluna exige. Crie a parceria no painel e abra o processo a partir dela.', onde: 'Editor do rito, Integração com o painel.', parte: 22, modelos: ['parceria-formalizacao-mprs'] },
     { tema: 'comecar', quero: 'Ver todos os processos de um rito num quadro e numa planilha', use: 'Na revisão do rito novo, "Ligar: criar painel e planilha". Todo modelo da biblioteca traz o nome sugerido. Em rito que já existe, "Integração com o painel".', onde: 'Novo rito, revisão; ou o rito, Integração com o painel.', parte: 21 },
     { tema: 'documentos', quero: 'Exigir o parecer para a fase seguir', use: 'Ação que pede documento, com o Tipo de documento, obrigatória.', onde: 'Ação, O que pede, ou Documentos da fase.', parte: 17 },
     { tema: 'documentos', quero: 'Documento que só vale com três assinaturas, uma delas do presidente', use: 'Assinaturas exigidas e "Uma das assinaturas é de quem tem a atribuição".', onde: 'Documento exigido.', parte: 17 },
@@ -377,16 +380,21 @@ export function buscarReceitas(busca = '', tema = '') {
 
 /** Perguntas do "Qual modelo usar?". A primeira opção de cada uma é "tanto faz". */
 export const PERGUNTAS_MODELO = [
-    { id: 'area', pergunta: 'Qual é o assunto do processo?', opcoes: [['', 'Ainda não sei'], ['geral', 'Pedido ou recurso administrativo'], ['correcional', 'Apurar falta de servidor ou empregado'], ['etica', 'Ética, conselho profissional, entidade de classe'], ['sancionador', 'Fiscalizar e aplicar multa ou sanção'], ['contratacoes', 'Comprar, contratar, gerir contrato, parceria'], ['atendimento', 'Ouvidoria e acesso à informação'], ['ministerio_publico', 'Ministério Público (não penal)'], ['gestao', 'Gestão interna, pessoas, normas'], ['controle', 'Controle e contas'], ['advocacia_publica', 'Advocacia pública, acordo, cobrança']] },
+    { id: 'ambito', pergunta: 'Qual é o seu órgão?', opcoes: [['', 'Tanto faz'], ['mprs', 'Ministério Público do RS'], ['estadual_rs', 'Órgão ou entidade do Estado do RS'], ['federal', 'Órgão ou entidade federal'], ['ministerio_publico', 'Outro Ministério Público'], ['conselhos', 'Conselho ou entidade de classe'], ['nacional', 'Outro (município, outro Estado, entidade)']] },
+    { id: 'area', pergunta: 'Qual é o assunto do processo?', opcoes: [['', 'Ainda não sei'], ['geral', 'Pedido ou recurso administrativo'], ['correcional', 'Apurar falta de servidor ou empregado'], ['etica', 'Ética, conselho profissional, entidade de classe'], ['sancionador', 'Fiscalizar e aplicar multa ou sanção'], ['contratacoes', 'Comprar, contratar, gerir contrato'], ['parcerias', 'Convênio, termo de cooperação, parceria'], ['atendimento', 'Ouvidoria e acesso à informação'], ['ministerio_publico', 'Ministério Público (não penal)'], ['gestao', 'Gestão interna, pessoas, normas'], ['controle', 'Controle e contas'], ['advocacia_publica', 'Advocacia pública, acordo, cobrança']] },
     { id: 'defesa', pergunta: 'A parte é intimada e tem prazo para responder ou se defender?', opcoes: [['', 'Tanto faz'], ['sim', 'Sim, há contraditório'], ['nao', 'Não, o órgão decide sem ouvir a parte']] },
     { id: 'recurso', pergunta: 'Como a decisão é tomada?', opcoes: [['', 'Tanto faz'], ['monocratica', 'Uma pessoa decide'], ['julgamento', 'Um colegiado vota em sessão'], ['disputa', 'Disputa de preços entre fornecedores'], ['audiencia', 'Com audiência ou reunião']] },
     { id: 'porte', pergunta: 'Qual o tamanho do processo?', opcoes: [['', 'Tanto faz'], ['curto', 'Curto (poucas fases)'], ['medio', 'Médio (com uma rodada de defesa)'], ['longo', 'Longo (instrução, julgamento e recurso)']] },
 ];
 
-const ROTULO_FILTRO = { area: 'o assunto', defesa: 'a defesa das partes', recurso: 'a forma de decidir', porte: 'o tamanho' };
+const ROTULO_FILTRO = { ambito: 'o órgão', area: 'o assunto', defesa: 'a defesa das partes', recurso: 'a forma de decidir', porte: 'o tamanho' };
+
+/** Além dos modelos do próprio âmbito, servem os de norma mais geral. */
+const SERVEM = { mprs: ['mprs', 'ministerio_publico', 'nacional'], estadual_rs: ['estadual_rs', 'nacional'], federal: ['federal', 'nacional'], ministerio_publico: ['ministerio_publico', 'nacional'], conselhos: ['conselhos', 'nacional'], nacional: ['nacional'] };
 
 const cabe = (m, k, v) => {
     if (!v) return true;
+    if (k === 'ambito') return (SERVEM[v] || [v]).includes(m.ambito);
     if (k === 'area') return m.area === v;
     if (k === 'porte') return m.porte === v;
     if (k === 'defesa') return usaRecurso(m, 'resposta') === (v === 'sim');
@@ -413,6 +421,8 @@ export function sugerirModelos(modelos, respostas = {}, limite = 6) {
         soltos.push(proximo);
     }
     const ordemPorte = { curto: 0, medio: 1, longo: 2 };
-    lista = [...lista].sort((a, b) => (ordemPorte[a.porte] - ordemPorte[b.porte]) || a.nome.localeCompare(b.nome, 'pt-BR'));
+    // Com o órgão informado, os modelos do próprio âmbito vêm antes dos gerais.
+    const proprio = (m) => (respostas.ambito && m.ambito !== respostas.ambito ? 1 : 0);
+    lista = [...lista].sort((a, b) => (proprio(a) - proprio(b)) || (ordemPorte[a.porte] - ordemPorte[b.porte]) || a.nome.localeCompare(b.nome, 'pt-BR'));
     return { modelos: lista.slice(0, limite), total: lista.length, soltos: soltos.map((k) => ROTULO_FILTRO[k]) };
 }

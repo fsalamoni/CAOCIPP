@@ -5,6 +5,30 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 19/11/2026 — Ritos de parcerias e convênios, e biblioteca separada por âmbito
+- **Seis modelos novos**, na área nova "Parcerias, convênios e cooperação"
+  (`src/lib/modelos/parcerias.js`): um rito de **formalização** (contato com
+  os partícipes, problema e solução, estudo técnico, plano de trabalho,
+  minuta, pareceres, aprovação, assinatura e publicação, com o que muda em
+  cada instrumento) e um de **acompanhamento** (execução, fiscalização,
+  relatório anual, aditivo, renovação, irregularidade, prestação de contas e
+  encerramento) para o MPRS (Provimento 59/2011-PGJ e IN CAGE 4/2024), para o
+  Estado do RS (IN CAGE 4/2024 e Decreto 53.175/2016) e para a União
+  (Decretos 11.531/2023 e 10.426/2020 e Portaria SEGES/MGI 3.506/2025). A
+  biblioteca passa a 68 modelos.
+- **Encaixe no Painel de Parcerias.** O rito de formalização do MPRS move a
+  parceria pelas colunas e leva à ficha tudo o que cada coluna exige
+  (`docs/PARCERIAS.md`, seção 9; Guia do rito, parte 22). Um teste falha se
+  o rito deixar de cobrir o painel.
+- **Biblioteca por âmbito.** Todo modelo tem âmbito (MPRS, Estado do RS,
+  União, Ministério Público em geral, conselhos e entidades de classe,
+  qualquer órgão), em `MODELOS_POR_AMBITO`. A tela agrupa por âmbito e,
+  dentro dele, por área; há filtro de âmbito, a busca acha pelo âmbito e o
+  "Qual modelo usar?" pergunta o órgão. A parceria com organização da
+  sociedade civil passou para a área de parcerias.
+- Catálogo regenerado, com tabela por âmbito. Pesquisa e pontos a conferir
+  em `/mnt/project-files/modelos-rito/pesquisa-parcerias-convenios.md`.
+
 ### 18/11/2026 — Papel timbrado com as ferramentas dos modelos
 - **Timbrado do órgão e da unidade** ganha o mesmo editor dos modelos:
   papel e margens, cabeçalho e rodapé completos (texto, imagens, tabelas,

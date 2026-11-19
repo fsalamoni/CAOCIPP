@@ -335,7 +335,7 @@ export function recebimentoPagamento() {
 /** 19. Parceria com organização da sociedade civil (Lei 13.019/2014). */
 export function parceriaOsc() {
     return montar({
-        id: 'parceria-osc', nome: 'Parceria com organização da sociedade civil', area: 'contratacoes', porte: 'longo', referencia: 'Lei 13.019',
+        id: 'parceria-osc', nome: 'Parceria com organização da sociedade civil', area: 'parcerias', porte: 'longo', referencia: 'Lei 13.019',
         descricao: 'Seleciona uma organização da sociedade civil, em regra por chamamento público, celebra termo de colaboração ou de fomento, acompanha a execução e julga a prestação de contas. Corre do edital ao julgamento das propostas pela comissão de seleção, com resultado e recursos, segue para o plano de trabalho, os pareceres e a celebração, que só produz efeitos com a publicação do extrato. Na execução, a organização recebe visitas e notificações, o relatório de monitoramento é homologado pela comissão e a vigência pode ser alterada a pedido. A organização presta contas, pode sanear irregularidades em 45 dias e tem defesa prévia antes de sanção; contas irregulares levam à sanção e à tomada de contas especial.',
         quando: 'Repasses a entidades sem fins lucrativos para execução de atividade ou projeto de interesse público. Para contratar empresa, use o rito de contratação por licitação.',
         base: 'Lei 13.019/2014, arts. 23 a 38, 52, 55, 58, 59 e 69 a 73; Decreto 8.726/2016 (Executivo federal).',
