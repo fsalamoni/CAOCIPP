@@ -59,3 +59,43 @@ test('filtro pelo recurso: modelos com sessão de colegiado e com disputa (S15)'
     assert.deepEqual(filtrar(todos, { ...FILTRO_VAZIO, recurso: 'disputa' }).map((m) => m.id).sort(), ['compra-privada', 'contratacao-direta']);
     assert.equal(filtroAtivo({ ...FILTRO_VAZIO, recurso: 'julgamento' }), true);
 });
+
+test('âmbito: todo modelo tem o seu, o filtro separa e os grupos trazem as áreas', async () => {
+    const { AMBITOS, AMBITO_DO_MODELO } = await import('./bibliotecaRitos.js');
+    const { agruparPorAmbito } = await import('./bibliotecaFiltro.js');
+    const todos = bibliotecaDeModelos();
+    const validos = AMBITOS.map(([a]) => a);
+    for (const x of todos) assert.ok(validos.includes(x.ambito), `${x.id}: sem âmbito em MODELOS_POR_AMBITO`);
+    assert.equal(Object.keys(AMBITO_DO_MODELO).length, todos.length, 'âmbito de modelo que não existe, ou repetido');
+    const mprs = filtrar(todos, { ...FILTRO_VAZIO, ambito: 'mprs' });
+    assert.ok(mprs.length >= 14 && mprs.every((x) => x.ambito === 'mprs'));
+    assert.equal(filtroAtivo({ ...FILTRO_VAZIO, ambito: 'mprs' }), true);
+    const gs = agruparPorAmbito(ordenar(todos, 'ambito'));
+    assert.deepEqual(gs.map((g) => g.ambito), validos);
+    assert.equal(gs.reduce((n, g) => n + g.areas.reduce((k, a) => k + a.modelos.length, 0), 0), todos.length);
+    // Parcerias: formalização e acompanhamento nos três âmbitos, e a busca acha pelo nome do âmbito.
+    for (const a of ['mprs', 'estadual_rs', 'federal']) {
+        const ps = filtrar(todos, { ...FILTRO_VAZIO, ambito: a, area: 'parcerias' }).map((x) => x.id);
+        assert.ok(ps.some((id) => id.startsWith('parceria-formalizacao')) && ps.some((id) => id.startsWith('parceria-acompanhamento')), a);
+    }
+    assert.ok(filtrar(todos, { ...FILTRO_VAZIO, busca: 'conselhos' }).some((x) => x.id === 'ted-oab-rs'));
+});
+
+test('o rito de formalização do MPRS cobre o Painel de Parcerias inteiro', async () => {
+    const { relatorioIntegracao } = await import('./painelModulos.js');
+    const m = bibliotecaDeModelos().find((x) => x.id === 'parceria-formalizacao-mprs');
+    const r = relatorioIntegracao(m.fases, { modulo: 'parcerias' }, []);
+    assert.deepEqual(r.faltas, []);
+    assert.equal(r.pronto, true);
+    for (const c of r.colunas.filter((x) => x.id !== 'Pendente' && x.id !== 'Extintos')) assert.ok(c.fases.length, `coluna ${c.id} sem fase`);
+    // Órgão sem a integração de Parcerias: o modelo chega sem a ligação (e sem pendência), e o resto fica igual.
+    const { semPaineisDesligados } = await import('./painelModulos.js');
+    const [fs, fora] = semPaineisDesligados(m.fases, { parcerias: false });
+    assert.deepEqual(fora, ['parcerias']);
+    assert.ok(fs.every((f) => !f.situacao_registro && (f.acoes_regras || []).every((x) => !x?.ao_registro)));
+    assert.deepEqual(fs.map((f) => f.acoes), m.fases.map((f) => f.acoes));
+    assert.equal(fs[0].acoes_regras[0].campos.length, m.fases[0].acoes_regras[0].campos.length);
+    const [iguais, nada] = semPaineisDesligados(m.fases, { parcerias: true });
+    assert.equal(iguais, m.fases);
+    assert.deepEqual(nada, []);
+});
