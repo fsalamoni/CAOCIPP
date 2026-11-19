@@ -1345,7 +1345,11 @@ opcionais; rito sem elas funciona como antes.
   ("Parcerias") ou extinta não volta pelo rito, porque voltar apagaria a
   formalização. Grava `status` e "Status alterado de A para B (pelo processo
   eletrônico N, fase F)" em `activity_log` e `history`. Aditivos não são
-  conduzidos. O Júri não é conduzido (não tem quadro de fases).
+  conduzidos. O Júri não é conduzido (não tem quadro de fases). Desde
+  19/11/2026 a biblioteca traz um rito que usa tudo isso: o
+  `parceria-formalizacao-mprs` cobre todas as colunas e informações do
+  Painel de Parcerias (mapa em `docs/PARCERIAS.md`, seção 9; teste em
+  `src/lib/bibliotecaFiltro.test.js`).
 - **Valer já na autuação** (14/11/2026; `situacao_registro.na_autuacao:
   true`, só no editor da primeira fase). Na autuação, `autuar` lê o registro
   (`lerRegistrosDoRito` com a origem e os vínculos do processo novo, antes de

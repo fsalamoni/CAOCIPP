@@ -129,7 +129,51 @@ dispara os eventos `parceria_created` e `parceria_extinguished`.
 
 ---
 
-## 9. Mapa dos arquivos
+## 9. Ritos do Processo Eletrônico para parcerias (19/11/2026)
+
+O painel e a planilha controlam, gerenciam e fiscalizam; os atos e os documentos de cada parceria correm no
+Processo Eletrônico. A biblioteca de modelos de rito (área **Parcerias, convênios e cooperação**) traz dois ritos por
+âmbito. Detalhe de cada um em `docs/MODELOS_DE_RITO.md`; passo a passo no Guia do rito, parte 22.
+
+| Âmbito | Formalização (da ideia à publicação) | Acompanhamento (execução e fiscalização) |
+|---|---|---|
+| Ministério Público do RS | `parceria-formalizacao-mprs` (Provimento 59/2011-PGJ, IN CAGE 4/2024) | `parceria-acompanhamento-mprs` |
+| Estado do RS | `parceria-formalizacao-rs` (IN CAGE 4/2024, Decreto 53.175/2016) | `parceria-acompanhamento-rs` |
+| União | `parceria-formalizacao-federal` (Decretos 11.531/2023 e 10.426/2020, Portaria SEGES/MGI 3.506/2025) e `parceria-osc` (Lei 13.019) | `parceria-acompanhamento-federal` |
+
+### Como o rito do MPRS casa com o painel
+
+O rito de formalização do MPRS já vem com a integração pronta (`situacao_registro` nas fases e `ao_registro` nas
+ações). Para funcionar: ligue Parcerias em "Integrações com outros módulos", crie a parceria no painel e use
+**Criar processo eletrônico** na ficha (ou ligue o processo à parceria).
+
+| Coluna do painel | Fase do rito | De onde vem o que a coluna exige |
+|---|---|---|
+| Pendentes | Proposta e contato com os partícipes (a parceria nasce aqui) | PGEA, Assunto e Partes: formulário "Registrar os dados da proposta" |
+| Em Análise | Estudo técnico, plano de trabalho e minuta, quando alguém assume | Assessor responsável e data: o sistema |
+| Em Revisão | Revisão da instrução (Subprocuradoria Institucional) | Início da revisão: o sistema. Pasta na rede: ação da fase anterior |
+| Revisadas | Aprovação da minuta | Conclusão da revisão: o sistema |
+| Aguarda Terceiros | Direção-Geral e CAGE (só com recursos); Assinatura | Data da remessa: o sistema. Remetido para: ação da aprovação da minuta |
+| Parcerias | Parceria formalizada | Retorno, tipo, assinatura, DEMP, vigência, objeto, termo final e aviso de renovação: formulário da fase "Publicação e registro" |
+| Extintos | Nenhuma | A extinção continua manual, na ficha (seção 5). O rito de acompanhamento lembra de fazê-la no encerramento |
+
+Pontos de atenção:
+
+- O quadro confere os dados ao entrar na coluna: se faltar algum, o processo anda, a parceria fica onde está e o
+  registro interno do processo diz o motivo.
+- O campo "Tipo de parceria" do formulário é texto: escreva como está cadastrado no painel (seção 7).
+- Parceria que chegou a "Parcerias" não volta de coluna pelo rito.
+- **Aditivos não são conduzidos pelo rito.** O aditivo nasce e anda na ficha da parceria (seção 3). O processo de
+  formalização de um termo aditivo não deve ser ligado à ficha, para o formulário final não trocar os dados do termo
+  original.
+- O rito de acompanhamento não move colunas (a parceria já está em "Parcerias"). Ele usa o cronograma de obrigações
+  para as metas e parcelas do plano de trabalho, e o painel segue controlando a vigência e o aviso de renovação
+  (seção 4), que é o gatilho da fase "Renovação da vigência".
+- O teste `src/lib/bibliotecaFiltro.test.js` falha se o rito deixar de cobrir alguma coluna ou informação do painel.
+
+---
+
+## 10. Mapa dos arquivos
 
 | Camada | Arquivos |
 |---|---|

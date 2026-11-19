@@ -109,6 +109,8 @@ test('todo modelo da biblioteca gera um painel que o servidor aceita', { skip: !
         const g = painelDoRito(m.fases, [m.nome.slice(0, 40), m.nome.slice(0, 40)]);
         assert.doesNotThrow(() => sanitizeEntityTypeDefinition(g.def), m.nome);
         assert.equal(g.def.phases.length, m.fases.length, `${m.nome}: uma coluna por fase`);
+        // Modelo que já conduz um painel do sistema (parcerias do MPRS) não recebe o convite do painel gerado.
+        if (m.fases.some((f) => f.situacao_registro?.modulo)) continue;
         const ligadas = ligarAoPainelGerado(m.fases, g, 'pg');
         assert.ok(ligadas.every((f) => f.situacao_registro?.pagina === 'pg'), `${m.nome}: toda fase move o cartão`);
     }
