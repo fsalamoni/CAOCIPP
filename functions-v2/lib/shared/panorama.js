@@ -33,6 +33,7 @@ exports.coerceValue = coerceValue;
 exports.analyzeColumn = analyzeColumn;
 exports.inferColumnType = inferColumnType;
 exports.suggestRole = suggestRole;
+exports.semIndefinidos = semIndefinidos;
 exports.sanitizeBaseDef = sanitizeBaseDef;
 exports.columnForRole = columnForRole;
 exports.sanitizeRecordValues = sanitizeRecordValues;
@@ -559,7 +560,14 @@ function sanitizeColumns(input) {
         if (out.length >= 120)
             break;
     }
-    return out.sort((a, b) => a.ordem - b.ordem).map((c, i) => (Object.assign(Object.assign({}, c), { ordem: i })));
+    // Sem as chaves `undefined`: o Firestore recusa gravar `undefined`, e uma
+    // coluna sem lista (ou sem amostra) derrubava a criação da base com o
+    // erro genérico "INTERNAL".
+    return out.sort((a, b) => a.ordem - b.ordem).map((c, i) => semIndefinidos(Object.assign(Object.assign({}, c), { ordem: i })));
+}
+/** Cópia rasa sem as chaves cujo valor é `undefined` (o Firestore não grava `undefined`). */
+function semIndefinidos(obj) {
+    return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined));
 }
 /**
  * Teto de desfechos configuráveis.

@@ -687,7 +687,15 @@ function sanitizeColumns(input: unknown): PanoramaColumn[] {
         if (out.length >= 120) break;
     }
 
-    return out.sort((a, b) => a.ordem - b.ordem).map((c, i) => ({ ...c, ordem: i }));
+    // Sem as chaves `undefined`: o Firestore recusa gravar `undefined`, e uma
+    // coluna sem lista (ou sem amostra) derrubava a criação da base com o
+    // erro genérico "INTERNAL".
+    return out.sort((a, b) => a.ordem - b.ordem).map((c, i) => semIndefinidos({ ...c, ordem: i }));
+}
+
+/** Cópia rasa sem as chaves cujo valor é `undefined` (o Firestore não grava `undefined`). */
+export function semIndefinidos<T extends object>(obj: T): T {
+    return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined)) as T;
 }
 
 /**
