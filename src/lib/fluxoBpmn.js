@@ -13,7 +13,7 @@ import { niveisDoFluxo, seguintes } from './secretariaRito.js';
 import { chaveDaCondicao, nivelDaAcao, partesDaCondicao, resumoDaAcao, soOrienta, textoCondicao } from './exigencias.js';
 
 /** Rótulo da seta: a condição escrita e, se houver, a regra pela resposta. */
-const rotuloSaida = (f, alvo, fases) => (f.espera && !f.final ? 'volta' : null) || [String(f.condicoes?.[alvo] || '').trim(), f.condicoes_regra?.[alvo] ? `quando ${textoCondicao(f, f.condicoes_regra[alvo], fases)}` : '',
+export const rotuloSaida = (f, alvo, fases) => (f.espera && !f.final ? 'volta' : null) || [String(f.condicoes?.[alvo] || '').trim(), f.condicoes_regra?.[alvo] ? `quando ${textoCondicao(f, f.condicoes_regra[alvo], fases)}` : '',
     f.saida_padrao === alvo && !f.condicoes_regra?.[alvo] ? 'senão' : '']
     .filter(Boolean).join('; ');
 
@@ -100,7 +100,7 @@ export function itensDaFase(f, fases) {
 }
 
 /** Posição de cada item dentro da moldura que começa em (x, y0) e tem largura w. */
-function dentroDaFase(itens, x, y0, w) {
+function dentroDaFase(itens, x, y0, w, nl = 2) {
     const cx = x + w / 2;
     const nos = [];
     const ligacoes = [];
@@ -116,7 +116,7 @@ function dentroDaFase(itens, x, y0, w) {
         if (grupo && it.chave !== grupo.chave) fechar(y - ENTRE / 2);
         if (pe !== null) ligacoes.push({ d: caminho([[cx, pe], [cx, y - 1]]), tipo: 'passo' });
         if (it.tipo === 'desvio') {
-            const linhas = quebrar(it.texto, Math.floor((w - 2 * MI) / 4.9), 2);
+            const linhas = quebrar(it.texto, Math.floor((w - 2 * MI) / 4.9), nl);
             const cy = y + linhas.length * 11 + 3 + GR;
             nos.push({ ...it, cx, cy, r: GR, linhas, ly: y + 8 });
             rotulos.push({ x: cx + GR + 3, y: cy - 3, texto: 'não', ancora: 'start' }, { x: cx - 4, y: cy + GR + 9, texto: 'sim', ancora: 'end' });
@@ -126,7 +126,7 @@ function dentroDaFase(itens, x, y0, w) {
         } else {
             if (it.ou && pe !== null) rotulos.push({ x: cx + 4, y: y - ENTRE / 2 + 3, texto: 'ou', ancora: 'start' });
             const larg = w - 2 * MI - (it.chave ? PULO : 0);
-            const linhas = quebrar(it.nome, Math.floor((larg - 10) / 5.1), 2);
+            const linhas = quebrar(it.nome, Math.floor((larg - 10) / 5.1), nl);
             const alt = linhas.length * 12 + 12;
             nos.push({ ...it, x: x + MI, y, w: larg, h: alt, cx: x + MI + larg / 2, linhas });
             pe = y + alt;
@@ -147,17 +147,32 @@ function dentroDaFase(itens, x, y0, w) {
  * raiaDe(fase): nome da raia (unidade) da fase, ou '' se não tem.
  * porFaixa: quantas colunas cabem na largura. Passando disso, o fluxo continua
  * na faixa de baixo (como um texto que muda de linha), para caber inteiro na tela.
+ * opcoes.completo: para exportar. Nenhum texto é cortado (nomes, ações e
+ * condições saem inteiros) e o desenho cresce o quanto for preciso.
  * Devolve { largura, altura, faixas, raias, inicio, tarefas, desvios, fins, setas }.
- * Cada tarefa (fase) traz w, h e, com as ações, `dentro` { nos, ligacoes, rotulos }.
+ * Cada seta traz `d` (o caminho SVG) e `pts` (os pontos, para outros formatos).
+ * Cada tarefa (fase) traz w, h, th (altura do cabeçalho) e, com as ações, `dentro` { nos, ligacoes, rotulos }.
  */
 export function desenharFluxo(fases, raiaDe = () => '', porFaixa = Infinity, opcoes = {}) {
     if (!fases?.length) return { largura: 0, altura: 0, faixas: 0, raias: [], inicio: null, tarefas: [], desvios: [], fins: [], setas: [], comAcoes: false };
     const itens = fases.map((f) => (opcoes.acoes ? itensDaFase(f, fases) : []));
     const comAcoes = itens.some((l) => l.length > 0);
     const W = comAcoes ? TWA : TW;
-    const alt = itens.map((l) => TH + dentroDaFase(l, 0, 0, W).altura);
+    const completo = opcoes.completo === true;
+    const NL = completo ? 9 : 2; // linhas de cada ação
+    const maxRot = completo ? 400 : MAX_ROTULO;
     const nivel = niveisDoFluxo(fases);
     const saidas = fases.map((_f, i) => seguintes(fases, i));
+    // Completo: mais pistas para as setas não se sobreporem, e a caixa da fase
+    // cresce para cada seta que chega ter a sua altura (e a condição, o seu lugar).
+    const PISTAS = completo ? 8 : 4;
+    const vaoBase = completo ? VAO + 22 : VAO;
+    const canal = completo ? CANAL + 26 : CANAL;
+    const nEntradas = new Map();
+    fases.forEach((_f, i) => saidas[i].forEach((alvo) => nEntradas.set(alvo, (nEntradas.get(alvo) || 0) + 1)));
+    const PASSO = 13;
+    const th = fases.map((f) => (completo ? Math.max(TH, 18 + PASSO * ((nEntradas.get(f.id) || 1) - 1)) : TH)); // altura do cabeçalho da fase
+    const alt = itens.map((l, i) => th[i] + dentroDaFase(l, 0, 0, W, NL).altura);
     const porId = new Map(fases.map((f, i) => [f.id, i]));
     const nCols = Math.max(...nivel.values()) + 1;
     const N = Math.max(1, Math.min(nCols, Math.floor(porFaixa) || 1)); // colunas por faixa
@@ -182,19 +197,20 @@ export function desenharFluxo(fases, raiaDe = () => '', porFaixa = Infinity, opc
     const sub = fases.map((f, i) => {
         const c = nivel.get(f.id);
         const kb = `${faixaDe(c)}:${raiaIdx[i]}`;
-        if (!blocos.has(kb)) blocos.set(kb, { nome: nomes[raiaIdx[i]], faixa: faixaDe(c), ordem: raiaIdx[i], linhas: 1, hMax: TH });
+        if (!blocos.has(kb)) blocos.set(kb, { nome: nomes[raiaIdx[i]], faixa: faixaDe(c), ordem: raiaIdx[i], linhas: 1, hMax: TH, hs: [] });
         blocos.get(kb).hMax = Math.max(blocos.get(kb).hMax, alt[i]);
         const chave = `${kb}:${c}`;
         const n = ocupacao.get(chave) || 0;
         ocupacao.set(chave, n + 1);
         blocos.get(kb).linhas = Math.max(blocos.get(kb).linhas, n + 1);
+        blocos.get(kb).hs[n] = Math.max(blocos.get(kb).hs[n] || TH, alt[i]);
         return n;
     });
     const raias = [...blocos.values()].sort((a, b) => a.faixa - b.faixa || a.ordem - b.ordem);
 
     // Colunas: mais largas se alguma fase tem desvio/fim; vão maior se há condição escrita.
     const extra = Array(nCols).fill(false);
-    const vao = Array(nCols).fill(VAO);
+    const vao = Array(nCols).fill(vaoBase);
     let vaoInicio = 0; // vão antes da 1ª coluna da faixa (para setas com condição)
     fases.forEach((f, i) => {
         const c = nivel.get(f.id);
@@ -203,9 +219,9 @@ export function desenharFluxo(fases, raiaDe = () => '', porFaixa = Infinity, opc
             const rot = rotuloSaida(f, alvo, fases);
             if (!rot) continue;
             const ct = nivel.get(alvo);
-            const precisa = VAO + Math.min(rot.length, MAX_ROTULO) * 5.4;
+            const precisa = vaoBase + Math.min(rot.length, maxRot) * 5.4;
             if (!primeira(ct)) vao[ct - 1] = Math.max(vao[ct - 1], precisa);
-            else vaoInicio = Math.max(vaoInicio, precisa - VAO);
+            else vaoInicio = Math.max(vaoInicio, precisa - vaoBase);
         }
     });
     if (nFaixas > 1) { // colunas iguais, para os vãos ficarem alinhados de uma faixa para a outra
@@ -229,7 +245,10 @@ export function desenharFluxo(fases, raiaDe = () => '', porFaixa = Infinity, opc
     let y = MARGEM;
     raias.forEach((r, k) => {
         if (k > 0 && r.faixa !== raias[k - 1].faixa) y += ENTRE_FAIXAS;
-        Object.assign(r, { x: MARGEM, y, largura: largura - 2 * MARGEM, altura: TOPO + r.linhas * (r.hMax + CANAL), cab });
+        // Na tela, as linhas da raia têm a mesma altura; no desenho completo, cada uma tem a da sua fase mais alta.
+        if (!completo) r.hs = Array(r.linhas).fill(r.hMax);
+        r.ys = r.hs.map((_h, n) => r.hs.slice(0, n).reduce((t, h) => t + h + canal, 0));
+        Object.assign(r, { x: MARGEM, y, largura: largura - 2 * MARGEM, altura: TOPO + r.hs.reduce((t, h) => t + h + canal, 0), cab });
         y += r.altura;
     });
     const altura = y + MARGEM;
@@ -237,11 +256,11 @@ export function desenharFluxo(fases, raiaDe = () => '', porFaixa = Infinity, opc
     const tarefas = fases.map((f, i) => {
         const c = nivel.get(f.id);
         const bloco = blocos.get(`${faixaDe(c)}:${raiaIdx[i]}`);
-        const ty = bloco.y + TOPO + sub[i] * (bloco.hMax + CANAL);
+        const ty = bloco.y + TOPO + bloco.ys[sub[i]];
         return {
-            id: f.id, indice: i, x: colX[c], y: ty, w: W, h: alt[i], pe: ty + bloco.hMax, cx: colX[c] + W / 2, cy: ty + TH / 2, col: c,
-            linhas: quebrar(f.nome, comAcoes ? 27 : 19, f.prazo_dias ? 2 : 3), prazo: f.prazo_dias || null, nome: f.nome,
-            dentro: itens[i].length ? dentroDaFase(itens[i], colX[c], ty + TH, W) : null,
+            id: f.id, indice: i, x: colX[c], y: ty, w: W, h: alt[i], th: th[i], pe: ty + bloco.hs[sub[i]], cx: colX[c] + W / 2, cy: ty + th[i] / 2, col: c,
+            linhas: quebrar(f.nome, comAcoes ? 27 : 19, (f.prazo_dias ? 2 : 3) + (completo ? 1 : 0)), prazo: f.prazo_dias || null, nome: f.nome,
+            dentro: itens[i].length ? dentroDaFase(itens[i], colX[c], ty + th[i], W, NL) : null,
         };
     });
     const desvios = [];
@@ -256,20 +275,21 @@ export function desenharFluxo(fases, raiaDe = () => '', porFaixa = Infinity, opc
     // Setas. Entradas de uma mesma tarefa se espalham na vertical para não se sobrepor.
     const entradas = new Map();
     fases.forEach((f, i) => saidas[i].forEach((alvo) => { if (!entradas.has(alvo)) entradas.set(alvo, []); entradas.get(alvo).push(f.id); }));
-    const setas = [{ de: null, para: fases[0].id, d: caminho([[inicio.cx + inicio.r, inicio.cy], [tarefas[0].x - 1, tarefas[0].cy]]), tipo: 'inicio' }];
+    const seta = (pts, resto) => ({ ...resto, d: caminho(pts), pts });
+    const setas = [seta([[inicio.cx + inicio.r, inicio.cy], [tarefas[0].x - 1, tarefas[0].cy]], { de: null, para: fases[0].id, tipo: 'inicio' })];
     let pista = 0;
     tarefas.forEach((t, i) => {
         const n = saidas[i].length;
-        if (n === 0) { setas.push({ de: t.id, para: null, d: caminho([[t.x + W, t.cy], [t.x + W + FOLGA + 4, t.cy]]), tipo: 'fim' }); return; }
-        if (n > 1) setas.push({ de: t.id, para: t.id, d: caminho([[t.x + W, t.cy], [t.x + W + FOLGA, t.cy]]), tipo: 'desvio' });
+        if (n === 0) { setas.push(seta([[t.x + W, t.cy], [t.x + W + FOLGA + 4, t.cy]], { de: t.id, para: null, tipo: 'fim' })); return; }
+        if (n > 1) setas.push(seta([[t.x + W, t.cy], [t.x + W + FOLGA, t.cy]], { de: t.id, para: t.id, tipo: 'desvio' }));
         const sx = n > 1 ? t.x + W + FOLGA + DES : t.x + W;
         saidas[i].forEach((alvo) => {
             const b = tarefas[porId.get(alvo)];
             const ent = entradas.get(alvo);
             const k = ent.indexOf(t.id);
-            const passo = Math.min(11, (TH - 16) / Math.max(1, ent.length - 1));
+            const passo = completo ? PASSO : Math.min(11, (TH - 16) / Math.max(1, ent.length - 1));
             const ey = Math.round(b.cy + (k - (ent.length - 1) / 2) * passo);
-            const p = pista++ % 4;
+            const p = pista++ % PISTAS;
             const gx1 = fimCorpo(t.col) + 9 + p * 5;
             const gx2 = vaoAntes(b.col) + 9 + p * 5;
             const volta = b.col <= t.col;
@@ -279,9 +299,9 @@ export function desenharFluxo(fases, raiaDe = () => '', porFaixa = Infinity, opc
                 : [[sx, t.cy], [gx1, t.cy], [gx1, t.pe + 8 + p * 6], [gx2, t.pe + 8 + p * 6], [gx2, ey], [b.x - 1, ey]];
             const rot = rotuloSaida(fases[i], alvo, fases);
             setas.push({
-                de: t.id, para: alvo, d: caminho(pts), tipo: volta ? 'volta' : 'fluxo',
+                de: t.id, para: alvo, d: caminho(pts), pts, tipo: volta ? 'volta' : 'fluxo',
                 // A condição fica acima da seta; na última de várias entradas, abaixo, para não cair sobre a seta vizinha.
-                ...(rot ? { rotulo: curto(rot), rotuloCompleto: rot, rx: b.x - 7, ry: ent.length > 1 && k === ent.length - 1 ? ey + 12 : ey - 4 } : {}),
+                ...(rot ? { rotulo: curto(rot, maxRot), rotuloCompleto: rot, rx: b.x - 7, ry: !completo && ent.length > 1 && k === ent.length - 1 ? ey + 12 : ey - 4 } : {}),
             });
         });
     });

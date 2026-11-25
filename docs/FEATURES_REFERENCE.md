@@ -170,7 +170,9 @@ urgência do processo (com motivo, na autuação, depois ou por padrão do tipo;
 tabela de eventos numerados do processo (atos de usuários e registros do sistema, com filtros e busca), termo de uma folha para cada ato de usuário, leitura dos autos evento a evento e PDF integral ou parcial (apenas os marcados, todos exceto os marcados, intervalo de folhas),
 tipos de processo (rito, sigilo, unidade sugerida e formulário próprio do "Novo processo", com campos padrão e campos do órgão gravados nos dados do processo), ritos com ramificações,
 fase final e orientação por fase, editor visual com diagrama ao vivo, modelos
-prontos, importação e exportação por planilha (.xlsx/.csv) e diagrama Mermaid,
+prontos, importação por planilha (.xlsx/.csv) e diagrama, exportação do rito em
+Bizagi/BPMN 2.0, imagem (PNG, SVG), PDF, planilha e Mermaid (rito inteiro numa
+faixa, raias por unidade),
 e mudança de fase guiada pelo fluxo (fora do fluxo exige motivo). Importação
 de ritos (etapa 3): planilha (todas as abas), Word, PDF, Bizagi (.bpm, todas as
 páginas), BPMN, XPDL, draw.io ou Mermaid viram proposta completa (fases,

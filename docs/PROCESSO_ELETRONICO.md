@@ -247,8 +247,7 @@ rito" abre o início: em branco, um modelo pronto, um arquivo ou texto colado.
 Clicar num rito da lista abre o mesmo rito nesta tela (`deRito` converte
 `unidade_id` e `modelos` em referências). O antigo `RitoEditor.jsx` saiu.
 Na edição, o lado mostra a situação (disponível para novas autuações, tipos
-de processo que usam o rito, versões anteriores), exportar (planilha e
-Mermaid) e, como na criação, unidades e modelos novos e a opção de criar um
+de processo que usam o rito, versões anteriores), exportar (ver abaixo) e, como na criação, unidades e modelos novos e a opção de criar um
 tipo. Salvar chama `aplicarPropostaRito` com `rito_id` e `ativo`: o servidor
 guarda a versão atual em `versoes/`, grava `versao + 1` e cria, no mesmo
 lote, as unidades e os modelos novos citados. O rascunho fica no navegador,
@@ -259,6 +258,27 @@ conta como descartar. Recuperar mantém a versão atual, então salvar sempre
 gera a versão seguinte. "Substituir fases" (só na edição) reabre o início para
 trocar as fases por um modelo, arquivo ou texto, mantendo nome, situação e
 versões. O rito precisa de ao menos uma fase: a última não pode ser removida.
+
+**Exportar o rito** (`src/lib/exportarRito.js`, janela `ExportarRito.jsx`,
+nov/2026). Abre pelo menu do rito, "Exportar (imagem, Bizagi, planilha)", e
+pelo botão "Exportar o rito" da tela de edição. Tudo é gerado no navegador,
+sem chamada ao servidor; quem vê a aba Ritos (admin do órgão) exporta.
+
+| Formato | Função | O que leva |
+| --- | --- | --- |
+| Bizagi e BPMN 2.0 (.bpmn) | `ritoParaBpmn` | `collaboration` com uma piscina, `laneSet` com uma raia por unidade, `startEvent`, uma `task` por fase (nome com o prazo; `documentation` com orientação, prazo e ações), um `exclusiveGateway` por fase com mais de uma saída, `endEvent`, `sequenceFlow` com a condição no nome e BPMNDI (formas, pontos das setas e rótulos). No Bizagi Modeler: Importar, BPMN. |
+| Imagem (.png), PDF, SVG | `ritoParaSvg` | O desenho de `desenharFluxo` com `porFaixa = Infinity` e `opcoes.completo`: uma faixa só, sem dobra, sem texto cortado, uma raia por unidade, cada seta chegando na sua altura. O PNG sai até no dobro do tamanho (limite de 16.000 px de lado); o PDF tem uma página do tamanho do desenho. Opção de mostrar as ações dentro das fases. |
+| Planilha (.xlsx) | `ritoParaAbas` | Aba "Rito" (Nº, Fase, Unidade, Prazo, Contagem, Tipo, Ações, Segue para, Condição, Orientação) e aba "Ações em detalhe". |
+| Mermaid (.mmd) | `ritoParaMermaid` | `flowchart LR`, um `subgraph` por unidade, todo rótulo entre aspas, condição na seta. |
+
+Planilha, Mermaid e BPMN voltam pela importação do rito
+(`propostaDeAbas`, `propostaDeMermaid`, `propostaDeBpmn`).
+`exportarRito.test.js` confere, nos 70 modelos da biblioteca, que cada formato
+volta com as mesmas fases, caminhos, prazos e unidades, e que o desenho sai
+numa faixa, com uma raia por unidade e sem texto cortado.
+`scripts/e2e-exportar-rito.mjs` baixa os seis formatos pela tela e confere os
+arquivos. Estes formatos levam o fluxo; o pacote completo para outro órgão
+(modelos de documento, regras, tipo) continua em "Exportar para outro órgão".
 
 **Excluir rito** (`excluirRito`, só admin): exclusão suave (`excluido: true`,
 `ativo: false`, `excluido_em`, `excluido_por`). Recusada enquanto algum tipo

@@ -466,6 +466,19 @@ export default function GuiaRito({ variante = 'outline', className = '', inicial
                                     <tr><td>Um modelo de documento</td><td>Em Documentos, no menu do modelo, <strong>Exportar para outro órgão</strong>. Modelo guardado como arquivo original (Word ou PDF) se leva baixando o próprio arquivo.</td><td>Em Documentos, <strong>Importar de arquivo</strong>, com o .json. O modelo abre no editor para revisar e salvar.</td></tr>
                                 </tbody>
                             </table>
+                            <p><strong>Exportar o desenho do rito.</strong> No menu do rito (⋯), <strong>Exportar (imagem, Bizagi, planilha)</strong>, ou o botão <strong>Exportar o rito</strong> na tela de edição. A imagem, o PDF e o diagrama saem com o rito inteiro numa faixa só, da esquerda para a direita, com cada fase na raia da sua unidade e as condições escritas por inteiro nas setas, do tamanho que for preciso. Nada é dobrado para caber em página.</p>
+                            <table className={tabela}>
+                                <thead><tr><th>Formato</th><th>Para quê</th><th>Como abrir</th></tr></thead>
+                                <tbody>
+                                    <tr><td>Bizagi e BPMN 2.0 (.bpmn)</td><td>Diagrama editável, com piscina, raias por unidade, desvios e a orientação e as ações de cada fase na documentação da tarefa.</td><td>No Bizagi Modeler: Arquivo, Importar, BPMN, e escolha o arquivo. Abre também no Camunda, no bpmn.io e no draw.io.</td></tr>
+                                    <tr><td>Imagem (.png)</td><td>Colar em documento, apresentação ou mensagem.</td><td>Qualquer visualizador. Ritos grandes geram imagens grandes: amplie para ler.</td></tr>
+                                    <tr><td>PDF</td><td>Imprimir ou enviar. Uma página só, do tamanho do rito.</td><td>Ao imprimir, escolha &quot;ajustar à página&quot; ou imprima em pôster.</td></tr>
+                                    <tr><td>Imagem vetorial (.svg)</td><td>O mesmo desenho, sem perder nitidez ao ampliar.</td><td>Navegador, Inkscape, Illustrator.</td></tr>
+                                    <tr><td>Planilha (.xlsx)</td><td>Fases, unidades, prazos, ações, saídas e condições, e uma aba com o detalhe de cada ação.</td><td>Excel, LibreOffice, Google Planilhas.</td></tr>
+                                    <tr><td>Mermaid (.mmd)</td><td>Diagrama em texto. Há também o botão Copiar.</td><td>mermaid.live, GitHub, Notion, draw.io.</td></tr>
+                                </tbody>
+                            </table>
+                            <p>Marque ou desmarque <strong>mostrar as ações dentro de cada fase</strong> para a imagem e o PDF: com as ações o desenho fica mais alto; sem elas, mostra só as fases e os caminhos. Planilha, Mermaid e BPMN voltam ao SIGO por <strong>Novo rito</strong>, a partir de um arquivo. Estes formatos levam o desenho do fluxo; para levar o rito completo a outro órgão, com modelos de documento e regras, use Exportar para outro órgão, acima.</p>
                             <ul className="list-disc space-y-1 pl-5">
                                 <li>O arquivo não leva nada que identifique o órgão de origem: nem ids, nem quem criou, nem e-mails, nem processos. Páginas próprias vão pelo nome e casam com as do outro órgão; a que não existe lá aparece na revisão para escolher.</li>
                                 <li>Só a administração do Processo Eletrônico exporta e implanta rito. Ao implantar, o servidor confere de novo cada fase, regra e texto, como em qualquer rito, e registra no histórico quem exportou e quem implantou.</li>

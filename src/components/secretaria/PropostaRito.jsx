@@ -2,7 +2,7 @@ import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
-    AlertTriangle, ArrowDown, ArrowUp, Building2, CheckCircle2, ChevronDown, ChevronsDown, ChevronsUp, Copy, CopyPlus, Download, FilePlus2, FileSpreadsheet, FileText, FileUp, GitBranch,
+    AlertTriangle, ArrowDown, ArrowUp, Building2, CheckCircle2, ChevronDown, ChevronsDown, ChevronsUp, CopyPlus, Download, FileDown, FilePlus2, FileText, FileUp, GitBranch,
     LayoutTemplate, ListPlus, Loader2, MoreVertical, Plus, Redo2, Rocket, Save, Shapes, Trash2, Undo2, Users, X,
 } from 'lucide-react';
 import {
@@ -20,14 +20,14 @@ import {
 } from '@/components/ui/alert-dialog';
 import { arquivoParaBase64, secConfig } from '@/services/secretariaService';
 import { deRito, montarPayload, propostaDeAbas, propostaDeConteudo, propostaDeDiagramas, propostaDeTexto, sem, tipoDocumentoDe, vincularProposta } from '@/lib/propostaRito';
-import { copiarFases, ehEspera, modelosDeRito, novoIdFase, origensDaEspera, problemasDoFluxo, ritoParaMermaid, ritoParaTabela } from '@/lib/secretariaRito';
+import { copiarFases, ehEspera, modelosDeRito, novoIdFase, origensDaEspera, problemasDoFluxo, ritoParaTabela } from '@/lib/secretariaRito';
 import { MAX_CAMPOS_ACAO, condicaoIncompleta, problemaDaCondicao, registroComOutros, remapearDeOutraFase, saidaPadrao, textoCondicao, tirarDoGrupo } from '@/lib/exigencias';
 import { MODULOS, ROTULO_MODULO, integracoesLigadas, problemasFormulario } from '@/lib/camposProcesso';
 import { semPaineisDesligados } from '@/lib/painelModulos';
 import { ItemOrdenavel, ListaOrdenavel } from './Ordenavel';
 import FluxoRito from './FluxoRito';
 import { AcoesDaFase, CondicaoContexto, CondicaoPorResposta, RegistroEDocumentos } from './RegrasDaFase';
-import { NativeSelect, TIPOS_UNIDADE, copiarTexto } from './comum';
+import { NativeSelect, TIPOS_UNIDADE } from './comum';
 import { BloqueioRito } from './Lixeira';
 import PreviaRito from './PreviaRito';
 import GuiaRito from './GuiaRito';
@@ -36,6 +36,7 @@ import AndamentoDaFase from './AndamentoDaFase';
 import { nomeDoModuloDaRegra, problemaDaPagina, resumoAndamento } from '@/lib/andamentoFase';
 import { RegistroContexto } from './SeletorRegistro';
 import { lerPacote, propostaDePacote, trocarModeloNasFases } from '@/lib/pacoteModelos';
+import ExportarRito from './ExportarRito';
 import PermissoesDaFase from './PermissoesDaFase';
 import { alguemTem, resumoPermissoes } from '@/lib/permissoesFase';
 import { ALERTA_PADRAO, AVISO_PARA, DESIGNA, MAX_ALERTA_DIAS, MAX_MENSAGEM_AVISO, MAX_PENDENCIA_FASE, SIGILO_FASE, abrePrazo, comAoEntrar, comAviso, comPrazoVencido, efeitosAoEntrar, problemasDosEfeitos, textoDoAviso, textosDosPrazos } from '@/lib/efeitosFase';
@@ -701,6 +702,7 @@ function Revisao({
     const fluxo = useMemo(() => p.fases.filter((f) => f.nome.trim()).map((f) => ({ ...f, proximas: f.final ? [] : f.proximas, raia: nomeUnidade(f.unidade_ref) })),
         [p.fases, p.unidades, estado.unidades]);
     const todasAbertas = abertas.size >= p.fases.length;
+    const [exportando, setExportando] = useState(false);
     const teclasAtual = useRef(teclas);
     teclasAtual.current = teclas;
     useEffect(() => {
@@ -828,10 +830,9 @@ function Revisao({
                         {p.fases.some((f) => f.nome.trim()) && (
                             <section className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-2">
                                 <h3 className="text-sm font-semibold">Exportar</h3>
-                                <div className="flex flex-wrap gap-2">
-                                    <Button size="sm" variant="outline" className="gap-1" onClick={() => baixarPlanilha(p.fases, p.nome)}><FileSpreadsheet className="w-4 h-4" aria-hidden /> Planilha</Button>
-                                    <Button size="sm" variant="outline" className="gap-1" onClick={() => copiarTexto(ritoParaMermaid(p.fases), 'Diagrama copiado em Mermaid')}><Copy className="w-4 h-4" aria-hidden /> Diagrama (Mermaid)</Button>
-                                </div>
+                                <p className="text-xs text-slate-600 dark:text-slate-300">Imagem do rito inteiro, PDF, Bizagi (BPMN), planilha e Mermaid.</p>
+                                <Button size="sm" variant="outline" className="gap-1" onClick={() => setExportando(true)}><FileDown className="w-4 h-4" aria-hidden /> Exportar o rito</Button>
+                                <ExportarRito aberto={exportando} onFechar={() => setExportando(false)} nome={p.nome} fases={fluxo} />
                             </section>
                         )}
                         <section className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-3">
