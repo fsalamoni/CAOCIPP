@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/table';
 import {
     Upload, FileSpreadsheet, Loader2, CheckCircle2, AlertTriangle, XCircle,
-    RefreshCw, Info, ArrowRight, ArrowUpCircle, RotateCcw, ShieldCheck,
+    RefreshCw, Info, ArrowRight, ArrowUpCircle, RotateCcw, ShieldCheck, Telescope,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { logger } from '@/utils/logger';
@@ -82,10 +82,10 @@ export default function PanoramaImport({
     const inputRef = useRef(null);
     const ligados = resolveBuiltinModules(organization);
     const disponiveis = MODULOS.filter((m) => ligados[m.modulo]);
-    const fonteDaBase = (base?.fonte_modulos || []).filter((k) => disponiveis.some((m) => m.key === k));
-    // 'planilha' ou 'orgao' (os registros das funcionalidades do próprio órgão).
-    const [fonte, setFonte] = useState(fonteDaBase.length ? 'orgao' : 'planilha');
-    const [modulos, setModulos] = useState(fonteDaBase.length ? fonteDaBase : disponiveis.map((m) => m.key));
+    // 'planilha' (dados externos, copiados para a base) ou 'orgao' (base LIGADA
+    // às funcionalidades do órgão: nada é copiado, a base lê os registros ao vivo).
+    const [fonte, setFonte] = useState('planilha');
+    const [modulos, setModulos] = useState(disponiveis.map((m) => m.key));
     const [separados, setSeparados] = useState(false);
     /** Funcionalidades que ainda faltam, quando cada uma vira uma base. */
     const [fila, setFila] = useState([]);
@@ -95,15 +95,22 @@ export default function PanoramaImport({
     const [report, setReport] = useState(null);
     const [columns, setColumns] = useState([]);
     const [baseNome, setBaseNome] = useState('');
-    const [alvo, setAlvo] = useState(base?.id || '__nova__');
-    // Vindo do órgão, os registros do SIGO são a fonte da verdade: atualizar é o padrão.
-    const [policy, setPolicy] = useState(fonteDaBase.length ? 'update' : (base?.importPolicy || 'preserve'));
+    const [alvoPlanilha, setAlvo] = useState(base?.id || '__nova__');
+    const [policy, setPolicy] = useState(base?.importPolicy || 'preserve');
     const [analyzing, setAnalyzing] = useState(false);
     const [committing, setCommitting] = useState(false);
     const [result, setResult] = useState(null);
 
+    const ligar = fonte === 'orgao';
+    // Base ligada é sempre nova: não se despeja em base de planilha.
+    const alvo = ligar ? '__nova__' : alvoPlanilha;
     const baseNova = alvo === '__nova__';
     const busy = analyzing || committing;
+    // Ao ler os registros (ou a planilha), leva a pessoa à conferência.
+    const etapa2Ref = useRef(null);
+    useEffect(() => {
+        if (report) etapa2Ref.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    }, [report]);
 
     const reset = () => {
         setFile(null);
@@ -117,22 +124,17 @@ export default function PanoramaImport({
     };
 
     /** Prévia a partir dos registros do órgão: o mesmo caminho da planilha, sem arquivo. */
-    const analisarOrgao = async (mods, alvoId, policyAtual, nome) => {
+    const analisarOrgao = async (mods, nome) => {
         setAnalyzing(true);
         setReport(null);
         setResult(null);
         try {
-            const dados = {
-                organizationId: organization.id,
-                baseId: alvoId === '__nova__' ? '' : alvoId,
-                modulos: mods,
-                policy: policyAtual,
-            };
+            const dados = { organizationId: organization.id, baseId: '', modulos: mods };
             const resposta = await previewPanoramaImport(dados);
             setPayload(dados);
             setReport(resposta);
             setColumns(resposta.colunas || []);
-            if (alvoId === '__nova__') setBaseNome(nome || nomeModulos(mods));
+            setBaseNome(nome || nomeModulos(mods));
         } catch (error) {
             logger.error('[panorama] falha ao ler as funcionalidades do órgão:', error);
             toast.error(error?.message || 'Não foi possível ler os registros do órgão.');
@@ -149,29 +151,24 @@ export default function PanoramaImport({
             return;
         }
         setCriadas([]);
-        if (baseNova && separados && modulos.length > 1) {
+        if (separados && modulos.length > 1) {
             const [primeiro, ...resto] = modulos;
             setFila(resto);
-            await analisarOrgao([primeiro], alvo, policy, nomeModulos([primeiro]));
+            await analisarOrgao([primeiro], nomeModulos([primeiro]));
         } else {
             setFila([]);
-            await analisarOrgao(modulos, alvo, policy, baseNome || nomeModulos(modulos));
+            await analisarOrgao(modulos, baseNome || nomeModulos(modulos));
         }
     };
 
     const reanalisar = async (alvoId, policyAtual) => {
-        if (fonte === 'planilha') {
-            if (file) await analisar(file, alvoId, policyAtual);
-        } else if (payload) {
-            await analisarOrgao(payload.modulos, alvoId, policyAtual, baseNome);
-        }
+        if (file) await analisar(file, alvoId, policyAtual);
     };
 
     const trocarFonte = (novaFonte) => {
         reset();
         setFonte(novaFonte);
         setBaseNome('');
-        setPolicy(novaFonte === 'orgao' ? 'update' : (base?.importPolicy || 'preserve'));
     };
 
     const analisar = async (arquivo, alvoId, policyAtual) => {
@@ -245,8 +242,9 @@ export default function PanoramaImport({
                 columns,
                 baseNome: baseNome.trim(),
             });
-            toast.success(
-                `${baseNova ? `Base "${baseNome.trim()}" criada` : 'Importação concluída'}: ${resposta.criados || 0} novo(s)`
+            toast.success(ligar
+                ? `Panorama "${baseNome.trim()}" ligado a ${nomeModulos(payload.modulos)}: ${formatNumber(resposta.ligados || 0)} registro(s), sempre atualizados.`
+                : `${baseNova ? `Base "${baseNome.trim()}" criada` : 'Importação concluída'}: ${resposta.criados || 0} novo(s)`
                 + (resposta.enriquecidos ? `, ${resposta.enriquecidos} complementado(s)` : '')
                 + (resposta.atualizados ? `, ${resposta.atualizados} atualizado(s)` : '') + '.'
             );
@@ -257,7 +255,7 @@ export default function PanoramaImport({
                 const [proximo, ...resto] = fila;
                 setCriadas(feitas);
                 setFila(resto);
-                await analisarOrgao([proximo], '__nova__', policy, nomeModulos([proximo]));
+                await analisarOrgao([proximo], nomeModulos([proximo]));
                 return;
             }
             setCriadas(feitas);
@@ -288,8 +286,9 @@ export default function PanoramaImport({
                         1. Escolher a origem dos dados e o destino
                     </CardTitle>
                     <CardDescription>
-                        Uma planilha (.xlsx, .xls, .csv ou .json) ou os registros que o próprio órgão já
-                        tem no SIGO — Consultas, Expedientes, Parcerias. Nada na origem é alterado.
+                        Dados externos, de uma planilha (.xlsx, .xls, .csv ou .json), ou dados internos:
+                        as funcionalidades do próprio órgão (Consultas, Expedientes, Parcerias), que o
+                        Panorama analisa direto, sem cópia. Nada na origem é alterado.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -306,9 +305,9 @@ export default function PanoramaImport({
                         >
                             <RadioGroupItem id="panorama-fonte-planilha" value="planilha" className="mt-0.5" />
                             <span>
-                                <span className="block text-sm font-medium">Planilha</span>
+                                <span className="block text-sm font-medium">Dados externos (planilha)</span>
                                 <span className="block text-xs font-normal text-slate-500 dark:text-slate-400">
-                                    Envie um arquivo. As colunas da base vêm dele.
+                                    Envie um arquivo. Os dados são copiados para a base e as colunas vêm dele.
                                 </span>
                             </span>
                         </Label>
@@ -318,10 +317,10 @@ export default function PanoramaImport({
                         >
                             <RadioGroupItem id="panorama-fonte-orgao" value="orgao" className="mt-0.5" disabled={disponiveis.length === 0} />
                             <span>
-                                <span className="block text-sm font-medium">Funcionalidades do órgão</span>
+                                <span className="block text-sm font-medium">Dados internos (funcionalidades do órgão)</span>
                                 <span className="block text-xs font-normal text-slate-500 dark:text-slate-400">
                                     {disponiveis.length > 0
-                                        ? 'Os registros de Consultas, Expedientes ou Parcerias, sem exportar nada.'
+                                        ? 'O Panorama fica ligado a Consultas, Expedientes ou Parcerias: nada é copiado e cada registro novo ou alterado entra na análise na hora.'
                                         : 'O órgão não tem Consultas, Expedientes nem Parcerias ligados.'}
                                 </span>
                             </span>
@@ -344,7 +343,7 @@ export default function PanoramaImport({
                                         <Label htmlFor={`panorama-modulo-${m.key}`} className="font-normal">{m.label}</Label>
                                     </div>
                                 ))}
-                                {baseNova && modulos.length > 1 && (
+                                {modulos.length > 1 && (
                                     <RadioGroup
                                         value={separados ? 'separados' : 'juntos'}
                                         onValueChange={(v) => setSeparados(v === 'separados')}
@@ -365,17 +364,6 @@ export default function PanoramaImport({
                                         </div>
                                     </RadioGroup>
                                 )}
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={comecarOrgao}
-                                    disabled={busy || modulos.length === 0}
-                                    className="gap-2 mt-1"
-                                >
-                                    {analyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                                    Ler os registros do órgão
-                                </Button>
                             </fieldset>
                         ) : (
                         <div className="space-y-1.5">
@@ -392,6 +380,7 @@ export default function PanoramaImport({
                         </div>
                         )}
 
+                        {!ligar && (
                         <div className="space-y-1.5">
                             <Label>Destino</Label>
                             <Select value={alvo} onValueChange={trocarAlvo} disabled={busy}>
@@ -407,25 +396,27 @@ export default function PanoramaImport({
                             </Select>
                             <p className="text-[11px] text-slate-400">
                                 {baseNova
-                                    ? `A base será criada com as colunas ${fonte === 'orgao' ? 'dos registros do órgão' : 'desta planilha'}.`
+                                    ? 'A base será criada com as colunas desta planilha.'
                                     : 'As linhas entram na base existente, com as colunas já configuradas.'}
                             </p>
                         </div>
+                        )}
                     </div>
 
-                    {baseNova && (
+                    {baseNova && !(ligar && separados && modulos.length > 1) && (
                         <div className="space-y-1.5 max-w-md">
                             <Label htmlFor="panorama-base-nome">Nome da base</Label>
                             <Input
                                 id="panorama-base-nome"
                                 value={baseNome}
                                 onChange={(e) => setBaseNome(e.target.value)}
-                                placeholder="Ex.: Improbidade administrativa"
+                                placeholder={ligar ? `Em branco: ${nomeModulos(modulos) || 'nome das funcionalidades'}` : 'Ex.: Improbidade administrativa'}
                                 disabled={busy}
                             />
                         </div>
                     )}
 
+                    {!ligar && (
                     <div className="space-y-1.5 max-w-md">
                         <Label>Política para dados divergentes</Label>
                         <Select value={policy} onValueChange={trocarPolitica} disabled={busy}>
@@ -440,15 +431,38 @@ export default function PanoramaImport({
                             {PANORAMA_IMPORT_POLICIES.find((p) => p.value === policy)?.description}
                         </p>
                     </div>
+                    )}
 
                     <Alert>
                         <ShieldCheck className="w-4 h-4" />
                         <AlertDescription className="text-xs">
-                            Os dados importados ficam no banco da plataforma, acessíveis a todos os membros
-                            deste órgão. A responsabilidade sobre o que é importado — inclusive quanto a
-                            dados pessoais e sigilo — é do órgão que importa.
+                            {ligar
+                                ? 'Nenhum dado é copiado: o Panorama lê os registros das funcionalidades marcadas, que os membros deste órgão já veem nelas. Excluir o panorama não apaga nenhum registro.'
+                                : 'Os dados importados ficam no banco da plataforma, acessíveis a todos os membros deste órgão. A responsabilidade sobre o que é importado — inclusive quanto a dados pessoais e sigilo — é do órgão que importa.'}
                         </AlertDescription>
                     </Alert>
+
+                    {fonte === 'orgao' && !result && (
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-2 border-t border-slate-200 dark:border-slate-700">
+                            <Button
+                                type="button"
+                                size="lg"
+                                onClick={comecarOrgao}
+                                disabled={busy || modulos.length === 0}
+                                className="gap-2 w-full sm:w-auto"
+                            >
+                                {analyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Telescope className="w-4 h-4" />}
+                                {report ? 'Ler de novo' : 'Montar o panorama'}
+                            </Button>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                                {modulos.length === 0
+                                    ? 'Marque ao menos uma funcionalidade.'
+                                    : report
+                                        ? 'Confira as colunas abaixo e confirme. Mudou as funcionalidades marcadas? Leia de novo.'
+                                        : 'A plataforma lê os registros e propõe as colunas da análise. Nada é criado antes da sua confirmação.'}
+                            </p>
+                        </div>
+                    )}
 
                     {analyzing && (
                         <div className="flex items-center gap-2 text-sm text-slate-500">
@@ -473,7 +487,7 @@ export default function PanoramaImport({
             {report && !result && (
                 <>
                     {/* 2. Mapeamento */}
-                    <Card className="border-slate-200 dark:border-slate-700">
+                    <Card ref={etapa2Ref} className="border-slate-200 dark:border-slate-700 scroll-mt-4">
                         <CardHeader className="pb-3">
                             <CardTitle className="text-base flex items-center gap-2">
                                 <FileSpreadsheet className="w-4 h-4 text-slate-400" />
@@ -494,7 +508,8 @@ export default function PanoramaImport({
                         </CardContent>
                     </Card>
 
-                    {/* 3. Classificação das linhas */}
+                    {/* 3. Classificação das linhas (só planilha: a base ligada não copia linhas) */}
+                    {!ligar && (
                     <Card className="border-slate-200 dark:border-slate-700">
                         <CardHeader className="pb-3">
                             <CardTitle className="text-base">3. O que será feito com cada linha</CardTitle>
@@ -593,16 +608,22 @@ export default function PanoramaImport({
                             </Tabs>
                         </CardContent>
                     </Card>
+                    )}
 
                     {/* 4. Confirmação */}
                     <Card className="border-indigo-200 dark:border-indigo-900">
                         <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
                             <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
-                                    4. Confirmar a importação
+                                    {ligar ? '3. Confirmar o panorama ligado' : '4. Confirmar a importação'}
                                 </p>
                                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                                    {seraoGravados > 0 ? (
+                                    {ligar ? (
+                                        <>
+                                            <strong>{formatNumber(report.total)}</strong> registro(s) de {nomeModulos(payload?.modulos || [])} hoje.
+                                            O panorama lê direto da funcionalidade: o que entrar ou mudar lá aparece aqui na hora.
+                                        </>
+                                    ) : seraoGravados > 0 ? (
                                         <>
                                             <strong>{formatNumber(counts.novo)}</strong> registro(s) novo(s)
                                             {counts.atualizacao > 0 && (
@@ -620,9 +641,9 @@ export default function PanoramaImport({
                             </div>
                             <div className="flex gap-2 shrink-0">
                                 <Button variant="outline" onClick={reset} disabled={busy}>Cancelar</Button>
-                                <Button onClick={handleCommit} disabled={busy || seraoGravados === 0} className="gap-2">
+                                <Button onClick={handleCommit} disabled={busy || (!ligar && seraoGravados === 0)} className="gap-2">
                                     {committing ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
-                                    Importar {formatNumber(seraoGravados)} registro(s)
+                                    {ligar ? 'Criar o panorama ligado' : `Importar ${formatNumber(seraoGravados)} registro(s)`}
                                 </Button>
                             </div>
                         </CardContent>
@@ -635,28 +656,46 @@ export default function PanoramaImport({
                     <CardHeader className="pb-3">
                         <CardTitle className="text-base flex items-center gap-2 text-emerald-700 dark:text-emerald-300">
                             <CheckCircle2 className="w-5 h-5" />
-                            {criadas.length > 1 ? `${criadas.length} bases criadas` : 'Importação concluída'}
+                            {ligar
+                                ? (criadas.length > 1 ? `${criadas.length} panoramas ligados criados` : 'Panorama ligado criado')
+                                : 'Importação concluída'}
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3">
+                        {ligar ? (
+                            <>
+                                <p className="text-sm">
+                                    {criadas.length > 1
+                                        ? <>Panoramas: <strong>{criadas.join(', ')}</strong>.</>
+                                        : <><strong>{formatNumber(result.ligados || 0)}</strong> registro(s) de {nomeModulos(payload?.modulos || [])} já em análise.</>}
+                                </p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                    Nada foi copiado. Abra o panorama no seletor de bases: Dados, Painel e
+                                    Relatórios leem a funcionalidade ao vivo, e um clique num registro o abre nela.
+                                </p>
+                                <Button variant="outline" onClick={reset} className="gap-2">
+                                    <Telescope className="w-4 h-4" />
+                                    Montar outro panorama
+                                </Button>
+                            </>
+                        ) : (
+                        <>
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
                             <Stat label="Adicionados" value={result.criados || 0} />
                             <Stat label="Complementados" value={result.enriquecidos || 0} />
                             <Stat label="Atualizados" value={result.atualizados || 0} />
                             <Stat label="Não importados" value={(counts.invalido || 0) + (policy === 'preserve' ? (counts.conflito || 0) : 0)} />
                         </div>
-                        {criadas.length > 1 && (
-                            <p className="text-sm">Bases criadas: <strong>{criadas.join(', ')}</strong>. Os números acima são os da última.</p>
-                        )}
                         <p className="text-xs text-slate-500 dark:text-slate-400">
                             Os registros já aparecem nas abas Dados, Painel e Relatórios. Cada um guarda a
                             origem no seu histórico.
-                            {fonte === 'orgao' && ' Para trazer o que mudou no órgão depois, volte aqui, escolha esta base como destino e leia os registros de novo.'}
                         </p>
                         <Button variant="outline" onClick={reset} className="gap-2">
                             <Upload className="w-4 h-4" />
-                            {fonte === 'orgao' ? 'Fazer outra importação' : 'Importar outro arquivo'}
+                            Importar outro arquivo
                         </Button>
+                        </>
+                        )}
                     </CardContent>
                 </Card>
             )}

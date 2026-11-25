@@ -3,7 +3,7 @@
 // roda aqui no próprio processo, com `.run()`:
 //   npx firebase emulators:exec --only firestore --project demo-sigo "node scripts/e2e-panorama-gravacao.mjs"
 // Confere: base nova criada a partir de uma planilha com coluna sem lista (o caso do erro) e a partir
-// das Consultas do órgão, com texto longo; releitura sem duplicar; base guarda a origem.
+// das Consultas do órgão como base ligada (sem cópia), que recusa importação por cima.
 import { createRequire } from 'module';
 import assert from 'node:assert/strict';
 const req = createRequire(new URL('../functions-v2/package.json', import.meta.url));
@@ -30,22 +30,20 @@ let r = await run({ fileData, fileName: 'consultas.xlsx', mode: 'commit', column
 assert.equal(r.criados, 300);
 console.log('ok 1: base nova pela planilha gravada (antes: INTERNAL)');
 
-// 2) Consultas do órgão, base nova, texto longo em lotes.
+// 2) Consultas do órgão: base LIGADA, sem copiar nada.
 const p2 = await run({ modulos: ['consultas'], mode: 'preview' });
 r = await run({ modulos: ['consultas'], mode: 'commit', columns: p2.colunas, baseNome: 'Consultas do órgão' });
-assert.equal(r.criados, 489);
+assert.equal(r.vinculada, true);
+assert.equal(r.ligados, 489);
 const base = (await db.doc(`panoramaBases/${r.baseId}`).get()).data();
+assert.equal(base.vinculada, true);
 assert.deepEqual(base.fonte_modulos, ['consultas']);
 assert.equal(base.columns.find((c) => c.role === 'identificador').label, 'Registro no SIGO');
-console.log('ok 2: 489 consultas do órgão numa base nova, com a origem guardada');
+assert.equal((await db.collection('panoramaRegistros').where('base_id', '==', r.baseId).count().get()).data().count, 0);
+console.log('ok 2: base ligada a 489 consultas, nenhum registro copiado');
 
-// 3) Releitura depois de uma mudança no órgão: só a mudança, nada duplicado.
-await db.doc('processes/c5').update({ analysis_start_date: '2026-03-01', responsible_user_name: 'Ana' });
-const p3 = await run({ baseId: r.baseId, modulos: ['consultas'], mode: 'preview', policy: 'update' });
-assert.equal(p3.counts.novo, 0);
-assert.equal(p3.counts.conflito + p3.counts.atualizacao, 1);
-const r3 = await run({ baseId: r.baseId, modulos: ['consultas'], mode: 'commit', policy: 'update', columns: p3.colunas });
-assert.equal(r3.criados, 0);
-assert.equal((await db.collection('panoramaRegistros').where('base_id', '==', r.baseId).count().get()).data().count, 489);
-console.log('ok 3: releitura trouxe só a consulta que mudou, sem duplicar');
+// 3) Base ligada não recebe importação por cima.
+await assert.rejects(run({ baseId: r.baseId, modulos: ['consultas'], mode: 'preview' }), /ligada/);
+await assert.rejects(run({ baseId: r.baseId, fileData, fileName: 'x.xlsx', mode: 'preview' }), /ligada/);
+console.log('ok 3: base ligada recusa importação');
 process.exit(0);

@@ -11,11 +11,12 @@ cada mudança está nas mensagens de commit (`git log`).
   (coluna sem lista de valores), que o Firestore recusa. A gravação passa a
   ir em lotes que respeitam o tamanho máximo, e falha inesperada mostra o
   motivo em português.
-- Novo: o Panorama pode ser criado a partir das funcionalidades do próprio
-  órgão — Consultas, Expedientes e/ou Parcerias, juntas numa base (com a
-  coluna "Funcionalidade") ou uma base para cada — além da planilha. O
-  identificador é o registro no SIGO (aditivos não viram "repetidos"), e ler
-  de novo traz só o que mudou.
+- Novo: além de dados externos (planilha), o Panorama pode analisar dados
+  internos — Consultas, Expedientes e/ou Parcerias do órgão, juntas numa base
+  (com a coluna "Funcionalidade") ou uma para cada. Essa base é **ligada**:
+  nada é copiado, o Panorama lê a funcionalidade ao vivo e cada registro novo
+  ou alterado entra na análise na hora. Clicar num registro o abre na
+  funcionalidade; o servidor recusa importar ou editar registros nela.
 
 ### 19/11/2026 — Fase de elaboração e exclusão dos autos com justificativa
 - Nova opção da fase, "Fase de elaboração: quem está nela só prepara

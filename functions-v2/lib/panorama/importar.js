@@ -247,11 +247,19 @@ async function importar(request) {
         if (data.organization_id !== organizationId) {
             throw new https_1.HttpsError('not-found', 'Base não encontrada');
         }
+        if (data.vinculada === true) {
+            throw new https_1.HttpsError('failed-precondition', 'Esta base é ligada às funcionalidades do órgão: os registros vêm delas e não se importam.');
+        }
         baseDef = (0, panorama_1.sanitizeBaseDef)(data);
     }
     // ---- Fonte: planilha ou as funcionalidades do órgão -----------------
     const modulos = (0, panoramaModulos_1.sanitizeModulos)(payload.modulos);
     const daPlataforma = modulos.length > 0;
+    // A base das funcionalidades é LIGADA a elas (sem cópia): só se cria
+    // nova, nunca se despeja numa base de planilha.
+    if (daPlataforma && baseId) {
+        throw new https_1.HttpsError('invalid-argument', 'Para usar as funcionalidades do órgão, crie uma base nova: ela fica ligada a elas.');
+    }
     const fileName = daPlataforma
         ? (0, panoramaModulos_1.nomeFonte)(modulos)
         : String(payload.fileName || '').slice(0, 200);
@@ -506,6 +514,29 @@ async function importar(request) {
     if (!podeConfigurar && !baseId) {
         throw new https_1.HttpsError('permission-denied', 'É preciso a permissão "Configurar Panorama" para criar uma base');
     }
+    // Base ligada: grava só a definição (colunas e papéis). Os registros
+    // continuam nas funcionalidades e a tela os lê de lá, ao vivo.
+    if (daPlataforma) {
+        const def = (0, panorama_1.sanitizeBaseDef)({ nome: payload.baseNome || fileName, columns: colunas });
+        const agora = new Date();
+        const doc = await db.collection('panoramaBases').add(Object.assign(Object.assign({ organization_id: organizationId }, def), { vinculada: true, fonte_modulos: modulos, created_by: userId, created_by_name: userName, created_at: admin.firestore.FieldValue.serverTimestamp(), updated_at: admin.firestore.FieldValue.serverTimestamp(), updated_by: userId, updated_by_name: userName, activity_log: [{
+                    date: agora.toISOString().split('T')[0],
+                    time: agora.toTimeString().split(' ')[0],
+                    user_id: userId,
+                    user_name: userName,
+                    action: `Base ligada a ${fileName}`,
+                    timestamp: agora.toISOString(),
+                }] }));
+        await db.collection('auditLogs').add({
+            organization_id: organizationId,
+            user_id: userId,
+            user_name: userName,
+            action: 'LINK_PANORAMA',
+            details: { base_id: doc.id, modulos },
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        return Object.assign(Object.assign({}, report), { baseId: doc.id, vinculada: true, ligados: linhas.length, criados: 0, enriquecidos: 0, atualizados: 0 });
+    }
     // Base nova: cria agora, com as colunas confirmadas na tela.
     let alvoBaseId = baseId || '';
     if (!alvoBaseId) {
@@ -513,14 +544,12 @@ async function importar(request) {
             nome: payload.baseNome || fileName.replace(/\.[^.]+$/, '') || 'Nova base',
             columns: colunas,
         });
-        const doc = await db.collection('panoramaBases').add(Object.assign(Object.assign(Object.assign({ organization_id: organizationId }, novaDef), (daPlataforma ? { fonte_modulos: modulos } : {})), { created_by: userId, created_by_name: userName, created_at: admin.firestore.FieldValue.serverTimestamp(), updated_at: admin.firestore.FieldValue.serverTimestamp(), updated_by: userId, updated_by_name: userName, activity_log: [{
+        const doc = await db.collection('panoramaBases').add(Object.assign(Object.assign({ organization_id: organizationId }, novaDef), { created_by: userId, created_by_name: userName, created_at: admin.firestore.FieldValue.serverTimestamp(), updated_at: admin.firestore.FieldValue.serverTimestamp(), updated_by: userId, updated_by_name: userName, activity_log: [{
                     date: new Date().toISOString().split('T')[0],
                     time: new Date().toTimeString().split(' ')[0],
                     user_id: userId,
                     user_name: userName,
-                    action: daPlataforma
-                        ? `Base criada a partir de ${fileName} do órgão`
-                        : `Base criada pela importação de ${fileName || 'uma planilha'}`,
+                    action: `Base criada pela importação de ${fileName || 'uma planilha'}`,
                     timestamp: new Date().toISOString(),
                 }] }));
         alvoBaseId = doc.id;
@@ -583,7 +612,7 @@ async function importar(request) {
                 base_id: alvoBaseId,
                 chave_norm: item.chave,
                 values: item.values,
-                source: daPlataforma ? 'orgao' : 'import',
+                source: 'import',
                 imported_from: fileName,
                 created_by: userId,
                 created_at: admin.firestore.FieldValue.serverTimestamp(),

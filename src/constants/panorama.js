@@ -244,6 +244,9 @@ export function resolveBase(base) {
         fuzzyThreshold: Number.isFinite(Number(base.fuzzyThreshold)) ? Number(base.fuzzyThreshold) : 0.7,
         created_by: base.created_by || '',
         created_by_name: base.created_by_name || '',
+        // Ligada às funcionalidades do órgão: os registros vêm delas, sem cópia.
+        vinculada: base.vinculada === true,
+        fonte_modulos: Array.isArray(base.fonte_modulos) ? base.fonte_modulos : [],
     };
 }
 

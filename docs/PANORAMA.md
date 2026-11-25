@@ -155,12 +155,19 @@ de qualquer coisa ser gravada:
    que exatamente mudaria em cada caso.
 4. **Confirmação** — só agora os dados são gravados.
 
-### Passo 1 (alternativa) — Criar a base a partir das funcionalidades do órgão
+### Passo 1 (alternativa) — Panorama ligado às funcionalidades do órgão
 
-Na mesma tela, em **Origem dos dados**, escolha **Funcionalidades do órgão** em
-vez de **Planilha**. Marque **Consultas**, **Expedientes** e/ou **Parcerias**
-(aparecem só as ligadas no órgão) e clique em **Ler os registros do órgão**.
-Nada é exportado nem enviado: a plataforma lê os registros do próprio órgão.
+O Panorama é o ambiente de análise; os dados podem ser **externos** (uma
+planilha, copiada para a base) ou **internos** (as funcionalidades do órgão).
+Para os internos não há cópia nem importação: a base fica **ligada** à
+funcionalidade e lê os registros dela ao vivo. Cada consulta nova ou alterada
+entra na análise na hora, sem voltar à Importação.
+
+Na Importação, em **Origem dos dados**, escolha **Dados internos
+(funcionalidades do órgão)**. Marque **Consultas**, **Expedientes** e/ou
+**Parcerias** (aparecem só as ligadas no órgão), dê um nome (em branco, vale o
+nome das funcionalidades) e clique em **Montar o panorama**. A plataforma propõe
+as colunas; confira os tipos e papéis e clique em **Criar o panorama ligado**.
 
 - **Uma funcionalidade** — a base tem as colunas dela.
 - **Várias, juntas** — uma base só, com a coluna **Funcionalidade**
@@ -170,18 +177,24 @@ Nada é exportado nem enviado: a plataforma lê os registros do próprio órgão
   Revisão concluída, Arquivamento, Observações, Urgente*. As colunas próprias
   (Consulente, Matéria, Sistema, Origem, Partes, Termo final...) ficam vazias
   nas linhas dos outros módulos.
-- **Várias, separadas** — uma base para cada. A tela mostra a conferência da
-  primeira; ao confirmar, segue para a próxima.
+- **Várias, separadas** — um panorama ligado para cada. A tela mostra a
+  conferência do primeiro; ao confirmar, segue para o próximo.
 
-O identificador dessas bases é sempre **Registro no SIGO** (`consulta/<id>`,
+Numa base ligada (selo **Ligada a … · ao vivo** no topo):
+
+- Painel, Dados e Relatórios leem a funcionalidade a cada mudança.
+- Não há "Novo registro", exclusão nem importação: para alterar, clique no
+  registro e ele abre na própria funcionalidade.
+- **Configurar** continua livre (rótulos, tipos, papéis, colunas visíveis).
+- Excluir o panorama não apaga nenhum registro do órgão.
+
+O identificador é sempre **Registro no SIGO** (`consulta/<id>`,
 `expediente/<id>`, `parceria/<id>`), não o número PGEA: um aditivo tem o mesmo
-número do original e, pela planilha exportada, aparecia como "identificador
-repetido". A política padrão aqui é **Atualizar**, porque o registro do órgão
-é a fonte da verdade.
+número do original.
 
-**Para trazer o que mudou depois:** volte à Importação, escolha a base como
-destino e leia os registros de novo. Só entram os registros novos e o que
-mudou; nada é duplicado.
+> Bases criadas pelo caminho antigo (cópia das funcionalidades, só em
+> 25/11/2026) continuam como bases comuns. Para ter o panorama ao vivo, crie um
+> ligado e exclua a cópia.
 
 ### Passo 2 — Ajustar o que só você sabe
 
@@ -488,15 +501,22 @@ e a aba de configuração exigem as duas. As Cloud Functions validam a permissã
   "base_id": "base456",
   "values": { "n_do_ic": "1.23.0001", "comarca": "Porto Alegre" },
   "chave_norm": "1230001",       // identificador normalizado (idempotência)
-  "source": "import",            // 'import' (planilha) ou 'orgao' (funcionalidades do órgão)
+  "source": "import",            // 'import' (planilha) ou 'manual'
   "imported_from": "consultas.xlsx",
   "created_at": "...", "updated_at": "...", "created_by": "uid"
 }
 ```
 
-A base criada a partir das funcionalidades guarda também
-`fonte_modulos: ['consultas', 'expedientes', 'parcerias']` (só as escolhidas),
-que a tela usa para já marcar as mesmas ao reabrir a Importação com ela.
+**Base ligada:** a base criada a partir das funcionalidades tem
+`vinculada: true` e `fonte_modulos: ['consultas', 'expedientes', 'parcerias']`
+(só as escolhidas) e **nenhum** documento em `panoramaRegistros`. A tela
+(`usePanoramaRegistros` → `useRegistrosLigados`) assina `processes`,
+`expedientes` e/ou `parcerias` do órgão e monta as linhas com
+`registrosLigados` (`src/lib/panoramaModulos.js`, espelho de
+`functions-v2/src/shared/panoramaModulos.ts`; o teste
+`src/lib/panoramaModulos.test.js` confere que os dois dão o mesmo resultado).
+Cada coluna acha o seu valor pela `origem` (o rótulo da linha) e é convertida
+pelo tipo configurado.
 
 ### `panoramaTemplates/{templateId}`
 
@@ -555,8 +575,12 @@ são completados.
 `linhaDoRegistro` (`shared/panoramaModulos.ts`): mesmos rótulos para o que tem o
 mesmo sentido, situação com o nome da coluna do quadro (`calculateStatus` /
 `calculateParceriaStatus`), datas em `AAAA-MM-DD`. Daí em diante o caminho é o
-da planilha. Em base nova, a coluna `Registro no SIGO` recebe o papel de
-identificador e nenhuma outra fica com ele.
+da planilha na prévia (colunas propostas). Na gravação, cria só a definição
+da base, com `vinculada: true`, e devolve `ligados` (quantos registros a base lê
+hoje); nenhum registro é copiado. A coluna `Registro no SIGO` recebe o papel de
+identificador. `modulos` com `baseId`, ou planilha numa base ligada, é recusado
+(`failed-precondition`/`invalid-argument`), e `managePanoramaRegistro` recusa
+criar, editar ou excluir registro numa base ligada.
 
 **Gravação:** lotes de até 200 registros ou ~4 MB (o Firestore aceita 10 MiB
 por envio; registros com muito texto passavam disso). Definições de coluna são

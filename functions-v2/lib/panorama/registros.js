@@ -41,6 +41,9 @@ async function loadBase(db, organizationId, baseId) {
     if (data.organization_id !== organizationId) {
         throw new https_1.HttpsError('not-found', 'Base não encontrada');
     }
+    if (data.vinculada === true) {
+        throw new https_1.HttpsError('failed-precondition', 'Esta base é ligada às funcionalidades do órgão: altere o registro na própria funcionalidade.');
+    }
     return (0, panorama_1.sanitizeBaseDef)(data);
 }
 /**
