@@ -5,10 +5,11 @@
 // cliente, para que um índice ainda não propagado nunca esvazie a tela.
 // ============================================================================
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '@/config/firebase';
 import { logger } from '@/utils/logger';
+import { COLECAO_MODULO, registrosLigados } from '@/lib/panoramaModulos';
 
 /** Bases analíticas de um órgão, em tempo real. */
 export function usePanoramaBases(organizationId) {
@@ -57,7 +58,64 @@ export function usePanoramaBases(organizationId) {
  */
 export const PANORAMA_TETO_REGISTROS = 20000;
 
-export function usePanoramaRegistros(organizationId, baseId) {
+export function usePanoramaRegistros(organizationId, baseId, base = null) {
+    const ligada = base?.vinculada === true;
+    const ligados = useRegistrosLigados(organizationId, ligada ? base : null);
+    const copiados = useRegistrosCopiados(organizationId, ligada ? null : baseId);
+    const { registros, isLoading, error } = ligada ? ligados : copiados;
+    return {
+        registros,
+        isLoading,
+        error,
+        pertoDoTeto: registros.length >= PANORAMA_TETO_REGISTROS * 0.8,
+        acimaDoTeto: registros.length > PANORAMA_TETO_REGISTROS,
+    };
+}
+
+/**
+ * Base ligada às funcionalidades do órgão: não há cópia. Assina Consultas,
+ * Expedientes e/ou Parcerias do órgão e monta as linhas na hora, então o
+ * Panorama acompanha cada registro novo ou alterado.
+ */
+function useRegistrosLigados(organizationId, base) {
+    const [docs, setDocs] = useState({});
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const modulos = (base?.fonte_modulos || []).filter((m) => COLECAO_MODULO[m]).join(',');
+
+    useEffect(() => {
+        if (!organizationId || !modulos) {
+            setDocs({});
+            setIsLoading(false);
+            return undefined;
+        }
+        setDocs({});
+        setIsLoading(true);
+        setError(null);
+        const lista = modulos.split(',');
+        const prontos = new Set();
+        const unsubs = lista.map((m) => onSnapshot(
+            query(collection(db, COLECAO_MODULO[m]), where('organization_id', '==', organizationId)),
+            (snapshot) => {
+                setDocs((atual) => ({ ...atual, [m]: snapshot.docs.map((d) => ({ ...d.data(), id: d.id })) }));
+                prontos.add(m);
+                if (prontos.size === lista.length) setIsLoading(false);
+            },
+            (err) => {
+                logger.error(`Error listening to ${m} for panorama:`, err);
+                setError(err.message);
+                setIsLoading(false);
+            }
+        ));
+        return () => unsubs.forEach((u) => u());
+    }, [organizationId, modulos]);
+
+    // As colunas (tipos, papéis) podem mudar na configuração sem nova assinatura.
+    const registros = useMemo(() => (base ? registrosLigados(base, docs) : []), [base, docs]);
+    return { registros, isLoading, error };
+}
+
+function useRegistrosCopiados(organizationId, baseId) {
     const [registros, setRegistros] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -91,13 +149,7 @@ export function usePanoramaRegistros(organizationId, baseId) {
         return () => unsubscribe();
     }, [organizationId, baseId]);
 
-    return {
-        registros,
-        isLoading,
-        error,
-        pertoDoTeto: registros.length >= PANORAMA_TETO_REGISTROS * 0.8,
-        acimaDoTeto: registros.length > PANORAMA_TETO_REGISTROS,
-    };
+    return { registros, isLoading, error };
 }
 
 /** Modelos de relatório do órgão, em tempo real. */

@@ -63,16 +63,13 @@ console.log('ok 2: três funcionalidades juntas numa base, com as mesmas colunas
 // indefinido; nesse caso a mensagem tem de ser clara, nunca só "INTERNAL".
 try {
     r = await call({ modulos: ['consultas'], mode: 'commit', baseNome: 'Consultas CAOCIPP', columns: (await call({ modulos: ['consultas'], mode: 'preview' })).colunas });
-    assert.equal(r.criados, 13);
+    assert.equal(r.ligados, 13);
     const base = (await db.doc(`panoramaBases/${r.baseId}`).get()).data();
+    assert.equal(base.vinculada, true);
     assert.deepEqual(base.fonte_modulos, ['consultas']);
     const n = (await db.collection('panoramaRegistros').where('base_id', '==', r.baseId).count().get()).data().count;
-    assert.equal(n, 13);
-    // De novo: nada novo, nada duplicado.
-    r = await call({ baseId: r.baseId, modulos: ['consultas'], mode: 'preview', policy: 'update' });
-    assert.equal(r.counts.novo, 0);
-    assert.equal(r.counts.sem_mudanca, 13);
-    console.log('ok 3: base criada a partir das Consultas e releitura sem duplicar');
+    assert.equal(n, 0);
+    console.log('ok 3: base ligada às Consultas, sem cópia');
 } catch (e) {
     assert.notEqual(e.message, 'INTERNAL');
     assert.match(e.message, /A importação não pôde ser concluída/);

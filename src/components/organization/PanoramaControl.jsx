@@ -21,6 +21,8 @@ import { useAuth } from '@/lib/FirebaseAuthContext';
 import { useOrgPermission } from '@/lib/OrganizationPermissionsContext';
 import { usePanoramaBases, usePanoramaRegistros, PANORAMA_TETO_REGISTROS } from '@/hooks/usePanorama';
 import { deletePanoramaRegistros } from '@/services/panoramaService';
+import { useNavigate } from 'react-router-dom';
+import { nomeFonte } from '@/lib/panoramaModulos';
 import {
     resolveBase, rolesPreenchidos, roleMeta, PANORAMA_DEFAULT_ANALYSIS,
 } from '@/constants/panorama';
@@ -73,7 +75,8 @@ export default function PanoramaControl({ organization, userRole, onGoToAdmin })
 
     const {
         registros, isLoading: registrosLoading, pertoDoTeto, acimaDoTeto,
-    } = usePanoramaRegistros(organization?.id, baseSelecionada?.id);
+    } = usePanoramaRegistros(organization?.id, baseSelecionada?.id, base);
+    const ligada = base?.vinculada === true;
 
     const [filters, setFilters] = useState(EMPTY_PANORAMA_FILTERS);
     const [analysis, setAnalysis] = useJurimetriaPref(
@@ -124,6 +127,13 @@ export default function PanoramaControl({ organization, userRole, onGoToAdmin })
     );
 
     const papeis = useMemo(() => (base ? rolesPreenchidos(base) : []), [base]);
+
+    // Base ligada: o registro mora na funcionalidade; "ver" abre lá.
+    const navigate = useNavigate();
+    const abrirNaFuncionalidade = (r) => {
+        const aba = { consultas: 'processes', expedientes: 'expedientes', parcerias: 'parcerias' }[r.modulo];
+        if (aba) navigate(`/Organization?id=${organization.id}&tab=${aba}&abrir=${encodeURIComponent(r.origem_id)}`);
+    };
 
     const handleExcluir = async (ids) => {
         setDeleting(true);
@@ -176,10 +186,10 @@ export default function PanoramaControl({ organization, userRole, onGoToAdmin })
                         <Alert>
                             <Info className="w-4 h-4" />
                             <AlertDescription className="text-sm">
-                                Para começar, envie uma planilha ou leia os registros que o órgão já tem
-                                em Consultas, Expedientes ou Parcerias (uma, algumas ou todas, numa base
-                                só ou uma base para cada). A base é criada com as colunas da origem. Não
-                                é preciso preparar nada antes.
+                                Para começar, use dados externos (uma planilha) ou ligue o Panorama aos
+                                dados internos do órgão: Consultas, Expedientes ou Parcerias (uma, algumas
+                                ou todas, numa base só ou uma para cada). Os internos não são copiados: o
+                                Panorama os lê ao vivo e acompanha cada registro novo.
                             </AlertDescription>
                         </Alert>
                         {!canConfigure && (
@@ -237,6 +247,15 @@ export default function PanoramaControl({ organization, userRole, onGoToAdmin })
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2 shrink-0">
+                        {ligada && (
+                            <Badge
+                                variant="outline"
+                                className="text-xs border-emerald-300 text-emerald-700 dark:border-emerald-800 dark:text-emerald-300"
+                                title="Os registros vêm direto da funcionalidade, sem cópia, e se atualizam sozinhos."
+                            >
+                                Ligada a {nomeFonte(base.fonte_modulos)} · ao vivo
+                            </Badge>
+                        )}
                         <Badge variant="outline" className="text-xs">
                             {formatNumber(registros.length)} registro(s)
                         </Badge>
@@ -337,11 +356,18 @@ export default function PanoramaControl({ organization, userRole, onGoToAdmin })
                 <TabsContent value="dados" className="space-y-4 mt-0">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="flex flex-wrap items-center gap-2">
+                            {ligada ? (
+                                <p className="text-sm text-slate-500 dark:text-slate-400">
+                                    Estes são os registros de {nomeFonte(base.fonte_modulos)}, lidos agora. Para
+                                    alterar, abra o registro na funcionalidade.
+                                </p>
+                            ) : (
                             <Button onClick={() => { setEditando(null); setFormOpen(true); }} className="gap-2">
                                 <Plus className="w-4 h-4" />
                                 Novo registro
                             </Button>
-                            {canDelete && selectedIds.length > 0 && (
+                            )}
+                            {!ligada && canDelete && selectedIds.length > 0 && (
                                 <Button
                                     variant="outline"
                                     onClick={() => setExcluindoMassa(true)}
@@ -371,11 +397,11 @@ export default function PanoramaControl({ organization, userRole, onGoToAdmin })
                         <PanoramaTable
                             registros={filtrados}
                             base={base}
-                            onView={(r) => { setEditando(r); setFormOpen(true); }}
-                            onEdit={(r) => { setEditando(r); setFormOpen(true); }}
-                            onDelete={(r) => setExcluindo(r)}
-                            canDelete={canDelete}
-                            selectable={canDelete}
+                            onView={ligada ? abrirNaFuncionalidade : (r) => { setEditando(r); setFormOpen(true); }}
+                            onEdit={ligada ? undefined : (r) => { setEditando(r); setFormOpen(true); }}
+                            onDelete={ligada ? undefined : (r) => setExcluindo(r)}
+                            canDelete={canDelete && !ligada}
+                            selectable={canDelete && !ligada}
                             selectedIds={selectedIds}
                             onSelectionChange={setSelectedIds}
                         />
@@ -385,8 +411,8 @@ export default function PanoramaControl({ organization, userRole, onGoToAdmin })
                 <TabsContent value="importacao" className="mt-0">
                     <PanoramaImport
                         organization={organization}
-                        base={base}
-                        bases={bases}
+                        base={ligada ? null : base}
+                        bases={bases.filter((b) => b.vinculada !== true)}
                         podeConfigurar={canConfigure}
                         onBaseCriada={(id) => setBaseId(id)}
                         onImported={() => {}}

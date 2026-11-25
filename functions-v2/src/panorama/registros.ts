@@ -65,6 +65,12 @@ async function loadBase(
     if (data.organization_id !== organizationId) {
         throw new HttpsError('not-found', 'Base não encontrada');
     }
+    if (data.vinculada === true) {
+        throw new HttpsError(
+            'failed-precondition',
+            'Esta base é ligada às funcionalidades do órgão: altere o registro na própria funcionalidade.'
+        );
+    }
     return sanitizeBaseDef(data);
 }
 
