@@ -164,8 +164,8 @@ export default function PanoramaControl({ organization, userRole, onGoToAdmin })
                         </CardTitle>
                         <CardDescription>
                             O Panorama dá ao órgão a visão de conjunto da sua área de atuação, a partir
-                            das planilhas que ele já mantém. Diferente dos outros módulos, aqui{' '}
-                            <strong>as colunas não são fixas</strong>: elas vêm da planilha que você
+                            das planilhas que ele já mantém ou dos registros que já tem no SIGO. Diferente dos outros módulos, aqui{' '}
+                            <strong>as colunas não são fixas</strong>: elas vêm da planilha ou das funcionalidades que você
                             importar. A plataforma lê o arquivo, identifica cada coluna e propõe o que
                             ela significa para a análise — data, território, responsável, assunto,
                             resultado, valor, prazo. Você confirma, e a partir daí tem painel,
@@ -176,9 +176,10 @@ export default function PanoramaControl({ organization, userRole, onGoToAdmin })
                         <Alert>
                             <Info className="w-4 h-4" />
                             <AlertDescription className="text-sm">
-                                Para começar, vá à aba <strong>Importação</strong> e envie uma planilha.
-                                A base será criada com as colunas dela. Não é preciso preparar nada
-                                antes — a planilha que o órgão já usa serve.
+                                Para começar, envie uma planilha ou leia os registros que o órgão já tem
+                                em Consultas, Expedientes ou Parcerias (uma, algumas ou todas, numa base
+                                só ou uma base para cada). A base é criada com as colunas da origem. Não
+                                é preciso preparar nada antes.
                             </AlertDescription>
                         </Alert>
                         {!canConfigure && (

@@ -1,10 +1,12 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.importPanorama = void 0;
+exports.lotes = lotes;
 const cotas_1 = require("../shared/cotas");
 const vinculo_1 = require("../shared/vinculo");
 const admin = require("firebase-admin");
 const https_1 = require("firebase-functions/v2/https");
+const panoramaModulos_1 = require("../shared/panoramaModulos");
 const XLSX = require("xlsx");
 const panorama_1 = require("../shared/panorama");
 /**
@@ -159,7 +161,60 @@ function detectarColunas(linhas, baseExistente) {
     }
     return out;
 }
+/** Linhas lidas dos registros do órgão, com os rótulos de `linhaDoRegistro`. */
+async function linhasDosModulos(db, organizationId, modulos) {
+    const linhas = [];
+    for (const modulo of modulos) {
+        const snap = await db.collection(panoramaModulos_1.COLECAO_MODULO[modulo])
+            .where('organization_id', '==', organizationId)
+            .get();
+        for (const d of snap.docs) {
+            linhas.push((0, panoramaModulos_1.linhaDoRegistro)(modulo, d.id, d.data() || {}, modulos.length > 1));
+        }
+    }
+    return linhas;
+}
+/**
+ * Lotes de gravação que cabem no limite do Firestore (500 operações e 10 MiB
+ * por envio). Registros com muito texto passavam do limite de tamanho com
+ * 200 por lote; o lote agora fecha em 200 ou em ~4 MB, o que vier antes.
+ */
+function lotes(itens, tamanho, maxItens = 200, maxBytes = 4000000) {
+    const out = [];
+    let atual = [];
+    let bytes = 0;
+    for (const item of itens) {
+        const t = tamanho(item);
+        if (atual.length > 0 && (atual.length >= maxItens || bytes + t > maxBytes)) {
+            out.push(atual);
+            atual = [];
+            bytes = 0;
+        }
+        atual.push(item);
+        bytes += t;
+    }
+    if (atual.length > 0)
+        out.push(atual);
+    return out;
+}
+const tamanhoLinha = (p) => JSON.stringify(p.values).length + 1000;
 exports.importPanorama = (0, https_1.onCall)({ region: 'southamerica-east1', memory: '1GiB', timeoutSeconds: 540 }, async (request) => {
+    try {
+        return await importar(request);
+    }
+    catch (err) {
+        if (err instanceof https_1.HttpsError)
+            throw err;
+        // Sem isto, qualquer falha inesperada chegava à tela só como
+        // "INTERNAL". Registros já gravados não se duplicam ao repetir,
+        // porque a chave natural os reconhece.
+        console.error('[importPanorama] falha inesperada', err);
+        const detalhe = String((err === null || err === void 0 ? void 0 : err.message) || err || '').slice(0, 300);
+        throw new https_1.HttpsError('internal', `A importação não pôde ser concluída: ${detalhe || 'erro desconhecido'}. `
+            + 'Tente de novo: com o identificador configurado, o que já entrou não se duplica.');
+    }
+});
+async function importar(request) {
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Usuário deve estar autenticado');
     }
@@ -194,10 +249,19 @@ exports.importPanorama = (0, https_1.onCall)({ region: 'southamerica-east1', mem
         }
         baseDef = (0, panorama_1.sanitizeBaseDef)(data);
     }
-    const fileName = String(payload.fileName || '').slice(0, 200);
-    const linhas = parseFile(payload.fileData, fileName);
+    // ---- Fonte: planilha ou as funcionalidades do órgão -----------------
+    const modulos = (0, panoramaModulos_1.sanitizeModulos)(payload.modulos);
+    const daPlataforma = modulos.length > 0;
+    const fileName = daPlataforma
+        ? (0, panoramaModulos_1.nomeFonte)(modulos)
+        : String(payload.fileName || '').slice(0, 200);
+    const linhas = daPlataforma
+        ? await linhasDosModulos(db, organizationId, modulos)
+        : parseFile(payload.fileData, fileName);
     if (linhas.length === 0) {
-        throw new https_1.HttpsError('invalid-argument', 'Arquivo vazio — nenhuma linha encontrada.');
+        throw new https_1.HttpsError('invalid-argument', daPlataforma
+            ? `${fileName}: o órgão ainda não tem registros para levar ao Panorama.`
+            : 'Arquivo vazio — nenhuma linha encontrada.');
     }
     const maxLinhas = await (0, cotas_1.limiteImportacao)(MAX_ROWS);
     if (linhas.length > maxLinhas) {
@@ -208,6 +272,25 @@ exports.importPanorama = (0, https_1.onCall)({ region: 'southamerica-east1', mem
     // No preview, a plataforma DETECTA. No commit, vale o que o usuário
     // confirmou na tela (sanitizado), e a detecção serve só de fallback.
     const detectadas = detectarColunas(linhas, baseDef);
+    // Vindo do órgão, o identificador é sempre o registro no SIGO (estável
+    // e único, inclusive para aditivos, que repetem o número PGEA). Numa
+    // base que já existe, vale o que o órgão configurou.
+    if (daPlataforma && !baseDef) {
+        for (const col of detectadas) {
+            const ehRegistro = col.origem === panoramaModulos_1.COLUNA_REGISTRO;
+            if (ehRegistro) {
+                col.role = 'identificador';
+                col.papelSugerido = 'identificador';
+                col.motivoSugestao = 'cada registro do SIGO tem um endereço único';
+                col.confiancaSugestao = 1;
+            }
+            else if (col.role === 'identificador') {
+                col.role = null;
+                col.papelSugerido = null;
+                col.motivoSugestao = `"${panoramaModulos_1.COLUNA_REGISTRO}" é o identificador dos registros do órgão`;
+            }
+        }
+    }
     const semSugestoes = detectadas.map((d) => ({
         key: d.key, label: d.label, type: d.type, role: d.role,
         lista: d.lista, cardinalidade: d.cardinalidade, amostra: d.amostra,
@@ -430,12 +513,14 @@ exports.importPanorama = (0, https_1.onCall)({ region: 'southamerica-east1', mem
             nome: payload.baseNome || fileName.replace(/\.[^.]+$/, '') || 'Nova base',
             columns: colunas,
         });
-        const doc = await db.collection('panoramaBases').add(Object.assign(Object.assign({ organization_id: organizationId }, novaDef), { created_by: userId, created_by_name: userName, created_at: admin.firestore.FieldValue.serverTimestamp(), updated_at: admin.firestore.FieldValue.serverTimestamp(), updated_by: userId, updated_by_name: userName, activity_log: [{
+        const doc = await db.collection('panoramaBases').add(Object.assign(Object.assign(Object.assign({ organization_id: organizationId }, novaDef), (daPlataforma ? { fonte_modulos: modulos } : {})), { created_by: userId, created_by_name: userName, created_at: admin.firestore.FieldValue.serverTimestamp(), updated_at: admin.firestore.FieldValue.serverTimestamp(), updated_by: userId, updated_by_name: userName, activity_log: [{
                     date: new Date().toISOString().split('T')[0],
                     time: new Date().toTimeString().split(' ')[0],
                     user_id: userId,
                     user_name: userName,
-                    action: `Base criada pela importação de ${fileName || 'uma planilha'}`,
+                    action: daPlataforma
+                        ? `Base criada a partir de ${fileName} do órgão`
+                        : `Base criada pela importação de ${fileName || 'uma planilha'}`,
                     timestamp: new Date().toISOString(),
                 }] }));
         alvoBaseId = doc.id;
@@ -490,8 +575,7 @@ exports.importPanorama = (0, https_1.onCall)({ region: 'southamerica-east1', mem
     let enriquecidos = 0;
     let atualizados = 0;
     // Criação
-    for (let i = 0; i < aCriar.length; i += 200) {
-        const chunk = aCriar.slice(i, i + 200);
+    for (const chunk of lotes(aCriar, tamanhoLinha)) {
         const batch = db.batch();
         for (const item of chunk) {
             batch.set(db.collection('panoramaRegistros').doc(), {
@@ -499,7 +583,7 @@ exports.importPanorama = (0, https_1.onCall)({ region: 'southamerica-east1', mem
                 base_id: alvoBaseId,
                 chave_norm: item.chave,
                 values: item.values,
-                source: 'import',
+                source: daPlataforma ? 'orgao' : 'import',
                 imported_from: fileName,
                 created_by: userId,
                 created_at: admin.firestore.FieldValue.serverTimestamp(),
@@ -513,8 +597,7 @@ exports.importPanorama = (0, https_1.onCall)({ region: 'southamerica-east1', mem
     }
     // Enriquecimento e sobrescrita
     const aAtualizar = [...aEnriquecer, ...aSobrescrever];
-    for (let i = 0; i < aAtualizar.length; i += 200) {
-        const chunk = aAtualizar.slice(i, i + 200);
+    for (const chunk of lotes(aAtualizar, tamanhoLinha)) {
         const batch = db.batch();
         for (const item of chunk) {
             if (!item.existingId)
@@ -562,5 +645,5 @@ exports.importPanorama = (0, https_1.onCall)({ region: 'southamerica-east1', mem
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
     });
     return Object.assign(Object.assign({}, report), { baseId: alvoBaseId, criados, enriquecidos, atualizados });
-});
+}
 //# sourceMappingURL=importar.js.map

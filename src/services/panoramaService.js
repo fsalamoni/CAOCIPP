@@ -62,23 +62,25 @@ export const bulkUpdatePanoramaRegistros = ({ organizationId, baseId, ids, value
 // ---- Importação -------------------------------------------------------------
 
 /**
- * Analisa a planilha SEM gravar nada.
+ * Analisa a planilha SEM gravar nada. Com `modulos` (['consultas',
+ * 'expedientes', 'parcerias']) no lugar do arquivo, lê os registros do
+ * próprio órgão.
  *
  * Devolve as colunas detectadas (tipo, cardinalidade, amostra, papel proposto e
  * o motivo da proposta) e a classificação de cada linha. `baseId` vazio
  * significa base nova.
  */
-export const previewPanoramaImport = ({ organizationId, baseId, fileData, fileName, policy }) =>
+export const previewPanoramaImport = ({ organizationId, baseId, fileData, fileName, modulos, policy }) =>
     call('importPanorama',
-        { organizationId, baseId, fileData, fileName, policy, mode: 'preview' },
+        { organizationId, baseId, fileData, fileName, modulos, policy, mode: 'preview' },
         { timeout: 540000 });
 
 /** Aplica a importação, com as colunas e papéis confirmados pelo usuário. */
 export const commitPanoramaImport = ({
-    organizationId, baseId, fileData, fileName, policy, columns, baseNome,
+    organizationId, baseId, fileData, fileName, modulos, policy, columns, baseNome,
 }) =>
     call('importPanorama',
-        { organizationId, baseId, fileData, fileName, policy, columns, baseNome, mode: 'commit' },
+        { organizationId, baseId, fileData, fileName, modulos, policy, columns, baseNome, mode: 'commit' },
         { timeout: 540000 });
 
 // ---- Modelos de relatório ----------------------------------------------------

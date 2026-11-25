@@ -155,6 +155,34 @@ de qualquer coisa ser gravada:
    que exatamente mudaria em cada caso.
 4. **Confirmação** — só agora os dados são gravados.
 
+### Passo 1 (alternativa) — Criar a base a partir das funcionalidades do órgão
+
+Na mesma tela, em **Origem dos dados**, escolha **Funcionalidades do órgão** em
+vez de **Planilha**. Marque **Consultas**, **Expedientes** e/ou **Parcerias**
+(aparecem só as ligadas no órgão) e clique em **Ler os registros do órgão**.
+Nada é exportado nem enviado: a plataforma lê os registros do próprio órgão.
+
+- **Uma funcionalidade** — a base tem as colunas dela.
+- **Várias, juntas** — uma base só, com a coluna **Funcionalidade**
+  (Consulta, Expediente, Parceria). O que tem o mesmo sentido nos três
+  módulos cai na mesma coluna: *Número PGEA, Situação, Entrada, Objeto,
+  Responsável, Distribuição, Início da análise, Remessa para revisão,
+  Revisão concluída, Arquivamento, Observações, Urgente*. As colunas próprias
+  (Consulente, Matéria, Sistema, Origem, Partes, Termo final...) ficam vazias
+  nas linhas dos outros módulos.
+- **Várias, separadas** — uma base para cada. A tela mostra a conferência da
+  primeira; ao confirmar, segue para a próxima.
+
+O identificador dessas bases é sempre **Registro no SIGO** (`consulta/<id>`,
+`expediente/<id>`, `parceria/<id>`), não o número PGEA: um aditivo tem o mesmo
+número do original e, pela planilha exportada, aparecia como "identificador
+repetido". A política padrão aqui é **Atualizar**, porque o registro do órgão
+é a fonte da verdade.
+
+**Para trazer o que mudou depois:** volte à Importação, escolha a base como
+destino e leia os registros de novo. Só entram os registros novos e o que
+mudou; nada é duplicado.
+
 ### Passo 2 — Ajustar o que só você sabe
 
 Vá a **Painel Administrativo → Panorama**. São seis abas:
@@ -460,9 +488,15 @@ e a aba de configuração exigem as duas. As Cloud Functions validam a permissã
   "base_id": "base456",
   "values": { "n_do_ic": "1.23.0001", "comarca": "Porto Alegre" },
   "chave_norm": "1230001",       // identificador normalizado (idempotência)
+  "source": "import",            // 'import' (planilha) ou 'orgao' (funcionalidades do órgão)
+  "imported_from": "consultas.xlsx",
   "created_at": "...", "updated_at": "...", "created_by": "uid"
 }
 ```
+
+A base criada a partir das funcionalidades guarda também
+`fonte_modulos: ['consultas', 'expedientes', 'parcerias']` (só as escolhidas),
+que a tela usa para já marcar as mesmas ao reabrir a Importação com ela.
 
 ### `panoramaTemplates/{templateId}`
 
@@ -515,6 +549,21 @@ papel único é resolvido pela confiança da inferência.
 `update` sobrescreve, com registro no histórico. Em ambas, campos vazios no banco
 são completados.
 
+**Fonte do órgão (`modulos`):** com `modulos: ['consultas' | 'expedientes' |
+'parcerias']` no lugar de `fileData`, a função lê `processes`, `expedientes` e
+`parcerias` do órgão (`organization_id`) e monta as linhas com
+`linhaDoRegistro` (`shared/panoramaModulos.ts`): mesmos rótulos para o que tem o
+mesmo sentido, situação com o nome da coluna do quadro (`calculateStatus` /
+`calculateParceriaStatus`), datas em `AAAA-MM-DD`. Daí em diante o caminho é o
+da planilha. Em base nova, a coluna `Registro no SIGO` recebe o papel de
+identificador e nenhuma outra fica com ele.
+
+**Gravação:** lotes de até 200 registros ou ~4 MB (o Firestore aceita 10 MiB
+por envio; registros com muito texto passavam disso). Definições de coluna são
+gravadas sem chaves `undefined` (`semIndefinidos`): era isso que derrubava a
+criação de base nova com o erro "INTERNAL" (25/11/2026). Falha inesperada volta
+como `internal` com o motivo em português, nunca só "INTERNAL".
+
 ## 13. Motor de cálculo
 
 `src/lib/panoramaEngine.js` — funções puras, sem React e sem Firebase. Tudo
@@ -554,6 +603,7 @@ relatório analítico seria dominado por ruído.
 | Ação | Exige |
 |---|---|
 | Ver a página | Ser membro do órgão |
+| Ler Consultas/Expedientes/Parcerias para o Panorama | Ser membro do órgão (as mesmas leituras que as regras já permitem); criar a base exige `configure_panorama` |
 | Criar/editar registro | Ser membro do órgão |
 | Excluir registros / excluir base | `delete_records` (base: + nome digitado) |
 | Configurar bases, papéis, pesos, regiões, prescrição | `configure_panorama` |
@@ -598,7 +648,8 @@ src/components/organization/admin/PanoramaConfiguration.jsx   configuração do 
 shared/panorama.ts          papéis, tipos, inferência, normalização (autoridade)
 panorama/bases.ts           managePanoramaBase
 panorama/registros.ts       managePanoramaRegistro
-panorama/importar.ts        importPanorama (preview + commit)
+panorama/importar.ts        importPanorama (preview + commit; planilha ou funcionalidades do órgão)
+shared/panoramaModulos.ts   registros de Consultas, Expedientes e Parcerias como linhas do Panorama
 panorama/templates.ts       managePanoramaTemplate
 ```
 
@@ -611,7 +662,17 @@ panorama/templates.ts       managePanoramaTemplate
 - **Até 120 colunas** por base.
 - **Renomear coluna na origem** sem ajustar a base cria coluna nova.
 - **Sem importação automática**: não há integração com sistemas externos; os
-  dados chegam por planilha enviada por uma pessoa.
+  dados chegam por planilha enviada por uma pessoa ou pela leitura das
+  funcionalidades do órgão, que também é feita por uma pessoa (não há
+  sincronização sozinha).
+- **Registro excluído no órgão continua na base do Panorama.** A releitura
+  traz novos e alterados, mas não apaga; exclua na aba Dados se precisar.
+- **Base de planilha e base do órgão não se misturam bem**: a planilha
+  exportada tem outros rótulos ("Nº da Consulta - PGEA") e identifica pelo
+  número; ler o órgão para dentro dela cria colunas novas. Para acompanhar as
+  funcionalidades do órgão, crie a base a partir delas.
+- A leitura do órgão não aplica a "Restrição de acesso" das Consultas (o mesmo
+  limite das próprias Consultas: todo membro do órgão já lê esses registros).
 - **Uma unidade pertence a uma única região.**
 - **Estender o esquema exige `configure_panorama`.** Sem essa permissão, a
   importação alimenta as colunas que a base já tem; colunas novas da planilha
