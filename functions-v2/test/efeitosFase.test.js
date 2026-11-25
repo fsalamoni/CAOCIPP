@@ -191,7 +191,9 @@ test('vencimento: só o prazo aberto, vencido, com regra e ainda não tratado', 
 
 test('cumprimento por documento: fecha o prazo da ação e recalcula os derivados', () => {
     const base = { fase_atual: 'b', acoes_respostas: { a: { 0: 'Sumário' } } };
-    const abertos = sinc({ ...base, prazos: [] }).prazos;
+    // Abre os prazos "hoje" de verdade: camposDosPrazosDasAcoes confere o
+    // cumprimento pela data real, e com a data fixa o teste vencia sozinho.
+    const abertos = pf.prazosDasAcoes({ ...base, prazos: [] }, faseP(), s.hojeBrasil(), new Date().toISOString(), undefined, 'Ana', id).prazos;
     const { campos, notas } = pf.camposDosPrazosDasAcoes({ ...base, prazos: abertos, pendencias: [] }, { acoes_feitas: { b: [0, 2] } }, faseP(), 'Ana');
     assert.equal(campos.prazos.filter((x) => x.status === 'aberto').length, 0);
     assert.equal(campos.proximo_vencimento, null);
