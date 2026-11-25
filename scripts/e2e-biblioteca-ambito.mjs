@@ -65,7 +65,7 @@ try {
     for (const nome of ['Ministério Público do RS', 'Estado do Rio Grande do Sul', 'União e órgãos federais', 'Ministério Público em geral', 'Conselhos e entidades de classe', 'Qualquer órgão ou entidade']) {
         await dlg.getByRole('button', { name: new RegExp(`^${nome}`) }).waitFor();
     }
-    await dlg.getByText(/68 modelos em 6 âmbitos e 11 áreas/).waitFor();
+    await dlg.getByText(/70 modelos em 6 âmbitos e 11 áreas/).waitFor();
     await dlg.getByRole('button', { name: /^Ministério Público do RS/ }).scrollIntoViewIfNeeded();
     await page.screenshot({ path: `${SHOTS}/biblioteca-ambitos.png` });
     await dlg.getByRole('button', { name: /^Estado do Rio Grande do Sul/ }).click();
@@ -73,7 +73,7 @@ try {
     await page.screenshot({ path: `${SHOTS}/biblioteca-ambito-rs.png` });
     await dlg.getByLabel('Âmbito').selectOption('mprs');
     await dlg.getByLabel('Área').selectOption('parcerias');
-    await dlg.getByText('2 de 68 modelos').waitFor();
+    await dlg.getByText('2 de 70 modelos').waitFor();
     await dlg.getByRole('button', { name: new RegExp(`^${FORMALIZACAO}`) }).click();
     await dlg.getByText(/Âmbito:/).first().waitFor();
     await page.screenshot({ path: `${SHOTS}/biblioteca-parcerias-mprs.png` });

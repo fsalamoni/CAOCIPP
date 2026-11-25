@@ -21,11 +21,12 @@ import { modelos as mprs } from './modelos/mprs_administrativo.js';
 import { modelos as esferas } from './modelos/esferas.js';
 import { modelos as improbidade } from './modelos/improbidade.js';
 import { modelos as parcerias } from './modelos/parcerias.js';
+import { modelos as emendas } from './modelos/emendas.js';
 
 export { A, AMBITOS, AREAS, PORTES, montar, nomeAmbito, nomeArea, nomePorte, quando } from './modelos/dsl.js';
 
 /** Funções dos modelos, na ordem em que aparecem (cada chamada gera ids novos). */
-export const MODELOS = [...geral, ...correcional, ...etica, ...sancionador, ...contratacoes, ...gestaoContratual, ...contratos, ...parcerias, ...atendimento, ...ministerio_publico, ...conselhos, ...mp_extrajudicial, ...improbidade, ...uniao, ...colegiados, ...patrimonio, ...mprs, ...esferas];
+export const MODELOS = [...geral, ...correcional, ...etica, ...sancionador, ...contratacoes, ...gestaoContratual, ...contratos, ...parcerias, ...atendimento, ...ministerio_publico, ...conselhos, ...mp_extrajudicial, ...improbidade, ...emendas, ...uniao, ...colegiados, ...patrimonio, ...mprs, ...esferas];
 
 /**
  * Nome do painel e da planilha de acompanhamento que cada modelo propõe
@@ -101,6 +102,8 @@ export const PAINEIS = {
     'anpc-tratativas-mprs': ['Tratativa de acordo', 'Tratativas de acordo'],
     'anpc-acompanhamento-mprs': ['Acordo em acompanhamento', 'Acordos em acompanhamento'],
     'anpc-completo-mprs': ['Acordo de não persecução', 'Acordos de não persecução civil'],
+    'emendas-diagnostico-mprs': ['Município acompanhado', 'Emendas parlamentares por município'],
+    'emendas-inquerito-civil-mprs': ['Inquérito de emendas', 'Inquéritos de emendas parlamentares'],
 };
 
 /**
@@ -111,7 +114,7 @@ export const PAINEIS = {
 const MODELOS_POR_AMBITO = {
     mprs: ['parceria-formalizacao-mprs', 'parceria-acompanhamento-mprs', 'revisao-arquivamento-csmp', 'destinacao-bens-valores-mprs', 'cadastro-entidade-mprs',
         'triagem-patrimonio-publico-mprs', 'correicao-corregedoria-mp', 'inquerito-civil-improbidade-mprs', 'anpc-tratativas-mprs', 'anpc-acompanhamento-mprs',
-        'anpc-completo-mprs', 'gestao-contratual-mprs', 'descumprimento-contratual-mprs', 'gestao-patrimonio-mprs'],
+        'anpc-completo-mprs', 'emendas-diagnostico-mprs', 'emendas-inquerito-civil-mprs', 'gestao-contratual-mprs', 'descumprimento-contratual-mprs', 'gestao-patrimonio-mprs'],
     estadual_rs: ['parceria-formalizacao-rs', 'parceria-acompanhamento-rs', 'sancao-fornecedor-rs', 'bens-inserviveis-rs'],
     federal: ['parceria-formalizacao-federal', 'parceria-acompanhamento-federal', 'parceria-osc', 'sindicancia-investigativa', 'pad-ordinario', 'pad-sumario',
         'tac-disciplinar', 'par-pessoa-juridica', 'acordo-leniencia', 'sindicancia-patrimonial', 'juizo-admissibilidade-correcional',

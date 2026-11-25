@@ -5,6 +5,22 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 25/11/2026 — Modelos de rito: fiscalização de emendas parlamentares (MPRS)
+- Dois modelos novos na biblioteca, âmbito MPRS, área Ministério Público,
+  ligados entre si. "Emendas parlamentares: diagnóstico por município (MPRS)"
+  é o procedimento administrativo preliminar: requisita informações à
+  Prefeitura e à Câmara, confere as bases públicas, responde às três perguntas
+  do panorama e traz o checklist do MPRS como formulários (Câmara, Prefeitura,
+  entidades e sinais de alerta); termina em arquivamento, recomendação com
+  cronograma ou abertura do inquérito. "Inquérito civil de emendas
+  parlamentares (MPRS)" vai do registro da origem e do juízo de atribuição ao
+  arquivamento revisto pelo Conselho Superior ou à ação civil pública, com
+  recomendação, compromisso de ajustamento, apuração de responsabilidade em
+  inquérito de improbidade próprio e comunicação a outros órgãos.
+- Seguem a ADPF 854 do STF, a Informação Técnico-Jurídica do CAOCIPP de
+  15/01/2026, a complementação de 13/10/2026 e o que outros Ministérios
+  Públicos vêm fazendo. A biblioteca passa a 70 modelos.
+
 ### 25/11/2026 — Panorama: correção do "INTERNAL" e base a partir do órgão
 - Corrigido: criar uma base nova pela importação (e pela tela de bases)
   falhava com "INTERNAL". A definição das colunas levava campos `undefined`
