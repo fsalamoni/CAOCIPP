@@ -5,6 +5,26 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 25/11/2026 — Exportar o rito: Bizagi (BPMN), imagem, PDF, SVG, planilha e Mermaid
+- Em Ritos, o menu do rito ganhou "Exportar (imagem, Bizagi, planilha)", e a
+  tela de edição o botão "Exportar o rito". Seis formatos, todos gerados no
+  navegador (`src/lib/exportarRito.js`, janela em `ExportarRito.jsx`).
+- **Imagem, PDF e SVG** saem com o rito inteiro numa faixa só, do tamanho que
+  for preciso: uma raia por unidade, nenhuma dobra, condições por extenso nas
+  setas, cada seta chegando na sua própria altura. Opção de mostrar ou não as
+  ações dentro de cada fase. O PDF é uma página única do tamanho do desenho.
+- **Bizagi e BPMN 2.0** (.bpmn): piscina, raias, tarefas, desvios exclusivos,
+  início e fins, fluxos com a condição no nome e o desenho (BPMNDI) de tudo; a
+  orientação, o prazo e as ações de cada fase vão na documentação da tarefa.
+- **Mermaid** corrigido: todo rótulo vai entre aspas (nomes com parênteses,
+  barras ou dois-pontos quebravam o diagrama), com arquivo .mmd e Copiar.
+- **Planilha** completa: unidade, prazo e contagem, ações, saídas, condições e
+  orientação, mais a aba "Ações em detalhe".
+- Planilha, Mermaid e BPMN voltam iguais pela importação do rito; o teste
+  confere isso nos 70 modelos da biblioteca. A importação por planilha passou a
+  aceitar nome de fase com "e", vírgula ou barra em "Segue para" e fase chamada
+  "Encerramento".
+
 ### 25/11/2026 — Modelos de rito: fiscalização de emendas parlamentares (MPRS)
 - Dois modelos novos na biblioteca, âmbito MPRS, área Ministério Público,
   ligados entre si. "Emendas parlamentares: diagnóstico por município (MPRS)"

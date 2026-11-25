@@ -707,11 +707,26 @@ function fasesDaAba(linhas, aceitarSemCabecalho) {
         atual.acoes.push(...lista(cel(r, 'acoes')));
         atual.modelos.push(...lista(cel(r, 'modelos')).flatMap((m) => m.split(/\s*,\s*/)));
         if (cel(r, 'orientacao')) atual._orient.push(cel(r, 'orientacao'));
-        const refs = cel(r, 'proximas').split(/[;\n/]|,(?![^(]*\))|\s+e\s+|\s+ou\s+/).map((s) => s.trim()).filter(Boolean);
-        const conds = lista(cel(r, 'condicao'));
-        refs.forEach((ref, i) => atual._saidas.push({ ref, condicao: conds[i] || (refs.length === 1 ? conds.join(' ') : '') }));
+        // A célula é separada em fases só depois, quando todos os nomes são conhecidos (ver `partirSaidas`).
+        if (cel(r, 'proximas')) atual._saidas.push({ bruto: cel(r, 'proximas'), conds: lista(cel(r, 'condicao')) });
     }
     return fases;
+}
+
+const SEPARADORES_SAIDA = [/[;\n]/, /\//, /,(?![^(]*\))/, /\s+e\s+|\s+ou\s+/];
+
+/**
+ * "Segue para" com várias fases na mesma célula. O nome de uma fase pode ter
+ * barra, vírgula ou "e" ("Aguardando a Prefeitura e a Câmara"): por isso o
+ * texto só é dividido num separador se, inteiro, não for uma fase conhecida.
+ */
+function partirSaidas(texto, conhecida, nivel = 0) {
+    const t = String(texto || '').trim();
+    if (!t) return [];
+    // No último separador ("e", "ou") também vale a fase escrita com a condição: "Arquivo (se a e b)".
+    if (nivel >= SEPARADORES_SAIDA.length || conhecida(t, nivel === SEPARADORES_SAIDA.length - 1)) return [t];
+    const partes = t.split(SEPARADORES_SAIDA[nivel]);
+    return partes.length === 1 ? partirSaidas(t, conhecida, nivel + 1) : partes.flatMap((x) => partirSaidas(x, conhecida, nivel + 1));
 }
 
 /** Planilha de uma aba só (matriz de células). Ver `propostaDeAbas`. */
@@ -791,11 +806,21 @@ export function propostaDeAbas(abas) {
     }
     const nomes = new Set([...porNome.keys()]);
     const idDe = (f) => primeira(f).id;
+    const conhecida = (ref, comCondicao) => /^(fim|final|encerra(mento)?|encerrar|-|\d+)$/.test(sem(ref)) || porNome.has(sem(ref)) || abaPorNome.has(sem(ref))
+        || (comCondicao && porNome.has(sem(refComCondicao(ref, nomes).alvo)));
+    for (const f of todas) {
+        f._saidas = f._saidas.flatMap((s) => {
+            if (s.ref !== undefined) return [s];
+            const refs = partirSaidas(s.bruto, conhecida);
+            return refs.map((ref, i) => ({ ref, condicao: s.conds[i] || (refs.length === 1 ? s.conds.join(' ') : '') }));
+        });
+    }
     for (const f of fases) {
         const proximas = [];
         const condicoes = {};
         for (const s of f._saidas) {
-            if (/^(fim|final|encerra(mento)?|encerrar|-)$/.test(sem(s.ref))) { if (!f._saidas.some((x) => x !== s && porNome.has(sem(refComCondicao(x.ref, nomes).alvo)))) f.final = true; continue; }
+            // "Encerramento" só quer dizer fim se não houver uma fase com esse nome.
+            if (/^(fim|final|encerra(mento)?|encerrar|-)$/.test(sem(s.ref)) && !porNome.has(sem(s.ref))) { if (!f._saidas.some((x) => x !== s && porNome.has(sem(refComCondicao(x.ref, nomes).alvo)))) f.final = true; continue; }
             const n = Number(s.ref);
             const { alvo, condicao } = refComCondicao(s.ref, nomes);
             const daAba = f._aba.fases;

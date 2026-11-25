@@ -262,6 +262,7 @@ export const ETAPAS = [
             'Ao mudar o rito, uma nova versão é criada. Para levar processos em andamento à versão nova, use Atualizar processos no menu do rito.',
             'O que se exclui vai para a Lixeira e pode ser restaurado. Lá, o admin também pode "Excluir de vez", sem volta. O Histórico registra quem mudou o quê.',
             'Para levar o rito a outro órgão, use Exportar para outro órgão no menu do rito.',
+            'Para ter o desenho do rito fora do SIGO, use Exportar (imagem, Bizagi, planilha) no menu do rito: imagem, PDF, Bizagi (BPMN), planilha ou Mermaid, com o rito inteiro e cada fase na raia da sua unidade.',
         ],
         perguntas: [
             { p: 'Mudei o rito. Os processos antigos mudam?', r: 'Não. Cada processo segue a versão com que foi autuado, até alguém usar Atualizar processos. Processos sem uma opção nova continuam como estavam.' },
@@ -370,6 +371,7 @@ export const RECEITAS = [
     { tema: 'integracao', quero: 'Que o processo crie o registro numa página própria', use: 'Criar registro na autuação, com a fonte de cada campo.', onde: 'Tipos de processo, aba Dados.', parte: 19 },
     { tema: 'integracao', quero: 'Uma origem que o sistema não tem (ouvidoria, corregedoria)', use: 'A lista do órgão; ela vale também nas condições do rito.', onde: 'Listas do órgão, Origens do processo.', parte: 18 },
     { tema: 'integracao', quero: 'Levar o rito ou um modelo de documento a outro órgão', use: 'Exportar para outro órgão; o outro órgão importa e recebe uma cópia própria.', onde: 'Ritos ou Documentos, menu do item.', parte: 20 },
+    { tema: 'integracao', quero: 'O desenho do rito em imagem, PDF, Bizagi, planilha ou Mermaid', use: 'Exportar (imagem, Bizagi, planilha): o rito inteiro numa faixa, com as raias por unidade.', onde: 'Ritos, menu do rito; ou Exportar o rito, na edição.', parte: 20 },
 ];
 
 /** Busca nas receitas, sem acento, em todos os termos. `tema` vazio = todos. */

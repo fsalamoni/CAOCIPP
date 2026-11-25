@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Building2, CalendarDays, Download, FileText, FileUp, GitBranch, Hash, History, ListOrdered, ListPlus, Loader2, Network, Plug, Plus, RefreshCw, Shapes, SlidersHorizontal, Trash2, Users } from 'lucide-react';
+import { Building2, CalendarDays, Download, FileDown, FileText, FileUp, GitBranch, Hash, History, ListOrdered, ListPlus, Loader2, Network, Plug, Plus, RefreshCw, Shapes, SlidersHorizontal, Trash2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -11,6 +11,7 @@ import { secConfig, secProcesso } from '@/services/secretariaService';
 import { SeloUrgente, TIPOS_UNIDADE } from './comum';
 import { unidadeDecide, unidadeExpede } from '@/lib/permissoesFase';
 import PropostaRito from './PropostaRito';
+import ExportarRito from './ExportarRito';
 import EditorTipo from './EditorTipo';
 import { formularioDe, formularioPadrao } from '@/lib/camposProcesso';
 import { NUMERACAO_PADRAO, formatarNumero, problemasNumeracao, resumoContagem } from '@/lib/numeracao';
@@ -198,6 +199,7 @@ function Ritos({ orgId, estado, onIr, onAbrirTipo, pedido, onPedidoAtendido }) {
     }, [pedido]);
     const [excluir, setExcluir] = useState(null);
     const [migrar, setMigrar] = useState(null);
+    const [exportando, setExportando] = useState(null);
     const tiposDe = (id) => (estado.tipos || []).filter((t) => t.rito_id === id);
     // Levar a outro órgão: o servidor monta o pacote sem nada que identifique este órgão.
     const exportar = async (r) => {
@@ -242,6 +244,7 @@ function Ritos({ orgId, estado, onIr, onAbrirTipo, pedido, onPedidoAtendido }) {
                     <CartaoComMenu key={r.id} nome={r.nome} className={item} onEditar={() => setAberto({ rito: r })} onDuplicar={() => setAberto({ copia: r })}
                         onExcluir={() => setExcluir({ colecao: 'rito', id: r.id, nome: r.nome })}
                         extras={[
+                            { rotulo: 'Exportar (imagem, Bizagi, planilha)', icone: FileDown, onSelect: () => setExportando(r) },
                             { rotulo: 'Exportar para outro órgão', icone: Download, onSelect: () => exportar(r) },
                             ...(r.versao > 1 ? [{ rotulo: 'Atualizar processos', icone: RefreshCw, onSelect: () => setMigrar(r) }] : []),
                         ]}>
@@ -260,6 +263,7 @@ function Ritos({ orgId, estado, onIr, onAbrirTipo, pedido, onPedidoAtendido }) {
             )}
             <ConfirmarExclusao orgId={orgId} alvo={excluir} onFechar={() => setExcluir(null)} bloqueio={bloqueio} />
             {migrar && <MigrarRitoDialog orgId={orgId} rito={migrar} onFechar={() => setMigrar(null)} />}
+            <ExportarRito aberto={!!exportando} onFechar={() => setExportando(null)} nome={exportando?.nome} fases={exportando?.fases} unidades={estado.unidades} />
         </Card>
     );
 }
