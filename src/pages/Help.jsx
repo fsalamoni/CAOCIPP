@@ -137,7 +137,7 @@ export default function Help() {
           <p className="text-sm text-slate-600 dark:text-slate-300">
             Módulo opcional do órgão para tramitar processos próprios: autuação, ritos com fases, documentos assinados e numerados,
             prazos, comunicações, audiências, sessões de colegiado, disputa de preços, portal para as partes e PDF da íntegra. O administrador do órgão liga o módulo no Painel Administrativo, seção Processo Eletrônico.
-            Ligado, ele aparece entre as páginas do órgão, na barra do alto e no menu lateral, e as abas internas
+            Ligado, ele aparece entre as páginas do órgão, na barra do alto e no menu lateral (no computador, com o menu lateral aberto, a barra do alto some dentro do módulo para sobrar tela; recolha o menu e ela volta), e as abas internas
             (Meu trabalho, Caixa, Mesa de decisão, Sessões, Todos, Painel, Unidades) ficam no endereço: recarregar ou compartilhar o link mantém a aba.
             As listas e o processo aberto se atualizam sozinhos: o que um colega ou uma parte faz aparece em cerca de dois segundos, sem recarregar a página.
             Nos eventos, só os atos que as partes veem têm número inteiro, em sequência; os registros internos levam o número do ato público anterior (ex.: 5.1), para que ninguém de fora veja salto na numeração.
@@ -158,7 +158,7 @@ export default function Help() {
                 "No editor, texto ainda não salvo segura a página: o navegador pergunta antes de fechar a aba ou recarregar",
                 "Ao designar audiência, a linha Para registrar diz o que falta (data, hora, local ou link); preenchida, a janela não fecha com clique fora",
                 "No celular, o editor de rito mostra Excluir e Substituir fases como ícones, para sobrar tela para o fluxo",
-                "Nesta fase: marque as ações feitas e abra os modelos com um clique",
+                "Nesta fase: marque as ações feitas e abra os modelos com um clique; sob o nome de cada ação, a linha miúda diz onde fica o registro, se é obrigatória e quem cumpre",
                 "Botão principal segue o rito: concluir, enviar ou seguir para a próxima fase",
                 "Minutas são rascunhos da unidade; Juntar inclui nos autos, com número e data",
                 "Ao enviar um arquivo, diga na hora o tipo, do que se trata e se ele é juntado, guardado ou fica como minuta",

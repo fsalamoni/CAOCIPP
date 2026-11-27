@@ -15,8 +15,12 @@ import { orgTabUrl } from '@/lib/organizationModules';
  * No celular: uma faixa única que rola na horizontal, com a página atual
  * trazida para a vista. Em grade, 10+ páginas ocupavam a primeira tela
  * inteira e empurravam o conteúdo para baixo.
+ *
+ * `ocultaComMenu`: no computador (`lg`), com o menu lateral aberto, a barra
+ * some: as mesmas páginas já estão no sub-menu ao lado, e a barra repetida
+ * tomava duas linhas da primeira tela. Com o menu recolhido, ela volta.
  */
-export default function OrgTabBar({ tabs, activeTab, orgId }) {
+export default function OrgTabBar({ tabs, activeTab, orgId, ocultaComMenu = false }) {
   const navRef = useRef(null);
 
   // Celular: rola a faixa até a página atual (sem mexer na rolagem vertical).
@@ -35,7 +39,8 @@ export default function OrgTabBar({ tabs, activeTab, orgId }) {
       aria-label="Páginas do órgão"
       className={cn(
         'flex overflow-x-auto overflow-y-hidden gap-1 border-b border-border mb-6 [scrollbar-width:thin]',
-        'sm:grid sm:overflow-visible sm:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]'
+        'sm:grid sm:overflow-visible sm:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]',
+        ocultaComMenu && 'lg:[[data-menu-lateral=aberto]_&]:hidden'
       )}
     >
       {tabs.map((tab) => {

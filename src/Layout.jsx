@@ -173,7 +173,7 @@ export default function Layout({ children, currentPageName }) {
   const initial = displayName?.[0]?.toUpperCase() || 'U';
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
+    <div data-menu-lateral={isCollapsed ? 'recolhido' : 'aberto'} className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
       <CommandPalette />
       {/* Mobile Header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-4 z-50">

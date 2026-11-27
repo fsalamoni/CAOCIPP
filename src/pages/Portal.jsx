@@ -444,19 +444,20 @@ function ProcessoParte({ id, onVoltar }) {
 
     return (
         <div className="space-y-5">
-            <div className="flex flex-wrap items-start gap-3">
+            {/* O assunto fica em linha própria, na largura toda: ao lado dos botões, ele se espremia em três linhas no computador. */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                 <Button variant="ghost" size="sm" className="gap-1 -ml-2" onClick={onVoltar}><ArrowLeft className="w-4 h-4" aria-hidden /> Meus processos</Button>
-                {/* No celular, o título vai abaixo do "voltar", na largura toda. */}
-                <div className="w-full min-w-0 sm:w-auto sm:flex-1 sm:min-w-[14rem]">
-                    <div className="flex flex-wrap items-center gap-2">
-                        <h1 className="text-xl font-semibold font-mono break-all">{p.numero}</h1>
-                        <Badge variant="secondary">{STATUS_ROTULO[p.status] || p.status}</Badge>
-                        {cadeiaIntegra
-                            ? <Badge variant="outline" className="gap-1" title="Nenhum registro foi alterado depois de feito"><ShieldCheck className="w-3 h-3" aria-hidden /> Registro íntegro</Badge>
-                            : <Badge variant="destructive" className="gap-1"><ShieldAlert className="w-3 h-3" aria-hidden /> Registro com falha de integridade</Badge>}
-                    </div>
+                {/* No celular, o número vai abaixo do "voltar", na largura toda. */}
+                <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:flex-1">
+                    <h1 className="text-xl font-semibold font-mono break-all">{p.numero}</h1>
+                    <Badge variant="secondary">{STATUS_ROTULO[p.status] || p.status}</Badge>
+                    {cadeiaIntegra
+                        ? <Badge variant="outline" className="gap-1" title="Nenhum registro foi alterado depois de feito"><ShieldCheck className="w-3 h-3" aria-hidden /> Registro íntegro</Badge>
+                        : <Badge variant="destructive" className="gap-1"><ShieldAlert className="w-3 h-3" aria-hidden /> Registro com falha de integridade</Badge>}
+                </div>
+                <div className="order-last w-full">
                     <p className="font-medium">{p.assunto}</p>
-                    <p className="text-sm text-slate-600">{orgao} · {fraseQuem(p.minha_parte)}{p.minha_parte?.como !== 'representante' && p.minha_parte?.nome ? `, como ${p.minha_parte.nome}` : ''}</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">{orgao} · {fraseQuem(p.minha_parte)}{p.minha_parte?.como !== 'representante' && p.minha_parte?.nome ? `, como ${p.minha_parte.nome}` : ''}</p>
                 </div>
                 <div className="hidden sm:flex flex-wrap gap-2">
                     <Button variant="outline" className="gap-2" disabled={!!ocupado} onClick={() => integra(false)}>{ocupado === 'exportar' ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <Download className="w-4 h-4" aria-hidden />} Processo completo (PDF)</Button>

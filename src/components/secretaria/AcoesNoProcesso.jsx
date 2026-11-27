@@ -39,7 +39,8 @@ export function SelosAcao({ r }) {
         ...(r?.ve === 'gestor' ? ['dado só para quem gere a unidade'] : []),
     ];
     if (!selos.length) return null;
-    return <span className="text-xs text-slate-600 dark:text-slate-400"> · {selos.join(' · ')}</span>;
+    // Em linha própria, abaixo do nome da ação: o nome se lê sozinho e os selos não o empurram.
+    return <span className="block text-xs text-slate-600 dark:text-slate-400">{selos.join(' · ')}</span>;
 }
 
 /**

@@ -44,6 +44,13 @@ cada mudança está nas mensagens de commit (`git log`).
   alinhada no celular; o fornecedor recusado deixa de aparecer "em 1º" e lê a
   própria oferta e o motivo; o aviso do vencedor declarado sai um item por
   linha; os campos com tamanho mínimo dizem quantas letras faltam.
+- **Sexta rodada, no mesmo dia (o computador em primeiro lugar):** na lista, a
+  barra de páginas do órgão some enquanto o menu lateral está aberto e os
+  botões sobem para a linha do título, e a lista começa cerca de 150 px mais
+  acima no notebook; em Nesta fase, a explicação de cada ação vai para linha
+  própria e, em tela larga, o botão fica perto do texto; nos autos, os botões
+  dizem o que fazem; descrição longa do tipo recolhida em Novo processo; no
+  portal, o assunto ocupa a largura toda.
 - Teste de tela: `scripts/e2e-usabilidade-pe.mjs`.
 
 ### 25/11/2026 — Exportar o rito: Bizagi (BPMN), imagem, PDF, SVG, planilha e Mermaid
