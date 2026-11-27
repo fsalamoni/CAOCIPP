@@ -230,6 +230,8 @@ export default function Help() {
                 "Quem julga lê os autos enquanto o processo está pautado (cada leitura fica registrada) e anota só para si",
                 "Relator e vogais votam; há vista, adiamento, divergência, voto condutor e acórdão; a sessão pode ser virtual",
                 "O resultado proclamado cumpre a ação de julgamento do rito; ata, painel ao vivo e relatório do colegiado",
+                "Quem preside e ainda não votou é avisado antes de proclamar: sem voto, consta como ausente",
+                "Na reunião, registre a presença primeiro: Abrir votação só acende depois, porque o quórum se conta pelos presentes",
               ]}
             />
             <FeatureCard
@@ -238,6 +240,7 @@ export default function Help() {
               items={[
                 "Ação do rito que pede uma disputa: cotação privada entre convidados ou dispensa",
                 "O fornecedor convidado envia proposta e lances em Disputas; as propostas ficam sigilosas até a abertura",
+                "Na proposta, o CNPJ ou CPF é conferido ao digitar e a linha Para enviar, falta diz o que ainda falta preencher",
                 "Agente, apoio e autoridade têm papéis próprios; o fornecedor não é parte e não vê os autos",
                 "O resultado (homologada, deserta ou fracassada) cumpre a ação e segue o rito",
               ]}

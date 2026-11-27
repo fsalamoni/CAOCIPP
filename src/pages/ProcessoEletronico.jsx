@@ -437,13 +437,13 @@ export function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
     return (
         <div className="space-y-3 pt-2">
             <div className="flex flex-wrap gap-2 items-center">
-                <div className="relative w-full sm:w-auto sm:flex-1 sm:max-w-sm">
+                <div className="relative min-w-0 flex-[1_1_calc(100%-6rem)] sm:flex-1 sm:max-w-sm">
                     <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" aria-hidden />
                     <Input ref={busca} type="search" placeholder="Número, assunto, parte ou CPF/CNPJ" aria-label="Buscar processos" aria-keyshortcuts="/" value={f.texto} onChange={(e) => set('texto', e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Escape' && f.texto) { e.stopPropagation(); set('texto', ''); } }} className="pl-8 sm:pr-8" />
                     {!f.texto && <kbd className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 rounded border border-slate-300 px-1.5 text-[11px] leading-5 text-slate-500 dark:border-slate-600 dark:text-slate-400 sm:block" aria-hidden>/</kbd>}
                 </div>
-                <select aria-label="Filtrar por situação" value={f.situacao} onChange={(e) => set('situacao', e.target.value)} className={sel}>
+                <select aria-label="Filtrar por situação" value={f.situacao} onChange={(e) => set('situacao', e.target.value)} className={`${sel} max-sm:order-2 max-sm:min-w-0 max-sm:flex-[1_1_40%]`}>
                     <option value="todos">Qualquer situação</option>
                     <option value="urgente">Urgentes</option>
                     <option value="comigo">Comigo</option>
@@ -452,18 +452,18 @@ export function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
                     <option value="prazo">Com prazo aberto</option>
                     <option value="vencido">Com prazo vencido</option>
                 </select>
-                <Button variant="outline" size="sm" className="gap-2" aria-expanded={avancado} onClick={() => setAvancado((v) => !v)}>
-                    <SlidersHorizontal className="w-4 h-4" aria-hidden /> Mais filtros{ativosAvancados > 0 && <Badge className="ml-0.5 h-5 min-w-5 justify-center px-1 bg-indigo-600 hover:bg-indigo-600">{ativosAvancados}</Badge>}
+                <Button variant="outline" size="sm" className="gap-2 max-sm:order-1 max-sm:h-9 max-sm:shrink-0" title="Mais filtros" aria-expanded={avancado} onClick={() => setAvancado((v) => !v)}>
+                    <SlidersHorizontal className="w-4 h-4" aria-hidden /> <span className="max-sm:sr-only">Mais filtros</span>{ativosAvancados > 0 && <Badge className="ml-0.5 h-5 min-w-5 justify-center px-1 bg-indigo-600 hover:bg-indigo-600">{ativosAvancados}</Badge>}
                 </Button>
-                <select aria-label="Ordenar a lista" value={f.ordem} onChange={(e) => set('ordem', e.target.value)} className={sel}>
+                <select aria-label="Ordenar a lista" value={f.ordem} onChange={(e) => set('ordem', e.target.value)} className={`${sel} max-sm:order-2 max-sm:min-w-0 max-sm:flex-[1_1_40%]`}>
                     {ORDENS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </select>
                 {ativos > 0 && (
-                    <Button variant="ghost" size="sm" className="gap-1" onClick={limpar}><X className="w-4 h-4" aria-hidden /> Limpar filtros</Button>
+                    <Button variant="ghost" size="sm" className="gap-1 max-sm:order-3" onClick={limpar}><X className="w-4 h-4" aria-hidden /> Limpar filtros</Button>
                 )}
-                <span className="text-sm text-slate-600 dark:text-slate-400 ml-auto" aria-live="polite">{lista.length} de {todos.length}{q.hasNextPage ? ' carregados' : ''}</span>
+                <span className={`text-sm text-slate-600 dark:text-slate-400 ml-auto max-sm:order-3 ${ativos > 0 || q.hasNextPage ? '' : 'max-sm:sr-only'}`} aria-live="polite">{lista.length} de {todos.length}{q.hasNextPage ? ' carregados' : ''}</span>
                 {escopo === 'todos' && estado.isAdmin && (
-                    <Button variant="ghost" size="sm" className="gap-1" onClick={() => setVerExcluidos(true)}><Trash2 className="w-4 h-4" aria-hidden /> Excluídos</Button>
+                    <Button variant="ghost" size="sm" className="gap-1 max-sm:order-3" onClick={() => setVerExcluidos(true)}><Trash2 className="w-4 h-4" aria-hidden /> Excluídos</Button>
                 )}
             </div>
             {escopo === 'todos' && estado.isAdmin && <ProcessosExcluidos orgId={orgId} estado={estado} aberto={verExcluidos} onFechar={() => setVerExcluidos(false)} onAbrir={(id) => { setVerExcluidos(false); onAbrir(id); }} />}

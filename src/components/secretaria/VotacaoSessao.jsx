@@ -377,7 +377,7 @@ export default function VotacaoSessao({ orgId, sessaoId, processoId, onFechar, o
         <Dialog open onOpenChange={(o) => !o && onFechar()}>
             <DialogContent className="max-w-2xl w-[calc(100vw-1rem)] sm:w-full max-h-[92dvh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>Julgamento do processo {d?.numero || ''}</DialogTitle>
+                    <DialogTitle className="max-sm:px-6">Julgamento do processo {d?.numero || ''}</DialogTitle>
                     <DialogDescription>{d?.assunto || 'Relator, votos e proclamação do resultado.'}</DialogDescription>
                 </DialogHeader>
                 {q.isLoading && <p className="text-sm text-slate-600 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> Carregando…</p>}
@@ -431,7 +431,7 @@ export default function VotacaoSessao({ orgId, sessaoId, processoId, onFechar, o
 
                         {d.liberado_em && d.votos.length > 0 && (
                             <section className={caixa} aria-labelledby="vt-votos">
-                                <h3 id="vt-votos" className={titulo}>Votos dos vogais <AjudaTermo id="vogal" /> {d.placar.length > 0 && <span className="font-normal text-slate-600 dark:text-slate-400">· {d.placar.map(([r, n]) => `${r} ${n}`).join(' · ')} (com o relator)</span>}</h3>
+                                <h3 id="vt-votos" className={`${titulo} flex-wrap`}>Votos dos vogais <AjudaTermo id="vogal" /> {d.placar.length > 0 && <span className="font-normal text-slate-600 dark:text-slate-400">· {d.placar.map(([r, n]) => `${r} ${n}`).join(' · ')} (com o relator)</span>}</h3>
                                 <ul className="divide-y divide-slate-200 dark:divide-slate-700" aria-live="polite">
                                     {d.votos.map((x) => (
                                         <li key={x.uid} className="py-2 flex flex-wrap items-baseline justify-between gap-2 text-sm">
@@ -456,7 +456,8 @@ export default function VotacaoSessao({ orgId, sessaoId, processoId, onFechar, o
                                 <h3 id="vt-proclamar" className={titulo}><Megaphone className="w-4 h-4" aria-hidden /> Proclamação <AjudaTermo id="proclamacao" /></h3>
                                 {d.previa?.texto && <p className="text-sm text-slate-800 dark:text-slate-200">Se proclamar agora: {d.previa.texto}. Quem não votou fica ausente.</p>}
                                 {d.previa?.erro && <p className="text-sm text-amber-800 dark:text-amber-200" role="alert">{d.previa.erro}.</p>}
-                                <Button className="gap-1" disabled={indo || !!d.previa?.erro} onClick={() => setProclamar(true)}><Megaphone className="w-4 h-4" aria-hidden /> Proclamar o resultado</Button>
+                                {d.pode.votar && !d.meu_voto && <p id="vt-falta-voto" className="text-sm font-medium text-amber-800 dark:text-amber-200">Você ainda não votou. Registre o seu voto acima antes de proclamar, ou constará como ausente.</p>}
+                                <Button className="gap-1" variant={d.pode.votar && !d.meu_voto ? 'outline' : 'default'} aria-describedby={d.pode.votar && !d.meu_voto ? 'vt-falta-voto' : undefined} disabled={indo || !!d.previa?.erro} onClick={() => setProclamar(true)}><Megaphone className="w-4 h-4" aria-hidden /> Proclamar o resultado</Button>
                             </section>
                         )}
                         {!d.pode.proclamar && d.modo !== 'assincrona' && d.liberado_em && !d.proclamado && d.pendente && d.situacao_item === 'pautado' && (d.preside || d.gere) && d.data_sessao > d.hoje && (

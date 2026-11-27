@@ -31,8 +31,8 @@ const novoEnvio = () => `e${Date.now().toString(36)}${Math.random().toString(36)
 function Relogio({ fim, agora }) {
     const ms = Date.parse(fim) - agora;
     return (
-        <p className={`flex items-center gap-1.5 text-sm font-semibold ${ms < 5 * 60000 ? 'text-rose-700 dark:text-rose-300' : 'text-indigo-800 dark:text-indigo-200'}`} role="timer" aria-live="off">
-            <Timer className="w-4 h-4" aria-hidden /> {ms > 0 ? <>Termina em <span className="tabular-nums">{relogio(ms)}</span></> : 'Encerrando…'}
+        <p className={`flex flex-wrap items-center gap-x-1.5 text-sm font-semibold ${ms < 5 * 60000 ? 'text-rose-700 dark:text-rose-300' : 'text-indigo-800 dark:text-indigo-200'}`} role="timer" aria-live="off">
+            <span className="flex items-center gap-1.5 whitespace-nowrap"><Timer className="w-4 h-4" aria-hidden /> {ms > 0 ? <>Termina em <span className="tabular-nums">{relogio(ms)}</span></> : 'Encerrando…'}</span>
             <span className="font-normal text-xs text-slate-600 dark:text-slate-400">({quandoBr(fim)}, horário de Brasília)</span>
         </p>
     );
@@ -94,7 +94,7 @@ function UnidadeLance({ u, aviso, certameId, onFeito, observador }) {
                 <h4 className="text-sm font-semibold">{u.nome}{u.quantidade != null ? <span className="font-normal text-slate-600 dark:text-slate-400"> · {String(u.quantidade).replace('.', ',')} {u.unidade}</span> : null}</h4>
                 <p className="text-xs text-slate-600 dark:text-slate-400">{u.descricao}</p>
             </div>
-            <div className="grid gap-2 sm:grid-cols-3 text-sm">
+            <div className={`grid gap-2 text-sm ${observador ? '' : 'grid-cols-3'}`}>
                 <p><span className="block text-xs text-slate-600 dark:text-slate-400">Melhor oferta</span><b>{u.melhor ? valorTexto(u.melhor.valor, aviso.criterio) : '—'}</b>{porUnitario && u.melhor ? <span className="block text-xs text-slate-600 dark:text-slate-400">total {valorTexto(u.melhor.total, 'menor_preco')}</span> : null}</p>
                 {!observador && <p><span className="block text-xs text-slate-600 dark:text-slate-400">Sua oferta</span><b>{u.meu ? valorTexto(u.meu.valor, aviso.criterio) : 'não cotou'}</b></p>}
                 <p className={observador ? 'hidden' : ''}><span className="block text-xs text-slate-600 dark:text-slate-400">Sua posição</span>
