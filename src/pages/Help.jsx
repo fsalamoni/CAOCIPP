@@ -241,6 +241,7 @@ export default function Help() {
                 "Ação do rito que pede uma disputa: cotação privada entre convidados ou dispensa",
                 "O fornecedor convidado envia proposta e lances em Disputas; as propostas ficam sigilosas até a abertura",
                 "Na proposta, o CNPJ ou CPF é conferido ao digitar e a linha Para enviar, falta diz o que ainda falta preencher",
+                "No julgamento, motivo, intenção de recurso, razões e fundamentos dizem quantas letras faltam para o botão acender",
                 "Agente, apoio e autoridade têm papéis próprios; o fornecedor não é parte e não vê os autos",
                 "O resultado (homologada, deserta ou fracassada) cumpre a ação e segue o rito",
               ]}
