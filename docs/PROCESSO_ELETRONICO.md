@@ -669,10 +669,13 @@ A tela do processo (`ProcessoView.jsx`) separa o que **informa** do que
 (seções 3 e 4). O cabeçalho (número, assunto, fase, situação, com quem está,
 urgência, sigilo, integridade) aparece em todas as abas.
 
-No celular (abaixo de 640px), com um processo aberto, o cabeçalho da página e
-a barra de páginas do órgão saem e fica uma barra presa no alto com
-"Processos" e o número. Em "Meu trabalho" a linha inteira abre o processo
-("Assumir" não abre; o botão "Abrir processo N" é o caminho pelo teclado).
+Com um processo aberto, o cabeçalho da página e a barra de páginas do órgão
+saem, no computador e no celular: a tela é do processo, com "Processos" como
+caminho de volta (as outras páginas seguem no menu lateral). No celular
+(abaixo de 640px) fica uma barra presa no alto, encostada no cabeçalho do
+site, com "Processos" e o número. Nas listas a linha inteira abre o processo
+("Assumir" não abre); o assunto é um link de verdade, que é o caminho pelo
+teclado e abre em outra aba com Ctrl+clique.
 
 **Glossário:** `src/lib/glossario.js` (oito termos, texto público) e o botão
 "?" `AjudaTermo.jsx` (popover Radix) ao lado de autos, autuar, certidão
@@ -726,6 +729,64 @@ celular: regra em `src/index.css` para rótulos com caixa de marcar ou chave,
   em `App.jsx` (antes, nenhum aviso do sonner aparecia). `DialogContent` e
   `SheetContent` ignoram o clique num aviso (`naoFecharNoAviso` em
   `src/lib/utils.js`), para o "Desfazer" do aviso não fechar o editor.
+
+### Usabilidade: listas, tela do processo e janelas (27/11/2026)
+
+Rodada feita percorrendo as telas como usuário, no computador (1366x768) e no
+celular (390x844), claro e escuro. O teste de tela é
+`scripts/e2e-usabilidade-pe.mjs`.
+
+**Listas (Meu trabalho, Caixa da unidade, Mesa de decisão, Todos).** Uma
+linha só para todas: `LinhaProcesso.jsx`. Lê-se como a capa: número (seleciona
+para copiar, sem abrir), assunto (link), tipo e partes, depois fase, unidade,
+há quanto tempo e com quem está, e à direita os selos (urgente, comigo,
+situação, restrito, pautado, pendências, prazo). O resumo do servidor
+(`resumo` em `processos.ts`, ação `listar`) ganhou `partes_nomes` (até três
+nomes, 80 caracteres cada) e `partes_total`; não leva documento nem contato
+da parte. Na Caixa e em Todos:
+
+- a busca, os filtros e a ordem ficam guardados por órgão e por lista enquanto
+  a aba do navegador está aberta (`sessionStorage`, chave
+  `pe-filtros-<órgão>-<lista>`): voltar de um processo não desfaz a busca;
+- ao voltar, a lista rola até o processo que estava aberto e a linha fica
+  destacada por dois segundos e meio (`lembrarProcesso`);
+- ordem: mais recentes, prazo mais próximo (sem prazo no fim), há mais tempo
+  na unidade, mais antigos. Vale sobre o que já foi carregado, como os filtros;
+- "/" leva o cursor à busca; Esc limpa a busca; "Mais filtros" mostra quantos
+  estão ligados; situações novas "Comigo" e "Sem responsável".
+
+**Novo processo.** Abre com o tipo usado da última vez naquele órgão
+(`localStorage`, `pe-ultimo-tipo-<órgão>`; `-` quando foi sem tipo) ou, sem
+isso, com o único tipo que existe. A unidade sugerida é a que o tipo indica;
+sem indicação, a da primeira fase do rito, se a pessoa está lotada nela.
+Quando a unidade escolhida não é a da primeira fase, um aviso explica e
+oferece trocar com um clique. O servidor continua decidindo quem pode autuar
+onde: nada disso muda permissão.
+
+**Arquivos.** `EscolherArquivo.jsx` substitui o botão do navegador (que
+aparecia em inglês) no Novo processo, no Novo documento e na manifestação do
+portal: texto em português, arrastar e soltar, nome e tamanho do arquivo
+escolhido. O `<input type="file">` de verdade continua lá, com o mesmo `id`.
+
+**Tela do processo.**
+
+- O menu "Mais" rola por dentro quando não cabe na tela
+  (`dropdown-menu.jsx`, vale para todos os menus do SIGO). Antes, numa tela de
+  768 px de altura, os primeiros itens ficavam fora da tela, sem alcance.
+- Janela de ação (`AcaoDialog`): uma linha "Para confirmar: ..." diz o que
+  falta enquanto o botão está apagado (destino, fase, dias, o texto
+  obrigatório); com texto digitado, o clique fora não fecha a janela (Esc e
+  Cancelar fecham); Ctrl+Enter no campo de texto confirma; "Fechar e cumprir
+  agora" no aviso de exigência em aberto fecha a janela e leva ao cartão
+  "Nesta fase"; no celular os botões ocupam a largura.
+- No destino da remessa, o tipo da unidade só aparece quando diz algo além do
+  nome ("Gabinete", não "Gabinete (gabinete)"). Na escolha da fase, a
+  orientação da fase de destino aparece em três linhas.
+- Minutas da unidade: o título ocupa a linha e os botões vêm embaixo.
+- No celular: sem rolagem lateral (a grade passou a `grid-cols-1` com
+  `min-w-0`, e os cabeçalhos de cartão quebram linha), abas do processo e da
+  página numa linha só, que rola para o lado, e o título da página some (já
+  está na barra do site).
 
 ## Registro nos autos e documentos exigidos (nov/2026)
 

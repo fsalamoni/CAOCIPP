@@ -19,6 +19,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { secConfig, secDocumento, secExportarInterno, secExportarPdf, secProcesso, baixarResposta, prepararEnvio, MAX_ENVIO_MB } from '@/services/secretariaService';
 import VisorPdf from './VisorPdf';
 import { NativeSelect, STATUS_ROTULO, SeloUrgente, copiarTexto, dataHora, documentoDaUnidade, modelosDaUnidade, rotuloUnidade } from './comum';
+import EscolherArquivo from './EscolherArquivo';
 import FluxoRito from './FluxoRito';
 import { DadosCampos } from './CamposProcesso';
 import AjudaTermo, { focoSemAjuda } from './AjudaTermo';
@@ -419,7 +420,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                     {podeMexer && <Button variant="outline" size="icon" disabled={ocupado} onClick={() => setNovoDoc(true)} aria-label="Novo documento"><Plus className="w-4 h-4" aria-hidden /></Button>}
                 </div>
             )}
-            <div className="sm:hidden sticky top-16 z-10 -mx-6 px-6 h-12 flex items-center gap-2 border-b border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-950/95 backdrop-blur">
+            <div className="sm:hidden sticky top-16 z-10 -mx-6 !-mt-6 px-6 h-12 flex items-center gap-2 border-b border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-950/95 backdrop-blur">
                 <Button variant="ghost" size="sm" className="gap-1 -ml-2 h-11 shrink-0" onClick={onVoltar}><ArrowLeft className="w-4 h-4" aria-hidden /> Processos</Button>
                 <span className="font-mono text-sm text-indigo-700 dark:text-indigo-300 truncate">{p.numero}</span>
             </div>
@@ -510,7 +511,8 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
 
             <Tabs value={vistaAtual} onValueChange={setVista}>
             <div className="flex flex-wrap items-center justify-between gap-3">
-                <TabsList className="flex-wrap h-auto">
+                {/* No celular, as quatro abas cabem numa linha (rolam para o lado se o número crescer). */}
+                <TabsList className="h-auto max-w-full justify-start overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>button]:shrink-0 max-sm:[&>button]:px-2.5">
                     <TabsTrigger value="capa">Capa</TabsTrigger>
                     <TabsTrigger value="andamento">Andamento{p.pendencias_abertas > 0 ? ` (${p.pendencias_abertas})` : ''}</TabsTrigger>
                     <TabsTrigger value="autos">Autos ({autos.length})</TabsTrigger>
@@ -597,7 +599,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
             )}
 
             {/* Nesta fase: o que o rito espera, com caixas para marcar e os modelos indicados. */}
-            <Card className="border-indigo-200 dark:border-indigo-900">
+            <Card id="pe-nesta-fase" className="scroll-mt-32 border-indigo-200 dark:border-indigo-900 sm:scroll-mt-4">
                 <CardHeader className="pb-2">
                     <CardTitle className="text-base flex flex-wrap items-baseline gap-x-3 gap-y-1">
                         <span>Nesta fase: {p.fase_nome}</span>
@@ -796,8 +798,8 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                 </CardContent>
             </Card>
 
-            <div className="grid lg:grid-cols-5 gap-5">
-                <div className="lg:col-span-3 space-y-5">
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+                <div className="min-w-0 lg:col-span-3 space-y-5">
                     {posse && (
                         <Card>
                             <CardHeader className="pb-2 flex-row flex-wrap items-center justify-between gap-2 space-y-0">
@@ -826,9 +828,9 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                     const pedidos = (d.assinaturas_pedidas || []).filter((x) => !d.assinaturas.some((a) => a.uid === x.uid));
                                     return (
                                         <div key={d.id} className={`flex flex-wrap items-center gap-2 py-2 border-b last:border-0 border-slate-100 dark:border-slate-800 ${pedidoAMim ? 'bg-amber-50 dark:bg-amber-950/40 -mx-2 px-2 rounded' : ''}`}>
-                                            <Paperclip className="w-4 h-4 text-slate-400" />
-                                            <div className="flex-1 min-w-[10rem]">
-                                                <p className="font-medium">{d.titulo}{pedidoAMim && <Badge className="ml-2 bg-amber-500 hover:bg-amber-500">Pediram sua assinatura</Badge>}</p>
+                                            <Paperclip className="w-4 h-4 shrink-0 text-slate-400" aria-hidden />
+                                            <div className="min-w-0 flex-[1_1_calc(100%-1.5rem)]">
+                                                <p className="font-medium [overflow-wrap:anywhere]">{d.titulo}{pedidoAMim && <Badge className="ml-2 bg-amber-500 hover:bg-amber-500">Pediram sua assinatura</Badge>}</p>
                                                 <p className="text-xs text-slate-600 dark:text-slate-400">
                                                     {d.tipo} · {d.origem === 'editor' ? 'redigido' : d.nome_arquivo} · {d.autor_nome}{d.assinaturas.length ? ` · assinado por ${d.assinaturas.map((a) => a.nome).join(', ')}` : ''}
                                                     {pedidos.length ? ` · aguarda assinatura de ${pedidos.map((x) => x.nome).join(', ')}` : ''}
@@ -856,10 +858,10 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                     )}
 
                     <Card ref={pendenciasRef} className={`scroll-mt-32 sm:scroll-mt-0 ${noGabinete && pendenciasAbertas.length ? 'border-amber-300 dark:border-amber-700' : ''}`}>
-                        <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
+                        <CardHeader className="pb-2 flex-row flex-wrap items-center justify-between gap-2 space-y-0">
                             <CardTitle className="text-base">{noGabinete ? 'Para decidir' : 'Pendências e prazos'}</CardTitle>
                             {posse && (
-                                <div className="flex gap-2">
+                                <div className="flex flex-wrap gap-2">
                                     <Button size="sm" variant="outline" className="gap-1" disabled={!podeMexer || ocupado} onClick={() => setAcao({ tipo: 'pendencia' })}><AlertCircle className="w-4 h-4" /> Pendência</Button>
                                     <Button size="sm" variant="outline" className="gap-1" disabled={!podeMexer || ocupado} onClick={() => setAcao({ tipo: 'prazo' })}><CalendarClock className="w-4 h-4" /> Prazo</Button>
                                     <Button size="sm" variant="outline" className="gap-1" disabled={!podeMexer || ocupado} onClick={() => setCronograma({ titulo: 'Cronograma de obrigações' })}><ListChecks className="w-4 h-4" /> Cronograma</Button>
@@ -933,7 +935,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
 
                 </div>
 
-                <div className="lg:col-span-2 space-y-5">
+                <div className="min-w-0 lg:col-span-2 space-y-5">
                     <CartaoComunicacoes p={p} posse={posse} podeMexer={podeMexer && p.status === 'em_tramitacao'} naSecretaria={naSecretaria} ocupado={ocupado}
                         onNova={() => setAcao({ tipo: 'comunicar' })} onSemEfeito={(c) => setAcao({ tipo: 'semEfeito', comunicacao: c })} />
 
@@ -989,8 +991,8 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
 
             <TabsContent value="autos" className="mt-4">
                 <Card>
-                    <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
-                        <div className="flex items-center gap-1"><CardTitle className="text-base">Autos ({autos.length} documentos)</CardTitle><AjudaTermo id="autos" /></div>
+                    <CardHeader className="pb-2 flex-row flex-wrap items-center justify-between gap-2 space-y-0">
+                        <div className="flex items-center gap-1"><CardTitle className="text-base">Autos ({autos.length} documento{autos.length === 1 ? '' : 's'})</CardTitle><AjudaTermo id="autos" /></div>
                         <div className="flex flex-wrap gap-2">
                             {autos.length > 0 && <Button size="sm" variant="outline" className="gap-1" onClick={() => setLeitura(autos[0].id)}><BookOpen className="w-4 h-4" /> Ler em sequência</Button>}
                             <Button size="sm" variant="outline" className="gap-1" disabled={ocupado} onClick={exportar}><Download className="w-4 h-4" /> PDF dos autos</Button>
@@ -1235,7 +1237,7 @@ function NovoDocumento({ aberto, onFechar, tipos, tipoPadrao, modelosDaFase, mod
                     </div>
                     <div>
                         <Label htmlFor="novo-arquivo">Ou enviar um arquivo (PDF, Word, Excel, imagem ou texto, até {MAX_MB} MB)</Label>
-                        <Input id="novo-arquivo" type="file" disabled={ocupado} accept=".pdf,.png,.jpg,.jpeg,.txt,.doc,.docx,.odt,.xlsx" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; onArquivo(f); }} />
+                        <EscolherArquivo id="novo-arquivo" className="mt-1" disabled={ocupado} accept=".pdf,.png,.jpg,.jpeg,.txt,.doc,.docx,.odt,.xlsx" onArquivos={([f]) => onArquivo(f)} />
                         <Label htmlFor="novo-foto" className="mt-2 inline-flex items-center gap-1 text-sm font-normal text-indigo-700 dark:text-indigo-300 cursor-pointer sm:hidden"><Camera className="w-4 h-4" aria-hidden /> Fotografar um documento</Label>
                         <input id="novo-foto" type="file" accept="image/*" capture="environment" className="sr-only" disabled={ocupado} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; onArquivo(f); }} />
                     </div>
@@ -1316,7 +1318,9 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
         <>
             {exigPendentes.length > 0 && (
                 <p className="text-sm rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950 px-3 py-2" role="status">
-                    O rito exige nesta fase: <b>{exigPendentes.map((e) => e.descricao).join('; ')}</b>. Cumpra antes ou informe abaixo o motivo da dispensa <AjudaTermo id="dispensa" />, que fica registrado.
+                    O rito exige nesta fase: <b>{exigPendentes.map((e) => e.descricao).join('; ')}</b>. Cumpra antes ou informe abaixo o motivo da dispensa <AjudaTermo id="dispensa" />, que fica registrado.{' '}
+                    <button type="button" className="font-medium text-indigo-700 underline rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:text-indigo-300"
+                        onClick={() => { reset(); setTimeout(() => document.getElementById('pe-nesta-fase')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150); }}>Fechar e cumprir agora</button>
                 </p>
             )}
             {recomendados.length > 0 && (
@@ -1549,7 +1553,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
         const levarIds = elaboracao ? minutasDaUnidade.map((d) => d.id) : levar ?? minutasDaUnidade.map((d) => d.id);
         const orgaoAtual = estado.unidades.find((u) => u.id === p.unidade_atual)?.orgao_id || null;
         const outroOrgao = !!uDest && (uDest.orgao_id || null) !== orgaoAtual && (estado.orgaos || []).length > 0;
-        const rot = (u) => `${nomeOrgao(estado, u.orgao_id) ? `${nomeOrgao(estado, u.orgao_id)} › ` : ''}${u.nome} (${rotuloUnidade(u.tipo).toLowerCase()})${u.id === acao.destino ? ' · indicada pelo rito' : passou.includes(u.id) ? ' · já passou por aqui' : ''}`;
+        const rot = (u) => `${nomeOrgao(estado, u.orgao_id) ? `${nomeOrgao(estado, u.orgao_id)} › ` : ''}${u.nome}${rotuloUnidade(u.tipo).toLowerCase() === u.nome.trim().toLowerCase() ? '' : ` (${rotuloUnidade(u.tipo).toLowerCase()})`}${u.id === acao.destino ? ' · indicada pelo rito' : passou.includes(u.id) ? ' · já passou por aqui' : ''}`;
         campo = (
             <div className="space-y-2">
                 {faseNova && <p className="text-sm text-slate-700 dark:text-slate-300">A fase passa de <b>{p.fase_nome}</b> para <b>{faseNova.nome}</b> no mesmo ato.</p>}
@@ -1617,7 +1621,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
                                     {comCond.find((s) => s.fase.id === id)?.padrao && <span className="ml-2 text-xs font-medium text-emerald-700 dark:text-emerald-400">Saída padrão do rito</span>}
                                     {faseDoProc?.condicoes_regra?.[id] && <span className="block text-xs text-indigo-700 dark:text-indigo-300">Quando {textoCondicao(faseDoProc, faseDoProc.condicoes_regra[id], p.fases)}</span>}
                                     {condicoes[id] && <span className="block text-xs text-indigo-700 dark:text-indigo-300">Se {condicoes[id]}</span>}
-                                    {p.fases.find((f) => f.id === id)?.orientacao && <span className="block text-xs text-slate-600">{p.fases.find((f) => f.id === id).orientacao}</span>}
+                                    {p.fases.find((f) => f.id === id)?.orientacao && <span className="block text-xs text-slate-600 line-clamp-3 dark:text-slate-400" title={p.fases.find((f) => f.id === id).orientacao}>{p.fases.find((f) => f.id === id).orientacao}</span>}
                                 </button>
                             ))}
                         </div>
@@ -1667,23 +1671,37 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
     const diasInvalidos = (tipo === 'prazo' || tipo === 'ajustarPrazo') && !(Number(dias) >= 1);
     const semTexto = tipo === 'atribuir' || tipo === 'juntar' || tipo === 'guardar' || tipo === 'convidar' || tipo === 'pedirAssinatura';
     const glossa = tipo === 'juntar' ? 'juntada' : tipo === 'tramitar' || tipo === 'devolver' ? 'remessa' : null;
+    // O que falta para confirmar, dito em palavras (o botão apagado sozinho não explica).
+    const semEscolha = exigeValor && !valor && !acao?.destino && !acao?.fase_id && !acao?.status && tipo !== 'devolver';
+    const falta = [
+        semEscolha && (tipo === 'tramitar' ? 'escolha o destino' : tipo === 'fase' ? 'escolha a fase' : 'faça a escolha acima'),
+        diasInvalidos && 'informe os dias (1 ou mais)',
+        !semTexto && exigeTexto && !motivo.trim() && `preencha "${rotuloTexto.split(' (')[0]}"`,
+    ].filter(Boolean);
+    const impedido = ocupado || !!bloqueio || falta.length > 0;
+    const confirmar = async () => {
+        if (impedido || await enviar() === false) return;
+        setValor(''); setMotivo(''); setDestinatario(''); setVisivel('sim'); setResolve(''); setAtende(null); setLevar(null); setRep({ qualidade: '', inscricao: '', poderes: false });
+    };
 
     return (
         <Dialog open={!!acao} onOpenChange={(o) => !o && reset()}>
-            <DialogContent onOpenAutoFocus={glossa ? focoSemAjuda : undefined} className={`max-h-[92vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full ${largo ? 'max-w-4xl' : ''}`}>
+            <DialogContent onOpenAutoFocus={glossa ? focoSemAjuda : undefined} onInteractOutside={(e) => { if (motivo.trim()) e.preventDefault(); }} className={`max-h-[92vh] overflow-y-auto w-[calc(100vw-1rem)] sm:w-full ${largo ? 'max-w-4xl' : ''}`}>
                 <DialogHeader><div className="flex items-start justify-center gap-1 pr-6 sm:justify-start"><DialogTitle>{titulo}</DialogTitle>{glossa && <AjudaTermo id={glossa} />}</div></DialogHeader>
                 <div className="space-y-3">
                     {campo}
                     {bloqueio && <p role="alert" className="text-sm rounded-md border border-red-200 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-100 px-3 py-2">{bloqueio}</p>}
                     {!semTexto && (
-                        <div><Label htmlFor="acao-motivo">{rotuloTexto}{exigeTexto ? ' (obrigatório)' : ''}</Label><Textarea id="acao-motivo" rows={3} value={motivo} onChange={(e) => setMotivo(e.target.value)} /></div>
+                        <div><Label htmlFor="acao-motivo">{rotuloTexto}{exigeTexto ? ' (obrigatório)' : ''}</Label><Textarea id="acao-motivo" rows={3} value={motivo} aria-required={exigeTexto || undefined} onChange={(e) => setMotivo(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); confirmar(); } }} /></div>
                     )}
                     <p className="text-xs text-slate-600">Fica registrado na linha do tempo com seu nome, data e hora.</p>
                 </div>
-                <DialogFooter className="flex-row flex-wrap gap-2">
+                {!bloqueio && falta.length > 0 && <p id="acao-falta" role="status" className="text-xs text-amber-800 dark:text-amber-300">Para confirmar: {falta.join('; ')}.</p>}
+                <DialogFooter className="flex-row flex-wrap gap-2 max-sm:[&>button]:flex-1">
                     {rodape}
                     <Button variant="outline" onClick={reset}>Cancelar</Button>
-                    <Button disabled={ocupado || diasInvalidos || !!bloqueio || (exigeValor && !valor && !acao?.destino && !acao?.fase_id && !acao?.status && tipo !== 'devolver') || (exigeTexto && !motivo.trim())} onClick={async () => { if (await enviar() === false) return; setValor(''); setMotivo(''); setDestinatario(''); setVisivel('sim'); setResolve(''); setAtende(null); setLevar(null); setRep({ qualidade: '', inscricao: '', poderes: false }); }}>
+                    <Button disabled={impedido} aria-describedby={falta.length ? 'acao-falta' : undefined} title="Atalho: Ctrl+Enter no campo de texto" onClick={confirmar}>
                         {ocupado && <Loader2 className="w-4 h-4 animate-spin mr-2" />} {tipo === 'resolver' ? 'Registrar a decisão' : 'Confirmar'}
                     </Button>
                 </DialogFooter>

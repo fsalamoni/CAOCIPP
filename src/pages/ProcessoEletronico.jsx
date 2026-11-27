@@ -1,8 +1,8 @@
-import React, { Suspense, lazy, useEffect, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowLeft, Building2, CalendarDays, Gavel, HelpCircle, Inbox, ListChecks, Loader2, Paperclip, Plus, Scale, Settings, Files, LayoutDashboard, SlidersHorizontal, Trash2, Undo2, X } from 'lucide-react';
+import { ArrowLeft, Building2, CalendarDays, Gavel, HelpCircle, Inbox, ListChecks, Loader2, Paperclip, Plus, Scale, Search, Settings, Files, LayoutDashboard, SlidersHorizontal, Trash2, Undo2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -35,7 +35,9 @@ import { unidadeComOrgao } from '@/lib/orgaos';
 import { unidadeDecide } from '@/lib/permissoesFase';
 const PainelSecretaria = lazy(() => import('@/components/secretaria/PainelSecretaria'));
 import MeuTrabalho, { MesaDecisao, gruposDeTrabalho } from '@/components/secretaria/MeuTrabalho';
-import { STATUS_ROTULO, NativeSelect, SeloUrgente, documentoDaUnidade } from '@/components/secretaria/comum';
+import { STATUS_ROTULO, NativeSelect, documentoDaUnidade } from '@/components/secretaria/comum';
+import LinhaProcesso, { lembrarProcesso } from '@/components/secretaria/LinhaProcesso';
+import EscolherArquivo from '@/components/secretaria/EscolherArquivo';
 import DetalharDocumentos, { detalheInicial, enviarDetalhados, resumoDetalhe } from '@/components/secretaria/DetalharDocumentos';
 import AjudaTermo, { focoSemAjuda } from '@/components/secretaria/AjudaTermo';
 import GuiaRito from '@/components/secretaria/GuiaRito';
@@ -64,13 +66,9 @@ export default function ProcessoEletronico() {
     const isV2 = useFlag(FEATURE_FLAGS.FRONTEND_V2.key);
     const { organization: orgAoVivo, resolvedId } = useOrganizationRealtime(orgId);
     const orgTabs = useOrganizationTabs(resolvedId === orgId ? orgAoVivo : null, { role: org?.userRole, permissions: org?.userPermissions });
-    // No celular, dentro de um processo, a barra e o cabeçalho somem: a barra
-    // compacta do ProcessoView mostra o número e o caminho de volta.
-    const barra = isV2 && (
-        <div className={procId ? 'hidden sm:block' : undefined}>
-            <OrgTabBar tabs={orgTabs} activeTab={PROCESSO_ELETRONICO_TAB} orgId={orgId} />
-        </div>
-    );
+    // Dentro de um processo, a barra e o cabeçalho somem: a tela é do processo, com o
+    // caminho de volta em "Processos" (as outras páginas seguem no menu lateral).
+    const barra = isV2 && !procId && <OrgTabBar tabs={orgTabs} activeTab={PROCESSO_ELETRONICO_TAB} orgId={orgId} />;
     // A aba interna fica no endereço (?aba=): voltar de um processo, recarregar
     // ou compartilhar o link mantém a pessoa onde estava.
     const abaUrl = params.get('aba');
@@ -130,7 +128,7 @@ export default function ProcessoEletronico() {
 
     const abrir = (id) => {
         const next = new URLSearchParams(params);
-        if (id) next.set('p', id); else next.delete('p');
+        if (id) { next.set('p', id); lembrarProcesso(orgId, id); } else next.delete('p');
         setParams(next);
     };
 
@@ -198,8 +196,10 @@ export default function ProcessoEletronico() {
         <ProvedorRegistros orgId={orgId} ligadas={integracoesLigadas(estado)} unidades={estado.unidades} listas={estado.listas}>
         {barra}
         <div className="space-y-5">
-            <div className={`${procId ? 'hidden sm:flex' : 'flex'} flex-wrap items-center justify-between gap-3`}>
-                <div className="flex items-center gap-3 min-w-0">
+            {!procId && (
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+                {/* No celular, o título já está na barra do site: aqui fica só para leitores de tela. */}
+                <div className="flex items-center gap-3 min-w-0 max-sm:sr-only">
                     <Link to={`${createPageUrl('Organization')}?id=${orgId}`} className="-m-3 inline-flex rounded-md p-3 text-slate-600 hover:text-slate-800 dark:hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 sm:m-0 sm:p-0" aria-label="Voltar ao órgão">
                         <ArrowLeft className="w-5 h-5" />
                     </Link>
@@ -212,22 +212,24 @@ export default function ProcessoEletronico() {
                         </p>
                     </div>
                 </div>
-                {!procId && (
-                    <div className="flex flex-wrap gap-2">
+                {/* No celular, "Novo processo" vem primeiro e ocupa a linha; os demais ficam abaixo. */}
+                {(
+                    <div className="flex w-full flex-wrap items-center gap-1 sm:w-auto sm:gap-2">
                         <Button asChild variant="ghost" size="icon" aria-label="Ajuda do Processo Eletrônico">
                             <Link to={`${createPageUrl('Help')}#processo-eletronico`}><HelpCircle className="w-5 h-5" aria-hidden /></Link>
                         </Button>
                         <GuiaRito variante="ghost" />
                         {estado.minhasUnidades.length > 0 && <AvisosEquipe />}
                         {estado.isAdmin && (
-                            <Button asChild variant="outline" className="gap-2">
-                                <Link to={`${createPageUrl('Organization')}?id=${orgId}&tab=admin&secao=secretaria`}><Settings className="w-4 h-4" aria-hidden /> Configurar</Link>
+                            <Button asChild variant="outline" className="gap-2 max-sm:px-3" aria-label="Configurar o Processo Eletrônico">
+                                <Link to={`${createPageUrl('Organization')}?id=${orgId}&tab=admin&secao=secretaria`}><Settings className="w-4 h-4" aria-hidden /> <span className="max-sm:sr-only">Configurar</span></Link>
                             </Button>
                         )}
                         <NovoProcesso orgId={orgId} estado={estado} onCriado={abrir} semente={semente} onSementeUsada={usarSemente} />
                     </div>
                 )}
             </div>
+            )}
             {deId && estado.minhasUnidades.length === 0 && (
                 <div role="alert" className="rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/50 p-3 text-sm text-amber-900 dark:text-amber-100">
                     Para criar um processo a partir de {ROTULO_REF[deModulo] ? `um registro de ${ROTULO_REF[deModulo].toLowerCase()}` : 'outro registro'}, você precisa estar lotado em uma unidade. Peça lotação na aba <b>Unidades</b>.
@@ -247,7 +249,8 @@ export default function ProcessoEletronico() {
                 <ProcessoView orgId={orgId} procId={procId} estado={estado} onVoltar={() => abrir(null)} />
             ) : (
                 <Tabs value={aba} onValueChange={trocarAba}>
-                    <TabsList className="flex-wrap h-auto">
+                    {/* No celular, as abas ficam numa linha só, que rola para o lado. */}
+                    <TabsList className="h-auto max-w-full justify-start overflow-x-auto flex-nowrap sm:flex-wrap max-sm:pr-8 max-sm:[mask-image:linear-gradient(to_right,black_calc(100%-2.5rem),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>button]:shrink-0">
                         {estado.minhasUnidades.length > 0 && (
                             <TabsTrigger value="meu" className="gap-2">
                                 <ListChecks className="w-4 h-4" /> Meu trabalho
@@ -269,9 +272,9 @@ export default function ProcessoEletronico() {
                             {pedidosPendentes > 0 && <Badge className="ml-1 bg-amber-500 hover:bg-amber-500">{pedidosPendentes}</Badge>}
                         </TabsTrigger>
                     </TabsList>
-                    <TabsContent value="meu"><MeuTrabalho orgId={orgId} estado={estado} onAbrir={abrir} /></TabsContent>
+                    <TabsContent value="meu"><MeuTrabalho orgId={orgId} estado={estado} /></TabsContent>
                     <TabsContent value="caixa"><ListaProcessos orgId={orgId} escopo="caixa" estado={estado} onAbrir={abrir} /></TabsContent>
-                    <TabsContent value="mesa"><MesaDecisao orgId={orgId} estado={estado} onAbrir={abrir} /></TabsContent>
+                    <TabsContent value="mesa"><MesaDecisao orgId={orgId} estado={estado} /></TabsContent>
                     <TabsContent value="sessoes">{comSessoes && <Sessoes orgId={orgId} onAbrir={abrir} />}</TabsContent>
                     <TabsContent value="todos"><ListaProcessos orgId={orgId} escopo="todos" estado={estado} onAbrir={abrir} /></TabsContent>
                     <TabsContent value="painel"><PainelSecretaria orgId={orgId} estado={estado} onAbrir={abrir} /></TabsContent>
@@ -284,7 +287,26 @@ export default function ProcessoEletronico() {
     );
 }
 
-const FILTROS_VAZIOS = { texto: '', situacao: 'todos', tipo: '', unidade: '', fase: '', status: '', sigilo: '', de: '', ate: '' };
+const FILTROS_VAZIOS = { texto: '', situacao: 'todos', tipo: '', unidade: '', fase: '', status: '', sigilo: '', de: '', ate: '', ordem: 'recentes' };
+// A busca, os filtros e a ordem ficam guardados enquanto a aba do navegador estiver aberta:
+// abrir um processo e voltar não desfaz o que a pessoa montou.
+const chaveFiltros = (orgId, escopo) => `pe-filtros-${orgId}-${escopo}`;
+function filtrosGuardados(orgId, escopo) {
+    try { return { ...FILTROS_VAZIOS, ...JSON.parse(sessionStorage.getItem(chaveFiltros(orgId, escopo)) || '{}') }; } catch { return FILTROS_VAZIOS; }
+}
+const ORDENS = [
+    ['recentes', 'Mais recentes primeiro'],
+    ['prazo', 'Prazo mais próximo'],
+    ['parados', 'Há mais tempo na unidade'],
+    ['antigos', 'Mais antigos primeiro'],
+];
+const porTexto = (a, b) => String(a || '').localeCompare(String(b || ''));
+const ORDENAR = {
+    // Sem prazo vai para o fim.
+    prazo: (a, b) => porTexto(a.proximo_vencimento || '9999', b.proximo_vencimento || '9999'),
+    parados: (a, b) => porTexto(a.recebido_em, b.recebido_em),
+    antigos: (a, b) => porTexto(a.autuado_em, b.autuado_em),
+};
 const sel = 'h-9 rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900';
 // Busca sem acento: "joao" acha "João".
 const norm = (v) => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -353,10 +375,28 @@ function ProcessosExcluidos({ orgId, estado, aberto, onFechar, onAbrir }) {
 }
 
 export function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
-    const [f, setF] = useState(FILTROS_VAZIOS);
+    const [f, setF] = useState(() => filtrosGuardados(orgId, escopo));
     const [verExcluidos, setVerExcluidos] = useState(false);
-    const [avancado, setAvancado] = useState(false);
+    const ativosAvancados = ['tipo', 'unidade', 'fase', 'status', 'sigilo', 'de', 'ate'].filter((k) => f[k] !== FILTROS_VAZIOS[k]).length;
+    const [avancado, setAvancado] = useState(ativosAvancados > 0);
     const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
+    useEffect(() => {
+        try { sessionStorage.setItem(chaveFiltros(orgId, escopo), JSON.stringify(f)); } catch { /* sem armazenamento: os filtros só não ficam guardados */ }
+    }, [f, orgId, escopo]);
+    // "/" leva o cursor à busca (fora de campos de texto), como nas caixas de e-mail.
+    const busca = useRef(null);
+    useEffect(() => {
+        const tecla = (e) => {
+            if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey || document.querySelector('[role="dialog"]')) return;
+            if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName) || e.target?.isContentEditable) return;
+            if (!busca.current || busca.current.offsetParent === null) return;
+            e.preventDefault();
+            busca.current.focus();
+            busca.current.select();
+        };
+        window.addEventListener('keydown', tecla);
+        return () => window.removeEventListener('keydown', tecla);
+    }, []);
     // Paginado pelo servidor, dos mais recentes para os mais antigos; os
     // filtros valem sobre o que já foi carregado ("Carregar mais" traz o resto).
     const q = useInfiniteQuery({
@@ -386,27 +426,40 @@ export function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
             || (f.situacao === 'urgente' && p.urgente)
             || (f.situacao === 'pendencia' && p.pendencias_abertas > 0)
             || (f.situacao === 'vencido' && p.proximo_vencimento && p.proximo_vencimento < hoje)
+            || (f.situacao === 'semdono' && !p.responsavel_uid && p.status === 'em_tramitacao')
+            || (f.situacao === 'comigo' && p.responsavel_uid === estado.uid)
             || (f.situacao === 'prazo' && p.proximo_vencimento));
-    const nomeUnidade = (id) => unidadeComOrgao(estado, id);
-    const nomeMembro = (uid) => estado.membros.find((m) => m.uid === uid)?.nome;
-    const ativos = Object.entries(f).filter(([k, v]) => v !== FILTROS_VAZIOS[k]).length;
+    if (ORDENAR[f.ordem]) lista.sort(ORDENAR[f.ordem]);
+    // A ordem não é filtro: "Limpar filtros" não aparece só por causa dela.
+    const ativos = Object.entries(f).filter(([k, v]) => k !== 'ordem' && v !== FILTROS_VAZIOS[k]).length;
+    const limpar = () => setF((x) => ({ ...FILTROS_VAZIOS, ordem: x.ordem }));
 
     return (
         <div className="space-y-3 pt-2">
             <div className="flex flex-wrap gap-2 items-center">
-                <Input placeholder="Número, assunto, parte ou CPF/CNPJ" aria-label="Buscar processos" value={f.texto} onChange={(e) => set('texto', e.target.value)} className="max-w-sm" />
+                <div className="relative w-full sm:w-auto sm:flex-1 sm:max-w-sm">
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" aria-hidden />
+                    <Input ref={busca} type="search" placeholder="Número, assunto, parte ou CPF/CNPJ" aria-label="Buscar processos" aria-keyshortcuts="/" value={f.texto} onChange={(e) => set('texto', e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Escape' && f.texto) { e.stopPropagation(); set('texto', ''); } }} className="pl-8 sm:pr-8" />
+                    {!f.texto && <kbd className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 rounded border border-slate-300 px-1.5 text-[11px] leading-5 text-slate-500 dark:border-slate-600 dark:text-slate-400 sm:block" aria-hidden>/</kbd>}
+                </div>
                 <select aria-label="Filtrar por situação" value={f.situacao} onChange={(e) => set('situacao', e.target.value)} className={sel}>
                     <option value="todos">Qualquer situação</option>
                     <option value="urgente">Urgentes</option>
+                    <option value="comigo">Comigo</option>
+                    <option value="semdono">Sem responsável</option>
                     <option value="pendencia">Com pendência para o decisor</option>
                     <option value="prazo">Com prazo aberto</option>
                     <option value="vencido">Com prazo vencido</option>
                 </select>
                 <Button variant="outline" size="sm" className="gap-2" aria-expanded={avancado} onClick={() => setAvancado((v) => !v)}>
-                    <SlidersHorizontal className="w-4 h-4" /> Mais filtros
+                    <SlidersHorizontal className="w-4 h-4" aria-hidden /> Mais filtros{ativosAvancados > 0 && <Badge className="ml-0.5 h-5 min-w-5 justify-center px-1 bg-indigo-600 hover:bg-indigo-600">{ativosAvancados}</Badge>}
                 </Button>
+                <select aria-label="Ordenar a lista" value={f.ordem} onChange={(e) => set('ordem', e.target.value)} className={sel}>
+                    {ORDENS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
                 {ativos > 0 && (
-                    <Button variant="ghost" size="sm" className="gap-1" onClick={() => setF(FILTROS_VAZIOS)}><X className="w-4 h-4" /> Limpar filtros</Button>
+                    <Button variant="ghost" size="sm" className="gap-1" onClick={limpar}><X className="w-4 h-4" aria-hidden /> Limpar filtros</Button>
                 )}
                 <span className="text-sm text-slate-600 dark:text-slate-400 ml-auto" aria-live="polite">{lista.length} de {todos.length}{q.hasNextPage ? ' carregados' : ''}</span>
                 {escopo === 'todos' && estado.isAdmin && (
@@ -455,29 +508,14 @@ export function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
             {lista.length === 0 ? (
                 <div className="py-8 text-slate-600 dark:text-slate-400 space-y-2">
                     <p>{todos.length && ativos ? 'Nenhum processo com esses filtros.' : escopo === 'caixa' ? 'Nenhum processo com as suas unidades.' : 'Nenhum processo visível para você.'}</p>
-                    {todos.length > 0 && ativos > 0 && <Button variant="outline" size="sm" onClick={() => setF(FILTROS_VAZIOS)}>Limpar filtros</Button>}
+                    {todos.length > 0 && ativos > 0 && <Button variant="outline" size="sm" onClick={limpar}>Limpar filtros</Button>}
+                    {todos.length > 0 && ativos > 0 && q.hasNextPage && <p className="text-sm">A busca olhou só os {todos.length} processos já carregados. Use <b>Carregar mais</b>, abaixo, para procurar nos anteriores.</p>}
                     {!todos.length && escopo === 'caixa' && estado.minhasUnidades.length > 0 && <p className="text-sm">Use <b>Novo processo</b> acima para autuar o primeiro.</p>}
                     {!todos.length && !estado.minhasUnidades.length && <p className="text-sm">Peça lotação em uma unidade na aba <b>Unidades</b>.</p>}
                 </div>
             ) : (
                 <div className="divide-y divide-slate-200 dark:divide-slate-700 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-                    {lista.map((p) => (
-                        <button key={p.id} onClick={() => onAbrir(p.id)} className="w-full text-left p-4 hover:bg-slate-50 dark:hover:bg-slate-800 flex flex-wrap gap-x-6 gap-y-1 items-baseline">
-                            <span className="font-mono text-sm text-indigo-700 dark:text-indigo-300">{p.numero}</span>
-                            <span className="font-medium text-slate-900 dark:text-white flex-1 min-w-[12rem]">{p.assunto}{p.tipo_nome && <span className="ml-2 text-xs font-normal text-slate-600">{p.tipo_nome}</span>}</span>
-                            <span className="text-sm text-slate-600 dark:text-slate-400">{p.fase_nome} · {nomeUnidade(p.unidade_atual)}{p.responsavel_uid ? ` · ${nomeMembro(p.responsavel_uid) || ''}` : ''}</span>
-                            {p.urgente && <SeloUrgente motivo={p.urgencia?.motivo} />}
-                            <Badge variant={p.status === 'em_tramitacao' ? 'secondary' : 'outline'}>{STATUS_ROTULO[p.status]}</Badge>
-                            {p.sigilo === 'restrito' && <Badge variant="outline">Restrito</Badge>}
-                            {p.sessao && <Badge variant="outline" className="border-indigo-300 text-indigo-800 dark:border-indigo-700 dark:text-indigo-200">Pautado: {p.sessao.data.split('-').reverse().join('/')}</Badge>}
-                            {p.pendencias_abertas > 0 && <Badge className="bg-amber-100 text-amber-900 hover:bg-amber-100 dark:bg-amber-900 dark:text-amber-100">{p.pendencias_abertas} pendência{p.pendencias_abertas > 1 ? 's' : ''}{p.fase_suspensa ? ' · fase interrompida' : ''}</Badge>}
-                            {p.proximo_vencimento && (
-                                <Badge variant="outline" className={p.proximo_vencimento < hoje ? 'border-red-400 text-red-700 dark:text-red-300' : ''}>
-                                    Prazo {p.proximo_vencimento < hoje ? 'vencido' : 'vence'} {p.proximo_vencimento.split('-').reverse().join('/')}
-                                </Badge>
-                            )}
-                        </button>
-                    ))}
+                    {lista.map((p) => <LinhaProcesso key={p.id} p={p} estado={estado} orgId={orgId} hoje={hoje} tempo={escopo === 'caixa'} />)}
                 </div>
             )}
             {q.hasNextPage && (
@@ -490,6 +528,12 @@ export function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
             )}
         </div>
     );
+}
+
+/** Unidade da primeira fase do rito, se está entre as permitidas (as da pessoa, para o tipo). */
+function unidadeDaPrimeiraFase(rito, permitidas) {
+    const u = rito?.fases?.[0]?.unidade_id;
+    return u && permitidas.includes(u) ? u : '';
 }
 
 /** Processos por página na lista (o servidor aceita até 200). */
@@ -527,13 +571,33 @@ function NovoProcesso({ orgId, estado, onCriado, semente = null, onSementeUsada 
             ...x, tipo_id: id, campos: camposDaOrigem(formularioDe(t), x.origem?.ref), partes: x.partes.map((pa) => (polos.includes(pa.polo) ? pa : { ...pa, polo: reserva })),
             ...(t ? {
                 rito_id: t.rito_id, sigilo: t.sigilo_padrao, urgente: t.urgente === true,
+                // Unidade: a que o tipo indica; senão a da primeira fase do rito; senão a que já estava.
                 ...(t.unidade_inicial && unidadesPara(t).includes(t.unidade_inicial) ? { unidade_id: t.unidade_inicial }
-                    : unidadesPara(t).includes(x.unidade_id) ? {} : { unidade_id: unidadesPara(t)[0] }),
+                    : unidadeDaPrimeiraFase(ritosAtivos.find((r) => r.id === t.rito_id), unidadesPara(t)) ? { unidade_id: unidadeDaPrimeiraFase(ritosAtivos.find((r) => r.id === t.rito_id), unidadesPara(t)) }
+                        : unidadesPara(t).includes(x.unidade_id) ? {} : { unidade_id: unidadesPara(t)[0] }),
             } : ritosSemTipo.some((r) => r.id === x.rito_id) ? {} : { rito_id: ritosSemTipo[0]?.id || '' }),
         }));
     };
+    // Sem tipo: trocar o rito leva a unidade para a da primeira fase dele, se a pessoa está lotada lá.
+    const escolherRito = (id) => setF((x) => {
+        const u = unidadeDaPrimeiraFase(estado.ritos.find((r) => r.id === id), estado.minhasUnidades);
+        return { ...x, rito_id: id, ...(u ? { unidade_id: u } : {}) };
+    });
+    // Ao abrir sem nada preenchido: o tipo usado da última vez neste órgão; sem isso, o único tipo que
+    // existe. Quem autuou sem tipo da última vez continua sem tipo. A pessoa troca à vontade.
+    const abrirNovo = () => {
+        setAberto(true);
+        if (f.tipo_id || f.assunto || f.origem?.ref) return;
+        let ultimo = '';
+        try { ultimo = localStorage.getItem(`pe-ultimo-tipo-${orgId}`) || ''; } catch { /* sem armazenamento */ }
+        const sugerido = tiposAtivos.find((t) => t.id === ultimo) || (tiposAtivos.length === 1 && ultimo !== '-' ? tiposAtivos[0] : null);
+        if (sugerido) escolherTipo(sugerido.id);
+        else escolherRito(f.rito_id);
+    };
     const tipoSel = tiposAtivos.find((t) => t.id === f.tipo_id);
     const ritoSel = estado.ritos.find((r) => r.id === f.rito_id);
+    // Unidade da primeira fase do rito (se existe e está ativa): onde o processo começa a andar.
+    const primeiraUnidade = estado.unidades.some((u) => u.id === ritoSel?.fases?.[0]?.unidade_id && u.ativa) ? ritoSel.fases[0].unidade_id : '';
     // Formulário do tipo: o que é obrigatório, o que não se usa e os campos próprios.
     const form = formularioDe(tipoSel);
     const falta = faltando(form, f);
@@ -575,6 +639,7 @@ function NovoProcesso({ orgId, estado, onCriado, semente = null, onSementeUsada 
         setSalvando(true);
         try {
             const r = await secProcesso(orgId, 'autuar', f);
+            try { localStorage.setItem(`pe-ultimo-tipo-${orgId}`, f.tipo_id || '-'); } catch { /* sem armazenamento */ }
             // Os arquivos entram como foram detalhados (juntados, guardados ou minutas), um a um e na
             // ordem, com a data e a hora de agora; falha num não desfaz a autuação nem os anteriores.
             const env = anexos.length ? await enviarDetalhados(orgId, r.id, anexos) : { falhou: null };
@@ -596,7 +661,7 @@ function NovoProcesso({ orgId, estado, onCriado, semente = null, onSementeUsada 
 
     return (
         <Dialog open={aberto} onOpenChange={(o) => { setAberto(o); if (!o && f.origem?.ref) setF(vazio); }}>
-            <Button className="gap-2" onClick={() => setAberto(true)}><Plus className="w-4 h-4" /> Novo processo</Button>
+            <Button className="gap-2 max-sm:order-first max-sm:w-full" onClick={abrirNovo}><Plus className="w-4 h-4" aria-hidden /> Novo processo</Button>
             <DialogContent onOpenAutoFocus={focoSemAjuda} className="max-w-2xl p-0 gap-0 flex flex-col max-h-[90vh] overflow-hidden max-sm:max-w-none max-sm:w-screen max-sm:h-[100dvh] max-sm:max-h-none max-sm:rounded-none">
                 <DialogHeader className="px-4 pt-4 pr-12 pb-3 sm:px-6"><div className="flex items-center justify-center gap-1 sm:justify-start"><DialogTitle>Autuar processo</DialogTitle><AjudaTermo id="autuar" /></div></DialogHeader>
                 <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 pb-4 space-y-4">
@@ -612,12 +677,18 @@ function NovoProcesso({ orgId, estado, onCriado, semente = null, onSementeUsada 
                         rito={tipoSel
                             ? <div><Label>Rito</Label><p className="mt-1 h-9 flex items-center text-sm text-slate-700 dark:text-slate-300">{ritoSel?.nome}</p></div>
                             : ritosSemTipo.length
-                                ? <NativeSelect id="sec-rito" label="Rito" value={f.rito_id} onChange={(v) => set('rito_id', v)} options={ritosSemTipo.map((r) => [r.id, r.nome])} />
+                                ? <NativeSelect id="sec-rito" label="Rito" value={f.rito_id} onChange={escolherRito} options={ritosSemTipo.map((r) => [r.id, r.nome])} />
                                 : <div><Label>Rito</Label><p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{!ritosAtivos.length
                                     ? 'Nenhum rito ativo neste órgão. Peça ao administrador que ative um rito.'
                                     : !tiposAtivos.length
                                         ? 'Os ritos deste órgão são autuados por tipo de processo, e nenhum tipo está disponível para as suas unidades. Fale com o administrador.'
                                         : 'Os ritos deste órgão são autuados por tipo de processo: escolha o tipo.'}</p></div>} />
+                    {primeiraUnidade && primeiraUnidade !== f.unidade_id && (
+                        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/50 dark:text-amber-100" role="status">
+                            <span className="min-w-0 flex-1">A primeira fase deste rito ({ritoSel.fases[0].nome}) corre em <b>{unidadeComOrgao(estado, primeiraUnidade)}</b>, e você está autuando em {unidadeComOrgao(estado, f.unidade_id)}.</span>
+                            {unidadesPara(tipoSel).includes(primeiraUnidade) && <Button type="button" size="sm" variant="outline" className="h-8 bg-white dark:bg-slate-900" onClick={() => set('unidade_id', primeiraUnidade)}>Autuar em {estado.unidades.find((u) => u.id === primeiraUnidade)?.sigla || estado.unidades.find((u) => u.id === primeiraUnidade)?.nome}</Button>}
+                        </p>
+                    )}
                     {ritoSel && (
                         <details className="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2">
                             <summary className="text-sm cursor-pointer">Ver o fluxo do rito ({ritoSel.fases.length} fases)</summary>
@@ -626,13 +697,12 @@ function NovoProcesso({ orgId, estado, onCriado, semente = null, onSementeUsada 
                     )}
                     <div>
                         <Label htmlFor="sec-anexos">Arquivos (opcional)</Label>
-                        <Input id="sec-anexos" type="file" multiple className="mt-1" accept=".pdf,.png,.jpg,.jpeg,.txt,.doc,.docx,.odt,.xlsx" aria-describedby="sec-anexos-ajuda"
-                            onChange={(e) => {
-                                const novos = [...(e.target.files || [])];
-                                e.target.value = '';
+                        <EscolherArquivo id="sec-anexos" multiple className="mt-1" accept=".pdf,.png,.jpg,.jpeg,.txt,.doc,.docx,.odt,.xlsx" aria-describedby="sec-anexos-ajuda"
+                            onArquivos={(novos) => {
                                 const grandes = novos.filter((x) => x.size > MAX_MB_ANEXO * 1024 * 1024);
                                 if (grandes.length) toast.error(`Acima de ${MAX_MB_ANEXO} MB: ${grandes.map((x) => x.name).join(', ')}`);
                                 const cabem = novos.filter((x) => x.size <= MAX_MB_ANEXO * 1024 * 1024).slice(0, Math.max(0, MAX_ANEXOS - anexos.length));
+                                if (novos.length - grandes.length > cabem.length) toast.error(`Só cabem ${MAX_ANEXOS} arquivos na autuação. Os demais você envia no processo, em Novo documento.`);
                                 // Cada arquivo é detalhado na hora: tipo, do que se trata, data, juntar ou guardar, assinatura.
                                 if (cabem.length) setDetalhando({ inicio: anexos.length, itens: cabem.map((x) => detalheInicial(x, tiposDoc[0] || 'Documento')) });
                             }} />

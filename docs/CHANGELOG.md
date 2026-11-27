@@ -5,6 +5,25 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 27/11/2026 — Processo Eletrônico: usabilidade das listas, do processo e das janelas
+- **Listas** com uma linha só para todas (`LinhaProcesso.jsx`): número, assunto
+  (link, abre em outra aba com Ctrl+clique), tipo e partes, fase, unidade e com
+  quem está. A busca, os filtros e a ordem ficam guardados ao voltar de um
+  processo, e a lista volta ao ponto em que estava. Ordenação nova (prazo mais
+  próximo, há mais tempo na unidade, mais antigos), "/" para buscar e as
+  situações "Comigo" e "Sem responsável".
+- **Novo processo** abre com o tipo usado da última vez e na unidade da
+  primeira fase do rito; arquivos com seletor em português e arrastar e soltar
+  (também no Novo documento e no portal).
+- **Dentro do processo**, a tela é só dele (sem a barra de páginas e o
+  cabeçalho da lista). O menu "Mais" passou a rolar quando não cabe na tela:
+  em telas baixas os primeiros itens ficavam fora de alcance.
+- **Janelas de ação** dizem o que falta para confirmar, não fecham com texto
+  digitado num clique fora, e confirmam com Ctrl+Enter.
+- **Celular**: sem rolagem lateral no processo e no portal, abas numa linha,
+  menos cabeçalho antes do conteúdo.
+- Teste de tela: `scripts/e2e-usabilidade-pe.mjs`.
+
 ### 25/11/2026 — Exportar o rito: Bizagi (BPMN), imagem, PDF, SVG, planilha e Mermaid
 - Em Ritos, o menu do rito ganhou "Exportar (imagem, Bizagi, planilha)", e a
   tela de edição o botão "Exportar o rito". Seis formatos, todos gerados no

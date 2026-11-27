@@ -773,6 +773,9 @@ function resumo(id: string, d: admin.firestore.DocumentData) {
         autuado_em: d.autuado_em || null,
         campos_resumo: ((d.campos || []) as CampoValor[]).map((x) => valorTexto(x)).join(' · ').slice(0, 500),
         partes_resumo: (d.partes || []).map((x: { nome?: string; documento?: string }) => [x.nome, x.documento].filter(Boolean).join(' ')).join(' · ').slice(0, 500),
+        // Linha das listas: os três primeiros nomes (sem documento) e quantas partes são.
+        partes_nomes: ((d.partes || []) as Array<{ nome?: string }>).map((x) => String(x.nome || '').trim().slice(0, 80)).filter(Boolean).slice(0, 3),
+        partes_total: ((d.partes || []) as Array<{ nome?: string }>).filter((x) => String(x.nome || '').trim()).length,
         pendencia_desde: ((d.pendencias || []) as Pendencia[])
             .filter((x) => x.status === 'aberta').map((x) => String(x.aberta_em || '')).filter(Boolean).sort()[0] || null,
         // Fila de trabalho: quando chegou na unidade, pedidos de assinatura e orientação do gabinete.

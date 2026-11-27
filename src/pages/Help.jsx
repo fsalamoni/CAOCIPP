@@ -149,6 +149,11 @@ export default function Help() {
               title="Equipe da unidade"
               items={[
                 "Meu trabalho: o que pede sua ação, por urgência; use Assumir para ficar responsável",
+                "Nas listas, cada linha mostra o tipo e as partes; clique na linha para abrir, ou Ctrl+clique no assunto para abrir em outra aba",
+                "Busca, filtros e ordem ficam guardados: ao voltar de um processo, a lista está como você deixou, no mesmo ponto; a tecla / leva à busca",
+                "Ordene por prazo mais próximo ou por há mais tempo na unidade; filtre por Comigo ou Sem responsável",
+                "Novo processo já abre com o tipo usado da última vez e na unidade onde o rito começa; arraste os arquivos para a janela",
+                "Nas janelas de tramitar, juntar e decidir, a linha Para confirmar diz o que falta; Ctrl+Enter confirma",
                 "Nesta fase: marque as ações feitas e abra os modelos com um clique",
                 "Botão principal segue o rito: concluir, enviar ou seguir para a próxima fase",
                 "Minutas são rascunhos da unidade; Juntar inclui nos autos, com número e data",
