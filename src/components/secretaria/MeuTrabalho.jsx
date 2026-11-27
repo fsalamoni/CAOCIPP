@@ -6,14 +6,13 @@ import { Button } from '@/components/ui/button';
 import ErroQuery from './ErroQuery';
 import { Badge } from '@/components/ui/badge';
 import { secProcesso } from '@/services/secretariaService';
-import { STATUS_ROTULO, SeloUrgente } from './comum';
-import { unidadeComOrgao } from '@/lib/orgaos';
+import { STATUS_ROTULO } from './comum';
+import LinhaProcesso, { ha } from './LinhaProcesso';
 import { unidadeDecide } from '@/lib/permissoesFase';
 
 const hojeIso = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 const somarDias = (iso, n) => new Date(new Date(`${iso}T12:00:00`).getTime() + n * 86400000).toLocaleDateString('en-CA');
 const dias = (iso) => (iso ? Math.floor((Date.now() - new Date(iso).getTime()) / 86400000) : null);
-const ha = (n) => (n == null ? '' : n === 0 ? 'hoje' : n === 1 ? 'há 1 dia' : `há ${n} dias`);
 
 /**
  * Fila pessoal: o que espera a pessoa, em grupos por urgência, a partir da
@@ -41,15 +40,13 @@ export function gruposDeTrabalho(processos, estado) {
     return { grupos: grupos.filter((g) => g.itens.length), total: vistos.size, hoje };
 }
 
-export default function MeuTrabalho({ orgId, estado, onAbrir }) {
+export default function MeuTrabalho({ orgId, estado }) {
     const qc = useQueryClient();
     const [assumindo, setAssumindo] = useState('');
     const q = useQuery({ queryKey: ['sec-processos', orgId, 'caixa'], queryFn: () => secProcesso(orgId, 'listar', { escopo: 'caixa' }) });
     if (q.isLoading) return <div className="py-8 text-slate-600 flex gap-2 items-center"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>;
     if (q.error) return <ErroQuery q={q} />;
     const { grupos, hoje } = gruposDeTrabalho(q.data?.processos || [], estado);
-    const nomeUnidade = (id) => unidadeComOrgao(estado, id);
-    const nomeMembro = (uid) => estado.membros.find((m) => m.uid === uid)?.nome || '';
 
     const assumir = async (p) => {
         setAssumindo(p.id);
@@ -75,32 +72,20 @@ export default function MeuTrabalho({ orgId, estado, onAbrir }) {
                 <section key={g.id} aria-labelledby={`mt-${g.id}`}>
                     <h3 id={`mt-${g.id}`} className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2"><g.icone className="w-4 h-4 text-indigo-600" aria-hidden /> {g.titulo} <span className="text-slate-400 font-normal">({g.itens.length})</span></h3>
                     <div className="divide-y divide-slate-200 dark:divide-slate-700 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-                        {g.itens.map((p) => {
-                            const vencido = p.proximo_vencimento && p.proximo_vencimento < hoje;
-                            const naUnidade = dias(p.recebido_em);
-                            return (
-                                // A linha inteira abre o processo. "Abrir" é o caminho pelo teclado;
-                                // a linha não ganha foco para não pôr botão dentro de botão. O número é para copiar: clicar nele não abre.
-                                <div key={p.id} onClick={(e) => { if (assumindo === p.id || e.target.closest?.('[data-copiavel]') || window.getSelection()?.toString()) return; onAbrir(p.id); }} className="p-3 flex flex-wrap gap-x-4 gap-y-1 items-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">
-                                    <span data-copiavel="" className="font-mono text-sm text-indigo-700 dark:text-indigo-300 select-all cursor-text">{p.numero}</span>
-                                    <span className="font-medium text-slate-900 dark:text-white flex-1 min-w-[12rem]">{p.assunto}</span>
-                                    <span className="text-xs text-slate-600 dark:text-slate-400">
-                                        {p.fase_nome} · {nomeUnidade(p.unidade_atual)}{naUnidade != null ? ` ${ha(naUnidade)}` : ''}{p.responsavel_uid && p.responsavel_uid !== estado.uid ? ` · ${nomeMembro(p.responsavel_uid)}` : ''}
-                                    </span>
-                                    {p.urgente && g.id !== 'urgentes' && <SeloUrgente motivo={p.urgencia?.motivo} />}
-                                    {p.sessao && <Badge variant="outline" className="border-indigo-300 text-indigo-800 dark:border-indigo-700 dark:text-indigo-200">Pautado: {p.sessao.data.split('-').reverse().join('/')}</Badge>}
-                                    {g.id === 'urgentes' && p.urgencia?.motivo && <span className="text-xs text-red-800 dark:text-red-200 max-w-md truncate" title={p.urgencia.motivo}>{p.urgencia.motivo}</span>}
-                                    {(p.assinaturas_pendentes || []).some((x) => x.uid === estado.uid) && <Badge className="bg-amber-500 hover:bg-amber-500 gap-1"><PenLine className="w-3 h-3" aria-hidden />Assinar: {(p.assinaturas_pendentes || []).filter((x) => x.uid === estado.uid).map((x) => x.titulo).join(', ')}</Badge>}
-                                    {p.orientacao && <span className="text-xs text-amber-800 dark:text-amber-200 max-w-md truncate" title={p.orientacao.texto}>Orientação: {p.orientacao.texto}</span>}
-                                    {p.responsavel_uid === estado.uid && g.id !== 'comigo' && <Badge variant="outline" className="gap-1"><UserCheck className="w-3 h-3" aria-hidden />Comigo</Badge>}
-                                    {p.pendencias_abertas > 0 && <Badge className="bg-amber-100 text-amber-900 hover:bg-amber-100 dark:bg-amber-900 dark:text-amber-100">{p.pendencias_abertas} pendência{p.pendencias_abertas > 1 ? 's' : ''}</Badge>}
-                                    {p.proximo_vencimento && <Badge variant="outline" className={vencido ? 'border-red-400 text-red-700 dark:text-red-300' : ''}>Prazo {vencido ? 'vencido' : 'vence'} {p.proximo_vencimento.split('-').reverse().join('/')}</Badge>}
-                                    {p.status !== 'em_tramitacao' && <Badge variant="outline">{STATUS_ROTULO[p.status]}</Badge>}
-                                    {!p.responsavel_uid && <Button size="sm" variant="outline" disabled={assumindo === p.id} onClick={(e) => { e.stopPropagation(); assumir(p); }}>{assumindo === p.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Assumir'}</Button>}
-                                    <Button size="sm" aria-label={`Abrir processo ${p.numero}`} onClick={(e) => { e.stopPropagation(); onAbrir(p.id); }}>Abrir</Button>
-                                </div>
-                            );
-                        })}
+                        {g.itens.map((p) => (
+                            <LinhaProcesso key={p.id} p={p} estado={estado} orgId={orgId} hoje={hoje} tempo
+                                oculta={{ urgente: g.id === 'urgentes', comigo: g.id === 'comigo' }}
+                                selos={<>
+                                    {g.id === 'urgentes' && p.urgencia?.motivo && <span className="text-xs text-red-800 dark:text-red-200 max-w-xs truncate" title={p.urgencia.motivo}>{p.urgencia.motivo}</span>}
+                                    {(p.assinaturas_pendentes || []).some((x) => x.uid === estado.uid) && <Badge className="bg-amber-500 hover:bg-amber-500 gap-1 max-w-full"><PenLine className="w-3 h-3 shrink-0" aria-hidden /><span className="truncate">Assinar: {(p.assinaturas_pendentes || []).filter((x) => x.uid === estado.uid).map((x) => x.titulo).join(', ')}</span></Badge>}
+                                    {p.orientacao && <span className="text-xs text-amber-800 dark:text-amber-200 max-w-xs truncate" title={p.orientacao.texto}>Orientação: {p.orientacao.texto}</span>}
+                                </>}
+                                acoes={!p.responsavel_uid && (
+                                    <Button size="sm" variant="outline" className="h-8" disabled={assumindo === p.id} aria-label={`Assumir o processo ${p.numero}`} onClick={(e) => { e.stopPropagation(); assumir(p); }}>
+                                        {assumindo === p.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Assumir'}
+                                    </Button>
+                                )} />
+                        ))}
                     </div>
                 </section>
             ))}
@@ -109,7 +94,7 @@ export default function MeuTrabalho({ orgId, estado, onAbrir }) {
 }
 
 /** Pendências de todos os processos nos gabinetes em que a pessoa está lotada, da mais antiga para a mais nova. */
-export function MesaDecisao({ orgId, estado, onAbrir }) {
+export function MesaDecisao({ orgId, estado }) {
     const q = useQuery({ queryKey: ['sec-processos', orgId, 'caixa'], queryFn: () => secProcesso(orgId, 'listar', { escopo: 'caixa' }) });
     if (q.isLoading) return <div className="py-8 text-slate-600 flex gap-2 items-center"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>;
     if (q.error) return <ErroQuery q={q} />;
@@ -118,7 +103,7 @@ export function MesaDecisao({ orgId, estado, onAbrir }) {
         // Arquivado com pendência aberta (ex.: a parte peticionou depois) também aparece: alguém precisa ver.
         .filter((p) => gabinetes.has(p.unidade_atual) && p.pendencias_abertas > 0)
         .sort((a, b) => String(a.pendencia_desde || '').localeCompare(String(b.pendencia_desde || '')));
-    const nomeUnidade = (id) => unidadeComOrgao(estado, id);
+    const hoje = hojeIso();
     if (lista.length === 0) {
         return <p className="py-8 text-slate-600 dark:text-slate-300">Nenhuma pendência para decidir nos seus gabinetes. Processos conclusos sem pendência estão na Caixa da unidade.</p>;
     }
@@ -127,15 +112,13 @@ export function MesaDecisao({ orgId, estado, onAbrir }) {
             {lista.map((p) => {
                 const espera = dias(p.pendencia_desde);
                 return (
-                    <button key={p.id} type="button" onClick={() => onAbrir(p.id)} className="w-full text-left p-4 hover:bg-slate-50 dark:hover:bg-slate-800 flex flex-wrap gap-x-6 gap-y-1 items-baseline">
-                        <span className="font-mono text-sm text-indigo-700 dark:text-indigo-300">{p.numero}</span>
-                        <span className="font-medium text-slate-900 dark:text-white flex-1 min-w-[12rem]">{p.assunto}{p.tipo_nome && <span className="ml-2 text-xs font-normal text-slate-600">{p.tipo_nome}</span>}</span>
-                        <span className="text-sm text-slate-600 dark:text-slate-400">{p.fase_nome} · {nomeUnidade(p.unidade_atual)}</span>
-                        {p.status !== 'em_tramitacao' && <Badge variant="outline">{STATUS_ROTULO[p.status]}{p.status === 'arquivado' ? ': reative para apreciar' : ''}</Badge>}
-                        <Badge className={`${espera > 10 ? 'bg-red-100 text-red-900 dark:bg-red-900 dark:text-red-100 hover:bg-red-100' : 'bg-amber-100 text-amber-900 hover:bg-amber-100 dark:bg-amber-900 dark:text-amber-100'}`}>
-                            {p.pendencias_abertas} pendência{p.pendencias_abertas > 1 ? 's' : ''} · espera {ha(espera) || 'desde hoje'}{p.fase_suspensa ? ' · fase interrompida' : ''}
-                        </Badge>
-                    </button>
+                    <LinhaProcesso key={p.id} p={p} estado={estado} orgId={orgId} hoje={hoje} oculta={{ pendencias: true, status: true }}
+                        selos={<>
+                            {p.status !== 'em_tramitacao' && <Badge variant="outline">{STATUS_ROTULO[p.status]}{p.status === 'arquivado' ? ': reative para apreciar' : ''}</Badge>}
+                            <Badge className={`${espera > 10 ? 'bg-red-100 text-red-900 dark:bg-red-900 dark:text-red-100 hover:bg-red-100' : 'bg-amber-100 text-amber-900 hover:bg-amber-100 dark:bg-amber-900 dark:text-amber-100'}`}>
+                                {p.pendencias_abertas} pendência{p.pendencias_abertas > 1 ? 's' : ''} · espera {ha(espera) || 'desde hoje'}{p.fase_suspensa ? ' · fase interrompida' : ''}
+                            </Badge>
+                        </>} />
                 );
             })}
         </div>

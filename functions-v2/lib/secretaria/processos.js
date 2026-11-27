@@ -710,6 +710,9 @@ function resumo(id, d) {
         autuado_em: d.autuado_em || null,
         campos_resumo: (d.campos || []).map((x) => (0, camposProcesso_1.valorTexto)(x)).join(' · ').slice(0, 500),
         partes_resumo: (d.partes || []).map((x) => [x.nome, x.documento].filter(Boolean).join(' ')).join(' · ').slice(0, 500),
+        // Linha das listas: os três primeiros nomes (sem documento) e quantas partes são.
+        partes_nomes: (d.partes || []).map((x) => String(x.nome || '').trim().slice(0, 80)).filter(Boolean).slice(0, 3),
+        partes_total: (d.partes || []).filter((x) => String(x.nome || '').trim()).length,
         pendencia_desde: (d.pendencias || [])
             .filter((x) => x.status === 'aberta').map((x) => String(x.aberta_em || '')).filter(Boolean).sort()[0] || null,
         // Fila de trabalho: quando chegou na unidade, pedidos de assinatura e orientação do gabinete.

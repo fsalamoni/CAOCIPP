@@ -25,6 +25,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { secPortal, baixarResposta, base64ParaUrl, prepararEnvio, MAX_ENVIO_MB, TIPOS_ENVIO } from '@/services/secretariaService';
 import { STATUS_ROTULO, SeloUrgente, copiarTexto, dataHora } from '@/components/secretaria/comum';
+import EscolherArquivo from '@/components/secretaria/EscolherArquivo';
 import FluxoRito from '@/components/secretaria/FluxoRito';
 import { BotaoAgenda } from '@/components/secretaria/PainelSessao';
 import { DadosCampos } from '@/components/secretaria/CamposProcesso';
@@ -445,9 +446,10 @@ function ProcessoParte({ id, onVoltar }) {
         <div className="space-y-5">
             <div className="flex flex-wrap items-start gap-3">
                 <Button variant="ghost" size="sm" className="gap-1 -ml-2" onClick={onVoltar}><ArrowLeft className="w-4 h-4" aria-hidden /> Meus processos</Button>
-                <div className="flex-1 min-w-[14rem]">
+                {/* No celular, o título vai abaixo do "voltar", na largura toda. */}
+                <div className="w-full min-w-0 sm:w-auto sm:flex-1 sm:min-w-[14rem]">
                     <div className="flex flex-wrap items-center gap-2">
-                        <h1 className="text-xl font-semibold font-mono">{p.numero}</h1>
+                        <h1 className="text-xl font-semibold font-mono break-all">{p.numero}</h1>
                         <Badge variant="secondary">{STATUS_ROTULO[p.status] || p.status}</Badge>
                         {cadeiaIntegra
                             ? <Badge variant="outline" className="gap-1" title="Nenhum registro foi alterado depois de feito"><ShieldCheck className="w-3 h-3" aria-hidden /> Registro íntegro</Badge>
@@ -580,7 +582,7 @@ function ProcessoParte({ id, onVoltar }) {
                     )}
 
                     <Card>
-                        <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
+                        <CardHeader className="pb-2 flex-row flex-wrap items-center justify-between gap-2 space-y-0">
                             <CardTitle className="text-base">Documentos ({documentos.length}){novosDocs > 0 && <Badge className="ml-2 bg-indigo-600 hover:bg-indigo-600">{novosDocs} novo{novosDocs > 1 ? 's' : ''}</Badge>}</CardTitle>
                             {documentos.length > 0 && <Button size="sm" variant="outline" className="gap-1" onClick={() => setLeitura(documentos[0].id)}><BookOpen className="w-4 h-4" aria-hidden /> Ler em sequência</Button>}
                         </CardHeader>
@@ -632,7 +634,7 @@ function ProcessoParte({ id, onVoltar }) {
                 </div>
 
                 <Card className={`lg:col-span-2 h-fit ${movimentos.some((m) => m.novo) ? '' : 'hidden lg:block'}`}>
-                    <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
+                    <CardHeader className="pb-2 flex-row flex-wrap items-center justify-between gap-2 space-y-0">
                         <CardTitle className="text-base">Últimos andamentos</CardTitle>
                         <Button size="sm" variant="link" className="h-auto p-0" onClick={() => document.getElementById('portal-eventos')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>Ver todos ({movimentos.length})</Button>
                     </CardHeader>
@@ -839,10 +841,9 @@ function Peticionar({ id, prazos, tipos = [], prazoInicial, aviso, reservada, on
                 <div><Label htmlFor="pt-txt">Texto</Label><Textarea id="pt-txt" rows={6} value={texto} onChange={(e) => setTexto(e.target.value)} maxLength={40000} /></div>
                 <div>
                     <Label htmlFor="pt-arq">Anexo (PDF, Word, foto ou imagem, até {MAX_MB} MB)</Label>
-                    <Input id="pt-arq" ref={inputArquivo} type="file" accept=".pdf,.docx,.png,.jpg,.jpeg,image/*,application/pdf" onChange={(e) => setArquivo(e.target.files?.[0] || null)} />
+                    <EscolherArquivo id="pt-arq" className="mt-1" inputRef={inputArquivo} accept=".pdf,.docx,.png,.jpg,.jpeg,image/*,application/pdf" escolhido={arquivo} onArquivos={([a]) => setArquivo(a)} onTirar={() => setArquivo(null)} />
                     <Label htmlFor="pt-foto" className="mt-2 inline-flex items-center gap-1 text-sm font-normal text-indigo-700 dark:text-indigo-300 cursor-pointer sm:hidden"><Camera className="w-4 h-4" aria-hidden /> Fotografar um documento</Label>
                     <input id="pt-foto" type="file" accept="image/*" capture="environment" className="sr-only" onChange={(e) => setArquivo(e.target.files?.[0] || null)} />
-                    {arquivo && <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Anexo: {arquivo.name}</p>}
                 </div>
                 <p className="text-xs text-slate-600">Sua manifestação entra nos autos na hora, com seu nome, data e hora, e vai para quem decide. {rascunho && !protocolo ? 'Rascunho recuperado deste aparelho.' : 'O que você escreve fica salvo neste aparelho até protocolar.'}</p>
                 <Button disabled={ocupado} onClick={enviar} className="gap-2 w-full sm:w-auto">
