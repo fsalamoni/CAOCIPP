@@ -51,8 +51,9 @@ export function atorNoProcesso(estado, p) {
 export function comPermissao(pm, parte) {
     const n = { ...(pm || {}), ...parte };
     if (n.concluir !== 'atribuicao') delete n.concluir_atribuicao;
+    if (n.aprovar !== 'atribuicao') delete n.aprovar_atribuicao;
     // A atribuição vazia fica enquanto se digita: quem acusa a falta é a lista de pendências.
-    Object.keys(n).forEach((k) => (n[k] === undefined || (n[k] === '' && k !== 'concluir_atribuicao')) && delete n[k]);
+    Object.keys(n).forEach((k) => (n[k] === undefined || (n[k] === '' && !k.endsWith('_atribuicao'))) && delete n[k]);
     return Object.keys(n).length ? n : undefined;
 }
 
@@ -60,6 +61,7 @@ export function comPermissao(pm, parte) {
 export function resumoPermissoes(pm) {
     return [
         pm?.concluir ? `só ${textoQuem(pm.concluir, pm.concluir_atribuicao)} conclui a fase` : null,
+        pm?.aprovar ? `só ${textoQuem(pm.aprovar, pm.aprovar_atribuicao)} aprova a minuta (junta aos autos ou devolve para correção)` : null,
         pm?.dispensar ? `só ${textoReserva(pm.dispensar)} dispensa o que ela exige` : null,
         pm?.desviar ? `só ${textoReserva(pm.desviar)} segue por caminho fora do previsto` : null,
         pm?.situacao ? `só ${textoReserva(pm.situacao)} arquiva, sobresta ou reativa o processo` : null,

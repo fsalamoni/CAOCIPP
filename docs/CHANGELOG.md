@@ -5,6 +5,25 @@ cada mudança está nas mensagens de commit (`git log`).
 
 ---
 
+### 27/11/2026 — Processo Eletrônico: minuta com aprovação e devolução para correção
+- **No rito**, a seção nova **Minuta: elaboração e aprovação** de cada fase
+  diz se ali se redige a minuta ou se ela é aprovada, e **quem aprova** (quem
+  responde pelo processo, quem gere a unidade ou quem tem certa atribuição).
+  O botão **Adicionar elaboração e aprovação de minuta** cria as duas fases
+  prontas, e o modelo **Demanda com minuta e aprovação** traz o caminho
+  Pendente, Em análise, Revisão e Arquivamento.
+- **No processo**, o documento em preparo aparece com a etiqueta **Minuta**.
+  Quem decide vê **Minutas para aprovar** e pode **Aprovar e juntar**,
+  escolher os anexos que entram nos autos (Finalizar) ou **Devolver para
+  correção**, com o motivo. O processo volta para quem redigiu, que vê o
+  motivo, corrige e envia de novo; quem pediu a correção é avisado. O motivo
+  fica só com a equipe.
+- **Seguir quando alguém assume:** numa fase como Pendente, o botão vira
+  "Assumir e seguir para (fase)" e faz as duas coisas num clique.
+- Servidor: `devolverMinuta`, `corrigida`, `permissoes.aprovar`
+  (`exigirAprovar`), `segue_ao_assumir`. Guia do rito, parte 23; Ajuda;
+  `docs/PROCESSO_ELETRONICO.md` e `docs/LOGICA_PROCESSUAL.md`.
+
 ### 27/11/2026 — Processo Eletrônico: usabilidade das listas, do processo e das janelas
 - **Listas** com uma linha só para todas (`LinhaProcesso.jsx`): número, assunto
   (link, abre em outra aba com Ctrl+clique), tipo e partes, fase, unidade e com

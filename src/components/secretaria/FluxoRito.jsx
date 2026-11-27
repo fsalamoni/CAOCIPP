@@ -3,6 +3,7 @@ import { Maximize2, Minimize2, ZoomIn, ZoomOut } from 'lucide-react';
 import { seguintes } from '@/lib/secretariaRito';
 import { textoCondicao } from '@/lib/exigencias';
 import { TH, desenharFluxo, itensDaFase, quebrar } from '@/lib/fluxoBpmn';
+import { papelNaMinuta } from '@/lib/andamentoFase';
 
 // Diagrama do fluxo de um rito no formato BPMN, como o Bizagi desenha: da
 // esquerda para a direita, uma raia por unidade, círculo verde de início,
@@ -25,6 +26,9 @@ function raiaPadrao(unidades) {
 }
 
 const LOSANGO = 'fill-[#fff7c2] stroke-[#a58a00] dark:fill-[#4a4210] dark:stroke-[#e2c94a]';
+
+// Papel da fase na minuta, para a dica e a leitura de tela. A volta para correção não é seta: vai para onde a minuta foi redigida.
+const naMinuta = (f) => ({ elaboracao: ' · elaboração da minuta', aprovacao: ' · aprovação da minuta (aprova e junta ou devolve para correção)' }[papelNaMinuta(f)] || '');
 
 export default function FluxoRito({ fases, atual, onSelecionar, unidades, raiaDe, className = '', alturaMaxima = '60vh', legenda = false, alertas = null, acoes = false }) {
     const uid = useId().replace(/:/g, '');
@@ -131,7 +135,7 @@ export default function FluxoRito({ fases, atual, onSelecionar, unidades, raiaDe
                 const foco = onSelecionar ? 'group-hover:stroke-indigo-600 group-focus-visible:stroke-indigo-600 group-focus-visible:[stroke-width:2.5]' : '';
                 return (
                     <g key={t.id} {...props}>
-                        <title>{`${t.indice + 1}. ${f.nome}${f.prazo_dias ? ` · ${f.prazo_dias} dias` : ''}${alertas?.has(f.id) ? ' · fora do caminho até o fim (veja as pendências)' : ''}${f.orientacao ? `\n${f.orientacao}` : ''}`}</title>
+                        <title>{`${t.indice + 1}. ${f.nome}${f.prazo_dias ? ` · ${f.prazo_dias} dias` : ''}${alertas?.has(f.id) ? ' · fora do caminho até o fim (veja as pendências)' : ''}${acoes ? naMinuta(f) : ""}${f.orientacao ? `\n${f.orientacao}` : ''}`}</title>
                         {alertas?.has(f.id) && <rect x={t.x - 3} y={t.y - 3} width={t.w + 6} height={t.h + 6} rx="10" strokeWidth="2" strokeDasharray="5 3" fill="none" className="stroke-amber-500 dark:stroke-amber-400" />}
                         {ativo && <rect x={t.x - 4} y={t.y - 4} width={t.w + 8} height={t.h + 8} rx="11" strokeWidth="2.5" fill="none" className="stroke-indigo-600 dark:stroke-indigo-400" />}
                         {g.comAcoes ? (
@@ -211,7 +215,7 @@ export default function FluxoRito({ fases, atual, onSelecionar, unidades, raiaDe
                 {fases.map((f, i) => {
                     const s = seguintes(fases, i);
                     const dentro = acoes ? itensDaFase(f, fases).map((it) => (it.tipo === 'desvio' ? `${it.texto}:` : `${it.ou ? 'ou ' : ''}${it.nome}${it.orienta ? ' (orientação)' : ''}`)).join('; ') : '';
-                    return <li key={f.id}>{f.nome}{raia(f) ? ` (${raia(f)})` : ''}{f.id === atual ? ' (fase atual)' : ''}{dentro ? `. Ações: ${dentro}` : ''}: {s.length ? `segue para ${s.map((id) => `${nome(id)}${f.condicoes?.[id] || f.condicoes_regra?.[id] || f.saida_padrao === id ? ` (${[f.condicoes?.[id], f.condicoes_regra?.[id] ? `quando ${textoCondicao(f, f.condicoes_regra[id], fases)}` : f.saida_padrao === id ? 'senão' : null].filter(Boolean).join('; ')})` : ''}`).join(' ou ')}` : 'fim do fluxo'}</li>;
+                    return <li key={f.id}>{f.nome}{raia(f) ? ` (${raia(f)})` : ''}{f.id === atual ? ' (fase atual)' : ''}{acoes ? naMinuta(f) : ""}{dentro ? `. Ações: ${dentro}` : ''}: {s.length ? `segue para ${s.map((id) => `${nome(id)}${f.condicoes?.[id] || f.condicoes_regra?.[id] || f.saida_padrao === id ? ` (${[f.condicoes?.[id], f.condicoes_regra?.[id] ? `quando ${textoCondicao(f, f.condicoes_regra[id], fases)}` : f.saida_padrao === id ? 'senão' : null].filter(Boolean).join('; ')})` : ''}`).join(' ou ')}` : 'fim do fluxo'}</li>;
                 })}
             </ol>
         </div>

@@ -26,15 +26,25 @@ export const situacoesDaRegra = (s, paginas) => (s?.modulo === 'paginas'
     : (s?.modulo === 'parcerias' ? SITUACOES_PARCERIA : SITUACOES).map((x) => [x, rotuloDaColuna(s?.modulo === 'parcerias' ? 'parcerias' : 'consultas', x)]));
 const rotuloDoAlvo = (s, alvo, paginas) => situacoesDaRegra(s, paginas).find(([k]) => k === alvo)?.[1] || alvo;
 
+/** Papel da fase na minuta: '' (nenhum), 'elaboracao' (aqui se redige) ou 'aprovacao' (aqui se aprova ou se devolve). */
+export const papelNaMinuta = (f) => (f?.elaboracao && !f.final ? 'elaboracao' : f?.juntada_conjunta ? 'aprovacao' : '');
+/** O que muda na fase ao escolher o papel dela na minuta. */
+export const comPapelNaMinuta = (papel) => ({ elaboracao: papel === 'elaboracao' ? true : undefined, juntada_conjunta: papel === 'aprovacao' ? true : undefined });
+/** O papel da fase na minuta, em frases curtas. */
+export const resumoMinuta = (f) => [
+    papelNaMinuta(f) === 'elaboracao' ? 'é de elaboração da minuta: o que se redige ou anexa entra como minuta e segue com o processo para quem aprova' : null,
+    papelNaMinuta(f) === 'aprovacao' ? 'é de aprovação da minuta: quem decide aprova e junta (botão Finalizar) ou devolve para correção' : null,
+].filter(Boolean);
+
 /** O que a fase faz sozinha no andamento, em frases curtas (resumo do editor, prévia e tela do processo). */
 export function resumoAndamento(f, paginas) {
     const s = f?.situacao_registro;
     return [
         f?.espera && !f.final ? 'é de espera: ao concluir, o processo volta para a fase de onde veio' : null,
+        f?.segue_ao_assumir && !f.final && !f.espera ? 'segue sozinha quando alguém assume o processo' : null,
         f?.avanco === 'auto' && !f.final ? (f.espera ? 'volta sozinha ao cumprir o que a fase exige' : 'segue sozinha ao cumprir o que a fase exige') : null,
         f?.ao_entrar?.arquivar ? 'arquiva o processo ao entrar' : null,
-        f?.elaboracao ? 'é de elaboração: documentos entram como minuta e seguem sozinhos com o processo; assinar e juntar cabem a quem revisa' : null,
-        f?.juntada_conjunta ? 'tem o botão Finalizar: escolher, ordenar, assinar e juntar os documentos de uma vez' : null,
+        ...resumoMinuta(f),
         s?.modulo && s.ao_entrar ? `${nomeDoRegistro(s, paginas)} fica "${rotuloDoAlvo(s, s.ao_entrar, paginas)}" ao entrar` : null,
         s?.modulo && s.ao_assumir ? `${nomeDoRegistro(s, paginas)} fica "${rotuloDoAlvo(s, s.ao_assumir, paginas)}" quando alguém assume` : null,
         s?.modulo && s.na_autuacao && (s.ao_entrar || s.ao_assumir) ? 'a regra do registro vale já na autuação' : null,

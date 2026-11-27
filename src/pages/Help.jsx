@@ -160,7 +160,9 @@ export default function Help() {
                 "No celular, o editor de rito mostra Excluir e Substituir fases como ícones, para sobrar tela para o fluxo",
                 "Nesta fase: marque as ações feitas e abra os modelos com um clique; sob o nome de cada ação, a linha miúda diz onde fica o registro, se é obrigatória e quem cumpre",
                 "Botão principal segue o rito: concluir, enviar ou seguir para a próxima fase",
-                "Minutas são rascunhos da unidade; Juntar inclui nos autos, com número e data",
+                "Minutas são rascunhos da unidade, com a etiqueta Minuta; Juntar inclui nos autos, com número e data",
+                "Minuta devolvida para correção: o aviso com o motivo aparece no alto do processo e na minuta (Em correção); corrija e envie de novo, e quem pediu a correção é avisado",
+                "Pendente sem responsável: Assumir e seguir põe o processo no seu nome e já passa à fase seguinte, quando o rito prevê",
                 "Ao enviar um arquivo, diga na hora o tipo, do que se trata e se ele é juntado, guardado ou fica como minuta",
                 "Ação ligada a um dado do processo se cumpre sozinha quando o dado está preenchido",
                 "Arquivos de até 50 MB: o original fica intacto (prova, com hash, em Baixar original) e as folhas usam uma versão leve, sem perda visível",
@@ -195,6 +197,8 @@ export default function Help() {
                 "Mesa de decisão: pendências e petições das partes para apreciar",
                 "Apreciar mostra a petição ao lado e permite decidir por despacho",
                 "Peça a assinatura de alguém da unidade ou assine e junte num ato",
+                "Minutas para aprovar: Aprovar e juntar torna a minuta documento definitivo; Finalizar escolhe quais anexos entram nos autos (um, alguns, todos ou nenhum)",
+                "Devolver para correção: diga o que corrigir ou complementar; o processo volta para quem redigiu, e o motivo fica só com a equipe, fora dos autos",
                 "Abrir no editor: a minuta enviada em Word, LibreOffice ou PDF abre na plataforma para ajustar; o arquivo original fica em Versões",
                 "Minuta assinada: Revisar permite ajustar; ao salvar, as assinaturas saem e são pedidas de novo a quem assinou",
                 "Devolver à secretaria com orientação; a equipe marca Concluída",
@@ -263,7 +267,7 @@ export default function Help() {
               Abre no <strong>Tutorial</strong>: um passo a passo em 12 etapas para montar o rito do começo ao fim, com perguntas e
               respostas em cada etapa; "Quero fazer…", que diz qual ferramenta usar para cada situação, onde ela fica e o modelo que já
               faz assim; e "Qual modelo usar?", que indica os modelos da biblioteca pelo assunto, pela forma de decidir e pelo tamanho.
-              A <strong>Referência</strong> explica, em 22 partes, cada peça e cada opção do editor, com um exemplo completo. Serve para
+              A <strong>Referência</strong> explica, em 23 partes, cada peça e cada opção do editor, com um exemplo completo. Serve para
               quem monta o rito e para quem trabalha no processo entender por que cada passo acontece.
             </p>
             <Suspense fallback={<p className="text-sm text-slate-600 dark:text-slate-400">Carregando o guia…</p>}>

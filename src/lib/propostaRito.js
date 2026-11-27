@@ -1043,7 +1043,7 @@ export function montarPayload(p, tipo) {
                 id: f.id, nome: f.nome, prazo_dias: f.prazo_dias, orientacao: f.orientacao, final: f.final === true,
                 prazo_auto: f.prazo_auto, prazo_contagem: f.prazo_contagem, nome_publico: f.nome_publico, explicacao_publica: f.explicacao_publica, rotulo_concluir: f.rotulo_concluir, ao_entrar: f.ao_entrar,
                 aviso: f.aviso, prazo_alerta_dias: f.prazo_alerta_dias, prazo_vencido: f.prazo_vencido,
-                avanco: f.avanco, situacao_registro: f.situacao_registro, espera: f.espera, juntada_conjunta: f.juntada_conjunta, elaboracao: f.elaboracao, permissoes: f.permissoes,
+                avanco: f.avanco, segue_ao_assumir: f.segue_ao_assumir, situacao_registro: f.situacao_registro, espera: f.espera, juntada_conjunta: f.juntada_conjunta, elaboracao: f.elaboracao, permissoes: f.permissoes,
                 proximas: f.final ? [] : (f.proximas || []).filter((id) => id !== f.id && p.fases.some((x) => x.id === id)),
                 condicoes: f.condicoes, condicoes_regra: f.condicoes_regra, saida_padrao: f.saida_padrao, agente: f.agente, acoes: f.acoes, acoes_regras: f.acoes_regras,
                 registro_atos: f.registro_atos, registro: f.registro, documentos: f.documentos, certidao: f.certidao,

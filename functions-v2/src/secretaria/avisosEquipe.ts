@@ -151,6 +151,27 @@ export async function avisarPedidoAssinatura(c: Contexto, uid: string, proc: adm
     });
 }
 
+/** Quem decide devolveu a minuta para correção: avisa quem a redigiu, com o que corrigir. */
+export async function avisarCorrecaoMinuta(c: Contexto, uid: string, proc: admin.firestore.DocumentData, procId: string, titulo: string, motivo: string): Promise<void> {
+    await notificarPessoas(c.db, c.orgId, semPartes(proc, [uid]), {
+        subtipo: 'recebido', procId,
+        titulo: `Minuta devolvida para correção: ${titulo}`,
+        mensagem: `${c.userName}, no processo ${proc.numero}: ${motivo}`.slice(0, 300),
+        html: `<p>${escapar(c.userName)} devolveu para correção a minuta <b>${escapar(titulo)}</b>, do processo <b>${escapar(String(proc.numero))}</b>.</p>${citacao(motivo)}<p>Abra o processo, corrija a minuta e envie de novo para a aprovação.</p>`,
+    }, c.ctx.uid);
+}
+
+/** A minuta foi aprovada (juntada aos autos) ou voltou corrigida: avisa quem a redigiu ou quem pediu a correção. */
+export async function avisarMinuta(c: Contexto, uid: string, proc: admin.firestore.DocumentData, procId: string, titulo: string, oQue: 'aprovada' | 'corrigida'): Promise<void> {
+    const frase = oQue === 'aprovada' ? 'aprovou e juntou aos autos a minuta' : 'corrigiu e devolveu para a sua aprovação a minuta';
+    await notificarPessoas(c.db, c.orgId, semPartes(proc, [uid]), {
+        subtipo: 'recebido', procId,
+        titulo: `Minuta ${oQue}: ${titulo}`,
+        mensagem: `${c.userName} ${frase} no processo ${proc.numero}`,
+        html: `<p>${escapar(c.userName)} ${frase} <b>${escapar(titulo)}</b>, no processo <b>${escapar(String(proc.numero))}</b>.</p>`,
+    }, c.ctx.uid);
+}
+
 /** Pendência aberta num processo que está com o gabinete: avisa quem decide. */
 export async function avisarPendencia(c: Contexto, proc: admin.firestore.DocumentData, procId: string, descricao: string): Promise<void> {
     const unidade = c.unidades.find((u) => u.id === proc.unidade_atual);

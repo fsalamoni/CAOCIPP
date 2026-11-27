@@ -69,6 +69,7 @@ export default function PermissoesDaFase({ f, mudar, aplicarATodas }) {
             </div>
             <p className="text-xs text-slate-600 dark:text-slate-400">
                 A administração do Processo Eletrônico sempre pode. Quem não pode vê na tela do processo a quem o ato está reservado.
+                {' '}Quem aprova a minuta (junta aos autos ou devolve para correção) se escolhe em "Minuta: elaboração e aprovação".
             </p>
             {aplicarATodas && (
                 <Button variant="outline" size="sm" onClick={() => { aplicarATodas(f.permissoes); toast.success('Aplicado a todas as fases do rito'); }}>Aplicar a todas as fases</Button>

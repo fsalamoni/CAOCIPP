@@ -224,7 +224,7 @@ exports.secretariaDocumento = (0, https_1.onCall)(
         if (!titulo)
             throw new https_1.HttpsError('invalid-argument', 'Informe o título do documento');
         const ref = docsCol.doc();
-        const base = Object.assign(Object.assign({ titulo, tipo: (0, secretaria_1.texto)(p.tipo, 60) || 'Documento', status: 'minuta', unidade_origem: proc.unidade_atual, autor_uid: auth.uid, autor_nome: c.userName, criado_em: agoraIso, assinaturas: [] }, ((0, secretaria_1.texto)(p.modelo_id, 40) ? { modelo_id: (0, secretaria_1.texto)(p.modelo_id, 40) } : {})), descritivos(p));
+        const base = Object.assign(Object.assign({ titulo, tipo: (0, secretaria_1.texto)(p.tipo, 60) || 'Documento', status: 'minuta', unidade_origem: proc.unidade_atual, fase_id: String(proc.fase_atual || ''), autor_uid: auth.uid, autor_nome: c.userName, criado_em: agoraIso, assinaturas: [] }, ((0, secretaria_1.texto)(p.modelo_id, 40) ? { modelo_id: (0, secretaria_1.texto)(p.modelo_id, 40) } : {})), descritivos(p));
         if (p.action === 'criarMinuta') {
             let conteudo;
             try {
@@ -317,6 +317,26 @@ exports.secretariaDocumento = (0, https_1.onCall)(
         for (const x of repedir.pedidos)
             void (0, avisosEquipe_1.avisarPedidoAssinatura)(c, x.uid, proc, procRef.id, repedir.titulo);
         return { success: true, assinaturasRetiradas: repedir.pedidos.length };
+    }
+    if (p.action === 'corrigida') {
+        // A minuta foi devolvida sem remessa nem mudança de fase: quem corrigiu avisa quem pediu, e o processo volta para ele.
+        (0, context_1.exigirPosse)(c, proc);
+        const r = await c.db.runTransaction(async (tx) => {
+            const { ref, doc } = await lerDoc(tx);
+            const atual = (await tx.get(procRef)).data() || {};
+            exigirMinutaDaMinhaUnidade(doc);
+            const pedido = doc.correcao;
+            if (!pedido)
+                throw new https_1.HttpsError('failed-precondition', 'Esta minuta não está em correção');
+            const un = c.unidades.find((u) => u.id === atual.unidade_atual);
+            const volta = (0, secretaria_2.lotacoesDe)(un || {}).some((l) => l.uid === pedido.por_uid) ? pedido.por_uid : null;
+            tx.update(ref, { correcao: firestore_1.FieldValue.delete(), correcao_anterior: Object.assign(Object.assign({}, pedido), { reenviada_em: agoraIso, reenviada_por: c.userName }) });
+            const mi = (0, context_1.registrarInternos)(tx, c, procRef, atual, [`Minuta corrigida: ${doc.titulo}. Volta para a aprovação de ${pedido.por_nome}.`]);
+            tx.update(procRef, Object.assign(Object.assign(Object.assign({}, mi), { minutas_em_correcao: firestore_1.FieldValue.arrayRemove(ref.id) }), (volta ? { responsavel_uid: volta } : {})));
+            return { version: mi.version, por: pedido.por_uid, titulo: String(doc.titulo || '') };
+        });
+        void (0, avisosEquipe_1.avisarMinuta)(c, r.por, proc, procRef.id, r.titulo, 'corrigida');
+        return { success: true, version: r.version };
     }
     if (p.action === 'excluirMinuta') {
         const { ref, doc } = await lerDoc();
@@ -445,6 +465,9 @@ exports.secretariaDocumento = (0, https_1.onCall)(
         const { doc: antes } = await lerDoc();
         exigirMinutaDaMinhaUnidade(antes);
         (0, context_1.exigirPosse)(c, proc);
+        // Petição da parte entra por ato de secretaria; o que o órgão produz, a fase pode reservar a quem decide.
+        if (!antes.peticao)
+            (0, context_1.exigirAprovar)(c, proc);
         const bucket = admin.storage().bucket();
         let paginas = Number(antes.paginas) || 0;
         let pdf = null;
@@ -525,6 +548,9 @@ exports.secretariaDocumento = (0, https_1.onCall)(
         void (0, portalAvisos_1.avisarPartesDoMovimento)(c.db, procRef.id, undefined, 1 + r.internos);
         if (p.pendencia === 'sim' || p.pendencia === 'interrompe')
             void (0, avisosEquipe_1.avisarPendencia)(c, proc, procRef.id, `Apreciar o documento nº ${r.ordem}: ${antes.titulo}`);
+        // Minuta de outra pessoa aprovada (juntada): quem a redigiu fica sabendo.
+        if (antes.autor_uid && antes.autor_uid !== auth.uid && !antes.peticao)
+            void (0, avisosEquipe_1.avisarMinuta)(c, String(antes.autor_uid), proc, procRef.id, String(antes.titulo || ''), 'aprovada');
         const { tentar, internos: _i } = r, feito = __rest(r, ["tentar", "internos"]);
         return comAvanco(feito, tentar);
     }

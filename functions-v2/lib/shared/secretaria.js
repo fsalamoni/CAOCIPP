@@ -11,9 +11,10 @@ var __rest = (this && this.__rest) || function (s, e) {
     return t;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.HISTORICO_CONFIG = exports.unidadeExpede = exports.unidadeDecide = exports.MAX_ITENS = exports.MAX_PRAZO_DIAS = exports.MAX_FERIADOS = exports.MAX_DELTA_CHARS = exports.textoOrigem = exports.ROTULO_ORIGEM = exports.ORIGENS = exports.TIPOS_ARQUIVO_PERMITIDOS = exports.MAX_ROTULO_CONCLUIR = exports.MAX_EXPLICACAO_PUBLICA = exports.MAX_MODELOS_FASE = exports.MAX_CAMPOS_RITO = exports.MAX_ACOES = exports.MAX_FASES = exports.MAX_UPLOAD_BASE64_BYTES = exports.MAX_UPLOAD_BYTES = exports.MAX_TEXTO_LONGO = exports.MAX_TEXTO_CURTO = exports.MAX_MINUTAS_REMESSA = exports.MAX_LOTACOES = exports.TIPOS_UNIDADE = void 0;
+exports.HISTORICO_CONFIG = exports.unidadeExpede = exports.unidadeDecide = exports.MAX_ITENS = exports.MAX_PRAZO_DIAS = exports.MAX_FERIADOS = exports.MAX_DELTA_CHARS = exports.textoOrigem = exports.ROTULO_ORIGEM = exports.ORIGENS = exports.TIPOS_ARQUIVO_PERMITIDOS = exports.MAX_ROTULO_CONCLUIR = exports.MAX_EXPLICACAO_PUBLICA = exports.MAX_MODELOS_FASE = exports.MAX_CAMPOS_RITO = exports.MAX_ACOES = exports.MAX_FASES = exports.MAX_UPLOAD_BASE64_BYTES = exports.MAX_UPLOAD_BYTES = exports.MAX_TEXTO_LONGO = exports.MAX_TEXTO_CURTO = exports.MIN_MOTIVO_CORRECAO = exports.MAX_MINUTAS_REMESSA = exports.MAX_LOTACOES = exports.TIPOS_UNIDADE = void 0;
 exports.ehParte = ehParte;
 exports.minutaAcessivel = minutaAcessivel;
+exports.destinoDaCorrecao = destinoDaCorrecao;
 exports.versaoAnterior = versaoAnterior;
 exports.texto = texto;
 exports.sanitizeOrigem = sanitizeOrigem;
@@ -78,6 +79,26 @@ function minutaAcessivel(doc, unidadeIds) {
     return Array.isArray(doc.unidades_acesso) && doc.unidades_acesso.some((u) => unidadeIds.includes(String(u)));
 }
 exports.MAX_MINUTAS_REMESSA = 30;
+exports.MIN_MOTIVO_CORRECAO = 10;
+/**
+ * Para onde a minuta volta quando quem decide pede correção: a unidade que a
+ * redigiu, a fase em que foi redigida e a pessoa que a redigiu (se ainda
+ * estiver lotada lá). `null` em cada parte = o processo fica como está.
+ * Minuta antiga, sem a fase gravada: volta para a fase de elaboração que leva
+ * à fase atual, se o rito tiver uma.
+ */
+function destinoDaCorrecao(proc, doc, unidades) {
+    const fases = (Array.isArray(proc.fases) ? proc.fases : []);
+    const origem = unidades.find((u) => u.id === doc.unidade_origem && u.ativa !== false);
+    const unidade = origem && origem.id !== proc.unidade_atual ? String(origem.id) : null;
+    const serve = (f) => (f && f.id !== proc.fase_atual && !f.final && !f.espera ? f : undefined);
+    const fase = doc.fase_id
+        ? serve(fases.find((f) => f.id === doc.fase_id))
+        : serve([...fases].reverse().find((f) => f.elaboracao === true && fasesSeguintes(fases, f.id).some((s) => s.id === proc.fase_atual)));
+    const fica = unidades.find((u) => u.id === (unidade || proc.unidade_atual));
+    const lotado = Array.isArray(fica === null || fica === void 0 ? void 0 : fica.membros_uids) && fica.membros_uids.includes(doc.autor_uid);
+    return { unidade_id: unidade, fase_id: (fase === null || fase === void 0 ? void 0 : fase.id) || null, responsavel_uid: lotado ? String(doc.autor_uid) : null };
+}
 /**
  * A minuta mudou de mãos? Quando quem salva não é quem escreveu a redação
  * atual (e o texto mudou), a redação anterior fica guardada: é assim que a
@@ -271,7 +292,7 @@ function sanitizeRito(input) {
         const titulo = texto(cf.titulo, 120);
         const abertura = texto(cf.abertura, exigencias_1.MAX_ABERTURA_CERTIDAO).replace(/\s+/g, ' ');
         const certidao = Object.assign(Object.assign(Object.assign(Object.assign({}, (grupo && grupo !== id ? { grupo } : {})), (titulo ? { titulo } : {})), (abertura && abertura !== exigencias_1.ABERTURA_CERTIDAO ? { abertura } : {})), (cf.incluir_mudancas === true ? { incluir_mudancas: true } : {}));
-        return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ id, nome: nomeFase }, (Object.keys(certidao).length ? { certidao } : {})), (prazoOk ? { prazo_dias: prazo } : {})), (prazoOk && fo.prazo_auto === true ? Object.assign({ prazo_auto: true }, (fo.prazo_contagem === 'corridos' ? { prazo_contagem: 'corridos' } : {})) : {})), (nomePublico && nomePublico !== nomeFase ? { nome_publico: nomePublico } : {})), (explicacaoPublica ? { explicacao_publica: explicacaoPublica } : {})), (rotuloConcluir && !final ? { rotulo_concluir: rotuloConcluir } : {})), (Object.keys(aoEntrar).length ? { ao_entrar: aoEntrar } : {})), (aviso ? { aviso } : {})), prazosDaFase), (fo.avanco === 'auto' && !final ? { avanco: 'auto' } : {})), (situacaoRegistro ? { situacao_registro: situacaoRegistro } : {})), (permissoes ? { permissoes } : {})), (orientacao ? { orientacao } : {})), (proximas.length ? { proximas } : {})), (final ? { final: true } : {})), (espera ? { espera: true } : {})), (fo.juntada_conjunta === true ? { juntada_conjunta: true } : {})), (fo.elaboracao === true && fo.juntada_conjunta !== true && !final ? { elaboracao: true } : {})), (unidade ? { unidade_id: unidade } : {})), (agente ? { agente } : {})), (acoes.length ? { acoes } : {})), (modelos.length ? { modelos } : {})), (Object.keys(condicoes).length ? { condicoes } : {})), (Object.keys(condicoesRegra).length ? { condicoes_regra: condicoesRegra } : {})), (saidaPadrao ? { saida_padrao: saidaPadrao } : {})), regras);
+        return Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({ id, nome: nomeFase }, (Object.keys(certidao).length ? { certidao } : {})), (prazoOk ? { prazo_dias: prazo } : {})), (prazoOk && fo.prazo_auto === true ? Object.assign({ prazo_auto: true }, (fo.prazo_contagem === 'corridos' ? { prazo_contagem: 'corridos' } : {})) : {})), (nomePublico && nomePublico !== nomeFase ? { nome_publico: nomePublico } : {})), (explicacaoPublica ? { explicacao_publica: explicacaoPublica } : {})), (rotuloConcluir && !final ? { rotulo_concluir: rotuloConcluir } : {})), (Object.keys(aoEntrar).length ? { ao_entrar: aoEntrar } : {})), (aviso ? { aviso } : {})), prazosDaFase), (fo.avanco === 'auto' && !final ? { avanco: 'auto' } : {})), (fo.segue_ao_assumir === true && !final && !espera ? { segue_ao_assumir: true } : {})), (situacaoRegistro ? { situacao_registro: situacaoRegistro } : {})), (permissoes ? { permissoes } : {})), (orientacao ? { orientacao } : {})), (proximas.length ? { proximas } : {})), (final ? { final: true } : {})), (espera ? { espera: true } : {})), (fo.juntada_conjunta === true ? { juntada_conjunta: true } : {})), (fo.elaboracao === true && fo.juntada_conjunta !== true && !final ? { elaboracao: true } : {})), (unidade ? { unidade_id: unidade } : {})), (agente ? { agente } : {})), (acoes.length ? { acoes } : {})), (modelos.length ? { modelos } : {})), (Object.keys(condicoes).length ? { condicoes } : {})), (Object.keys(condicoesRegra).length ? { condicoes_regra: condicoesRegra } : {})), (saidaPadrao ? { saida_padrao: saidaPadrao } : {})), regras);
     });
     // 2ª passada das condições: as que leem outra fase, dado do processo ou várias coisas ao mesmo tempo.
     const daCondicao = (k) => ({ id: fases[k].id, nome: fases[k].nome, acoes: fases[k].acoes || [], regras: fases[k].acoes_regras || [], mapa: apoio[k].mapa });

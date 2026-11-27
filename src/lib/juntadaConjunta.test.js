@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { alinharItens, moverItem, planoDaJuntada, rotuloFinalizar } from './juntadaConjunta.js';
-import { resumoAndamento } from './andamentoFase.js';
+import { comPapelNaMinuta, papelNaMinuta, resumoAndamento } from './andamentoFase.js';
 
 const minutas = [
     { id: 'm', titulo: 'Parecer', assinaturas: [] },
@@ -35,5 +35,8 @@ test('juntada em conjunto: junta os escolhidos na ordem, assina o que falta e gu
 });
 
 test('juntada em conjunto: aparece no resumo da fase', () => {
-    assert.deepEqual(resumoAndamento({ juntada_conjunta: true }), ['tem o botão Finalizar: escolher, ordenar, assinar e juntar os documentos de uma vez']);
+    assert.deepEqual(resumoAndamento({ juntada_conjunta: true }), ['é de aprovação da minuta: quem decide aprova e junta (botão Finalizar) ou devolve para correção']);
+    assert.deepEqual(resumoAndamento({ elaboracao: true, segue_ao_assumir: true }).map((x) => x.split(':')[0]), ['segue sozinha quando alguém assume o processo', 'é de elaboração da minuta']);
+    assert.deepEqual([{}, { elaboracao: true }, { juntada_conjunta: true }, { elaboracao: true, final: true }].map(papelNaMinuta), ['', 'elaboracao', 'aprovacao', '']);
+    assert.deepEqual(comPapelNaMinuta('aprovacao'), { elaboracao: undefined, juntada_conjunta: true });
 });

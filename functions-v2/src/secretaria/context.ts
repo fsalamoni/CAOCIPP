@@ -16,7 +16,8 @@ import { CalendarioOrgao, hojeBrasil, sanitizeCalendario } from '../shared/secre
 import { leituraDeJulgador } from '../shared/sessoes';
 import { marcasDoDestino } from '../shared/exigencias';
 import { faseComPrazoDeAcao } from '../shared/prazosFase';
-import type { Ator } from '../shared/permissoesFase';
+import { podeQuem, textoQuem } from '../shared/permissoesFase';
+import type { Ator, PermissoesFase } from '../shared/permissoesFase';
 import { peSuspensoPlataforma, vinculoBloqueado } from '../shared/vinculo';
 
 export const REGION = 'southamerica-east1';
@@ -275,6 +276,15 @@ export function equipeLe(c: Contexto, proc: admin.firestore.DocumentData): boole
 export function exigirPosse(c: Contexto, proc: admin.firestore.DocumentData) {
     if (!podeAgir(proc as never, c.ctx)) {
         throw new HttpsError('permission-denied', 'O processo não está com uma unidade em que você esteja lotado');
+    }
+}
+
+/** Aprovar a minuta (juntar aos autos) ou devolvê-la para correção: a fase pode reservar a quem decide. */
+export function exigirAprovar(c: Contexto, proc: admin.firestore.DocumentData) {
+    const fase = (Array.isArray(proc.fases) ? proc.fases : []).find((f: { id?: string }) => f.id === proc.fase_atual);
+    const pm = fase?.permissoes as PermissoesFase | undefined;
+    if (pm?.aprovar && !podeQuem(pm.aprovar, pm.aprovar_atribuicao, atorDe(c, proc))) {
+        throw new HttpsError('permission-denied', `Pelo rito, na fase ${fase.nome} só ${textoQuem(pm.aprovar, pm.aprovar_atribuicao)} aprova a minuta: junta aos autos ou devolve para correção.`);
     }
 }
 

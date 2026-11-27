@@ -44,6 +44,10 @@ test('editor: trocar um pedaço das permissões, sem deixar sobra', () => {
     assert.deepEqual(comPermissao(undefined, { concluir: 'atribuicao', concluir_atribuicao: '' }), { concluir: 'atribuicao', concluir_atribuicao: '' }, 'a atribuição vazia fica enquanto se digita');
     assert.deepEqual(comPermissao({ concluir: 'atribuicao', concluir_atribuicao: 'Promotor', dispensar: 'gestor' }, { concluir: 'gestor' }), { concluir: 'gestor', dispensar: 'gestor' });
     assert.equal(comPermissao({ situacao: 'admin' }, { situacao: '' }), undefined);
+    // Quem aprova a minuta: mesma lógica de quem conclui.
+    assert.deepEqual(comPermissao(undefined, { aprovar: 'atribuicao', aprovar_atribuicao: '' }), { aprovar: 'atribuicao', aprovar_atribuicao: '' });
+    assert.deepEqual(comPermissao({ aprovar: 'atribuicao', aprovar_atribuicao: 'Promotor' }, { aprovar: 'gestor' }), { aprovar: 'gestor' });
+    assert.deepEqual(resumoPermissoes({ aprovar: 'gestor' }), ['só quem gere a unidade aprova a minuta (junta aos autos ou devolve para correção)']);
 });
 
 test('resumo do que a fase reserva e sugestões de atribuição', () => {

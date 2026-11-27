@@ -14,6 +14,7 @@ exports.julgadorLe = julgadorLe;
 exports.lerProcesso = lerProcesso;
 exports.equipeLe = equipeLe;
 exports.exigirPosse = exigirPosse;
+exports.exigirAprovar = exigirAprovar;
 exports.atorDe = atorDe;
 exports.conferirVersao = conferirVersao;
 exports.registrarMovimento = registrarMovimento;
@@ -31,6 +32,7 @@ const secretaria_2 = require("../shared/secretaria");
 const sessoes_1 = require("../shared/sessoes");
 const exigencias_1 = require("../shared/exigencias");
 const prazosFase_1 = require("../shared/prazosFase");
+const permissoesFase_1 = require("../shared/permissoesFase");
 const vinculo_1 = require("../shared/vinculo");
 exports.REGION = 'southamerica-east1';
 exports.COL = {
@@ -254,6 +256,14 @@ function equipeLe(c, proc) {
 function exigirPosse(c, proc) {
     if (!(0, secretaria_1.podeAgir)(proc, c.ctx)) {
         throw new https_1.HttpsError('permission-denied', 'O processo não está com uma unidade em que você esteja lotado');
+    }
+}
+/** Aprovar a minuta (juntar aos autos) ou devolvê-la para correção: a fase pode reservar a quem decide. */
+function exigirAprovar(c, proc) {
+    const fase = (Array.isArray(proc.fases) ? proc.fases : []).find((f) => f.id === proc.fase_atual);
+    const pm = fase === null || fase === void 0 ? void 0 : fase.permissoes;
+    if ((pm === null || pm === void 0 ? void 0 : pm.aprovar) && !(0, permissoesFase_1.podeQuem)(pm.aprovar, pm.aprovar_atribuicao, atorDe(c, proc))) {
+        throw new https_1.HttpsError('permission-denied', `Pelo rito, na fase ${fase.nome} só ${(0, permissoesFase_1.textoQuem)(pm.aprovar, pm.aprovar_atribuicao)} aprova a minuta: junta aos autos ou devolve para correção.`);
     }
 }
 /**

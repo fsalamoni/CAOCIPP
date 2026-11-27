@@ -63,6 +63,25 @@ export function saidasDoProcesso(p) {
     return { caminho: todas.filter((f) => !deEspera(f)), esperas: todas.filter(deEspera), volta: null };
 }
 
+/**
+ * Para onde a minuta volta quando quem decide pede correção: unidade, fase e
+ * pessoa que a redigiu (cada parte `null` = o processo fica como está).
+ * Espelho de `destinoDaCorrecao` em functions-v2/src/shared/secretaria.ts: aqui
+ * é só para a tela dizer o que vai acontecer; quem decide é o servidor.
+ */
+export function destinoDaCorrecao(p, doc, unidades = []) {
+    const fases = p?.fases || [];
+    const origem = unidades.find((u) => u.id === doc?.unidade_origem && u.ativa !== false);
+    const unidade = origem && origem.id !== p?.unidade_atual ? origem.id : null;
+    const serve = (f) => (f && f.id !== p?.fase_atual && !f.final && !ehEspera(fases, fases.indexOf(f)) ? f : undefined);
+    const fase = doc?.fase_id
+        ? serve(fases.find((f) => f.id === doc.fase_id))
+        : serve([...fases].reverse().find((f) => f.elaboracao === true && seguintes(fases, fases.indexOf(f)).includes(p?.fase_atual)));
+    const fica = unidades.find((u) => u.id === (unidade || p?.unidade_atual));
+    const lotado = !!doc?.autor_uid && (fica?.membros_uids || []).includes(doc.autor_uid);
+    return { unidade_id: unidade, fase_id: fase?.id || null, responsavel_uid: lotado ? doc.autor_uid : null };
+}
+
 /** Saídas como o servidor vai gravar (sem a própria fase e sem as que não existem; vazio = a seguinte da lista). */
 function saidasGravadas(fases, i, ids) {
     const f = fases[i];
@@ -438,7 +457,7 @@ export function ritoConsultas() {
                 id: rev, nome: 'Revisão', unidade: 'Gabinete', proximas: [dev, dil], juntada_conjunta: true, avanco: 'auto',
                 condicoes: { [dev]: 'parecer assinado', [dil]: 'depende de terceiros' },
                 situacao_registro: consulta('Em revisão'),
-                orientacao: 'O Gabinete edita a minuta (a redação da Assessoria fica guardada em Versões) e termina pelo botão Finalizar Revisão: assina, escolhe e ordena os anexos e junta tudo aos autos. Juntado o parecer, o processo segue sozinho para a Secretaria.',
+                orientacao: 'O Gabinete edita a minuta (a redação da Assessoria fica guardada em Versões) e termina pelo botão Finalizar Revisão: assina, escolhe e ordena os anexos e junta tudo aos autos. Juntado o parecer, o processo segue sozinho para a Secretaria. Se a minuta precisar voltar, use Devolver para correção, dizendo o que mudar: o processo volta à Assessoria, com quem redigiu.',
                 acoes: ['Revisar e editar a minuta', 'Juntar o parecer assinado', 'Decidir os anexos e a ordem'],
                 acoes_regras: [
                     { pede: 'orientacao', ajuda: 'A redação original da Assessoria continua em Versões, só para a equipe.' },
@@ -478,6 +497,60 @@ export function ritoConsultas() {
     };
 }
 
+/**
+ * Par de fases da minuta, já ligadas: numa se redige (elaboração); na outra,
+ * quem decide aprova e junta ou devolve para correção. `depois`: id da fase
+ * para onde a aprovação segue (sem ele, a próxima da lista). Sem unidade:
+ * quem monta o rito escolhe. O servidor aceita as duas como estão
+ * (functions-v2/test/correcaoMinuta.test.js).
+ */
+export function fasesDeMinuta(depois) {
+    const [ela, apr] = [novoIdFase(), novoIdFase()];
+    return [
+        {
+            id: ela, nome: 'Elaboração da minuta', proximas: [apr], elaboracao: true, rotulo_concluir: 'Enviar para aprovação',
+            orientacao: 'Fase de elaboração. O que você redige ou anexa entra como minuta, com o selo Minuta: aqui não se assina nem se junta aos autos. Terminou? Use Enviar para aprovação: a minuta e os anexos seguem com o processo para quem decide. Se a minuta voltar para correção, o pedido aparece no alto da tela.',
+            acoes: ['Redigir ou anexar a minuta', 'Anexar outros documentos, se houver'],
+            acoes_regras: [
+                { documento: { forma: 'qualquer' }, ajuda: 'Redija no editor ou anexe o arquivo: entra como minuta e já cumpre esta ação. Quem aprova e junta aos autos é quem decide, na fase seguinte.' },
+                { pede: 'orientacao', ajuda: 'Também entram como minuta e seguem com o processo. Quem aprova decide quais vão aos autos.' },
+            ],
+        },
+        {
+            id: apr, nome: 'Aprovação da minuta', proximas: depois ? [depois] : [], juntada_conjunta: true,
+            orientacao: 'Leia a minuta e os anexos. Você pode alterar o texto: a redação original fica guardada em Versões. Depois escolha: Aprovar e juntar, que torna a minuta documento definitivo dos autos, ou Devolver para correção, dizendo o que precisa mudar, e o processo volta a quem redigiu. O botão Finalizar junta de uma vez o que foi aprovado e deixa de fora os anexos que não devem entrar.',
+            acoes: ['Ler a minuta e os anexos', 'Aprovar e juntar a minuta, ou devolver para correção', 'Decidir quais anexos entram nos autos'],
+            acoes_regras: [
+                { pede: 'orientacao', ajuda: 'Abra cada minuta. Se precisar de pouco ajuste, edite você mesmo: a redação de quem redigiu continua em Versões, só para a equipe.' },
+                { pede: 'orientacao', ajuda: 'Na minuta: Aprovar e juntar, ou Devolver para correção, com o que precisa mudar. O motivo fica só com a equipe, fora dos autos.' },
+                { pede: 'orientacao', ajuda: 'No botão Finalizar: marque o que entra, ponha na ordem e junte. O que não for marcado continua como minuta ou é guardado fora dos autos.' },
+            ],
+        },
+    ];
+}
+
+/** Demanda que espera alguém assumir, tem a minuta elaborada, aprovada (ou devolvida para correção) e é arquivada. */
+function demandaComMinuta() {
+    const [pen, arq] = [novoIdFase(), novoIdFase()];
+    const [ana, rev] = fasesDeMinuta(arq);
+    return {
+        nome: 'Demanda com minuta e aprovação',
+        descricao: 'A demanda espera até alguém assumir; quem assumiu redige a minuta e envia para aprovação; quem gere a unidade aprova e junta ou devolve para correção; no fim, o processo é arquivado.',
+        fases: [
+            {
+                id: pen, nome: 'Pendente', proximas: [ana.id], segue_ao_assumir: true,
+                orientacao: 'A demanda cadastrada espera aqui até alguém assumir a responsabilidade por ela. Use Assumir: o processo segue sozinho para Em análise, com você como responsável.',
+                acoes: ['Assumir o processo'],
+                acoes_regras: [{ pede: 'orientacao', ajuda: 'Pelo botão Assumir. Quem gere a unidade também pode distribuir o processo a uma pessoa: o efeito é o mesmo.' }],
+            },
+            { ...ana, nome: 'Em análise' },
+            // Quem decide: aqui, quem gere a unidade. Recebe o processo como responsável e só essa pessoa aprova, devolve e conclui.
+            { ...rev, nome: 'Revisão', ao_entrar: { responsavel: 'gestor' }, permissoes: { concluir: 'gestor', aprovar: 'gestor' } },
+            { id: arq, nome: 'Arquivamento', final: true, ao_entrar: { arquivar: true }, orientacao: 'O processo é arquivado ao chegar aqui. O registro do arquivamento traz quem concluiu a revisão e a data.' },
+        ],
+    };
+}
+
 /** Gera os modelos com ids novos a cada chamada. */
 export function modelosDeRito() {
     return [
@@ -512,6 +585,7 @@ export function modelosDeRito() {
             ['Resposta', 5],
             ['Encerramento', null],
         ]),
+        demandaComMinuta(),
         ritoConsultas(),
     ];
 }
