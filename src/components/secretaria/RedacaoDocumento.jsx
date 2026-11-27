@@ -132,6 +132,14 @@ export default function RedacaoDocumento({ aberto, inicial, estado, orgId, unida
         try { baixarResposta(await onDocx(id)); } catch (e) { toast.error(e?.message || 'Não foi possível gerar o arquivo do Word'); } finally { setDocxOcupado(false); }
     };
 
+    // Texto não salvo: fechar a aba ou recarregar a página pede confirmação do navegador.
+    useEffect(() => {
+        if (!aberto || !sujo || leitura) return undefined;
+        const avisar = (e) => { e.preventDefault(); e.returnValue = ''; };
+        window.addEventListener('beforeunload', avisar);
+        return () => window.removeEventListener('beforeunload', avisar);
+    }, [aberto, sujo, leitura]);
+
     const fechar = () => {
         if (sujo && !leitura) { setConfirmarSaida(true); return; }
         onFechar();
@@ -161,7 +169,7 @@ export default function RedacaoDocumento({ aberto, inicial, estado, orgId, unida
                         </>
                     )}
                     <div className="flex items-center gap-2 ml-auto">
-                        {!leitura && <span className="text-xs text-slate-600 hidden md:inline" aria-live="polite">{ocupado ? 'Salvando…' : sujo ? 'Alterações não salvas' : docId ? 'Salvo' : ''}</span>}
+                        {!leitura && <span className="text-xs text-slate-600 dark:text-slate-400" aria-live="polite">{ocupado ? 'Salvando…' : sujo ? 'Alterações não salvas' : docId ? 'Salvo' : ''}</span>}
                         {leitura && inicial?.podeRevisar && (
                             <Button size="sm" className="gap-1" disabled={ocupado} onClick={() => setConfirmarRevisao(true)}><PenSquare className="w-4 h-4" /> Revisar</Button>
                         )}

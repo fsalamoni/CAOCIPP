@@ -406,6 +406,10 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     // Fase de elaboração: quem está nela só prepara minutas; assinar e juntar ficam com quem revisa.
     const elaboracao = faseAtual?.elaboracao === true;
 
+    // Fase interrompida por pendência, fora do gabinete: não há botão da fase. Em vez do vazio,
+    // um aviso que diz por quê e leva à pendência.
+    const aguardaDecisor = podeMexer && !principal && p.fase_suspensa && p.status === 'em_tramitacao';
+    const verPendencia = () => pendenciasRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     const ultimoDoc = autos[autos.length - 1];
     const diasTramitando = diasDesde(p.autuado_em);
     // Quem tem o processo abre no Andamento (onde age); os demais, na Capa.
@@ -417,6 +421,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
             {noAndamento && (principal || podeMexer) && (
                 <div className="sm:hidden fixed bottom-0 inset-x-0 z-20 flex gap-2 border-t bg-white/95 dark:bg-slate-950/95 backdrop-blur p-3" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
                     {principal && <Button className="flex-1 gap-2" disabled={ocupado} onClick={principal.acao}><principal.icone className="w-4 h-4" aria-hidden /> <span className="truncate">{principal.rotulo}</span></Button>}
+                    {aguardaDecisor && <Button variant="outline" className="flex-1 gap-2 border-amber-300 text-amber-900 dark:border-amber-700 dark:text-amber-100" onClick={verPendencia}><AlertCircle className="w-4 h-4 shrink-0" aria-hidden /> <span className="truncate">Fase interrompida: ver a pendência</span></Button>}
                     {podeMexer && <Button variant="outline" size="icon" disabled={ocupado} onClick={() => setNovoDoc(true)} aria-label="Novo documento"><Plus className="w-4 h-4" aria-hidden /></Button>}
                 </div>
             )}
@@ -522,6 +527,11 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                 <div className="flex flex-wrap gap-2 items-start">
                     {principal && (
                         <Button className="gap-2 hidden sm:inline-flex" disabled={ocupado} onClick={principal.acao}><principal.icone className="w-4 h-4" /> {principal.rotulo}</Button>
+                    )}
+                    {aguardaDecisor && (
+                        <Button variant="outline" className="hidden gap-2 border-amber-300 text-amber-900 dark:border-amber-700 dark:text-amber-100 sm:inline-flex" onClick={verPendencia} title="A fase só segue depois que o decisor apreciar a pendência">
+                            <AlertCircle className="w-4 h-4" aria-hidden /> Fase interrompida: ver a pendência
+                        </Button>
                     )}
                     {podeMexer && <Button variant="outline" className="gap-2 hidden sm:inline-flex" disabled={ocupado} onClick={() => setNovoDoc(true)} title="Atalho: N"><Plus className="w-4 h-4" /> Novo documento</Button>}
                     <DropdownMenu>

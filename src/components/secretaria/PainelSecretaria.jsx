@@ -7,6 +7,7 @@ import { secProcesso } from '@/services/secretariaService';
 import { rotuloUnidade } from './comum';
 import { nomeOrgao, unidadeComOrgao } from '@/lib/orgaos';
 import DeadlineCalendar from '@/components/organization/DeadlineCalendar';
+import { ha } from './LinhaProcesso';
 
 const hojeBR = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 const somar = (iso, n) => { const d = new Date(`${iso}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
@@ -100,10 +101,10 @@ export default function PainelSecretaria({ orgId, estado, onAbrir }) {
                             <ul className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {m.pendentes.map((p) => (
                                     <li key={p.id}>
-                                        <button onClick={() => onAbrir(p.id)} className="w-full text-left py-2 flex items-baseline gap-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded px-1">
+                                        <button onClick={() => onAbrir(p.id)} className="w-full text-left py-2 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded px-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
                                             <span className="font-mono text-xs text-indigo-700 dark:text-indigo-300">{p.numero}</span>
-                                            <span className="flex-1 min-w-0 truncate text-sm">{p.assunto}</span>
-                                            <span className={`text-xs tabular-nums ${dias(p.pendencia_desde) > 10 ? 'text-red-700 dark:text-red-400 font-medium' : 'text-slate-600'}`}>há {dias(p.pendencia_desde)} dia(s)</span>
+                                            <span className="order-last w-full text-sm sm:order-none sm:w-auto sm:min-w-0 sm:flex-1 sm:truncate">{p.assunto}</span>
+                                            <span className={`text-xs tabular-nums ${dias(p.pendencia_desde) > 10 ? 'text-red-700 dark:text-red-400 font-medium' : 'text-slate-600 dark:text-slate-400'} max-sm:ml-auto`}>{ha(dias(p.pendencia_desde))}</span>
                                         </button>
                                     </li>
                                 ))}
@@ -118,10 +119,10 @@ export default function PainelSecretaria({ orgId, estado, onAbrir }) {
                             <ul className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {[...m.vencidos, ...m.semana].sort((a, b) => a.proximo_vencimento.localeCompare(b.proximo_vencimento)).slice(0, 10).map((p) => (
                                     <li key={p.id}>
-                                        <button onClick={() => onAbrir(p.id)} className="w-full text-left py-2 flex items-baseline gap-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded px-1">
+                                        <button onClick={() => onAbrir(p.id)} className="w-full text-left py-2 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded px-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
                                             <span className="font-mono text-xs text-indigo-700 dark:text-indigo-300">{p.numero}</span>
-                                            <span className="flex-1 min-w-0 truncate text-sm">{p.assunto}</span>
-                                            <span className={`text-xs tabular-nums ${p.proximo_vencimento < m.hoje ? 'text-red-700 dark:text-red-400 font-medium' : 'text-slate-600'}`}>
+                                            <span className="order-last w-full text-sm sm:order-none sm:w-auto sm:min-w-0 sm:flex-1 sm:truncate">{p.assunto}</span>
+                                            <span className={`text-xs tabular-nums max-sm:ml-auto ${p.proximo_vencimento < m.hoje ? 'text-red-700 dark:text-red-400 font-medium' : 'text-slate-600 dark:text-slate-400'}`}>
                                                 {p.proximo_vencimento < m.hoje ? 'venceu' : 'vence'} {br(p.proximo_vencimento)}
                                             </span>
                                         </button>
@@ -134,7 +135,7 @@ export default function PainelSecretaria({ orgId, estado, onAbrir }) {
             </div>
             <section aria-label="Prazos no calendário" className="space-y-2">
                 <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Prazos no calendário</h3>
-                <DeadlineCalendar organization={{ id: orgId }} pe={m.ativosLista} onAbrirPe={onAbrir} />
+                <DeadlineCalendar organization={{ id: orgId }} pe={m.ativosLista} onAbrirPe={onAbrir} compacto />
             </section>
         </div>
     );

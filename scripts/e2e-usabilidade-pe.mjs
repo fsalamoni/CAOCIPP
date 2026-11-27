@@ -5,7 +5,9 @@
 // voltar de um processo, com a linha destacada; "/" leva à busca; o Novo processo abre com o tipo e a
 // unidade da primeira fase do rito e o seletor de arquivos em português; dentro do processo o menu Mais
 // cabe na tela, a janela de ação diz o que falta, não fecha com texto digitado e confirma com Ctrl+Enter;
-// no celular não há rolagem lateral. Capturas em E2E_SHOTS (padrão: /tmp).
+// fase interrompida por pendência mostra o aviso que leva a ela; o Painel diz "hoje" e não corta a linha;
+// o editor com texto não salvo pede confirmação para fechar a aba; no celular não há rolagem lateral.
+// Capturas em E2E_SHOTS (padrão: /tmp).
 import { createRequire } from 'module';
 import assert from 'node:assert/strict';
 const req = createRequire(new URL('../functions-v2/package.json', import.meta.url));
@@ -137,9 +139,37 @@ try {
     await janela.getByLabel(/Motivo da dispensa/).press('Control+Enter');
     await page.getByText('Fase alterada').first().waitFor({ timeout: 30000 });
     assert.equal((await lido(a.id)).fase_atual, 'f2');
+
+    // 4) Fase interrompida por pendência: no lugar do botão da fase, o aviso que leva à pendência.
+    await proc('abrirPendencia', { id: c.id, version: (await lido(c.id)).version, descricao: 'Decidir sobre a prorrogação', interrompe: true });
+    await page.goto(`${SITE}/ProcessoEletronico?org=org1&p=${c.id}`);
+    await page.getByRole('button', { name: 'Fase interrompida: ver a pendência' }).click({ timeout: 60000 });
+    await page.getByText('Decidir sobre a prorrogação').waitFor();
+    await foto(page, 'fase-interrompida');
+
+    // Painel: a pendência de hoje aparece como "hoje", com o assunto inteiro.
+    await page.goto(`${SITE}/ProcessoEletronico?org=org1&aba=painel`);
+    await page.getByText('Pendências mais antigas').waitFor({ timeout: 60000 });
+    const linhaPainel = page.getByRole('button', { name: /Transparência do portal/ }).first();
+    await linhaPainel.waitFor();
+    assert.match(await linhaPainel.innerText(), /hoje/);
+    assert.equal(await page.getByText('dia(s)').count(), 0);
+    await foto(page, 'painel');
+
+    // Editor: com texto não salvo, fechar a aba ou recarregar pede confirmação do navegador.
+    await page.goto(`${SITE}/ProcessoEletronico?org=org1&p=${b.id}`);
+    await page.getByRole('button', { name: 'Novo documento' }).first().click({ timeout: 60000 });
+    await page.getByRole('dialog', { name: 'Novo documento' }).getByRole('button', { name: 'Redigir' }).click();
+    const papel = page.locator('.ProseMirror').first();
+    await papel.click({ timeout: 30000 });
+    const avisa = () => page.evaluate(() => { const e = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented; });
+    assert.equal(await avisa(), false, 'editor sem alteração não deve segurar a página');
+    await page.keyboard.type('Requisito as informações.');
+    await page.getByText('Alterações não salvas').waitFor();
+    assert.equal(await avisa(), true, 'editor com texto não salvo deve pedir confirmação ao fechar a aba');
     await page.close();
 
-    // 4) Celular (390x844), claro e escuro: sem rolagem lateral na lista e no processo.
+    // 5) Celular (390x844), claro e escuro: sem rolagem lateral na lista e no processo.
     for (const escuro of [false, true]) {
         const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: escuro ? 'dark' : 'light', deviceScaleFactor: 2 });
         page = await ctx.newPage();

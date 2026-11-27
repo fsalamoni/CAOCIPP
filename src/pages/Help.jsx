@@ -154,6 +154,8 @@ export default function Help() {
                 "Ordene por prazo mais próximo ou por há mais tempo na unidade; filtre por Comigo ou Sem responsável",
                 "Novo processo já abre com o tipo usado da última vez e na unidade onde o rito começa; arraste os arquivos para a janela",
                 "Nas janelas de tramitar, juntar e decidir, a linha Para confirmar diz o que falta; Ctrl+Enter confirma",
+                "Fase interrompida por pendência: o aviso no lugar do botão da fase leva à pendência que espera a decisão",
+                "No editor, texto ainda não salvo segura a página: o navegador pergunta antes de fechar a aba ou recarregar",
                 "Nesta fase: marque as ações feitas e abra os modelos com um clique",
                 "Botão principal segue o rito: concluir, enviar ou seguir para a próxima fase",
                 "Minutas são rascunhos da unidade; Juntar inclui nos autos, com número e data",

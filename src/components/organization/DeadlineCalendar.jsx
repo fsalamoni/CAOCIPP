@@ -48,7 +48,9 @@ function dayKey(date) {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
-export default function DeadlineCalendar({ organization, processes = [], expedientes = [], parcerias = [], pe = [], onAbrirPe, peEstado = 'ok' }) {
+export default function DeadlineCalendar({ organization, processes = [], expedientes = [], parcerias = [], pe = [], onAbrirPe, peEstado = 'ok', compacto = false }) {
+    // compacto: em telas largas o dia deixa de ser quadrado (um mês vazio ocupava a tela toda).
+    const celula = compacto ? 'aspect-square sm:aspect-auto sm:h-20' : 'aspect-square';
     const navigate = useNavigate();
     const [cursor, setCursor] = useState(() => {
         const d = new Date();
@@ -182,7 +184,7 @@ export default function DeadlineCalendar({ organization, processes = [], expedie
                     </div>
                     <div className="grid grid-cols-7 gap-1">
                         {cells.map((date, idx) => {
-                            if (!date) return <div key={`empty-${idx}`} className="aspect-square" />;
+                            if (!date) return <div key={`empty-${idx}`} className={celula} />;
                             const key = dayKey(date);
                             const dayEvents = eventsByDay.get(key) || [];
                             const isToday = key === todayKey;
@@ -196,7 +198,7 @@ export default function DeadlineCalendar({ organization, processes = [], expedie
                                     aria-pressed={isSelected}
                                     onClick={() => setSelectedDayKey(dayEvents.length > 0 ? key : null)}
                                     className={cn(
-                                        'aspect-square rounded-lg border p-1.5 flex flex-col items-start justify-between text-left transition-colors',
+                                        celula, 'rounded-lg border p-1.5 flex flex-col items-start justify-between text-left transition-colors',
                                         dayEvents.length > 0 ? 'cursor-pointer hover:border-primary/50 hover:bg-primary/5' : 'cursor-default',
                                         isSelected ? 'border-primary bg-primary/5' : 'border-slate-100 dark:border-slate-800',
                                         isToday && !isSelected && 'border-slate-300 dark:border-slate-600'
