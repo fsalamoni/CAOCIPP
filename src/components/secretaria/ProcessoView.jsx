@@ -655,8 +655,9 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                         </div>
                     )}
                 </CardHeader>
-                <CardContent className="space-y-3">
-                    {faseAtual?.orientacao && <p className="text-sm rounded-md bg-indigo-50 dark:bg-indigo-950 text-indigo-900 dark:text-indigo-100 px-3 py-2">{faseAtual.orientacao}</p>}
+                {/* Em tela larga, o que há a fazer não se estica: a linha fica legível e o botão, perto do texto. O fluxo do rito segue com a largura toda. */}
+                <CardContent className="space-y-3 [&>:not(details)]:max-w-5xl">
+                    {faseAtual?.orientacao &&<p className="text-sm rounded-md bg-indigo-50 dark:bg-indigo-950 text-indigo-900 dark:text-indigo-100 px-3 py-2">{faseAtual.orientacao}</p>}
                     {faseAtual?.acoes?.length > 0 && (
                         <ul className="space-y-1">
                             {faseAtual.acoes.map((a, i) => {
@@ -802,7 +803,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                         <p className="text-sm text-slate-600">O rito não detalha esta fase. {podeMexer ? 'Use Novo documento para redigir e o botão acima para seguir.' : ''}</p>
                     )}
                     <details className="group text-sm">
-                        <summary className="cursor-pointer text-indigo-700 dark:text-indigo-300 list-none"><span className="group-open:hidden">Ver o fluxo do rito</span><span className="hidden group-open:inline">Ocultar o fluxo</span></summary>
+                        <summary className="inline-flex cursor-pointer items-center gap-1 rounded text-indigo-700 dark:text-indigo-300 list-none hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 [&::-webkit-details-marker]:hidden"><ChevronDown className="w-4 h-4 transition-transform group-open:rotate-180" aria-hidden /><span className="group-open:hidden">Ver o fluxo do rito</span><span className="hidden group-open:inline">Ocultar o fluxo</span></summary>
                         <FluxoRito acoes fases={p.fases} atual={p.fase_atual} unidades={estado.unidades} className="mt-2" />
                     </details>
                 </CardContent>
@@ -1012,7 +1013,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                     <CardContent className="space-y-2">
                         {autos.length === 0 && <p className="text-sm text-slate-600">Nenhum documento juntado ainda.{podeMexer ? ' Comece por Novo documento.' : ''}</p>}
                         {autos.map((d) => (
-                            <div key={d.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 border-b last:border-0 border-slate-100 dark:border-slate-800">
+                            <div key={d.id} className="-mx-2 flex flex-wrap items-center gap-x-3 gap-y-1 px-2 py-2 border-b last:border-0 border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/60">
                                 <span className="font-mono text-xs w-8 text-slate-600">{d.ordem}</span>
                                 <div className="flex-1 min-w-[11rem]">
                                     <button type="button" className={`font-medium block max-w-full text-left break-words hover:underline ${d.desentranhado ? 'line-through decoration-slate-400' : ''}`} onClick={() => setLeitura(d.id)}>{d.titulo}</button>
@@ -1028,8 +1029,9 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                 {!d.visivel_partes && <Badge variant="outline">Fora do portal</Badge>}
                                 {d.visivel_partes && d.visivel_polos?.length > 0 && <Badge variant="outline">No portal, só {d.visivel_polos.map((x) => nomePolo(p.nomes_polos, x)).join(' e ')}</Badge>}
                                 {d.versoes > 0 && <Button variant="ghost" size="sm" className="gap-1" disabled={ocupado} onClick={() => setVersoesDe(d)} title="Redações anteriores, de antes da revisão (só a equipe vê)"><History className="w-4 h-4" aria-hidden /> <span className="hidden sm:inline">Versões</span><span className="sr-only sm:hidden">Versões de {d.titulo}</span> ({d.versoes})</Button>}
-                                <Button variant="ghost" size="sm" disabled={ocupado} onClick={() => verNosAutos(d)} aria-label={`Ver ${d.titulo} nos autos`} title="Ver nos autos (PDF com folhas)"><Eye className="w-4 h-4" /></Button>
-                                {d.origem === 'upload' && <Button variant="ghost" size="sm" disabled={ocupado} onClick={() => baixarOriginal(d)} aria-label={`Baixar o arquivo original de ${d.titulo}`} title="Baixar o arquivo original"><Download className="w-4 h-4" /></Button>}
+                                {/* No computador, o botão diz o que faz: só o ícone, no fim de uma linha larga, não se explica. */}
+                                <Button variant="ghost" size="sm" className="gap-1" disabled={ocupado} onClick={() => verNosAutos(d)} aria-label={`Ver nos autos: ${d.titulo}`} title="Ver nos autos (PDF com folhas)"><Eye className="w-4 h-4" aria-hidden /><span className="hidden lg:inline">Ver nos autos</span></Button>
+                                {d.origem === 'upload' && <Button variant="ghost" size="sm" className="gap-1" disabled={ocupado} onClick={() => baixarOriginal(d)} aria-label={`Baixar o original: ${d.titulo}`} title="Baixar o arquivo original"><Download className="w-4 h-4" aria-hidden /><span className="hidden lg:inline">Baixar o original</span></Button>}
                             </div>
                         ))}
                     </CardContent>
@@ -1053,8 +1055,8 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                     </div>
                                     {d.versoes > 0 && <Button variant="ghost" size="sm" className="gap-1" disabled={ocupado} onClick={() => setVersoesDe(d)} title="Redações anteriores, de antes da revisão (só a equipe vê)"><History className="w-4 h-4" aria-hidden /> <span className="hidden sm:inline">Versões</span><span className="sr-only sm:hidden">Versões de {d.titulo}</span> ({d.versoes})</Button>}
                                     {d.origem === 'editor'
-                                        ? <Button variant="ghost" size="sm" disabled={ocupado} onClick={() => abrirMinuta(d)} aria-label={`Ler ${d.titulo}`}><Eye className="w-4 h-4" /></Button>
-                                        : <Button variant="ghost" size="sm" disabled={ocupado} onClick={() => baixarOriginal(d)} aria-label={`Baixar ${d.titulo}`}><Download className="w-4 h-4" /></Button>}
+                                        ? <Button variant="ghost" size="sm" className="gap-1" disabled={ocupado} onClick={() => abrirMinuta(d)} aria-label={`Ler: ${d.titulo}`}><Eye className="w-4 h-4" aria-hidden /><span className="hidden lg:inline">Ler</span></Button>
+                                        : <Button variant="ghost" size="sm" className="gap-1" disabled={ocupado} onClick={() => baixarOriginal(d)} aria-label={`Baixar: ${d.titulo}`}><Download className="w-4 h-4" aria-hidden /><span className="hidden lg:inline">Baixar</span></Button>}
                                 </div>
                             ))}
                         </CardContent>
@@ -1271,7 +1273,8 @@ function ItemExigencia({ e, podeMexer, ocupado, modelo, onModelo, onNovo }) {
     return (
         <div className="flex flex-wrap items-start gap-2 text-sm">
             <FilePen className="w-4 h-4 mt-0.5 text-amber-700 dark:text-amber-400 shrink-0" aria-hidden />
-            <span className="flex-1 min-w-[10rem]">{e.descricao} <span className="text-xs text-slate-600 dark:text-slate-400">· {e.nivel === 'opcional' ? 'documento opcional' : e.nivel === 'recomendado' ? 'documento recomendado (não impede a fase de seguir)' : 'exige documento'} ({[forma?.toLowerCase(), e.tipo].filter(Boolean).join(', ')}); {e.destino ? `cumpre-se guardando-o fora dos autos (${ROTULO_DESTINO[e.destino]})` : 'cumpre-se ao juntar'}</span>
+            <span className="flex-1 min-w-[10rem]">{e.descricao}
+                <span className="block text-xs text-slate-600 dark:text-slate-400">{[e.nivel === 'opcional' ? 'documento opcional' : e.nivel === 'recomendado' ? 'documento recomendado (não impede a fase de seguir)' : 'exige documento', [forma?.toLowerCase(), e.tipo].filter(Boolean).join(', '), e.destino ? `cumpre-se guardando-o fora dos autos (${ROTULO_DESTINO[e.destino]})` : 'cumpre-se ao juntar'].filter(Boolean).join(' · ')}</span>
                 {e.ajuda && <span className="block text-xs text-slate-600 dark:text-slate-400">{e.ajuda}</span>}</span>
             {podeMexer && e.forma !== 'juntar' && modelo && <Button size="sm" variant="outline" disabled={ocupado} onClick={() => onModelo(modelo)}>Redigir {modelo.nome}</Button>}
             {podeMexer && !(e.forma !== 'juntar' && modelo) && <Button size="sm" variant="outline" disabled={ocupado} onClick={onNovo}>Novo documento</Button>}

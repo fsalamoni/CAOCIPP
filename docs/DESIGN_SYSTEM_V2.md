@@ -232,7 +232,11 @@ personalizadas do órgão) sem esconder nenhuma opção atrás de scroll. No
 celular, vira uma faixa única com rolagem horizontal, já posicionada na
 página atual (em grade, 10+ itens ocupavam a primeira tela inteira). O
 item atual leva `aria-current="page"`. A mesma barra aparece no
-Processo Eletrônico, que é uma página do órgão com endereço próprio.
+Processo Eletrônico, que é uma página do órgão com endereço próprio. Lá
+ela recebe `ocultaComMenu`: a partir de `lg`, some enquanto o menu lateral
+está aberto (o sub-menu ao lado lista as mesmas páginas) e volta com ele
+recolhido. O estado do menu vem de `data-menu-lateral` (`aberto` ou
+`recolhido`) na raiz do `Layout`.
 Use o mesmo padrão para qualquer nova barra de navegação cuja
 quantidade de itens seja variável:
 

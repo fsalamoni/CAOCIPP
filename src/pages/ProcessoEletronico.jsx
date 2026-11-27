@@ -68,7 +68,8 @@ export default function ProcessoEletronico() {
     const orgTabs = useOrganizationTabs(resolvedId === orgId ? orgAoVivo : null, { role: org?.userRole, permissions: org?.userPermissions });
     // Dentro de um processo, a barra e o cabeçalho somem: a tela é do processo, com o
     // caminho de volta em "Processos" (as outras páginas seguem no menu lateral).
-    const barra = isV2 && !procId && <OrgTabBar tabs={orgTabs} activeTab={PROCESSO_ELETRONICO_TAB} orgId={orgId} />;
+    // No computador, com o menu lateral aberto, ela some: o sub-menu ao lado já lista as páginas.
+    const barra = isV2 && !procId && <OrgTabBar tabs={orgTabs} activeTab={PROCESSO_ELETRONICO_TAB} orgId={orgId} ocultaComMenu />;
     // A aba interna fica no endereço (?aba=): voltar de um processo, recarregar
     // ou compartilhar o link mantém a pessoa onde estava.
     const abaUrl = params.get('aba');
@@ -191,6 +192,7 @@ export default function ProcessoEletronico() {
     const abaPadrao = estado.minhasUnidades.length ? 'meu' : estado.isAdmin ? 'todos' : comSessoes ? 'sessoes' : 'unidades';
     const abasValidas = ['caixa', 'todos', 'painel', 'unidades', ...(estado.minhasUnidades.length ? ['meu'] : []), ...(gabinetes.length ? ['mesa'] : []), ...(comSessoes ? ['sessoes'] : [])];
     const aba = abasValidas.includes(abaUrl) ? abaUrl : abaPadrao;
+    const ondeEstou = `${org?.name || ''}${estado.minhasUnidades.length ? ` · lotado em ${estado.minhasUnidades.map((id) => estado.unidades.find((u) => u.id === id)?.nome).join(', ')}` : ''}`;
 
     return (
         <ProvedorRegistros orgId={orgId} ligadas={integracoesLigadas(estado)} unidades={estado.unidades} listas={estado.listas}>
@@ -199,17 +201,15 @@ export default function ProcessoEletronico() {
             {!procId && (
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
                 {/* No celular, o título já está na barra do site: aqui fica só para leitores de tela. */}
-                <div className="flex items-center gap-3 min-w-0 max-sm:sr-only">
+                {/* No computador, o título encolhe (com reticências) para os botões ficarem na mesma linha. */}
+                <div className="flex items-center gap-3 min-w-0 max-sm:sr-only sm:flex-[1_1_14rem]">
                     <Link to={`${createPageUrl('Organization')}?id=${orgId}`} className="-m-3 inline-flex rounded-md p-3 text-slate-600 hover:text-slate-800 dark:hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 sm:m-0 sm:p-0" aria-label="Voltar ao órgão">
                         <ArrowLeft className="w-5 h-5" />
                     </Link>
                     <Gavel className="w-6 h-6 text-indigo-600 dark:text-indigo-400 shrink-0" />
                     <div className="min-w-0">
                         <h1 className="text-xl font-semibold text-slate-900 dark:text-white truncate">Processo Eletrônico</h1>
-                        <p className="text-sm text-slate-600 dark:text-slate-400 truncate">
-                            {org?.name || ''}
-                            {estado.minhasUnidades.length > 0 && ` · lotado em ${estado.minhasUnidades.map((id) => estado.unidades.find((u) => u.id === id)?.nome).join(', ')}`}
-                        </p>
+                        <p className="text-sm text-slate-600 dark:text-slate-400 truncate" title={ondeEstou}>{ondeEstou}</p>
                     </div>
                 </div>
                 {/* No celular, "Novo processo" vem primeiro e ocupa a linha; os demais ficam abaixo. */}
@@ -669,7 +669,17 @@ function NovoProcesso({ orgId, estado, onCriado, semente = null, onSementeUsada 
                         <div>
                             <NativeSelect id="sec-tipo" label="Tipo de processo" value={f.tipo_id} onChange={escolherTipo}
                                 options={[['', ritosSemTipo.length ? 'Sem tipo (escolher o rito)' : 'Escolha o tipo…'], ...tiposAtivos.map((t) => [t.id, `${t.sigla ? `${t.nome} (${t.sigla})` : t.nome}${sugeridosDe(t, f.origem?.ref) ? ' (sugerido)' : ''}`])]} />
-                            {tipoSel?.descricao && <p className="text-xs text-slate-600 mt-1">{tipoSel.descricao}</p>}
+                            {/* Descrição longa: aparece o começo, e o resto abre com um clique, para o formulário não descer da primeira tela. */}
+                            {tipoSel?.descricao && (tipoSel.descricao.length <= 220
+                                ? <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">{tipoSel.descricao}</p>
+                                : (
+                                    <details key={tipoSel.id} className="group mt-1 text-xs text-slate-600 dark:text-slate-400">
+                                        <summary className="cursor-pointer list-none rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 [&::-webkit-details-marker]:hidden">
+                                            <span className="group-open:hidden">{tipoSel.descricao.slice(0, 200).replace(/[\s.,;:]+\S*$/, '')}…<span className="text-indigo-700 dark:text-indigo-300 underline">ler tudo</span></span>
+                                            <span className="hidden group-open:inline">{tipoSel.descricao} <span className="text-indigo-700 dark:text-indigo-300 underline">ler menos</span></span>
+                                        </summary>
+                                    </details>
+                                ))}
                         </div>
                     )}
                     <FormularioAutuacao form={form} f={f} setF={setF} tipo={tipoSel || null} origens={estado.listas?.origem}

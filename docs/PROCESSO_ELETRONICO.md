@@ -904,6 +904,47 @@ fornecedor convocado, as razões e a decisão do recurso (pedem o prazo vencer) 
 o resultado com a ata. O tema escuro foi fotografado só no julgamento da
 disputa. `scripts/e2e-usabilidade-pe.mjs` ganhou o fornecedor recusado.
 
+**Sexta rodada (27/11/2026): o computador em primeiro lugar.** O Flavio
+registrou que o celular importa, mas o uso principal do SIGO é no computador.
+As telas do dia a dia foram refotografadas em notebook (1366x768) e em monitor
+largo (1920x1080), e daqui em diante o passeio começa por essas duas medidas.
+
+- Lista (`ProcessoEletronico.jsx`, `OrgTabBar.jsx`, `Layout.jsx`): no notebook,
+  metade da primeira tela era cabeçalho antes do primeiro processo. A barra de
+  páginas do órgão repetia, em duas linhas, o sub-menu que já está aberto ao
+  lado; agora ela some no computador enquanto o menu lateral está aberto e
+  volta quando ele é recolhido (`ocultaComMenu`, lido de `data-menu-lateral` na
+  raiz do layout). O título encolhe com reticências (o texto inteiro fica na
+  dica do mouse) e os botões Guia do rito, Avisos, Configurar e Novo processo
+  sobem para a linha dele. A primeira linha da lista começa cerca de 150 px
+  mais acima: em Meu trabalho, ficam à vista quatro processos do exemplo sem
+  rolar, contra três antes.
+- Nesta fase (`AcoesNoProcesso.jsx`, `ProcessoView.jsx`): o que o rito diz da
+  ação (onde fica o registro, obrigatória, quem cumpre) e do documento exigido
+  (nível, forma, tipo, como se cumpre) passa para uma linha própria, abaixo do
+  nome, separada por pontos. Antes vinha colado ao nome, em letra miúda. Em tela
+  larga, a orientação e a lista do que há a fazer têm largura máxima (64rem): a
+  linha fica legível e o botão Registrar ou Novo documento fica perto do texto,
+  e não a 1.200 px dele. "Ver o fluxo do rito" ganhou seta e sublinhado ao
+  passar o mouse, para parecer o que é: algo que abre.
+- Autos: no computador, os botões do fim da linha dizem o que fazem ("Ver nos
+  autos", "Baixar o original", "Ler", "Baixar"); no celular seguem como ícone. A
+  linha sob o mouse fica destacada, para o olho não se perder até o botão.
+- Novo processo: descrição de tipo com mais de 220 letras aparece só no começo,
+  com "ler tudo". A do inquérito de emendas tomava dez linhas e empurrava
+  Assunto para o meio da janela.
+- Portal da parte (`Portal.jsx`): o assunto e a linha "você participa como"
+  ficam em linha própria, na largura toda. Ao lado dos três botões, o assunto
+  se espremia em três linhas no computador.
+
+Conferido em 1366x768 e 1920x1080, tema claro, com o menu lateral aberto; o
+teste de tela confere a barra (some com o menu aberto, volta com ele
+recolhido), os botões na linha do título e a altura da primeira linha da
+lista. Não conferidos nesta rodada: tema escuro no computador, larguras entre
+1024 e 1280 px, e as telas de sessão, reunião e disputa em monitor largo. A
+barra de páginas só some no Processo Eletrônico; nas demais páginas do órgão
+ela continua como estava.
+
 ## Registro nos autos e documentos exigidos (nov/2026)
 
 Quem monta o rito decide, fase a fase, o que vira ato dos autos e que

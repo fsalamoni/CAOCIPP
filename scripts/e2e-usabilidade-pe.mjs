@@ -85,6 +85,19 @@ try {
     assert.match(await linhaA.getByRole('link').getAttribute('href'), new RegExp(`p=${a.id}`));
     await foto(page, 'lista');
 
+    // No computador, com o menu lateral aberto, a barra de páginas do órgão some (o sub-menu ao lado já as lista),
+    // os botões ficam na linha do título e a lista começa no alto da tela. Com o menu recolhido, a barra volta.
+    const barraOrgao = page.getByRole('navigation', { name: 'Páginas do órgão', includeHidden: true });
+    assert.equal(await barraOrgao.count(), 1);
+    assert.ok(!(await barraOrgao.isVisible()), 'a barra de páginas do órgão devia sumir com o menu lateral aberto');
+    const meio = async (l) => { const c = await l.boundingBox(); return c.y + c.height / 2; };
+    assert.ok(Math.abs(await meio(page.getByRole('link', { name: 'Voltar ao órgão' })) - await meio(page.getByRole('button', { name: 'Novo processo' }))) < 24, 'os botões deviam ficar na linha do título no computador');
+    assert.ok((await linhas(page).first().boundingBox()).y < 330, 'a primeira linha da lista devia aparecer no alto da tela do notebook');
+    await page.getByRole('button', { name: 'Recolher menu' }).click();
+    await barraOrgao.waitFor();
+    await page.getByRole('button', { name: 'Expandir menu' }).click();
+    await barraOrgao.waitFor({ state: 'hidden' });
+
     // Ordem: do mais antigo para o mais novo, e de volta.
     await page.getByLabel('Ordenar a lista').selectOption('antigos');
     assert.equal(await linhas(page).first().getAttribute('data-processo'), a.id);
