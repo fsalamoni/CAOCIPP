@@ -435,10 +435,10 @@ function DetalheSessao({ orgId, id, onVoltar, onAbrir }) {
         const suspenso = x.situacao === 'vista';
         const chamado = s.em_julgamento === x.processo_id && !fora && !x.julgado;
         return (
-            <div className={`flex gap-2 p-3 ${fora ? 'opacity-70' : ''} ${chamado ? 'bg-indigo-50/70 dark:bg-indigo-950/40' : ''}`}>
+            <div className={`flex flex-wrap sm:flex-nowrap gap-2 p-3 ${fora ? 'opacity-70' : ''} ${chamado ? 'bg-indigo-50/70 dark:bg-indigo-950/40' : ''}`}>
                 {pode && !fora && !x.julgado ? alca : <span className="w-6 shrink-0" aria-hidden />}
                 <span className="w-7 shrink-0 text-right font-semibold text-slate-500 dark:text-slate-400 pt-0.5">{i + 1}.</span>
-                <div className="min-w-0 flex-1 space-y-1 text-sm">
+                <div className="min-w-0 flex-[1_1_calc(100%-6rem)] sm:flex-1 space-y-1 text-sm">
                     <div className="flex flex-wrap items-center gap-2">
                         {x.pode_abrir ? (
                             <button type="button" className="font-mono text-indigo-700 dark:text-indigo-300 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded" onClick={() => onAbrir(x.processo_id)}>{x.numero}</button>
@@ -471,21 +471,23 @@ function DetalheSessao({ orgId, id, onVoltar, onAbrir }) {
                     )}
                     {x.problema && <p className="text-xs text-amber-800 dark:text-amber-200 flex gap-1"><AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden /> O processo {x.problema}. Retire da pauta ou acerte o processo antes de {s.situacao === 'rascunho' ? 'publicar' : 'julgar'}.</p>}
                 </div>
+                <div className="flex shrink-0 items-start gap-1 max-sm:w-full max-sm:justify-end empty:hidden">
                 {podeS8.chamar && !fora && !x.julgado && !chamado && (
                     <Button size="sm" variant="ghost" className="shrink-0 gap-1 self-start" disabled={indo} aria-label={`Chamar ${x.numero} para julgamento`}
                         onClick={() => acao('sessaoChamar', { processo_id: x.processo_id }, `${x.numero} chamado: o painel mostra o processo em julgamento`)}>
-                        <Megaphone className="w-4 h-4" aria-hidden /> <span className="hidden sm:inline">Chamar</span>
+                        <Megaphone className="w-4 h-4" aria-hidden /> Chamar
                     </Button>
                 )}
                 {(!fora || suspenso) && s.situacao !== 'cancelada' && (gere || x.votacao?.liberado || x.votacao?.sou_relator || x.votacao?.proclamado) && (
                     <Button size="sm" variant={x.votacao?.aguarda_meu_voto || (x.votacao?.sou_relator && !x.votacao?.liberado) ? 'default' : 'outline'} className="shrink-0 gap-1 self-start"
                         aria-label={`Julgamento de ${x.numero}`} onClick={() => setDialogo({ votacao: x.processo_id })}>
-                        <Gavel className="w-4 h-4" aria-hidden /> <span className="hidden sm:inline">Julgamento</span>
+                        <Gavel className="w-4 h-4" aria-hidden /> Julgamento
                     </Button>
                 )}
                 {pode && !fora && !x.julgado && (
                     <Button size="icon" variant="ghost" className="shrink-0 text-rose-700 dark:text-rose-300" aria-label={`Tirar ${x.numero} da pauta`} disabled={indo} onClick={() => tirar(x)}><Trash2 className="w-4 h-4" aria-hidden /></Button>
                 )}
+                </div>
             </div>
         );
     };

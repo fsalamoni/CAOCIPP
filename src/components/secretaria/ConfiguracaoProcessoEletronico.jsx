@@ -329,7 +329,7 @@ function Tipos({ orgId, estado, pedido, onPedidoAtendido, onAbrirRito }) {
                             {t.numeracao?.modo === 'nenhuma' && <Badge variant="outline">Sem número</Badge>}
                             {t.numeracao?.modo === 'propria' && <span className="text-xs font-mono text-slate-600 dark:text-slate-400">{exemplo(t.numeracao, t)}</span>}
                         </div>
-                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Rito: {nomeRito(t.rito_id)}{nomeOrgao(estado, t.orgao_id) ? ` · só de ${nomeOrgao(estado, t.orgao_id)}` : ''}{t.unidade_inicial && nomeUnidade(t.unidade_inicial) ? ` · entra por ${nomeUnidade(t.unidade_inicial)}` : ''}{t.descricao ? ` · ${t.descricao}` : ''}</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 line-clamp-3" title={t.descricao || undefined}>Rito: {nomeRito(t.rito_id)}{nomeOrgao(estado, t.orgao_id) ? ` · só de ${nomeOrgao(estado, t.orgao_id)}` : ''}{t.unidade_inicial && nomeUnidade(t.unidade_inicial) ? ` · entra por ${nomeUnidade(t.unidade_inicial)}` : ''}{t.descricao ? ` · ${t.descricao}` : ''}</p>
                         {formularioDe(t).campos.length > 0 && <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">Campos próprios: {formularioDe(t).campos.map((c) => c.rotulo).join(', ')}</p>}
                     </CartaoComMenu>
                 ))}

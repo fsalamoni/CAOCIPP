@@ -40,7 +40,7 @@ await db.doc('secUnidades/u0').set(unidade('Assessoria do Gabinete', 'GAB', 'gab
 await db.doc('secUnidades/u1').set(unidade('Secretaria', 'SEC', 'secretaria'));
 await db.doc('secRitos/r1').set({ organization_id: 'org1', nome: 'Inquérito', ativo: true, versao: 1, fases: [
     { id: 'f1', nome: 'Recebimento', unidade_id: 'u1', proximas: ['f2'], acoes: ['Registrar a origem'], acoes_regras: [{ obrigatoria: true }] },
-    { id: 'f2', nome: 'Análise', unidade_id: 'u1', acoes: [] },
+    { id: 'f2', nome: 'Análise', unidade_id: 'u1', acoes: ['Designar a audiência de instrução'], acoes_regras: [{ pede: 'audiencia', audiencia: { especie: 'instrucao' } }] },
 ] });
 // O tipo não indica unidade inicial: vale a da primeira fase do rito.
 await db.doc('secTipos/t1').set({ organization_id: 'org1', nome: 'Inquérito civil', sigla: 'IC', rito_id: 'r1', ativo: true, versao: 1 });
@@ -156,6 +156,23 @@ try {
     assert.equal(await page.getByText('dia(s)').count(), 0);
     await foto(page, 'painel');
 
+    // Terceira rodada. Janela da audiência: diz o que falta e, preenchida, não fecha com clique fora.
+    await page.goto(`${SITE}/ProcessoEletronico?org=org1&p=${a.id}`);
+    await page.getByRole('button', { name: 'Designar', exact: true }).click({ timeout: 60000 });
+    const aud = page.getByRole('dialog', { name: 'Designar a audiência de instrução' });
+    await aud.getByText('Para registrar, informe a data, a hora e o local.').waitFor();
+    await aud.locator('input[type=date]').fill(new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10));
+    await aud.getByText('Para registrar, informe a hora e o local.').waitFor();
+    await page.mouse.click(5, 5);
+    await page.waitForTimeout(400);
+    assert.ok(await aud.isVisible(), 'a janela preenchida não deve fechar com clique fora');
+    await aud.locator('input[type=time]').fill('14:30');
+    await aud.getByLabel('Local').fill('Sala de audiências');
+    assert.equal(await aud.getByText(/^Para registrar/).count(), 0);
+    await foto(page, 'audiencia');
+    await aud.getByRole('button', { name: 'Registrar' }).click();
+    await page.getByRole('button', { name: 'Desfazer' }).waitFor({ timeout: 30000 });
+
     // Editor: com texto não salvo, fechar a aba ou recarregar pede confirmação do navegador.
     await page.goto(`${SITE}/ProcessoEletronico?org=org1&p=${b.id}`);
     await page.getByRole('button', { name: 'Novo documento' }).first().click({ timeout: 60000 });
@@ -183,6 +200,17 @@ try {
         await page.getByText('Pendências e prazos').waitFor();
         await semRolagemLateral(page, 'processo no celular');
         await foto(page, `processo-celular${escuro ? '-escuro' : ''}`);
+        if (!escuro) {
+            // Editor de rito no celular: cabeçalho numa linha e rodapé baixo (eram cinco linhas de botões).
+            await page.goto(`${SITE}/Organization?id=org1&tab=admin&secao=secretaria&aba=ritos`);
+            await page.getByRole('button', { name: /^Editar o rito Inquérito/ }).click({ timeout: 60000 });
+            const salvarRito = page.getByRole('button', { name: 'Salvar alterações' });
+            await salvarRito.waitFor({ timeout: 60000 });
+            const rodape = await salvarRito.locator('xpath=..').boundingBox();
+            assert.ok(rodape.height < 130, `rodapé do editor de rito com ${Math.round(rodape.height)} px no celular`);
+            await semRolagemLateral(page, 'editor de rito no celular');
+            await foto(page, 'rito-celular');
+        }
         await ctx.close();
     }
     console.log('e2e usabilidade do Processo Eletrônico: ok');

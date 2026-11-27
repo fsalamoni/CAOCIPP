@@ -103,7 +103,7 @@ export function AcaoDaFase({ acao, r, feita, info, podeMexer, reservada, ocupado
             {feita
                 ? <CheckCircle2 className="w-4 h-4 mt-0.5 text-emerald-700 dark:text-emerald-400 shrink-0" aria-hidden />
                 : <Circle className="w-4 h-4 mt-0.5 text-slate-400 shrink-0" aria-hidden />}
-            <span className="flex-1 min-w-[10rem]">
+            <span className="flex-[1_1_calc(100%-1.5rem)] sm:flex-1 min-w-[10rem]">
                 <span className={feita ? 'line-through text-slate-600' : ''}>{acao}</span><SelosAcao r={r} />
                 {r?.ajuda && !feita && <span className="block text-xs text-slate-600 dark:text-slate-400">{r.ajuda}</span>}
                 {aviso}{situacaoEspera}
@@ -146,11 +146,13 @@ export function AcaoDaFase({ acao, r, feita, info, podeMexer, reservada, ocupado
                     </span>
                 )}
             </span>
+            <span className="flex flex-wrap gap-2 max-sm:w-full max-sm:pl-6 empty:hidden">
             {pede === 'disputa' && !feita && (podeMexer || certame) && <Button size="sm" variant="outline" disabled={ocupado} onClick={onRegistrar}>{!certame ? 'Montar a disputa' : 'Abrir a disputa'}</Button>}
             {pede === 'derivado' && podeMexer && !feita && onAbrirDerivado && <Button size="sm" className="gap-1" disabled={ocupado} onClick={onAbrirDerivado}><Plus className="w-4 h-4" aria-hidden /> Abrir processo</Button>}
             {podeMexer && !feita && pede === 'quitacao' && cronograma?.cumpridas > 0 && cronograma.abertas === 0 && <Button size="sm" variant="outline" disabled={ocupado} onClick={() => onMarcar(true)}>Registrar</Button>}
             {podeMexer && !feita && pede !== 'disputa' && pede !== 'quitacao' && <Button size="sm" variant={pede === 'derivado' ? 'ghost' : 'outline'} disabled={ocupado} onClick={onRegistrar}>{pede === 'audiencia' ? 'Designar' : pede === 'julgamento' ? 'Registrar julgamento' : pede === 'derivado' ? 'Já existe' : pede === 'cronograma' ? 'Montar cronograma' : 'Registrar'}</Button>}
             {podeMexer && feita && pede !== 'disputa' && <Button size="sm" variant="ghost" className="gap-1" disabled={ocupado} onClick={onDesfazer}><Undo2 className="w-4 h-4" /> Desfazer</Button>}
+            </span>
         </div>
     );
 }
@@ -287,6 +289,7 @@ export function RegistrarAcao({ alvo, ocupado, onFechar, onEnviar }) {
         : pede === 'julgamento' ? { data: hojeBr(), votos: doColegiado || [{ ...MEMBRO_VAZIO, funcao: 'relator' }, MEMBRO_VAZIO, MEMBRO_VAZIO], ...(valor && typeof valor === 'object' ? valor : {}) } : null;
     const vazio = jul ? !jul.data || problemasDosVotos(r.julgamento, jul.votos).length > 0 : aud ? !aud.data || !aud.hora || (aud.modo !== 'virtual' && !aud.local?.trim()) || (aud.modo !== 'presencial' && !aud.link?.trim())
         : form ? !algum : pede === 'sim_nao' ? valor === '' : !String(valor).trim();
+    const faltaAud = aud ? [!aud.data && 'a data', !aud.hora && 'a hora', aud.modo !== 'virtual' && !aud.local?.trim() && 'o local', aud.modo !== 'presencial' && !aud.link?.trim() && 'o link ou a sala virtual'].filter(Boolean) : [];
     const fechar = () => { setValor(''); setTentou(false); onFechar(); };
     const onde = pede === 'julgamento'
         ? 'O sistema apura os votos. O resultado decide a saída da fase, e a certidão de julgamento (resultado, placar, relator, vencidos, impedidos e ausentes) vai aos autos, com folha; as partes a veem no portal. Os fundamentos ficam nos documentos da fase.'
@@ -333,7 +336,7 @@ export function RegistrarAcao({ alvo, ocupado, onFechar, onEnviar }) {
     } else campo = <Input id="acao-valor" maxLength={200} value={valor} onChange={(e) => setValor(e.target.value)} autoFocus />;
     return (
         <Dialog open onOpenChange={(o) => !o && fechar()}>
-            <DialogContent className={`${form || jul ? 'max-w-2xl' : 'max-w-lg'} max-h-[90dvh] overflow-y-auto`}>
+            <DialogContent className={`${form || jul ? 'max-w-2xl' : 'max-w-lg'} max-h-[90dvh] overflow-y-auto`} onInteractOutside={(e) => { if (valor !== '') e.preventDefault(); }}>
                 <DialogHeader>
                     <DialogTitle>{acao}</DialogTitle>
                     <DialogDescription>Fase {fase}. {onde} {quem}</DialogDescription>
@@ -351,9 +354,10 @@ export function RegistrarAcao({ alvo, ocupado, onFechar, onEnviar }) {
                     {tentou && falta.length > 0 && (
                         <ul role="alert" className="text-sm text-red-700 dark:text-red-300 list-disc pl-5">{falta.map((x) => <li key={x}>{x}</li>)}</ul>
                     )}
+                    {faltaAud.length > 0 && <p id="acao-falta" className="text-xs text-slate-600 dark:text-slate-400">Para registrar, informe {faltaAud.join(', ').replace(/, ([^,]*)$/, ' e $1')}.</p>}
                     <DialogFooter className="pt-2">
                         <Button type="button" variant="ghost" onClick={fechar}>Cancelar</Button>
-                        <Button type="submit" disabled={ocupado || vazio}>Registrar</Button>
+                        <Button type="submit" disabled={ocupado || vazio} aria-describedby={faltaAud.length ? 'acao-falta' : undefined}>Registrar</Button>
                     </DialogFooter>
                 </form>
             </DialogContent>

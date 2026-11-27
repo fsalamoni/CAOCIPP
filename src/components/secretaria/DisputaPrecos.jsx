@@ -58,8 +58,8 @@ function Itens({ form, setForm, sigiloso }) {
                     <li key={k} className="rounded-md border border-slate-200 dark:border-slate-700 p-2">
                         <div className="flex items-start gap-2">
                             <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 mt-2 w-6 shrink-0">{k + 1}.</span>
-                            <div className="grid flex-1 gap-2 sm:grid-cols-12">
-                                <div className="sm:col-span-12"><Label htmlFor={`dp-desc-${k}`} className="text-xs">Descrição</Label>
+                            <div className="grid min-w-0 flex-1 gap-2 grid-cols-2 sm:grid-cols-12">
+                                <div className="col-span-2 sm:col-span-12"><Label htmlFor={`dp-desc-${k}`} className="text-xs">Descrição</Label>
                                     <Input id={`dp-desc-${k}`} className="mt-1" maxLength={500} value={i.descricao} placeholder="O que se compra ou contrata, com as especificações" onChange={(e) => setItem(k, { descricao: e.target.value })} /></div>
                                 <div className="sm:col-span-3"><Label htmlFor={`dp-un-${k}`} className="text-xs">Unidade</Label>
                                     <Input id={`dp-un-${k}`} className="mt-1" maxLength={30} value={i.unidade} onChange={(e) => setItem(k, { unidade: e.target.value })} /></div>
@@ -69,7 +69,7 @@ function Itens({ form, setForm, sigiloso }) {
                                     <Input id={`dp-vl-${k}`} className="mt-1" inputMode="decimal" placeholder="Opcional" value={i.valor_estimado} onChange={(e) => setItem(k, { valor_estimado: e.target.value })} /></div>
                                 {lote && <div className="sm:col-span-3"><Label htmlFor={`dp-lt-${k}`} className="text-xs">Lote</Label>
                                     <Input id={`dp-lt-${k}`} className="mt-1" inputMode="numeric" value={i.lote} onChange={(e) => setItem(k, { lote: e.target.value })} /></div>}
-                                <label className="sm:col-span-12 flex items-center gap-2 text-xs">
+                                <label className="col-span-2 sm:col-span-12 flex items-center gap-2 text-xs">
                                     <input type="checkbox" checked={!!i.exclusivo_meepp} onChange={(e) => setItem(k, { exclusivo_meepp: e.target.checked })} />
                                     Exclusivo para microempresa e empresa de pequeno porte (LC 123/2006, art. 48, I)
                                 </label>

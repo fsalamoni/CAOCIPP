@@ -92,6 +92,18 @@ export function FormTimbrado({ cfg, setCfg, idPrefixo = 'doc', orgId, unidadeId 
     const l = cfg.layout || {};
     const { w } = folhaCm(l);
     const mg = margensDe(l);
+    // A prévia encolhe até a folha caber inteira na coluna (antes, 50% fixo cortava a margem direita).
+    const previaRef = useRef(null);
+    const [zoom, setZoom] = useState(0.5);
+    useEffect(() => {
+        const el = previaRef.current;
+        if (!el || typeof ResizeObserver === 'undefined') return undefined;
+        const medir = () => setZoom(Math.max(0.2, Math.min(0.5, el.clientWidth / (w * 37.8 + 48))));
+        const ro = new ResizeObserver(medir);
+        ro.observe(el);
+        medir();
+        return () => ro.disconnect();
+    }, [w]);
     const np = l.numero_pagina || {};
     const simples = (cfg.cabecalho_linhas || []).some(Boolean) || cfg.brasao ? 'as linhas e o brasão acima' : 'vazio';
     const verPdf = async () => {
@@ -161,8 +173,8 @@ export function FormTimbrado({ cfg, setCfg, idPrefixo = 'doc', orgId, unidadeId 
                         </Button>
                     )}
                 </div>
-                <div className="h-[460px] sm:h-[560px] overflow-hidden rounded-md">
-                    <div className="h-[200%] origin-top-left" style={{ zoom: 0.5 }}>
+                <div ref={previaRef} className="h-[460px] sm:h-[560px] overflow-hidden rounded-md">
+                    <div className="origin-top-left" style={{ zoom, height: `${100 / zoom}%` }}>
                         <EditorDocumento somenteLeitura previa conteudo={AMOSTRA} config={cfg} rotulo="Exemplo de documento com o papel timbrado" />
                     </div>
                 </div>

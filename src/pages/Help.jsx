@@ -156,6 +156,8 @@ export default function Help() {
                 "Nas janelas de tramitar, juntar e decidir, a linha Para confirmar diz o que falta; Ctrl+Enter confirma",
                 "Fase interrompida por pendência: o aviso no lugar do botão da fase leva à pendência que espera a decisão",
                 "No editor, texto ainda não salvo segura a página: o navegador pergunta antes de fechar a aba ou recarregar",
+                "Ao designar audiência, a linha Para registrar diz o que falta (data, hora, local ou link); preenchida, a janela não fecha com clique fora",
+                "No celular, o editor de rito mostra Excluir e Substituir fases como ícones, para sobrar tela para o fluxo",
                 "Nesta fase: marque as ações feitas e abra os modelos com um clique",
                 "Botão principal segue o rito: concluir, enviar ou seguir para a próxima fase",
                 "Minutas são rascunhos da unidade; Juntar inclui nos autos, com número e data",

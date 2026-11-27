@@ -28,6 +28,12 @@ cada mudança está nas mensagens de commit (`git log`).
   calendário mais baixo; o editor de minuta pede confirmação antes de fechar
   a aba com texto não salvo; a configuração aberta por atalho cai direto nas
   abas.
+- **Terceira rodada, no mesmo dia:** editor de rito no celular com cabeçalho
+  numa linha e rodapé em duas (eram cinco); cartão do tipo de processo corta a
+  descrição em três linhas; a prévia do papel timbrado cabe inteira na coluna;
+  ações da fase e pauta da sessão deixam de espremer o texto no celular; a
+  janela da audiência diz o que falta para registrar e não fecha com clique
+  fora depois de preenchida; itens da disputa em duas colunas no celular.
 - Teste de tela: `scripts/e2e-usabilidade-pe.mjs`.
 
 ### 25/11/2026 — Exportar o rito: Bizagi (BPMN), imagem, PDF, SVG, planilha e Mermaid

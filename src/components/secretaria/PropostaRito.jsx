@@ -378,12 +378,12 @@ export default function PropostaRito({ aberto, orgId, estado, rito = null, copia
             <DialogContent className="max-w-none w-screen h-[100dvh] sm:w-[96vw] sm:h-[94vh] sm:max-w-[1400px] p-0 gap-0 flex flex-col overflow-hidden sm:rounded-lg [&>button:last-child]:hidden"
                 // Esc durante um arrasto cancela o arrasto, não fecha o editor.
                 onEscapeKeyDown={(e) => { if (document.body.dataset.arrastando) e.preventDefault(); }}>
-                <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 dark:border-slate-700 px-4 py-3">
-                    <GitBranch className="w-5 h-5 text-indigo-600" aria-hidden />
-                    <DialogTitle className="text-base truncate">{editando ? `Editar rito: ${rito.nome}` : 'Novo rito'}</DialogTitle>
-                    {editando && <Badge variant="outline" className="font-normal">versão {rito.versao}</Badge>}
+                <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-700 px-4 py-3">
+                    <GitBranch className="w-5 h-5 shrink-0 text-indigo-600" aria-hidden />
+                    <DialogTitle className="text-base truncate min-w-0">{editando ? `Editar rito: ${rito.nome}` : 'Novo rito'}</DialogTitle>
+                    {editando && <Badge variant="outline" className="font-normal shrink-0">versão {rito.versao}</Badge>}
                     <DialogDescription className="sr-only">{editando ? 'Ajuste as fases, as ações e o que cada uma registra; salvar gera nova versão' : 'Comece em branco, de um modelo ou de um arquivo, revise e implante o rito'}</DialogDescription>
-                    <Button size="sm" variant="ghost" className="ml-auto" onClick={fechar} aria-label="Fechar"><X className="w-4 h-4" /></Button>
+                    <Button size="sm" variant="ghost" className="ml-auto shrink-0" onClick={fechar} aria-label="Fechar"><X className="w-4 h-4" /></Button>
                 </div>
                 {criado ? (
                     <ResumoImplantacao r={criado} onIr={(aba) => { fechar(); onIr?.(aba); }} onFechar={fechar} />
@@ -896,19 +896,19 @@ function Revisao({
                     </aside>
                 </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2 border-t border-slate-200 dark:border-slate-700 px-4 py-3 bg-slate-50 dark:bg-slate-900">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 sm:gap-2 border-t border-slate-200 dark:border-slate-700 px-3 py-2 sm:px-4 sm:py-3 bg-slate-50 dark:bg-slate-900">
                 {editando
-                    ? <Button variant="ghost" className="gap-1 text-red-700 dark:text-red-300" onClick={() => setExcluir(true)}><Trash2 className="w-4 h-4" aria-hidden /> Excluir rito</Button>
+                    ? <Button variant="ghost" className="gap-1 max-sm:px-2.5 text-red-700 dark:text-red-300" title="Excluir rito" onClick={() => setExcluir(true)}><Trash2 className="w-4 h-4" aria-hidden /> <span className="max-sm:sr-only">Excluir rito</span></Button>
                     : <Button variant="ghost" onClick={onVoltar}>Voltar ao início</Button>}
-                {editando && <Button variant="ghost" className="gap-1" onClick={onTrocarFases}><FileUp className="w-4 h-4" aria-hidden /> Substituir fases</Button>}
+                {editando && <Button variant="ghost" className="gap-1 max-sm:px-2.5" title="Substituir fases" onClick={onTrocarFases}><FileUp className="w-4 h-4" aria-hidden /> <span className="max-sm:sr-only">Substituir fases</span></Button>}
                 <div className="flex" role="group" aria-label="Desfazer e refazer">
                     <Button variant="ghost" size="icon" className={ICONE} disabled={!podeDesfazer} onClick={voltar} aria-label="Desfazer" title="Desfazer (Ctrl+Z)"><Undo2 className="w-4 h-4" /></Button>
                     <Button variant="ghost" size="icon" className={ICONE} disabled={!podeRefazer} onClick={avancar} aria-label="Refazer" title="Refazer (Ctrl+Shift+Z)"><Redo2 className="w-4 h-4" /></Button>
                 </div>
                 <p className="sr-only" aria-live="polite">{aviso}</p>
                 <PreviaRito estado={estado} rascunho={p} rotuloBotao="Prévia" />
-                <span className="text-xs text-slate-600 dark:text-slate-300">Rascunho salvo neste navegador.</span>
-                <p className="text-xs text-slate-600 dark:text-slate-300 ml-auto text-right">
+                <span className="text-xs text-slate-600 dark:text-slate-300 max-sm:hidden">Rascunho salvo neste navegador.</span>
+                <p className="text-xs text-slate-600 dark:text-slate-300 ml-auto text-right max-sm:ml-0 max-sm:basis-0 max-sm:grow max-sm:min-w-[9rem] max-sm:text-left">
                     {editando ? `Será salvo como versão ${(p.versao || 1) + 1} (${p.fases.length} fases)` : `Será criado: 1 rito (${p.fases.length} fases)`}{unNovas.length ? `, ${unNovas.length} unidade${unNovas.length > 1 ? 's' : ''} nova${unNovas.length > 1 ? 's' : ''}` : ''}{modNovos.length ? `, ${modNovos.length} modelo${modNovos.length > 1 ? 's' : ''} novo${modNovos.length > 1 ? 's' : ''}` : ''}{tipo.criar && (tipo.nome || p.nome).trim() ? ', 1 tipo de processo' : ''}.
                 </p>
                 {confirmar ? (
