@@ -336,7 +336,7 @@ export default function ConfigurarPagina({
                                 {[...CHAVES_ESTILO, ...proprios.map((p) => [`p:${p.id}`, p.nome])].map(([k, nome]) => (
                                     <button key={k} type="button" role="option" aria-selected={sel === k} onClick={() => setSel(k)}
                                         className={`w-full text-left px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-indigo-500 ${sel === k ? 'bg-indigo-50 text-indigo-900 font-medium dark:bg-indigo-950 dark:text-indigo-100' : 'hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
-                                        {nome}{k.startsWith('p:') && <span className="block text-[11px] text-slate-500">estilo próprio</span>}
+                                        {nome}{k.startsWith('p:') && <span className="block text-[11px] text-slate-500 dark:text-slate-400">estilo próprio</span>}
                                     </button>
                                 ))}
                             </div>

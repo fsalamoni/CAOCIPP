@@ -51,6 +51,10 @@ cada mudança está nas mensagens de commit (`git log`).
   própria e, em tela larga, o botão fica perto do texto; nos autos, os botões
   dizem o que fazem; descrição longa do tipo recolhida em Novo processo; no
   portal, o assunto ocupa a largura toda.
+- **Sétima rodada, no mesmo dia (tema escuro no computador):** os textos cinza
+  que quase sumiam no fundo escuro (listas vazias, ação já cumprida,
+  "Carregando...") ficam legíveis; a legenda do fluxo do rito usa as cores do
+  desenho no tema escuro; pauta vazia diz por que não dá para publicar.
 - Teste de tela: `scripts/e2e-usabilidade-pe.mjs`.
 
 ### 25/11/2026 — Exportar o rito: Bizagi (BPMN), imagem, PDF, SVG, planilha e Mermaid

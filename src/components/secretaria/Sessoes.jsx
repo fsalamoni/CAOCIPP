@@ -100,7 +100,7 @@ function ListaSessoes({ orgId, onAbrirSessao }) {
     const [filtro, setFiltro] = useState('');
     const [nova, setNova] = useState(false);
     const [acordao, setAcordao] = useState(null);
-    if (q.isLoading) return <p className="text-sm text-slate-600 flex items-center gap-2 py-4"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> Carregando as sessões…</p>;
+    if (q.isLoading) return <p className="text-sm text-slate-600 dark:text-slate-400 flex items-center gap-2 py-4"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> Carregando as sessões…</p>;
     if (q.error) return <ErroQuery q={q} />;
     const { colegiados = [], sessoes = [], acordaos = [], hoje = hojeIso() } = q.data || {};
     const lista = filtro ? sessoes.filter((s) => s.orgao_id === filtro) : sessoes;
@@ -330,10 +330,10 @@ function IncluirProcessos({ orgId, sessao, pautados, onFechar, onIncluido }) {
                     </fieldset>
                 )}
                 <div className="relative">
-                    <Search className="w-4 h-4 absolute left-2.5 top-2.5 text-slate-500" aria-hidden />
+                    <Search className="w-4 h-4 absolute left-2.5 top-2.5 text-slate-500 dark:text-slate-400" aria-hidden />
                     <Input className="pl-8" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por número ou assunto" aria-label="Buscar processo" />
                 </div>
-                {q.isLoading && <p className="text-sm text-slate-600 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> Procurando processos…</p>}
+                {q.isLoading && <p className="text-sm text-slate-600 dark:text-slate-400 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> Procurando processos…</p>}
                 {q.error && <ErroQuery q={q} />}
                 {q.data && !lista.length && <p className="text-sm text-slate-600 dark:text-slate-400">{busca ? 'Nenhum processo com essa busca.' : 'Nenhum processo aguardando julgamento neste colegiado. O processo aparece aqui quando chega a uma fase com a ação de registrar julgamento ainda pendente.'}</p>}
                 <ul className="divide-y divide-slate-200 dark:divide-slate-700">
@@ -401,7 +401,7 @@ function DetalheSessao({ orgId, id, onVoltar, onAbrir }) {
         qc.invalidateQueries({ queryKey: ['sec-votacao', orgId, id] });
     });
     const pauta = useMemo(() => q.data?.pauta || [], [q.data]);
-    if (q.isLoading) return <p className="text-sm text-slate-600 flex items-center gap-2 py-4"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> Carregando a sessão…</p>;
+    if (q.isLoading) return <p className="text-sm text-slate-600 dark:text-slate-400 flex items-center gap-2 py-4"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> Carregando a sessão…</p>;
     if (q.error) return <div className="space-y-3 pt-2"><Button variant="ghost" className="gap-2" onClick={onVoltar}><ArrowLeft className="w-4 h-4" aria-hidden /> Voltar às sessões</Button><ErroQuery q={q} /></div>;
     const { sessao: s, colegiado, gere, hoje, data_minima: minima, dia_util: diaUtil, pode: podeS8 = {}, presenca, ata } = q.data;
     const sincrona = s.modo !== 'assincrona';
@@ -532,6 +532,8 @@ function DetalheSessao({ orgId, id, onVoltar, onAbrir }) {
                     <p className={`text-sm rounded-md p-2 ${cedo ? 'bg-amber-50 text-amber-900 dark:bg-amber-950/50 dark:text-amber-100' : 'bg-slate-50 text-slate-700 dark:bg-slate-800 dark:text-slate-200'}`} role={cedo ? 'alert' : undefined}>
                         {textoAntecedencia(colegiado.pauta) || 'O colegiado não pede antecedência mínima para a pauta.'}{' '}
                         {cedo ? `Publicada hoje, a sessão só pode ser a partir de ${br(minima)}: mude a data da sessão.` : 'Rascunho: só a secretaria vê esta pauta, e ninguém foi avisado ainda.'}
+                        {/* O botão de publicar fica apagado com a pauta vazia: aqui vai o motivo. */}
+                        {!cedo && (reuniao ? !(q.data.assuntos || []).length : !pautados.length) && <b className="font-medium"> {reuniao ? 'Para convocar, inclua ao menos um assunto na pauta.' : 'Para publicar, inclua ao menos um processo na pauta.'}</b>}
                     </p>
                 )}
             </section>

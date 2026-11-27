@@ -380,7 +380,7 @@ export default function VotacaoSessao({ orgId, sessaoId, processoId, onFechar, o
                     <DialogTitle className="max-sm:px-6">Julgamento do processo {d?.numero || ''}</DialogTitle>
                     <DialogDescription>{d?.assunto || 'Relator, votos e proclamação do resultado.'}</DialogDescription>
                 </DialogHeader>
-                {q.isLoading && <p className="text-sm text-slate-600 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> Carregando…</p>}
+                {q.isLoading && <p className="text-sm text-slate-600 dark:text-slate-400 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> Carregando…</p>}
                 {q.error && <ErroQuery q={q} />}
                 {d && (
                     <div className="space-y-4">

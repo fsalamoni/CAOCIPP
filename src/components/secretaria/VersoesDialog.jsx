@@ -68,7 +68,7 @@ export default function VersoesDialog({ orgId, colecao, id, nome, estado, onRest
                             ? 'Abrir carrega a versão no editor; nada muda até você salvar, e salvar cria uma versão nova. Processos já autuados mantêm os dados gravados.'
                             : `Restaurar cria uma versão nova com o conteúdo antigo; ${colecao === 'rito' ? 'processos em andamento continuam com a versão com que foram autuados' : 'documentos já redigidos não mudam'}.`}</DialogDescription>
                     </DialogHeader>
-                    {q.isLoading && <p className="text-sm text-slate-600 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> Carregando…</p>}
+                    {q.isLoading && <p className="text-sm text-slate-600 dark:text-slate-400 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> Carregando…</p>}
                     {q.error && <p role="alert" className="text-sm text-red-700 dark:text-red-400">{q.error.message}</p>}
                     {ver != null && (
                         <div className="space-y-3">
@@ -76,7 +76,7 @@ export default function VersoesDialog({ orgId, colecao, id, nome, estado, onRest
                                 <Button type="button" variant="ghost" size="sm" className="gap-1 h-10" autoFocus onClick={() => { voltarPara.current = ver; setVer(null); }}><ArrowLeft className="w-4 h-4" aria-hidden /> Voltar às versões</Button>
                                 <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Versão {ver} comparada à versão atual{q.data ? ` (${q.data.versao_atual}, salva)` : ''}</h3>
                             </div>
-                            {qv.isLoading && <p role="status" className="text-sm text-slate-600 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> Carregando a versão…</p>}
+                            {qv.isLoading && <p role="status" className="text-sm text-slate-600 dark:text-slate-400 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> Carregando a versão…</p>}
                             {qv.error && <p role="alert" className="text-sm text-red-700 dark:text-red-400">{qv.error.message}</p>}
                             {qv.data && !conteudo && <p className="text-sm text-slate-600 dark:text-slate-400">Prévia indisponível para esta versão.</p>}
                             {conteudo && (
@@ -109,7 +109,7 @@ export default function VersoesDialog({ orgId, colecao, id, nome, estado, onRest
                     {q.data && ver == null && (
                         <ul className="divide-y divide-slate-100 dark:divide-slate-800">
                             <li className="py-2 text-sm text-slate-600 dark:text-slate-400">Versão atual: {q.data.versao_atual}</li>
-                            {q.data.versoes.length === 0 && <li className="py-2 text-sm text-slate-600">Nenhuma versão anterior ainda.</li>}
+                            {q.data.versoes.length === 0 && <li className="py-2 text-sm text-slate-600 dark:text-slate-400">Nenhuma versão anterior ainda.</li>}
                             {q.data.versoes.map((v) => (
                                 <li key={v.versao} className="py-2 flex flex-wrap items-center gap-2 text-sm">
                                     <span className="font-medium">Versão {v.versao}</span>

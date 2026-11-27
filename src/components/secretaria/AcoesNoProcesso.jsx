@@ -62,7 +62,7 @@ export function AcaoDaFase({ acao, r, feita, info, podeMexer, reservada, ocupado
             <label className={`flex items-start gap-2 text-sm ${podeMexer ? 'cursor-pointer' : ''}`}>
                 <input type="checkbox" className="mt-1" checked={feita} disabled={!podeMexer || ocupado}
                     onChange={(e) => onMarcar(e.target.checked)} />
-                <span><span className={feita ? 'line-through text-slate-600' : ''}>{acao}</span><SelosAcao r={r} />
+                <span><span className={feita ? 'line-through text-slate-600 dark:text-slate-400' : ''}>{acao}</span><SelosAcao r={r} />
                     {r?.ajuda && !feita && <span className="block text-xs text-slate-600 dark:text-slate-400">{r.ajuda}</span>}{aviso}</span>
             </label>
         );
@@ -77,7 +77,7 @@ export function AcaoDaFase({ acao, r, feita, info, podeMexer, reservada, ocupado
                     ? <CheckCircle2 className="w-4 h-4 mt-0.5 text-emerald-700 dark:text-emerald-400 shrink-0" aria-hidden />
                     : <Circle className="w-4 h-4 mt-0.5 text-slate-400 shrink-0" aria-hidden />}
                 <span className="flex-1 min-w-[10rem]">
-                    <span className={feita ? 'line-through text-slate-600' : ''}>{acao}</span><SelosAcao r={r} />
+                    <span className={feita ? 'line-through text-slate-600 dark:text-slate-400' : ''}>{acao}</span><SelosAcao r={r} />
                     {r?.ajuda && !feita && <span className="block text-xs text-slate-600 dark:text-slate-400">{r.ajuda}</span>}
                     {aviso}
                     <span className="block text-xs text-slate-600 dark:text-slate-400">
@@ -105,7 +105,7 @@ export function AcaoDaFase({ acao, r, feita, info, podeMexer, reservada, ocupado
                 ? <CheckCircle2 className="w-4 h-4 mt-0.5 text-emerald-700 dark:text-emerald-400 shrink-0" aria-hidden />
                 : <Circle className="w-4 h-4 mt-0.5 text-slate-400 shrink-0" aria-hidden />}
             <span className="flex-[1_1_calc(100%-1.5rem)] sm:flex-1 min-w-[10rem]">
-                <span className={feita ? 'line-through text-slate-600' : ''}>{acao}</span><SelosAcao r={r} />
+                <span className={feita ? 'line-through text-slate-600 dark:text-slate-400' : ''}>{acao}</span><SelosAcao r={r} />
                 {r?.ajuda && !feita && <span className="block text-xs text-slate-600 dark:text-slate-400">{r.ajuda}</span>}
                 {aviso}{situacaoEspera}
                 {pede === 'cronograma' && !feita && (

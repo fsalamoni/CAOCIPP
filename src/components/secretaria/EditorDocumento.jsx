@@ -291,7 +291,7 @@ function CampoCm({ rotulo, valor, max, onMudar }) {
                 <input type="number" min={0} max={max} step={0.1} value={txt} placeholder="0" aria-label={`${rotulo} (cm)`}
                     onChange={(e) => setTxt(e.target.value)} onBlur={ok} onKeyDown={(e) => e.key === 'Enter' && ok()}
                     className="h-8 w-20 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm px-1" />
-                <span className="text-xs text-slate-600">cm</span>
+                <span className="text-xs text-slate-600 dark:text-slate-400">cm</span>
             </span>
         </label>
     );
@@ -659,16 +659,16 @@ export default function EditorDocumento({
                                 <button type="button" title="Inserir campo automático" aria-label="Inserir campo automático" onMouseDown={(e) => e.preventDefault()} className="h-8 px-1.5 shrink-0 inline-flex items-center gap-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-sm"><Braces className="w-4 h-4" /> Campo</button>
                             </PopoverTrigger>
                             <PopoverContent className="w-72 p-1 max-h-80 overflow-y-auto" onOpenAutoFocus={(e) => e.preventDefault()}>
-                                <p className="text-xs px-2 py-1 text-slate-600">Preenchido sozinho quando o modelo for usado num processo.</p>
+                                <p className="text-xs px-2 py-1 text-slate-600 dark:text-slate-400">Preenchido sozinho quando o modelo for usado num processo.</p>
                                 {campos.map(([k, r, grupo], i) => (
                                     <React.Fragment key={k}>
                                         {grupo && grupo !== campos[i - 1]?.[2] && (
                                             <>
                                                 <p className="text-xs font-semibold px-2 pt-2 text-slate-700 dark:text-slate-300">{grupo}</p>
-                                                {!campos[i - 1]?.[2] && <p className="text-xs px-2 pb-1 text-slate-600">Só entra o que as partes podem ver; o resto fica para preencher à mão.</p>}
+                                                {!campos[i - 1]?.[2] && <p className="text-xs px-2 pb-1 text-slate-600 dark:text-slate-400">Só entra o que as partes podem ver; o resto fica para preencher à mão.</p>}
                                             </>
                                         )}
-                                        <button type="button" onClick={() => ch().insertContent(`{{${k}}}`).run()} className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800">{r} <span className="text-xs font-mono text-slate-600 break-all">{`{{${k}}}`}</span></button>
+                                        <button type="button" onClick={() => ch().insertContent(`{{${k}}}`).run()} className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800">{r} <span className="text-xs font-mono text-slate-600 dark:text-slate-400 break-all">{`{{${k}}}`}</span></button>
                                     </React.Fragment>
                                 ))}
                             </PopoverContent>
@@ -682,7 +682,7 @@ export default function EditorDocumento({
                             <Input value={busca.termo} onChange={(e) => setBusca({ ...busca, termo: e.target.value })} placeholder="Localizar" aria-label="Localizar" onKeyDown={(e) => e.key === 'Enter' && proxima()} />
                             <Input value={busca.subst} onChange={(e) => setBusca({ ...busca, subst: e.target.value })} placeholder="Substituir por" aria-label="Substituir por" />
                             <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={busca.caso} onChange={(e) => setBusca({ ...busca, caso: e.target.checked })} /> Diferenciar maiúsculas</label>
-                            <p className="text-xs text-slate-600" aria-live="polite">{busca.termo ? `${ocorrencias.length} ocorrência(s)` : ''}</p>
+                            <p className="text-xs text-slate-600 dark:text-slate-400" aria-live="polite">{busca.termo ? `${ocorrencias.length} ocorrência(s)` : ''}</p>
                             <div className="flex flex-wrap gap-1 justify-end">
                                 <Button size="sm" variant="outline" disabled={!ocorrencias.length} onClick={proxima}>Próxima</Button>
                                 <Button size="sm" variant="outline" disabled={!ocorrencias.length} onClick={substituir}>Substituir</Button>

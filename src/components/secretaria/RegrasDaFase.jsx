@@ -701,7 +701,7 @@ export function AcoesDaFase({ f, modelos = [], mudar, idBase }) {
                     {({ alca }) => (<>
                         <div className="flex items-center gap-1">
                             {alca}
-                            <span className="text-xs font-mono w-5 text-slate-500" aria-hidden>{i + 1}</span>
+                            <span className="text-xs font-mono w-5 text-slate-500 dark:text-slate-400" aria-hidden>{i + 1}</span>
                             <Input className="flex-1 min-w-0" value={a} maxLength={200} placeholder="Ex.: Registrar a consulta no SIM" aria-label={`Ação ${i + 1}`}
                                 onChange={(e) => setTexto(i, e.target.value)}
                                 onPaste={(e) => {
@@ -722,7 +722,7 @@ export function AcoesDaFase({ f, modelos = [], mudar, idBase }) {
                             <span>Pede {resumoDaAcao(r)}</span>
                         </button>
                         {aberto && a.trim() && <div className="sm:pl-6"><ConfigAcao id={`${id}-a${i}`} acao={a.trim()} fase={f.nome} f={f} i={i} r={r} modelos={modelos} onChange={(n) => { const rs = acoes.map((_, j) => regras[j] || null); rs[i] = n; gravar(acoes, rs); }} /></div>}
-                        {aberto && !a.trim() && <p className="text-xs text-slate-600 pl-6">Escreva a ação para configurá-la.</p>}
+                        {aberto && !a.trim() && <p className="text-xs text-slate-600 dark:text-slate-400 pl-6">Escreva a ação para configurá-la.</p>}
                         {aberto && acoes.length > 1 && (
                             // No celular, além de arrastar: subir e descer com botões.
                             <div className="flex gap-2 sm:hidden">

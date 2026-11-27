@@ -945,6 +945,29 @@ lista. Não conferidos nesta rodada: tema escuro no computador, larguras entre
 barra de páginas só some no Processo Eletrônico; nas demais páginas do órgão
 ela continua como estava.
 
+**Sétima rodada (27/11/2026): tema escuro no computador.** Fotografadas em
+1366x768 (claro e escuro) e 1920x1080 as telas do dia a dia, sessões, reunião,
+sala da audiência, disputa, editor de rito, tipos, configuração e Guia do rito.
+
+- Tema escuro: 137 textos cinza (`text-slate-600` ou `500` sem variante escura)
+  ficavam quase invisíveis no fundo escuro, entre eles os avisos de lista vazia
+  ("Nenhuma pendência ou prazo aberto"), a ação já cumprida (riscada), os
+  "Carregando..." e a seta de voltar ao órgão. Todos ganharam
+  `dark:text-slate-400`, nos componentes de `src/components/secretaria`, em
+  `ProcessoEletronico.jsx`, `Portal.jsx` e `Disputas.jsx`.
+- Legenda do fluxo do rito (`FluxoRito.jsx`): no tema escuro, as amostras de
+  Fase, Ação, Orientação, Desvio, Início e Fim passam a ter as cores que o
+  desenho usa (eram as do tema claro, brancas sobre o fundo escuro).
+- Sessão ou reunião em rascunho com a pauta vazia (`Sessoes.jsx`): o botão
+  Publicar pauta ou Convocar fica apagado, e o aviso do rascunho agora diz o
+  motivo ("Para convocar, inclua ao menos um assunto na pauta").
+
+Não mudou nesta rodada: o Painel Administrativo em monitor largo (a faixa de
+abas da configuração quebra em duas linhas) e as linhas muito largas da pauta
+em 1920 px. Tema escuro conferido por foto na lista, no processo, nas janelas
+do menu Mais, em Sessões e no editor de rito; as demais telas receberam a
+mesma troca de classe sem foto.
+
 ## Registro nos autos e documentos exigidos (nov/2026)
 
 Quem monta o rito decide, fase a fase, o que vira ato dos autos e que

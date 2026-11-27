@@ -181,16 +181,16 @@ export default function FluxoRito({ fases, atual, onSelecionar, unidades, raiaDe
                 {cheia && <span className="mr-2 text-sm font-semibold">Fluxo do rito</span>}
                 {legenda && (
                     <span className="mr-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-600 dark:text-slate-300" aria-hidden>
-                        <span className="inline-flex items-center gap-1"><i className="inline-block h-2.5 w-2.5 rounded-full border border-[#5b9a12] bg-[#e6f4c8]" />Início</span>
+                        <span className="inline-flex items-center gap-1"><i className="inline-block h-2.5 w-2.5 rounded-full border border-[#5b9a12] bg-[#e6f4c8] dark:border-[#9bd14a] dark:bg-[#2f4a12]" />Início</span>
                         {g.comAcoes
-                            ? <><span className="inline-flex items-center gap-1"><i className="inline-block h-3 w-4 rounded-sm border border-slate-500 border-t-4 border-t-indigo-200 bg-slate-50" />Fase</span>
-                                <span className="inline-flex items-center gap-1"><i className="inline-block h-2.5 w-4 rounded-sm border border-[#2c6aa8] bg-[#d6e6f7]" />Ação</span>
-                                <span className="inline-flex items-center gap-1"><i className="inline-block h-2.5 w-4 rounded-sm border border-dashed border-[#2c6aa8] bg-[#d6e6f7]" />Ação opcional</span>
-                                <span className="inline-flex items-center gap-1"><i className="inline-block h-2.5 w-4 rounded-sm border border-dotted border-slate-500 bg-white" />Orientação</span></>
-                            : <span className="inline-flex items-center gap-1"><i className="inline-block h-2.5 w-4 rounded-sm border border-[#2c6aa8] bg-[#d6e6f7]" />Fase</span>}
-                        <span className="inline-flex items-center gap-1"><i className="inline-block h-2.5 w-2.5 rotate-45 border border-[#a58a00] bg-[#fff7c2]" />Desvio (escolha)</span>
-                        <span className="inline-flex items-center gap-1"><i className="inline-block h-2.5 w-2.5 rounded-full border-2 border-[#a61b1b] bg-[#f8d2d2]" />Fim</span>
-                        <span className="inline-flex items-center gap-1"><i className="inline-block w-4 border-t border-dashed border-slate-600" />Volta</span>
+                            ? <><span className="inline-flex items-center gap-1"><i className="inline-block h-3 w-4 rounded-sm border border-slate-500 border-t-4 border-t-indigo-200 bg-slate-50 dark:border-slate-400 dark:border-t-indigo-800 dark:bg-slate-900" />Fase</span>
+                                <span className="inline-flex items-center gap-1"><i className="inline-block h-2.5 w-4 rounded-sm border border-[#2c6aa8] bg-[#d6e6f7] dark:border-[#7fb2e6] dark:bg-[#1c2f47]" />Ação</span>
+                                <span className="inline-flex items-center gap-1"><i className="inline-block h-2.5 w-4 rounded-sm border border-dashed border-[#2c6aa8] bg-[#d6e6f7] dark:border-[#7fb2e6] dark:bg-[#1c2f47]" />Ação opcional</span>
+                                <span className="inline-flex items-center gap-1"><i className="inline-block h-2.5 w-4 rounded-sm border border-dotted border-slate-500 bg-white dark:border-slate-400 dark:bg-slate-800" />Orientação</span></>
+                            : <span className="inline-flex items-center gap-1"><i className="inline-block h-2.5 w-4 rounded-sm border border-[#2c6aa8] bg-[#d6e6f7] dark:border-[#7fb2e6] dark:bg-[#1c2f47]" />Fase</span>}
+                        <span className="inline-flex items-center gap-1"><i className="inline-block h-2.5 w-2.5 rotate-45 border border-[#a58a00] bg-[#fff7c2] dark:border-[#e2c94a] dark:bg-[#4a4210]" />Desvio (escolha)</span>
+                        <span className="inline-flex items-center gap-1"><i className="inline-block h-2.5 w-2.5 rounded-full border-2 border-[#a61b1b] bg-[#f8d2d2] dark:border-[#ef7373] dark:bg-[#4a1717]" />Fim</span>
+                        <span className="inline-flex items-center gap-1"><i className="inline-block w-4 border-t border-dashed border-slate-600 dark:border-slate-300" />Volta</span>
                         {alertas?.size > 0 && <span className="inline-flex items-center gap-1"><i className="inline-block h-2.5 w-4 rounded-sm border-2 border-dashed border-amber-500" />Fora do caminho</span>}
                     </span>
                 )}

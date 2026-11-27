@@ -44,7 +44,7 @@ export default function MeuTrabalho({ orgId, estado }) {
     const qc = useQueryClient();
     const [assumindo, setAssumindo] = useState('');
     const q = useQuery({ queryKey: ['sec-processos', orgId, 'caixa'], queryFn: () => secProcesso(orgId, 'listar', { escopo: 'caixa' }) });
-    if (q.isLoading) return <div className="py-8 text-slate-600 flex gap-2 items-center"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>;
+    if (q.isLoading) return <div className="py-8 text-slate-600 dark:text-slate-400 flex gap-2 items-center"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>;
     if (q.error) return <ErroQuery q={q} />;
     const { grupos, hoje } = gruposDeTrabalho(q.data?.processos || [], estado);
 
@@ -96,7 +96,7 @@ export default function MeuTrabalho({ orgId, estado }) {
 /** Pendências de todos os processos nos gabinetes em que a pessoa está lotada, da mais antiga para a mais nova. */
 export function MesaDecisao({ orgId, estado }) {
     const q = useQuery({ queryKey: ['sec-processos', orgId, 'caixa'], queryFn: () => secProcesso(orgId, 'listar', { escopo: 'caixa' }) });
-    if (q.isLoading) return <div className="py-8 text-slate-600 flex gap-2 items-center"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>;
+    if (q.isLoading) return <div className="py-8 text-slate-600 dark:text-slate-400 flex gap-2 items-center"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>;
     if (q.error) return <ErroQuery q={q} />;
     const gabinetes = new Set(estado.unidades.filter((u) => unidadeDecide(u) && estado.minhasUnidades.includes(u.id)).map((u) => u.id));
     const lista = (q.data?.processos || [])

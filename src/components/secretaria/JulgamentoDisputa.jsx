@@ -69,7 +69,7 @@ function UnidadeOrgao({ u, criterio, gerir, chamar, indo, agora, baixar }) {
                     {u.ordem.map((c, k) => (
                         <li key={c.uid} className={`flex flex-wrap items-center gap-2 text-sm rounded-md border px-2 py-1 ${c.uid === u.vez ? 'border-indigo-400 dark:border-indigo-600 bg-indigo-50 dark:bg-indigo-950/40' : 'border-slate-200 dark:border-slate-700'}`}>
                             <span className="font-semibold w-6">{k + 1}º</span>
-                            <span className={`flex-1 min-w-[10rem] max-sm:basis-[calc(100%-2.5rem)] ${c.recusa ? 'line-through text-slate-500' : ''}`}>{c.nome} <span className="text-xs text-slate-600 dark:text-slate-400">({c.apelido}) {c.documento}{c.porte === 'me_epp' ? ' · ME/EPP' : ''}</span></span>
+                            <span className={`flex-1 min-w-[10rem] max-sm:basis-[calc(100%-2.5rem)] ${c.recusa ? 'line-through text-slate-500 dark:text-slate-400' : ''}`}>{c.nome} <span className="text-xs text-slate-600 dark:text-slate-400">({c.apelido}) {c.documento}{c.porte === 'me_epp' ? ' · ME/EPP' : ''}</span></span>
                             <b className="max-sm:ml-8">{valorTexto(c.total, criterio)}</b>
                             {c.desempate && <Badge variant="outline">desempate</Badge>}
                             {c.negociado && <Badge variant="outline">negociado</Badge>}

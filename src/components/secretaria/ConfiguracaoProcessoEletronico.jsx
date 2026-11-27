@@ -130,7 +130,7 @@ export function CartaoUnidade({ u, estado, onAbrir, carga }) {
         <button onClick={onAbrir} className={item}>
             <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium">{u.nome}</span>
-                {u.sigla && <span className="text-xs text-slate-600">{u.sigla}</span>}
+                {u.sigla && <span className="text-xs text-slate-600 dark:text-slate-400">{u.sigla}</span>}
                 {u.codigo != null && <span className="text-xs font-mono text-slate-600 dark:text-slate-400" title="Código numérico na numeração">nº {u.codigo}</span>}
                 <Badge variant="outline">{TIPOS_UNIDADE[u.tipo]?.rotulo || 'Secretaria'}</Badge>
                 {/* Papel que a unidade tem além do que o tipo dela já dá. */}
@@ -177,7 +177,7 @@ function Unidades({ orgId, estado, pedido, onPedidoAtendido }) {
                 <Button size="sm" className="gap-1 shrink-0" onClick={() => setNova(true)}><Plus className="w-4 h-4" /> Nova unidade</Button>
             </CardHeader>
             <CardContent className="space-y-4">
-                {estado.unidades.length === 0 && <p className="text-sm text-slate-600">Nenhuma unidade. Crie a secretaria e os gabinetes do órgão.</p>}
+                {estado.unidades.length === 0 && <p className="text-sm text-slate-600 dark:text-slate-400">Nenhuma unidade. Crie a secretaria e os gabinetes do órgão.</p>}
                 {grupos.map(([nome, lista, tipo]) => (
                     <div key={nome || tipo}>
                         <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400 mb-2">{nome || `${TIPOS_UNIDADE[tipo].rotulo}${lista.length > 1 ? 's' : ''}`}</h3>
@@ -253,7 +253,7 @@ function Ritos({ orgId, estado, onIr, onAbrirTipo, pedido, onPedidoAtendido }) {
                             { rotulo: 'Exportar para outro órgão', icone: Download, onSelect: () => exportar(r) },
                             ...(r.versao > 1 ? [{ rotulo: 'Atualizar processos', icone: RefreshCw, onSelect: () => setMigrar(r) }] : []),
                         ]}>
-                        <div className="flex flex-wrap items-center gap-2"><span className="font-medium"><span className="sr-only">Editar o rito </span>{r.nome}</span><span className="text-xs text-slate-600">versão {r.versao}</span>{!r.ativo && <Badge variant="secondary">Inativo</Badge>}</div>
+                        <div className="flex flex-wrap items-center gap-2"><span className="font-medium"><span className="sr-only">Editar o rito </span>{r.nome}</span><span className="text-xs text-slate-600 dark:text-slate-400">versão {r.versao}</span>{!r.ativo && <Badge variant="secondary">Inativo</Badge>}</div>
                         <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">{r.fases.length} fases: {r.fases.map((f) => f.nome).join(' → ')}</p>
                         {tiposDe(r.id).length > 0 && <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">Usado por: {tiposDe(r.id).map((t) => t.nome).join(', ')}</p>}
                     </CartaoComMenu>
@@ -320,7 +320,7 @@ function Tipos({ orgId, estado, pedido, onPedidoAtendido, onAbrirRito }) {
                         onExcluir={() => setExcluir({ colecao: 'tipo', id: t.id, nome: t.nome })}>
                         <div className="flex flex-wrap items-center gap-2">
                             <span className="font-medium">{t.nome}</span>
-                            {t.sigla && <span className="text-xs text-slate-600">{t.sigla}</span>}
+                            {t.sigla && <span className="text-xs text-slate-600 dark:text-slate-400">{t.sigla}</span>}
                             {t.codigo != null && <span className="text-xs font-mono text-slate-600 dark:text-slate-400" title="Código numérico na numeração">nº {t.codigo}</span>}
                             {t.sigilo_padrao === 'restrito' && <Badge variant="outline">Restrito</Badge>}
                             {t.urgente && <SeloUrgente />}

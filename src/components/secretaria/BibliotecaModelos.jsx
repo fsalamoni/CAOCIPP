@@ -28,7 +28,7 @@ function Modelo({ m, busca, aberto, comArea, comAmbito, onAlternar, onUsar }) {
                 <button type="button" onClick={onAlternar} aria-expanded={aberto} aria-controls={det}
                     className="flex-1 min-w-0 text-left rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
                     <span className="flex items-start gap-1.5">
-                        {aberto ? <ChevronDown className="w-4 h-4 mt-0.5 shrink-0 text-slate-500" aria-hidden /> : <ChevronRight className="w-4 h-4 mt-0.5 shrink-0 text-slate-500" aria-hidden />}
+                        {aberto ? <ChevronDown className="w-4 h-4 mt-0.5 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden /> : <ChevronRight className="w-4 h-4 mt-0.5 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden />}
                         <span className="min-w-0">
                             <span className="block font-medium text-sm text-slate-900 dark:text-slate-100"><Destaque texto={m.nome} busca={busca} /></span>
                             <span className="mt-1 flex flex-wrap items-center gap-1">
@@ -141,7 +141,7 @@ export default function BibliotecaModelos({ onEscolher }) {
                     {areas.map(([a, nome]) => (
                         <button key={a} type="button" onClick={() => { setF({ ...FILTRO_VAZIO, area: a }); setGrupos({}); alternarAberta(true); }}
                             className="rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-0.5 text-xs hover:border-indigo-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
-                            {nome} <span className="text-slate-500">{modelos.filter((m) => m.area === a).length}</span>
+                            {nome} <span className="text-slate-500 dark:text-slate-400">{modelos.filter((m) => m.area === a).length}</span>
                         </button>
                     ))}
                 </div>
@@ -160,7 +160,7 @@ export default function BibliotecaModelos({ onEscolher }) {
                                 value={f.busca} onChange={(e) => mudar('busca', e.target.value)} className="h-9 pl-8 pr-8" />
                             {f.busca && (
                                 <button type="button" onClick={() => mudar('busca', '')} aria-label="Limpar a busca"
-                                    className="absolute right-2 top-2 rounded p-0.5 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
+                                    className="absolute right-2 top-2 rounded p-0.5 text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
                                     <X className="w-4 h-4" aria-hidden />
                                 </button>
                             )}
@@ -205,7 +205,7 @@ export default function BibliotecaModelos({ onEscolher }) {
                                         <h4>
                                             <button type="button" aria-expanded={ab} aria-controls={gid} onClick={() => setGrupos((x) => ({ ...x, [g.area]: !ab }))}
                                                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium rounded-md hover:bg-slate-50 dark:hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400">
-                                                {ab ? <ChevronDown className="w-4 h-4 text-slate-500" aria-hidden /> : <ChevronRight className="w-4 h-4 text-slate-500" aria-hidden />}
+                                                {ab ? <ChevronDown className="w-4 h-4 text-slate-500 dark:text-slate-400" aria-hidden /> : <ChevronRight className="w-4 h-4 text-slate-500 dark:text-slate-400" aria-hidden />}
                                                 <span className="flex-1">{g.nome}</span>
                                                 <Badge variant="secondary" className="text-[11px]">{g.modelos.length}</Badge>
                                             </button>

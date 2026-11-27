@@ -135,7 +135,7 @@ export default function ProcessoEletronico() {
 
     if (tokenEquipe) return <ConviteEquipe token={tokenEquipe} />;
     if (!orgId) {
-        return <div className="p-8 text-slate-600">Escolha um órgão no menu lateral.</div>;
+        return <div className="p-8 text-slate-600 dark:text-slate-400">Escolha um órgão no menu lateral.</div>;
     }
     if (estadoQ.isLoading) {
         return <>{barra}<div role="status" className="py-6 flex items-center gap-2 text-slate-600 dark:text-slate-300"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> Carregando o Processo Eletrônico…</div></>;
@@ -203,7 +203,7 @@ export default function ProcessoEletronico() {
                 {/* No celular, o título já está na barra do site: aqui fica só para leitores de tela. */}
                 {/* No computador, o título encolhe (com reticências) para os botões ficarem na mesma linha. */}
                 <div className="flex items-center gap-3 min-w-0 max-sm:sr-only sm:flex-[1_1_14rem]">
-                    <Link to={`${createPageUrl('Organization')}?id=${orgId}`} className="-m-3 inline-flex rounded-md p-3 text-slate-600 hover:text-slate-800 dark:hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 sm:m-0 sm:p-0" aria-label="Voltar ao órgão">
+                    <Link to={`${createPageUrl('Organization')}?id=${orgId}`} className="-m-3 inline-flex rounded-md p-3 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 sm:m-0 sm:p-0" aria-label="Voltar ao órgão">
                         <ArrowLeft className="w-5 h-5" />
                     </Link>
                     <Gavel className="w-6 h-6 text-indigo-600 dark:text-indigo-400 shrink-0" />
@@ -338,7 +338,7 @@ function ProcessosExcluidos({ orgId, estado, aberto, onFechar, onAbrir }) {
                     <DialogTitle>Processos excluídos</DialogTitle>
                     <DialogDescription>Ficam fora das listas e do portal, com o termo de exclusão nos autos. Restaurar devolve o processo à situação e à unidade de antes.</DialogDescription>
                 </DialogHeader>
-                {q.isLoading && <p className="text-sm text-slate-600 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> Carregando…</p>}
+                {q.isLoading && <p className="text-sm text-slate-600 dark:text-slate-400 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> Carregando…</p>}
                 {q.error && <ErroQuery q={q} />}
                 {q.data && !q.data.processos.length && <p className="text-sm text-slate-600 dark:text-slate-400">Nenhum processo excluído.</p>}
                 <ul className="divide-y divide-slate-200 dark:divide-slate-700">
@@ -405,7 +405,7 @@ export function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
         initialPageParam: null,
         getNextPageParam: (ultima) => (ultima.mais ? ultima.cursor : undefined),
     });
-    if (q.isLoading) return <div className="py-8 text-slate-600 flex gap-2 items-center"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>;
+    if (q.isLoading) return <div className="py-8 text-slate-600 dark:text-slate-400 flex gap-2 items-center"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>;
     if (q.error && !q.data) return <ErroQuery q={q} />;
     const todos = q.data?.pages.flatMap((pg) => pg.processos) || [];
     const termo = norm(f.texto.trim());
@@ -438,7 +438,7 @@ export function ListaProcessos({ orgId, escopo, estado, onAbrir }) {
         <div className="space-y-3 pt-2">
             <div className="flex flex-wrap gap-2 items-center">
                 <div className="relative min-w-0 flex-[1_1_calc(100%-6rem)] sm:flex-1 sm:max-w-sm">
-                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" aria-hidden />
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 dark:text-slate-400" aria-hidden />
                     <Input ref={busca} type="search" placeholder="Número, assunto, parte ou CPF/CNPJ" aria-label="Buscar processos" aria-keyshortcuts="/" value={f.texto} onChange={(e) => set('texto', e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Escape' && f.texto) { e.stopPropagation(); set('texto', ''); } }} className="pl-8 sm:pr-8" />
                     {!f.texto && <kbd className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 rounded border border-slate-300 px-1.5 text-[11px] leading-5 text-slate-500 dark:border-slate-600 dark:text-slate-400 sm:block" aria-hidden>/</kbd>}
@@ -721,7 +721,7 @@ function NovoProcesso({ orgId, estado, onCriado, semente = null, onSementeUsada 
                             <ul className="mt-2 space-y-1">
                                 {anexos.map((a, i) => (
                                     <li key={`${a.file.name}-${i}`} className="flex items-center gap-2 text-sm">
-                                        <Paperclip className="w-3.5 h-3.5 shrink-0 text-slate-500" aria-hidden />
+                                        <Paperclip className="w-3.5 h-3.5 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden />
                                         <span className="flex-1 min-w-0"><span className="block truncate">{a.titulo}</span><span className="block text-xs text-slate-600 dark:text-slate-400 truncate">{resumoDetalhe(a)}</span></span>
                                         <Button type="button" variant="ghost" size="sm" className="h-8 px-2" aria-label={`Detalhar ${a.titulo}`} onClick={() => setDetalhando({ inicio: i, itens: [a], troca: true })}>Detalhar</Button>
                                         <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label={`Tirar ${a.titulo}`} onClick={() => setAnexos((x) => x.filter((_, j) => j !== i))}><X className="w-4 h-4" aria-hidden /></Button>

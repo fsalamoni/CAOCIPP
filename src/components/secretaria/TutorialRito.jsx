@@ -119,7 +119,7 @@ function Receitas({ onParte }) {
         <div className="space-y-3">
             <p className="text-sm text-slate-700 dark:text-slate-200">Diga o que quer que o processo faça e veja qual ferramenta usar, onde ela fica e o modelo da biblioteca que já faz assim.</p>
             <div className="relative">
-                <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" aria-hidden />
+                <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-slate-500 dark:text-slate-400" aria-hidden />
                 <Input type="search" value={busca} onChange={(ev) => setBusca(ev.target.value)} placeholder="Ex.: audiência, sigilo, prazo, assinatura, fornecedor" aria-label="Buscar o que você quer fazer" className="pl-8" />
             </div>
             <div className="flex flex-wrap gap-1.5" role="group" aria-label="Tema">
