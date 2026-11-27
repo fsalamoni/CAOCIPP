@@ -189,7 +189,9 @@ test('vencimento: só o prazo aberto, vencido, com regra e ainda não tratado', 
     assert.deepEqual(pf.vencidosATratar(null, HOJE), []);
 });
 
-test('cumprimento por documento: fecha o prazo da ação e recalcula os derivados', () => {
+test('cumprimento por documento: fecha o prazo da ação e recalcula os derivados', (t) => {
+    // A função lê o relógio; sem fixá-lo em HOJE, o teste passa a falhar quando o prazo vence de verdade.
+    t.mock.timers.enable({ apis: ['Date'], now: new Date(AGORA) });
     const base = { fase_atual: 'b', acoes_respostas: { a: { 0: 'Sumário' } } };
     // Abre os prazos "hoje" de verdade: camposDosPrazosDasAcoes confere o
     // cumprimento pela data real, e com a data fixa o teste vencia sozinho.

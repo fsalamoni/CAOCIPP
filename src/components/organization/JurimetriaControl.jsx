@@ -57,11 +57,6 @@ export default function JurimetriaControl({
 }) {
     const settings = useMemo(() => resolveJurimetriaSettings(organization), [organization]);
     const pe = useComPE(organization, 'juri');
-    // Filtro PE que deixou de valer (integração desligada, leitura cortada): volta a "qualquer",
-    // para a contagem e o cabeçalho dos relatórios não citarem um filtro que não está aplicado.
-    useEffect(() => {
-        if (filters.pe && filters.pe !== 'all' && !peAtivo(pe, filters.pe)) setFilters((f) => ({ ...f, pe: 'all' }));
-    }, [pe, filters.pe]);
     // Identidade do usuário: é ela que decide quais modelos de relatório ele
     // pode editar ou excluir (a checagem definitiva é do servidor).
     const { user } = useAuth();
@@ -71,6 +66,13 @@ export default function JurimetriaControl({
 
     const [filters, setFilters] = useState(EMPTY_JURIMETRIA_FILTERS);
     const [selectedIds, setSelectedIds] = useState([]);
+    // Filtro PE que deixou de valer (integração desligada, leitura cortada): volta a "qualquer",
+    // para a contagem e o cabeçalho dos relatórios não citarem um filtro que não está aplicado.
+    // Fica depois do useState de `filters`: antes dele, o render quebrava ("Cannot access 'filters'
+    // before initialization") e a página inteira da Jurimetria caía no ErrorBoundary.
+    useEffect(() => {
+        if (filters.pe && filters.pe !== 'all' && !peAtivo(pe, filters.pe)) setFilters((f) => ({ ...f, pe: 'all' }));
+    }, [pe, filters.pe]);
 
     // Opções de ANÁLISE (como o recorte é contado) — diferentes dos filtros
     // (o que entra no recorte). Ficam gravadas por órgão: quem trabalha
