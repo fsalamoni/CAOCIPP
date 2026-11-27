@@ -49,7 +49,7 @@ export function Mensagens({ lista, onEnviar, rotulo, id }) {
             <ul className="max-h-48 overflow-y-auto space-y-1 rounded-md border border-slate-200 dark:border-slate-700 p-2 text-sm">
                 {!lista.length && <li className="text-slate-600 dark:text-slate-400">Nenhuma mensagem.</li>}
                 {lista.map((m) => (
-                    <li key={m.id} className={m.aviso ? 'text-amber-800 dark:text-amber-300' : ''}>
+                    <li key={m.id} className={`whitespace-pre-line ${m.aviso ? 'text-amber-800 dark:text-amber-300' : ''}`}>
                         <span className="text-xs text-slate-600 dark:text-slate-400 tabular-nums">{horaBr(m.em)}</span> <b>{m.nome}</b>: {m.texto}
                     </li>
                 ))}

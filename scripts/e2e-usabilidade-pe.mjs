@@ -250,6 +250,18 @@ try {
     await enviarProposta.click();
     await page.getByText(/Recebida; última versão/).waitFor({ timeout: 30000 });
     await foto(page, 'proposta-enviada');
+
+    // Quinta rodada. Julgamento visto pelo fornecedor: recusado, lê o motivo e a própria oferta, sem aparecer "em 1º".
+    const certame = (await db.collection('secCertames').get()).docs[0];
+    await certame.ref.update({ abertura_em: new Date(Date.now() - 7 * 3600e3).toISOString() });
+    const julgamento = await proc('certameJulgamento', { processo_id: a.id });
+    await proc('certameRecusar', { processo_id: a.id, chave: julgamento.unidades[0].chave, motivo: 'A cadeira ofertada não tem braços, como pede o aviso.' });
+    await page.reload();
+    await page.getByText('Sua proposta foi recusada: A cadeira ofertada não tem braços, como pede o aviso.').waitFor({ timeout: 60000 });
+    await page.getByText(/Sua oferta: R\$\s12\.200,00/).waitFor();
+    assert.equal(await page.getByText(/Sua posição/).count(), 0);
+    await semRolagemLateral(page, 'julgamento visto pelo fornecedor no celular');
+    await foto(page, 'julgamento-fornecedor');
     await ctxF.close();
     console.log('e2e usabilidade do Processo Eletrônico: ok');
 } finally {

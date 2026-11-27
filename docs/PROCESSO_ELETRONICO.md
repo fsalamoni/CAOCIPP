@@ -877,6 +877,33 @@ e resultado) e o fim dos lances com o relógio zerando. Sessões, reunião e sal
 de lances seguem sem teste de tela automático; a lista no celular e a proposta
 do fornecedor entraram em `scripts/e2e-usabilidade-pe.mjs`.
 
+**Quinta rodada (27/11/2026).** Percorrido o julgamento da disputa, pelo órgão
+e pelo fornecedor, no computador e no celular, tema claro e escuro, em três
+momentos: propostas em análise; uma aceita e habilitada e outra recusada (com
+o segundo colocado chamado); vencedor declarado, com a intenção de recurso
+aberta.
+
+- Classificação no celular (`JulgamentoDisputa.jsx`): cada licitante ocupa duas
+  linhas sempre iguais (nome e CNPJ em cima; valor e selos embaixo, alinhados
+  ao nome). Antes o valor ora ficava ao lado do nome, ora descia, conforme o
+  tamanho do nome.
+- Fornecedor com proposta recusada: a tela dizia "Sua posição: 1º" logo acima
+  de "Sua proposta foi recusada". Agora diz "Sua oferta: R$ ..." e o motivo, sem
+  posição.
+- Mensagens da sala (`SalaLances.jsx`): o aviso do vencedor declarado saía num
+  bloco só ("... R$ 12.200,00 Item 2: ..."). As quebras de linha do texto
+  passam a valer: um item por linha, e os prazos de recurso na linha seguinte.
+- Textos com tamanho mínimo (motivo da recusa, contraproposta, reabertura,
+  intenção, razões, contrarrazões e fundamentos da decisão do recurso): embaixo
+  do campo, "Escreva ao menos N letras" e, começado o texto, "Faltam N letras
+  (mínimo de N)". Antes o botão ficava apagado sem dizer por quê; o prazo da
+  intenção de recurso é de minutos.
+
+Não percorridos: o desempate de ME/EPP, a negociação, o envio de arquivos pelo
+fornecedor convocado, as razões e a decisão do recurso (pedem o prazo vencer) e
+o resultado com a ata. O tema escuro foi fotografado só no julgamento da
+disputa. `scripts/e2e-usabilidade-pe.mjs` ganhou o fornecedor recusado.
+
 ## Registro nos autos e documentos exigidos (nov/2026)
 
 Quem monta o rito decide, fase a fase, o que vira ato dos autos e que

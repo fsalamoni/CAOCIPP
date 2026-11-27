@@ -28,12 +28,20 @@ function Contagem({ ate, agora }) {
     return <span className="inline-flex items-center gap-1 tabular-nums font-semibold" role="timer"><Timer className="w-3.5 h-3.5" aria-hidden />{ms > 0 ? relogio(ms) : 'prazo encerrado'}</span>;
 }
 
+/** Enquanto o botão está apagado por texto curto, diz quanto falta. */
+function Falta({ t, minimo }) {
+    const n = (t || '').trim().length;
+    if (n >= minimo) return null;
+    return <p className="text-xs text-slate-700 dark:text-slate-300">{n ? `Faltam ${minimo - n} letras (mínimo de ${minimo}).` : `Escreva ao menos ${minimo} letras.`}</p>;
+}
+
 /** Pequeno formulário de um ato com texto (motivo, contraproposta, fundamentos). */
 function AtoComTexto({ id, rotulo, botao, minimo = 10, onFazer, onVoltar, indo, linhas = 2 }) {
     const [t, setT] = useState('');
     return (
         <div role="group" aria-label={rotulo} className="rounded-md border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 p-2 space-y-2">
             <div><Label htmlFor={id} className="text-xs">{rotulo}</Label><Textarea id={id} rows={linhas} maxLength={2000} className="mt-1" value={t} onChange={(e) => setT(e.target.value)} /></div>
+            <Falta t={t} minimo={minimo} />
             <div className="flex gap-2 justify-end">
                 <Button size="sm" variant="ghost" onClick={onVoltar}>Voltar</Button>
                 <Button size="sm" disabled={indo || t.trim().length < minimo} onClick={async () => { if (await onFazer(t.trim())) onVoltar(); }}>{botao}</Button>
@@ -61,8 +69,8 @@ function UnidadeOrgao({ u, criterio, gerir, chamar, indo, agora, baixar }) {
                     {u.ordem.map((c, k) => (
                         <li key={c.uid} className={`flex flex-wrap items-center gap-2 text-sm rounded-md border px-2 py-1 ${c.uid === u.vez ? 'border-indigo-400 dark:border-indigo-600 bg-indigo-50 dark:bg-indigo-950/40' : 'border-slate-200 dark:border-slate-700'}`}>
                             <span className="font-semibold w-6">{k + 1}º</span>
-                            <span className={`flex-1 min-w-[10rem] ${c.recusa ? 'line-through text-slate-500' : ''}`}>{c.nome} <span className="text-xs text-slate-600 dark:text-slate-400">({c.apelido}) {c.documento}{c.porte === 'me_epp' ? ' · ME/EPP' : ''}</span></span>
-                            <b>{valorTexto(c.total, criterio)}</b>
+                            <span className={`flex-1 min-w-[10rem] max-sm:basis-[calc(100%-2.5rem)] ${c.recusa ? 'line-through text-slate-500' : ''}`}>{c.nome} <span className="text-xs text-slate-600 dark:text-slate-400">({c.apelido}) {c.documento}{c.porte === 'me_epp' ? ' · ME/EPP' : ''}</span></span>
+                            <b className="max-sm:ml-8">{valorTexto(c.total, criterio)}</b>
                             {c.desempate && <Badge variant="outline">desempate</Badge>}
                             {c.negociado && <Badge variant="outline">negociado</Badge>}
                             {c.uid === u.vez && <Badge className="bg-indigo-600 hover:bg-indigo-600">em análise</Badge>}
@@ -206,6 +214,7 @@ export function JulgamentoOrgao({ orgId, procId }) {
                         </select></div>
                     {d.pode.encaminha && <p className="text-xs text-slate-700 dark:text-slate-300">Com autoridade superior designada, quem conduz reconsidera ou mantém a decisão e encaminha o recurso, com a motivação, para a autoridade decidir (Lei 14.133/2021, art. 165, § 2º).</p>}
                     <div><Label htmlFor="jg-fundamentos" className="text-xs">Fundamentos (vão aos autos)</Label><Textarea id="jg-fundamentos" rows={4} className="mt-1" value={decisao.fundamentos} onChange={(e) => setDecisao((v) => ({ ...v, fundamentos: e.target.value }))} /></div>
+                    <Falta t={decisao.fundamentos} minimo={20} />
                     <div className="flex justify-end"><Button disabled={indo || decisao.fundamentos.trim().length < 20} onClick={() => chamar('certameDecidirRecurso', decisao, d.pode.encaminha && decisao.provimento === 'nao' ? 'Recurso encaminhado' : 'Recurso decidido')}>{d.pode.encaminha && decisao.provimento === 'nao' ? 'Encaminhar o recurso' : 'Registrar a decisão'}</Button></div>
                 </div>
             )}
@@ -244,7 +253,7 @@ function UnidadeFornecedor({ u, criterio, certameId, agora, atualizar }) {
     return (
         <li className="rounded-md border border-slate-200 dark:border-slate-700 p-3 space-y-2 text-sm">
             <div className="flex flex-wrap items-center gap-2 justify-between"><h4 className="font-semibold">{u.nome}</h4><Selo u={u} /></div>
-            {u.posicao ? <p>Sua posição: <b>{u.posicao}º</b>, com {valorTexto(u.meu.total, criterio)}.{u.vez && !u.vez_sou_eu ? ` Em análise: ${u.vez}.` : ''}{u.vez_sou_eu ? ' A sua proposta está em análise.' : ''}</p>
+            {u.posicao ? <p>{u.recusa ? <>Sua oferta: {valorTexto(u.meu.total, criterio)}.</> : <>Sua posição: <b>{u.posicao}º</b>, com {valorTexto(u.meu.total, criterio)}.</>}{u.vez && !u.vez_sou_eu ? ` Em análise: ${u.vez}.` : ''}{u.vez_sou_eu ? ' A sua proposta está em análise.' : ''}</p>
                 : <p className="text-slate-600 dark:text-slate-400">Você não cotou este item ou lote.</p>}
             {u.recusa && <p className="text-rose-700 dark:text-rose-300">{u.recusa.etapa === 'proposta' ? 'Sua proposta foi recusada' : 'Você foi inabilitado'}: {u.recusa.motivo}</p>}
             {u.vencedor && <p className="flex items-center gap-1"><Trophy className="w-4 h-4 shrink-0 text-emerald-700 dark:text-emerald-400" aria-hidden /><span>Vencedor: <b>{u.vencedor.quem}</b>, {valorTexto(u.vencedor.total, criterio)}.</span></p>}
@@ -292,9 +301,10 @@ export function JulgamentoFornecedor({ certameId, criterio }) {
     if (q.isLoading) return <p className="text-sm text-slate-600 dark:text-slate-400">Carregando o julgamento…</p>;
     if (q.error) return <p className="text-sm text-rose-700 dark:text-rose-300">{q.error.message}</p>;
     const enviarMsg = d.etapa !== 'encerrado' && !d.observador ? async (texto) => { await secPortal('disputaMensagem', { certame_id: certameId, texto }); atualizar(); } : null;
-    const campo = (id, rotulo, chaveTxt, inicial = '') => (
+    const campo = (id, rotulo, chaveTxt, inicial = '', minimo = 20) => (
         <div><Label htmlFor={id} className="text-xs">{rotulo}</Label>
-            <Textarea id={id} rows={4} maxLength={20000} className="mt-1" value={txt[chaveTxt] ?? inicial} onChange={(e) => setTxt((t) => ({ ...t, [chaveTxt]: e.target.value }))} /></div>
+            <Textarea id={id} rows={4} maxLength={20000} className="mt-1" value={txt[chaveTxt] ?? inicial} onChange={(e) => setTxt((t) => ({ ...t, [chaveTxt]: e.target.value }))} />
+            <Falta t={txt[chaveTxt] ?? inicial} minimo={minimo} /></div>
     );
     const r = d.recurso;
     return (
@@ -314,7 +324,7 @@ export function JulgamentoFornecedor({ certameId, criterio }) {
                     {d.pode.intencao && (
                         <div role="group" aria-label="Intenção de recurso" className="space-y-2">
                             <p className="text-sm">A intenção de recurso fica aberta por pouco tempo: <Contagem ate={r.intencao_ate} agora={agora} />. Diga, em síntese, contra o que recorre.</p>
-                            {campo('jg-intencao', 'Síntese da intenção de recorrer', 'intencao')}
+                            {campo('jg-intencao', 'Síntese da intenção de recorrer', 'intencao', '', 10)}
                             <Button size="sm" disabled={indo || (txt.intencao || '').trim().length < 10} onClick={() => fazer('disputaIntencao', { motivo: txt.intencao }, 'Intenção registrada')}>Manifestar intenção de recorrer</Button>
                         </div>
                     )}

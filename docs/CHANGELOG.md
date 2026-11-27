@@ -40,6 +40,10 @@ cada mudança está nas mensagens de commit (`git log`).
   registrada, com o motivo escrito; na proposta do fornecedor, o CNPJ ou CPF é
   conferido ao digitar e a linha "Para enviar, falta ..." diz o que falta; a
   proposta e a sala de lances ficam mais curtas no celular.
+- **Quinta rodada, no mesmo dia (julgamento da disputa):** classificação
+  alinhada no celular; o fornecedor recusado deixa de aparecer "em 1º" e lê a
+  própria oferta e o motivo; o aviso do vencedor declarado sai um item por
+  linha; os campos com tamanho mínimo dizem quantas letras faltam.
 - Teste de tela: `scripts/e2e-usabilidade-pe.mjs`.
 
 ### 25/11/2026 — Exportar o rito: Bizagi (BPMN), imagem, PDF, SVG, planilha e Mermaid
