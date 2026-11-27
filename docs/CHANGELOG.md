@@ -34,6 +34,12 @@ cada mudança está nas mensagens de commit (`git log`).
   ações da fase e pauta da sessão deixam de espremer o texto no celular; a
   janela da audiência diz o que falta para registrar e não fecha com clique
   fora depois de preenchida; itens da disputa em duas colunas no celular.
+- **Quarta rodada, no mesmo dia:** filtros da lista em duas linhas no celular
+  (eram três); na janela de julgamento, quem ainda não votou é avisado antes de
+  proclamar; na reunião, Abrir votação fica apagado até a presença ser
+  registrada, com o motivo escrito; na proposta do fornecedor, o CNPJ ou CPF é
+  conferido ao digitar e a linha "Para enviar, falta ..." diz o que falta; a
+  proposta e a sala de lances ficam mais curtas no celular.
 - Teste de tela: `scripts/e2e-usabilidade-pe.mjs`.
 
 ### 25/11/2026 — Exportar o rito: Bizagi (BPMN), imagem, PDF, SVG, planilha e Mermaid

@@ -40,7 +40,7 @@ await db.doc('secUnidades/u0').set(unidade('Assessoria do Gabinete', 'GAB', 'gab
 await db.doc('secUnidades/u1').set(unidade('Secretaria', 'SEC', 'secretaria'));
 await db.doc('secRitos/r1').set({ organization_id: 'org1', nome: 'Inquérito', ativo: true, versao: 1, fases: [
     { id: 'f1', nome: 'Recebimento', unidade_id: 'u1', proximas: ['f2'], acoes: ['Registrar a origem'], acoes_regras: [{ obrigatoria: true }] },
-    { id: 'f2', nome: 'Análise', unidade_id: 'u1', acoes: ['Designar a audiência de instrução'], acoes_regras: [{ pede: 'audiencia', audiencia: { especie: 'instrucao' } }] },
+    { id: 'f2', nome: 'Análise', unidade_id: 'u1', acoes: ['Designar a audiência de instrução', 'Disputa de preços'], acoes_regras: [{ pede: 'audiencia', audiencia: { especie: 'instrucao' } }, { pede: 'disputa', disputa: { perfil: 'dispensa' } }] },
 ] });
 // O tipo não indica unidade inicial: vale a da primeira fase do rito.
 await db.doc('secTipos/t1').set({ organization_id: 'org1', nome: 'Inquérito civil', sigla: 'IC', rito_id: 'r1', ativo: true, versao: 1 });
@@ -50,16 +50,20 @@ const a = await proc('autuar', { ...base, assunto: 'Emendas sem plano de trabalh
 const b = await proc('autuar', { ...base, assunto: 'Obra paralisada na escola', partes: [{ nome: 'Construtora Alfa', polo: 'requerido' }] });
 const c = await proc('autuar', { ...base, assunto: 'Transparência do portal', partes: [] });
 
-const entrar = async (page, url) => {
+// O fornecedor da disputa nasce pelo Admin SDK: a sessão do script continua sendo a do admin.
+const fornecedor = await admin.auth().createUser({ email: 'fornecedor@teste.dev', password: 'segredo123' });
+await db.doc(`users/${fornecedor.uid}`).set({ email: 'fornecedor@teste.dev', full_name: 'Móveis do Sul', accepted_terms: true, terms_accepted_at: new Date().toISOString() });
+
+const entrar = async (page, url, email = 'admin@teste.dev') => {
     await page.goto(`${SITE}/`);
     await page.waitForLoadState('load');
-    await page.evaluate(async () => {
+    await page.evaluate(async (e) => {
         const cfg = await import('/src/config/firebase.js');
         const fonte = await (await fetch('/src/config/firebase.js')).text();
         const u = fonte.match(/from\s+["']([^"']*firebase_auth[^"']*)["']/)[1];
         const { signInWithEmailAndPassword } = await import(u);
-        await signInWithEmailAndPassword(cfg.auth, 'admin@teste.dev', 'segredo123');
-    });
+        await signInWithEmailAndPassword(cfg.auth, e, 'segredo123');
+    }, email);
     await page.goto(`${SITE}${url}`);
 };
 const foto = async (page, nome) => { await page.waitForTimeout(700); await page.screenshot({ path: `${SHOTS}/usabilidade-${nome}.png` }); };
@@ -173,6 +177,12 @@ try {
     await aud.getByRole('button', { name: 'Registrar' }).click();
     await page.getByRole('button', { name: 'Desfazer' }).waitFor({ timeout: 30000 });
 
+    // Quarta rodada. O processo A, já na fase da disputa, publica o aviso que o fornecedor abre no celular.
+    await proc('certameSalvar', { processo_id: a.id, version: (await lido(a.id)).version, dados: { objeto: 'Aquisição de cadeiras', criterio: 'menor_preco', unidade_disputa: 'item',
+        itens: [{ descricao: 'Cadeira giratória com braços', unidade: 'unidade', quantidade: 20, valor_estimado: 650 }],
+        abertura_data: new Date(Date.now() + 6 * 86400000).toISOString().slice(0, 10), abertura_hora: '10:00' } });
+    const aviso = await proc('certamePublicar', { processo_id: a.id, version: (await lido(a.id)).version });
+
     // Editor: com texto não salvo, fechar a aba ou recarregar pede confirmação do navegador.
     await page.goto(`${SITE}/ProcessoEletronico?org=org1&p=${b.id}`);
     await page.getByRole('button', { name: 'Novo documento' }).first().click({ timeout: 60000 });
@@ -194,6 +204,10 @@ try {
         await entrar(page, '/ProcessoEletronico?org=org1&aba=caixa');
         await linhas(page).first().waitFor({ timeout: 60000 });
         await semRolagemLateral(page, 'lista no celular');
+        // Filtros em duas linhas: a busca divide a primeira com "Mais filtros"; situação e ordem dividem a segunda.
+        const topo = async (alvo) => Math.round((await alvo.boundingBox()).y);
+        assert.ok(Math.abs(await topo(page.getByLabel('Buscar processos')) - await topo(page.getByRole('button', { name: /Mais filtros/ }))) < 12, 'a busca e "Mais filtros" deviam dividir a linha no celular');
+        assert.ok(Math.abs(await topo(page.getByLabel('Filtrar por situação')) - await topo(page.getByLabel('Ordenar a lista'))) < 12, 'situação e ordem deviam dividir a linha no celular');
         await foto(page, `lista-celular${escuro ? '-escuro' : ''}`);
         await page.locator(`[data-processo="${b.id}"]`).getByRole('link').click();
         await page.getByRole('tab', { name: /^Andamento/ }).waitFor({ timeout: 60000 });
@@ -213,6 +227,30 @@ try {
         }
         await ctx.close();
     }
+
+    // 6) Fornecedor no celular: a proposta diz o que falta e confere o CNPJ ao digitar, antes do servidor.
+    const ctxF = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: 'light', deviceScaleFactor: 2 });
+    page = await ctxF.newPage();
+    await entrar(page, `/Disputas?c=${aviso.codigo}`, 'fornecedor@teste.dev');
+    await page.getByRole('button', { name: 'Participar desta disputa' }).click({ timeout: 60000 });
+    await page.getByText('Para enviar, falta o nome ou a razão social, o CNPJ ou CPF, o valor de pelo menos um item e marcar as declarações obrigatórias.').waitFor({ timeout: 30000 });
+    const enviarProposta = page.getByRole('button', { name: 'Enviar a proposta' });
+    assert.ok(await enviarProposta.isDisabled());
+    await page.getByLabel('Nome ou razão social').fill('Móveis do Sul Ltda');
+    await page.getByLabel('CNPJ ou CPF').fill('12.345.678/0001-90');
+    await page.getByText('Confira o número: este CNPJ ou CPF não é válido.').waitFor();
+    await page.getByText(/^Para enviar, falta um CNPJ ou CPF válido/).waitFor();
+    await foto(page, 'proposta-cnpj');
+    await page.getByLabel('CNPJ ou CPF').fill('11.222.333/0001-81');
+    assert.equal(await page.getByText(/Confira o número/).count(), 0);
+    await page.getByLabel('Valor unitário (R$)').fill('610');
+    for (const caixa of await page.locator('fieldset input[type=checkbox]').all()) await caixa.check();
+    assert.equal(await page.getByText(/^Para enviar, falta/).count(), 0);
+    await semRolagemLateral(page, 'proposta do fornecedor no celular');
+    await enviarProposta.click();
+    await page.getByText(/Recebida; última versão/).waitFor({ timeout: 30000 });
+    await foto(page, 'proposta-enviada');
+    await ctxF.close();
     console.log('e2e usabilidade do Processo Eletrônico: ok');
 } finally {
     await browser.close();

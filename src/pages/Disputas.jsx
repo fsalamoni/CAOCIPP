@@ -17,6 +17,7 @@ import { JulgamentoFornecedor } from '@/components/secretaria/JulgamentoDisputa'
 import {
     CRITERIOS, PERFIS_DISPUTA, UNIDADES_DISPUTA, alertasDaProposta, faltaPara, lotesIncompletos, moeda, numero, percentual, quandoBr, unidadesDeDisputa, valorNaUnidade,
 } from '@/lib/certames';
+import { cpfCnpjValido } from '@/lib/camposProcesso';
 
 /**
  * Disputas de preços, para o fornecedor (S11). Entra por convite (cotação
@@ -162,7 +163,16 @@ function FormProposta({ d, onFeito, recibo, setRecibo }) {
     const incompletos = lotesIncompletos(itens, a);
     const unidades = useMemo(() => unidadesDeDisputa(a), [a]);
     const obrig = d.declaracoes.filter((x) => x.obrigatoria).every((x) => decl.has(x.id)) && (lic.porte !== 'me_epp' || decl.has('meepp'));
-    const pronto = lic.razao_social.trim().length >= 3 && lic.documento.trim() && cotados.length && !incompletos.length && obrig;
+    // O servidor confere o número; a tela avisa antes, ao lado do campo, e diz o que falta para enviar.
+    const docOk = cpfCnpjValido(lic.documento);
+    const falta = [
+        lic.razao_social.trim().length < 3 && 'o nome ou a razão social',
+        !lic.documento.trim() ? 'o CNPJ ou CPF' : !docOk && 'um CNPJ ou CPF válido',
+        !cotados.length && 'o valor de pelo menos um item',
+        incompletos.length > 0 && 'os demais itens do lote',
+        !obrig && 'marcar as declarações obrigatórias',
+    ].filter(Boolean);
+    const pronto = !falta.length;
     const enviar = async () => {
         setIndo(true);
         try {
@@ -191,7 +201,9 @@ function FormProposta({ d, onFeito, recibo, setRecibo }) {
                 <fieldset className="grid gap-3 sm:grid-cols-2">
                     <legend className="text-sm font-semibold mb-2">Cadastro</legend>
                     <div><Label htmlFor="pf-razao">Nome ou razão social</Label><Input id="pf-razao" className="mt-1" maxLength={200} value={lic.razao_social} onChange={(e) => setLic({ ...lic, razao_social: e.target.value })} /></div>
-                    <div><Label htmlFor="pf-doc">CNPJ ou CPF</Label><Input id="pf-doc" className="mt-1" maxLength={20} value={lic.documento} onChange={(e) => setLic({ ...lic, documento: e.target.value })} /></div>
+                    <div><Label htmlFor="pf-doc">CNPJ ou CPF</Label><Input id="pf-doc" className="mt-1" maxLength={20} inputMode="numeric" value={lic.documento} onChange={(e) => setLic({ ...lic, documento: e.target.value })}
+                        aria-invalid={!!lic.documento.trim() && !docOk} aria-describedby={lic.documento.trim() && !docOk ? 'pf-doc-erro' : undefined} />
+                        {lic.documento.trim() && !docOk && <p id="pf-doc-erro" className="mt-1 text-xs text-rose-700 dark:text-rose-300">Confira o número: este CNPJ ou CPF não é válido.</p>}</div>
                     <div><Label htmlFor="pf-rep">Quem assina pela empresa</Label><Input id="pf-rep" className="mt-1" maxLength={120} value={lic.representante} onChange={(e) => setLic({ ...lic, representante: e.target.value })} placeholder="Opcional" /></div>
                     <div><Label htmlFor="pf-porte">Porte</Label>
                         <select id="pf-porte" className="mt-1 h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm dark:bg-slate-900" value={lic.porte} onChange={(e) => setLic({ ...lic, porte: e.target.value })}>
@@ -208,7 +220,7 @@ function FormProposta({ d, onFeito, recibo, setRecibo }) {
                                 <li key={i.id} className="rounded-md border border-slate-200 dark:border-slate-700 p-2">
                                     <p className="text-sm"><b>{i.numero}.</b> {i.descricao} <span className="text-xs text-slate-600 dark:text-slate-400">· {fmt(i.quantidade)} {i.unidade}{i.lote ? ` · lote ${i.lote}` : ''}</span></p>
                                     {bloqueado ? <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Exclusivo para microempresa e empresa de pequeno porte.</p> : (
-                                        <div className="grid gap-2 sm:grid-cols-4 mt-1">
+                                        <div className="grid gap-2 grid-cols-2 sm:grid-cols-4 mt-1">
                                             <div><Label htmlFor={`pf-v-${k}`} className="text-xs">{desconto ? 'Desconto (%)' : 'Valor unitário (R$)'}</Label><Input id={`pf-v-${k}`} className="mt-1" inputMode="decimal" value={itens[k].valor} onChange={(e) => setItem(k, { valor: e.target.value })} /></div>
                                             <div><Label htmlFor={`pf-m-${k}`} className="text-xs">Marca</Label><Input id={`pf-m-${k}`} className="mt-1" maxLength={120} value={itens[k].marca} onChange={(e) => setItem(k, { marca: e.target.value })} /></div>
                                             <div><Label htmlFor={`pf-mo-${k}`} className="text-xs">Modelo</Label><Input id={`pf-mo-${k}`} className="mt-1" maxLength={120} value={itens[k].modelo} onChange={(e) => setItem(k, { modelo: e.target.value })} /></div>
@@ -235,9 +247,10 @@ function FormProposta({ d, onFeito, recibo, setRecibo }) {
                         </label>
                     ))}
                 </fieldset>
+                {falta.length > 0 && <p id="pf-falta" className="text-sm text-slate-700 dark:text-slate-300 sm:text-right">Para enviar, falta {new Intl.ListFormat('pt-BR', { type: 'conjunction' }).format(falta)}.</p>}
                 <div className="flex flex-wrap gap-2 justify-end">
                     {d.proposta && <Button variant="ghost" className="gap-1 text-rose-700 dark:text-rose-300" disabled={indo} onClick={retirar}><Trash2 className="w-4 h-4" aria-hidden /> Retirar a proposta</Button>}
-                    <Button className="gap-1" disabled={indo || !pronto} onClick={enviar}><Send className="w-4 h-4" aria-hidden /> {d.proposta ? 'Atualizar a proposta' : 'Enviar a proposta'}</Button>
+                    <Button className="gap-1" disabled={indo || !pronto} aria-describedby={falta.length ? 'pf-falta' : undefined} onClick={enviar}><Send className="w-4 h-4" aria-hidden /> {d.proposta ? 'Atualizar a proposta' : 'Enviar a proposta'}</Button>
                 </div>
             </CardContent>
         </Card>

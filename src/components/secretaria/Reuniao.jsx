@@ -162,7 +162,7 @@ function Encaminhamento({ a, acao, indo }) {
     );
 }
 
-function CartaoAssunto({ a, i, alca, s, pode, gere, composicao, emFoco, acao, indo, onEditar, onTirar }) {
+function CartaoAssunto({ a, i, alca, s, pode, gere, composicao, semPresenca, emFoco, acao, indo, onEditar, onTirar }) {
     const ativa = s.situacao === 'rascunho' || s.situacao === 'publicada';
     const fora = a.situacao === 'retirado' || a.situacao === 'adiado';
     const conduz = pode.conduzir;
@@ -257,7 +257,7 @@ function CartaoAssunto({ a, i, alca, s, pode, gere, composicao, emFoco, acao, in
                     )}
                     {conduz && vivo(a) && proximo && !a.com_a_palavra && <Button size="sm" variant="outline" className="gap-1" disabled={indo} onClick={() => acao('reuniaoPalavra', { assunto_id: a.id, acao: 'conceder', uid: proximo.uid }, `Palavra com ${proximo.nome}`)}><Mic className="w-4 h-4" aria-hidden /> Dar a palavra a {proximo.sou_eu ? 'você' : proximo.nome}</Button>}
                     {conduz && vivo(a) && !emFoco && <Button size="sm" variant="ghost" className="gap-1" disabled={indo} aria-label={`Chamar ${a.titulo}`} onClick={() => acao('sessaoChamar', { processo_id: a.id }, 'Assunto chamado: o painel mostra o que está em discussão')}><Megaphone className="w-4 h-4" aria-hidden /> Chamar</Button>}
-                    {conduz && a.situacao === 'pauta' && a.votacao !== 'sem_votacao' && <Button size="sm" className="gap-1" disabled={indo} onClick={() => acao('reuniaoAbrir', { assunto_id: a.id }, 'Votação aberta')}><Vote className="w-4 h-4" aria-hidden /> Abrir votação</Button>}
+                    {conduz && a.situacao === 'pauta' && a.votacao !== 'sem_votacao' && <Button size="sm" className="gap-1" disabled={indo || semPresenca} title={semPresenca ? 'Registre a presença antes: o quórum se conta pelos presentes' : undefined} onClick={() => acao('reuniaoAbrir', { assunto_id: a.id }, 'Votação aberta')}><Vote className="w-4 h-4" aria-hidden /> Abrir votação</Button>}
                     {conduz && a.situacao === 'em_votacao' && a.votacao !== 'simbolica' && <Button size="sm" className="gap-1" disabled={indo} onClick={() => acao('reuniaoApurar', { assunto_id: a.id }, 'Votação apurada')}><Scale className="w-4 h-4" aria-hidden /> Encerrar e apurar</Button>}
                     {conduz && a.situacao === 'pauta' && a.votacao === 'sem_votacao' && <Button size="sm" variant="outline" className="gap-1" disabled={indo} onClick={() => acao('reuniaoApurar', { assunto_id: a.id }, 'Assunto concluído')}><CheckCircle2 className="w-4 h-4" aria-hidden /> Concluir</Button>}
                     {a.pode_impedir && (
@@ -287,9 +287,11 @@ export function PautaReuniao({ q, acao, indo, mover }) {
     const ids = useMemo(() => assuntos.map((a) => a.id), [assuntos]);
     const porId = new Map(assuntos.map((a) => [a.id, a]));
     const composicao = presenca?.composicao || [];
+    // Reunião presencial com quórum: sem presença registrada, o servidor recusa abrir a votação. A tela avisa antes.
+    const semPresenca = s.situacao === 'publicada' && s.modo !== 'assincrona' && regras?.quorum !== 'livre' && !Object.keys(presenca?.marcas || {}).length;
     const quorum = { maioria: 'maioria dos membros', um_terco: 'um terço dos membros', dois_tercos: 'dois terços dos membros', livre: 'sem quórum mínimo' }[regras?.quorum || 'maioria'];
     const linha = (a, i, alca) => (
-        <CartaoAssunto a={a} i={i} alca={alca} s={s} pode={pode} gere={gere} composicao={composicao} emFoco={s.em_julgamento === a.id} acao={acao} indo={indo}
+        <CartaoAssunto a={a} i={i} alca={alca} s={s} pode={pode} gere={gere} composicao={composicao} semPresenca={semPresenca} emFoco={s.em_julgamento === a.id} acao={acao} indo={indo}
             onEditar={(x) => setForm(x)} onTirar={(x) => (s.situacao === 'rascunho' ? acao('reuniaoTirar', { assunto_id: x.id }, 'Assunto tirado do rascunho') : (setTirar(x), setMotivo('')))} />
     );
     return (
@@ -301,6 +303,7 @@ export function PautaReuniao({ q, acao, indo, mover }) {
             <p className="text-xs text-slate-600 dark:text-slate-400">
                 Quórum para votar: {quorum}{regras?.desempate === 'rejeita' ? '; no empate, o assunto é rejeitado' : '; no empate, o presidente dá o voto de qualidade'}. {s.modo === 'assincrona' ? 'Na reunião virtual, cada membro vota no seu tempo e o sistema apura no fim.' : 'O presidente (ou a secretaria) dá a palavra, abre e apura cada votação.'}
             </p>
+            {semPresenca && pode.conduzir && assuntos.length > 0 && <p className="text-sm text-amber-800 dark:text-amber-200" role="status">Registre a presença para abrir as votações: o quórum se conta pelos presentes.</p>}
             {!assuntos.length && <p className="text-sm text-slate-600 dark:text-slate-400 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 p-4">Nenhum assunto na pauta. {gere && ativa ? 'Use Novo assunto.' : ''}</p>}
             {assuntos.length > 0 && (
                 <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 divide-y divide-slate-200 dark:divide-slate-700">

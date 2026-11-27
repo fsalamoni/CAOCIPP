@@ -837,6 +837,45 @@ audiência e a disputa de preços (montagem e aviso publicado).
 Não percorridos nesta rodada: a sala de lances com fornecedores e lances em
 curso, o julgamento da disputa, a votação com relator e votos lançados e a
 reunião com assuntos em votação (pedem várias contas agindo ao mesmo tempo).
+A quarta rodada percorreu todos, menos o julgamento da disputa.
+
+**Quarta rodada (27/11/2026).** Percorridos, com várias contas: a lista no
+celular, a votação com relator e voto liberado, a reunião com assuntos na
+pauta, e a disputa do começo ao fim dos lances (dois fornecedores mandam
+proposta, a sala abre, um dá lance, os dois escrevem ao órgão, o órgão
+acompanha).
+
+- Lista de processos no celular (`ProcessoEletronico.jsx`): os filtros caíram
+  de três linhas para duas. A busca divide a primeira com "Mais filtros" (só o
+  ícone, com nome para leitor de tela e `title`); situação e ordem dividem a
+  segunda. A contagem "N processos" só aparece no celular quando há filtro
+  ligado ou mais páginas a carregar.
+- Janela de julgamento (`VotacaoSessao.jsx`): quem preside e ainda não votou vê
+  "Você ainda não votou. Registre o seu voto acima antes de proclamar, ou
+  constará como ausente", e o botão Proclamar o resultado deixa de ser o botão
+  principal da janela até o voto. Antes, o botão de maior destaque era
+  justamente o que deixava o presidente ausente. No celular, o título não
+  encosta no X e o cabeçalho "Votos dos vogais" quebra a linha sem espremer.
+- Reunião (`Reuniao.jsx`): sem presença registrada (em reunião que conta
+  quórum), o botão Abrir votação fica apagado e a pauta diz "Registre a
+  presença para abrir as votações: o quórum se conta pelos presentes". Antes o
+  botão aceitava o clique e o servidor devolvia o erro. A regra continua no
+  servidor (`reunioes.ts`); a tela só avisa antes.
+- Proposta do fornecedor (`Disputas.jsx`): o CNPJ ou CPF é conferido enquanto
+  se digita (`cpfCnpjValido`, o mesmo cálculo do servidor), com o aviso
+  "Confira o número" embaixo do campo; antes o erro só vinha depois de
+  preencher tudo e enviar. A linha "Para enviar, falta ..." diz o que ainda
+  falta enquanto o botão está apagado. No celular, os quatro campos de cada
+  item ficam em duas colunas (duas linhas de campos por item, em vez de
+  quatro).
+- Sala de lances (`SalaLances.jsx`) no celular: melhor oferta, a sua oferta e a
+  sua posição ficam lado a lado em cada item (eram três linhas), e o relógio
+  "Termina em" não quebra no meio.
+
+Não percorridos: o julgamento da disputa (classificação, habilitação, recurso
+e resultado) e o fim dos lances com o relógio zerando. Sessões, reunião e sala
+de lances seguem sem teste de tela automático; a lista no celular e a proposta
+do fornecedor entraram em `scripts/e2e-usabilidade-pe.mjs`.
 
 ## Registro nos autos e documentos exigidos (nov/2026)
 
