@@ -59,7 +59,12 @@ export default function ConfiguracaoProcessoEletronico({ orgId, estado, aba, onA
         const ativa = lista?.querySelector('[data-state=active]');
         if (lista && ativa && lista.scrollWidth > lista.clientWidth) lista.scrollLeft = Math.max(0, ativa.offsetLeft - 16);
         if (focarAba.current) { focarAba.current = false; ativa?.focus(); }
-        if (primeira.current) { primeira.current = false; return; }
+        if (primeira.current) {
+            primeira.current = false;
+            // Endereço que já diz a aba (atalho da Ajuda, do Guia, de um aviso): a tela começa nas abas.
+            if (new URLSearchParams(window.location.search).get('aba')) setTimeout(() => raiz.current?.scrollIntoView({ block: 'start' }), 300);
+            return;
+        }
         if (raiz.current && raiz.current.getBoundingClientRect().top < 64) raiz.current.scrollIntoView({ block: 'start' });
     }, [atual]);
     return (

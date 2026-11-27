@@ -22,6 +22,12 @@ cada mudança está nas mensagens de commit (`git log`).
   digitado num clique fora, e confirmam com Ctrl+Enter.
 - **Celular**: sem rolagem lateral no processo e no portal, abas numa linha,
   menos cabeçalho antes do conteúdo.
+- **Segunda rodada, no mesmo dia:** fase interrompida por pendência mostra
+  "Fase interrompida: ver a pendência" no lugar do botão que faltava; o Painel
+  diz "hoje" e "há N dias", mostra o assunto inteiro no celular e tem
+  calendário mais baixo; o editor de minuta pede confirmação antes de fechar
+  a aba com texto não salvo; a configuração aberta por atalho cai direto nas
+  abas.
 - Teste de tela: `scripts/e2e-usabilidade-pe.mjs`.
 
 ### 25/11/2026 — Exportar o rito: Bizagi (BPMN), imagem, PDF, SVG, planilha e Mermaid

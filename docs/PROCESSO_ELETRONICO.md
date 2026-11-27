@@ -788,6 +788,24 @@ escolhido. O `<input type="file">` de verdade continua lá, com o mesmo `id`.
   página numa linha só, que rola para o lado, e o título da página some (já
   está na barra do site).
 
+**Segunda rodada (27/11/2026).** Percorridos Meu trabalho com pendência e
+prazo, Mesa de decisão, Painel, portal das partes, editor de minuta e a
+configuração.
+
+- Fase interrompida por pendência, fora do gabinete: no lugar do botão da
+  fase (que não existe nesse estado) aparece "Fase interrompida: ver a
+  pendência", que leva ao cartão de pendências. No celular, na barra de baixo.
+- Painel: "hoje", "há 1 dia", "há N dias" no lugar de "há 0 dia(s)"; no
+  celular a linha quebra e mostra o assunto inteiro; o calendário usa dias
+  mais baixos em telas largas (`compacto` no `DeadlineCalendar`), porque um
+  mês sem prazos ocupava a tela toda.
+- Editor de minuta (`RedacaoDocumento.jsx`): com texto não salvo, fechar a aba
+  do navegador ou recarregar a página pede confirmação (`beforeunload`); o
+  estado "Alterações não salvas" passou a aparecer também no celular.
+- Configuração: quem chega por um endereço que já diz a aba (`&aba=ritos`,
+  atalhos da Ajuda e do Guia) cai nas abas, e não no topo do Painel
+  Administrativo.
+
 ## Registro nos autos e documentos exigidos (nov/2026)
 
 Quem monta o rito decide, fase a fase, o que vira ato dos autos e que
