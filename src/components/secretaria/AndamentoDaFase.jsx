@@ -1,13 +1,63 @@
 import React, { useContext } from 'react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { MODULOS_SITUACAO, comRegistroConduzido, comSituacao, nomeDoRegistro, situacoesDaRegra, valorDaRegra } from '@/lib/andamentoFase';
+import { MODULOS_SITUACAO, comPapelNaMinuta, comRegistroConduzido, comSituacao, nomeDoRegistro, papelNaMinuta, situacoesDaRegra, valorDaRegra } from '@/lib/andamentoFase';
 import { comAoEntrar } from '@/lib/efeitosFase';
+import { QUEM, comPermissao } from '@/lib/permissoesFase';
+import { CampoAtribuicao } from './PermissoesDaFase';
 import { RegistroContexto } from './SeletorRegistro';
 
 const campo = 'h-9 w-full rounded-md border border-input bg-transparent dark:bg-slate-900 px-2 text-sm';
 const caixa = 'flex min-h-[2.75rem] sm:min-h-0 items-start gap-2 text-sm';
 const dica = 'block text-xs text-slate-600 dark:text-slate-400';
+
+const PAPEIS = [
+    ['', 'Não', 'A fase trata os documentos do jeito comum: quem tem o processo redige, assina e junta um a um. Se chegar minuta de outra pessoa, continuam valendo Aprovar e juntar e Devolver para correção.'],
+    ['elaboracao', 'Elaboração: aqui se redige a minuta',
+        'Para quem redige e não decide (assessoria, analista). Tudo o que a pessoa redige ou anexa entra como minuta, com o selo Minuta: nesta fase ninguém assina nem junta aos autos. A ação que pede documento se cumpre com a minuta. Ao concluir, as minutas e os anexos seguem com o processo para quem aprova.'],
+    ['aprovacao', 'Aprovação: aqui se aprova a minuta ou se devolve para correção',
+        'Para quem decide. A pessoa lê, pode alterar o texto (a redação original fica guardada em Versões) e escolhe: Aprovar e juntar, que torna a minuta documento definitivo dos autos, ou Devolver para correção, que manda o processo de volta a quem redigiu, com o que precisa mudar. O botão Finalizar junta de uma vez o que foi aprovado, na ordem escolhida, e deixa de fora os anexos que não devem entrar.'],
+];
+
+/**
+ * Papel da fase na minuta: nenhum, elaboração (só se redige) ou aprovação
+ * (aprovar e juntar ou devolver para correção). São as marcas `elaboracao` e
+ * `juntada_conjunta` do rito, ditas pelo que o usuário quer fazer.
+ */
+export function MinutaDaFase({ f, mudar }) {
+    const papel = papelNaMinuta(f);
+    const pm = f.permissoes || {};
+    const setPm = (parte) => mudar({ permissoes: comPermissao(pm, parte) });
+    return (
+        <fieldset className="space-y-2">
+            <legend className="text-xs font-medium mb-1">Esta fase tem papel na minuta?</legend>
+            {PAPEIS.filter(([id]) => id !== 'elaboracao' || !f.final).map(([id, rotulo, ajuda]) => (
+                <label key={id} className={caixa}>
+                    <input type="radio" name={`minuta-${f.id}`} className="mt-1" checked={papel === id} onChange={() => mudar(comPapelNaMinuta(id))} />
+                    <span>{rotulo}<span className={dica}>{ajuda}</span></span>
+                </label>
+            ))}
+            {papel !== 'elaboracao' && (
+                <div className="sm:max-w-md">
+                    <Label htmlFor={`ap-${f.id}`} className="text-xs">Quem aprova a minuta nesta fase (junta aos autos ou devolve para correção)</Label>
+                    <select id={`ap-${f.id}`} value={pm.aprovar || ''} className={campo}
+                        onChange={(e) => setPm({ aprovar: e.target.value, aprovar_atribuicao: e.target.value === 'atribuicao' ? pm.aprovar_atribuicao || '' : undefined })}>
+                        {QUEM.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                    {pm.aprovar === 'atribuicao' && <CampoAtribuicao id={`apa-${f.id}`} value={pm.aprovar_atribuicao} onChange={(v) => setPm({ aprovar_atribuicao: v })} />}
+                    <span className={dica}>
+                        Sem reserva, aprova quem estiver lotado na unidade que tem o processo. Se quem redige e quem decide ficam na mesma unidade, reserve a aprovação a quem decide: os demais leem, editam e anexam, mas não juntam nem devolvem.
+                        Para o processo chegar à pessoa certa, use também "Designar como responsável" em "Prazo, nome para as partes e ao entrar". A administração do Processo Eletrônico sempre pode.
+                    </span>
+                </div>
+            )}
+            <p className={dica}>
+                O motivo da devolução fica só com a equipe (na minuta e num registro interno): não vai aos autos nem às partes. Corrigida a minuta, quem redigiu envia o processo de novo e ela volta para a aprovação com o pedido à vista.
+                {papel === 'elaboracao' && !f.rotulo_concluir ? ' Dica: em "Prazo, nome para as partes e ao entrar", dê ao botão que conclui a fase um nome como "Enviar para aprovação".' : ''}
+            </p>
+        </fieldset>
+    );
+}
 
 /**
  * O que a fase faz sozinha no andamento: seguir quando o que ela exige (ação
@@ -36,8 +86,20 @@ export default function AndamentoDaFase({ f, mudar, ligadas, primeira = false })
             {atual && !opcoes.some(([k]) => k === atual) && <option value={atual}>{atual} (não existe mais)</option>}
         </>
     );
+    const parada = !!f.final || !!f.espera;
     return (
         <div className="space-y-3">
+            <label className={caixa}>
+                <Checkbox className="mt-0.5" checked={f.segue_ao_assumir === true && !parada} disabled={parada}
+                    onCheckedChange={(c) => mudar({ segue_ao_assumir: c === true ? true : undefined })} />
+                <span>Seguir sozinha quando alguém assumir o processo
+                    <span className={dica}>
+                        {parada
+                            ? 'Fase final ou de espera não segue ao ser assumida.'
+                            : 'Para a fase em que o processo só aguarda um responsável (por exemplo, Pendente). Quando alguém usa Assumir, ou o gestor distribui o processo a uma pessoa, ele vai na hora para a fase seguinte, com essa pessoa como responsável. Vale quando a fase tem uma só saída e a fase seguinte corre na mesma unidade; se algo obrigatório ficar em aberto, o processo espera pelo botão.'}
+                    </span>
+                </span>
+            </label>
             <label className={caixa}>
                 <Checkbox className="mt-0.5" checked={f.avanco === 'auto' && !f.final} disabled={!!f.final}
                     onCheckedChange={(c) => mudar({ avanco: c === true ? 'auto' : undefined })} />
@@ -55,27 +117,7 @@ export default function AndamentoDaFase({ f, mudar, ligadas, primeira = false })
                     <span className={dica}>O arquivamento fica registrado com quem fez e a data, e sai no extrato do PDF. Use na última fase do rito.</span>
                 </span>
             </label>
-            {!f.final && (
-                <label className={caixa}>
-                    <Checkbox className="mt-0.5" checked={f.elaboracao === true} onCheckedChange={(c) => mudar({ elaboracao: c === true ? true : undefined, ...(c === true ? { juntada_conjunta: undefined } : {}) })} />
-                    <span>Fase de elaboração: quem está nela só prepara minutas
-                        <span className={dica}>
-                            Para a assessoria que redige e não decide. O documento redigido ou enviado entra direto como minuta, e os anexos também: nesta fase ninguém assina, junta aos autos nem guarda fora dos autos.
-                            A ação que pede documento se cumpre com a minuta. Na remessa, todas as minutas seguem sozinhas com o processo, e quem revisa, na fase seguinte, assina e decide o que entra nos autos.
-                        </span>
-                    </span>
-                </label>
-            )}
-            <label className={caixa}>
-                <Checkbox className="mt-0.5" checked={f.juntada_conjunta === true} disabled={f.elaboracao === true} onCheckedChange={(c) => mudar({ juntada_conjunta: c === true ? true : undefined })} />
-                <span>Botão Finalizar: escolher, ordenar, assinar e juntar os documentos de uma vez
-                    <span className={dica}>
-                        Na tela do processo, a fase ganha o botão Finalizar {f.nome?.trim() ? `(aqui, "Finalizar ${f.nome.trim()[0].toLowerCase()}${f.nome.trim().slice(1)}")` : ''}. Quem tem o processo
-                        escolhe quais minutas e anexos entram nos autos e em que ordem, assina e junta tudo. O que ficar de fora continua como minuta ou é guardado fora dos autos.
-                        A redação original de cada minuta continua guardada para a equipe.
-                    </span>
-                </span>
-            </label>
+            <p className={dica}>Elaboração e aprovação de minuta ficam na seção acima, "Minuta: elaboração e aprovação".</p>
             <fieldset className="space-y-2">
                 <legend className="text-xs font-medium">Registro ligado ao processo (consulta, expediente, parceria ou página própria)</legend>
                 {modulos.length === 0 && dasPaginas.length === 0 && !orfa ? (

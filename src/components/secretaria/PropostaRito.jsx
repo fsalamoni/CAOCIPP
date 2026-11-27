@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { arquivoParaBase64, secConfig } from '@/services/secretariaService';
 import { deRito, montarPayload, propostaDeAbas, propostaDeConteudo, propostaDeDiagramas, propostaDeTexto, sem, tipoDocumentoDe, vincularProposta } from '@/lib/propostaRito';
-import { copiarFases, ehEspera, modelosDeRito, novoIdFase, origensDaEspera, problemasDoFluxo, ritoParaTabela } from '@/lib/secretariaRito';
+import { copiarFases, ehEspera, fasesDeMinuta, modelosDeRito, novoIdFase, origensDaEspera, problemasDoFluxo, ritoParaTabela, seguintes } from '@/lib/secretariaRito';
 import { MAX_CAMPOS_ACAO, condicaoIncompleta, problemaDaCondicao, registroComOutros, remapearDeOutraFase, saidaPadrao, textoCondicao, tirarDoGrupo } from '@/lib/exigencias';
 import { MODULOS, ROTULO_MODULO, integracoesLigadas, problemasFormulario } from '@/lib/camposProcesso';
 import { semPaineisDesligados } from '@/lib/painelModulos';
@@ -32,8 +32,8 @@ import { BloqueioRito } from './Lixeira';
 import PreviaRito from './PreviaRito';
 import GuiaRito from './GuiaRito';
 import BibliotecaModelos from './BibliotecaModelos';
-import AndamentoDaFase from './AndamentoDaFase';
-import { nomeDoModuloDaRegra, problemaDaPagina, resumoAndamento } from '@/lib/andamentoFase';
+import AndamentoDaFase, { MinutaDaFase } from './AndamentoDaFase';
+import { nomeDoModuloDaRegra, problemaDaPagina, resumoAndamento, resumoMinuta } from '@/lib/andamentoFase';
 import { RegistroContexto } from './SeletorRegistro';
 import { lerPacote, propostaDePacote, trocarModeloNasFases } from '@/lib/pacoteModelos';
 import ExportarRito from './ExportarRito';
@@ -131,6 +131,7 @@ export function pendenciasDaProposta(p, ligadas = null, paginas = null, unidades
             }
         };
         reservaPorAtribuicao(f.permissoes?.concluir, f.permissoes?.concluir_atribuicao, 'concluir a fase', '"Quem pode nesta fase"');
+        reservaPorAtribuicao(f.permissoes?.aprovar, f.permissoes?.aprovar_atribuicao, 'aprovar a minuta', '"Minuta: elaboração e aprovação"');
         (f.acoes || []).forEach((a, k) => {
             const r = f.acoes_regras?.[k];
             if (a.trim()) reservaPorAtribuicao(r?.quem, r?.atribuicao, `cumprir "${a.trim()}"`, '"Quem pode cumprir"');
@@ -173,6 +174,11 @@ export function pendenciasDaProposta(p, ligadas = null, paginas = null, unidades
             || (f.documentos || []).some((d) => (d.descricao || '').trim() && !d.nivel);
         if (f.avanco === 'auto' && !f.final && !exige) {
             out.push({ fase: f.id, texto: `${rot} segue sozinha, mas não exige nada (ação obrigatória ou documento obrigatório): ela só segue pelo botão.` });
+        }
+        if (f.segue_ao_assumir && !f.final && !ehEspera(p.fases, i)) {
+            const prox = seguintes(p.fases, i).map((id) => p.fases.find((x) => x.id === id)).filter((x) => x && !ehEspera(p.fases, p.fases.indexOf(x)));
+            if (prox.length !== 1) out.push({ fase: f.id, texto: `${rot} segue quando alguém assume, mas ${prox.length ? 'tem mais de uma saída' : 'não tem para onde seguir'}: o processo fica nela até alguém usar o botão. Deixe uma só saída em "Encaminhamentos".` });
+            else if (prox[0].unidade_ref && f.unidade_ref && prox[0].unidade_ref !== f.unidade_ref) out.push({ fase: f.id, texto: `${rot} segue quando alguém assume, mas ${prox[0].nome.trim() || 'a fase seguinte'} corre em outra unidade: quem assumiu não poderia seguir com o processo, e ele fica na fase até a remessa pelo botão.` });
         }
         const semTexto = (f.acoes || []).filter((a) => !a.trim()).length;
         if (semTexto) out.push({ fase: f.id, texto: `${rot} tem ${plural(semTexto, 'ação sem texto, que é descartada', 'ações sem texto, que são descartadas')} ao salvar.` });
@@ -573,6 +579,16 @@ function Revisao({
         if (aviso) toast.success(aviso);
     };
     const inserirAbaixo = (i) => inserirEm(i + 1, { id: novoIdFase(), nome: '', proximas: [] });
+    // Elaboração e aprovação da minuta: duas fases já ligadas, antes da fase final (ou no fim do rito).
+    const inserirMinuta = () => {
+        const ultima = p.fases.length - 1;
+        const i = p.fases[ultima]?.final ? ultima : p.fases.length;
+        const par = fasesDeMinuta(p.fases[i]?.id);
+        setConfirmar(false);
+        setP({ ...p, fases: [...p.fases.slice(0, i), ...par, ...p.fases.slice(i)] }, true);
+        irParaFase(par[0].id);
+        toast.success('Fases de elaboração e de aprovação da minuta adicionadas, já ligadas uma à outra. Dê a cada uma a sua unidade e confira o caminho no desenho do fluxo.', { duration: 8000 });
+    };
     // A fase que segue para a de baixo sem dizer passa a dizer; a última sem saída passa a ser final.
     // Assim a fase que entra logo abaixo (ou no fim) não muda o caminho de quem já estava lá.
     const fixarSaida = (fases, i) => {
@@ -812,6 +828,7 @@ function Revisao({
                         </CondicaoContexto.Provider>
                         <div className="flex flex-wrap gap-2">
                             <Button id="pr-add-fase" variant="outline" size="sm" className="gap-1" onClick={() => inserirEm(p.fases.length, { id: novoIdFase(), nome: '', proximas: [] })}><Plus className="w-4 h-4" /> Adicionar fase</Button>
+                            <Button id="pr-add-minuta" variant="outline" size="sm" className="gap-1" onClick={inserirMinuta} title="Duas fases prontas: uma em que se redige a minuta e outra em que quem decide aprova ou devolve para correção"><FilePlus2 className="w-4 h-4" aria-hidden /> Adicionar elaboração e aprovação de minuta</Button>
                             {outrosRitos.length > 0 && <Button variant="outline" size="sm" className="gap-1" onClick={() => setCopiarDe(true)}><CopyPlus className="w-4 h-4" aria-hidden /> Copiar fases de outro rito</Button>}
                         </div>
                     </div>
@@ -1137,7 +1154,7 @@ function Secao({ titulo, resumo, abertaDe = false, children }) {
     return (
         <details open={abertaDe} className="group rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
             <summary className="flex min-h-[2.75rem] sm:min-h-[2.25rem] cursor-pointer list-none items-center gap-2 px-2.5 text-sm font-medium [&::-webkit-details-marker]:hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 rounded-md">
-                <span>{titulo}</span>
+                <span className="sm:shrink-0 sm:whitespace-nowrap">{titulo}</span>
                 {resumo && <span className="min-w-0 truncate text-xs font-normal text-slate-600 dark:text-slate-300">{resumo}</span>}
                 <ChevronDown className="ml-auto w-4 h-4 shrink-0 text-slate-500 dark:text-slate-400 transition-transform group-open:rotate-180" aria-hidden />
             </summary>
@@ -1248,7 +1265,10 @@ function CartaoFase({
                 <AoEntrarNaFase f={f} i={i} mudar={mudar} />
             </Secao>
             <AcoesDaFase f={f} modelos={modelos} mudar={mudar} idBase={`pr-${f.id}`} />
-            <Secao titulo="Andamento automático" resumo={resumoAndamento(f, paginasDoOrgao).join('; ') || 'a fase só anda pelo botão'}>
+            <Secao titulo="Minuta: elaboração e aprovação" resumo={[...resumoMinuta(f), ...resumoPermissoes(f.permissoes).filter((x) => x.includes('aprova a minuta'))].join('; ') || 'a fase não tem papel próprio na minuta'}>
+                <MinutaDaFase f={f} mudar={mudar} />
+            </Secao>
+            <Secao titulo="Andamento automático" resumo={resumoAndamento(f, paginasDoOrgao).filter((x) => !resumoMinuta(f).includes(x)).join('; ') || 'a fase só anda pelo botão'}>
                 <AndamentoDaFase f={f} mudar={mudar} ligadas={ligadas} primeira={i === 0} />
             </Secao>
             <Secao titulo="Quem pode nesta fase" resumo={resumoPermissoes(f.permissoes).join('; ') || 'quem tem o processo conclui, dispensa e arquiva, com motivo'}>

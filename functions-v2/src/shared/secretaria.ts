@@ -58,6 +58,11 @@ export interface Fase {
     prazo_vencido?: PrazoVencido;
     /** Cumprida a última ação obrigatória, a fase segue sozinha para a saída do rito (ver `saidaAutomatica`). */
     avanco?: 'auto';
+    /**
+     * Fase de espera por alguém (ex.: Pendente): quando uma pessoa assume o processo
+     * (ou ele é atribuído a alguém), segue sozinho para a fase seguinte, na mesma unidade.
+     */
+    segue_ao_assumir?: true;
     /** Situação do registro ligado (consulta ou expediente) ao entrar na fase e quando alguém assume o processo. */
     situacao_registro?: SituacaoRegistro;
     /** Quem conclui a fase, dispensa o que ela exige, segue fora do fluxo e muda a situação (ver shared/permissoesFase.ts). */
@@ -152,6 +157,40 @@ export function minutaAcessivel(doc: { unidade_origem?: unknown; unidades_acesso
 }
 
 export const MAX_MINUTAS_REMESSA = 30;
+
+/** Pedido de correção feito por quem decide: fica na minuta até ela voltar para a aprovação. */
+export interface CorrecaoMinuta {
+    motivo: string; por_uid: string; por_nome: string; em: string;
+    /** O processo não saiu do lugar (mesma unidade e fase): quem corrige avisa pelo botão "Correção feita". */
+    fica?: true;
+    /** Depois de corrigida: quando e por quem voltou para a aprovação. */
+    reenviada_em?: string; reenviada_por?: string;
+}
+export const MIN_MOTIVO_CORRECAO = 10;
+
+/**
+ * Para onde a minuta volta quando quem decide pede correção: a unidade que a
+ * redigiu, a fase em que foi redigida e a pessoa que a redigiu (se ainda
+ * estiver lotada lá). `null` em cada parte = o processo fica como está.
+ * Minuta antiga, sem a fase gravada: volta para a fase de elaboração que leva
+ * à fase atual, se o rito tiver uma.
+ */
+export function destinoDaCorrecao(
+    proc: { fases?: unknown; fase_atual?: unknown; unidade_atual?: unknown },
+    doc: { unidade_origem?: unknown; fase_id?: unknown; autor_uid?: unknown },
+    unidades: Array<{ id?: unknown; ativa?: unknown; membros_uids?: unknown }>,
+): { unidade_id: string | null; fase_id: string | null; responsavel_uid: string | null } {
+    const fases = (Array.isArray(proc.fases) ? proc.fases : []) as Fase[];
+    const origem = unidades.find((u) => u.id === doc.unidade_origem && u.ativa !== false);
+    const unidade = origem && origem.id !== proc.unidade_atual ? String(origem.id) : null;
+    const serve = (f: Fase | undefined) => (f && f.id !== proc.fase_atual && !f.final && !f.espera ? f : undefined);
+    const fase = doc.fase_id
+        ? serve(fases.find((f) => f.id === doc.fase_id))
+        : serve([...fases].reverse().find((f) => f.elaboracao === true && fasesSeguintes(fases, f.id).some((s) => s.id === proc.fase_atual)));
+    const fica = unidades.find((u) => u.id === (unidade || proc.unidade_atual));
+    const lotado = Array.isArray(fica?.membros_uids) && fica.membros_uids.includes(doc.autor_uid);
+    return { unidade_id: unidade, fase_id: fase?.id || null, responsavel_uid: lotado ? String(doc.autor_uid) : null };
+}
 
 /** Redação anterior de uma minuta, guardada quando ela muda de mãos (documentos/{id}/versoes). */
 export interface VersaoMinuta { autor_uid: string; autor_nome: string; de: string; sha256: string; titulo: string; tipo: string }
@@ -359,6 +398,7 @@ export function sanitizeRito(input: unknown): Rito {
             ...(aviso ? { aviso } : {}),
             ...prazosDaFase,
             ...(fo.avanco === 'auto' && !final ? { avanco: 'auto' as const } : {}),
+            ...(fo.segue_ao_assumir === true && !final && !espera ? { segue_ao_assumir: true as const } : {}),
             ...(situacaoRegistro ? { situacao_registro: situacaoRegistro } : {}),
             ...(permissoes ? { permissoes } : {}),
             ...(orientacao ? { orientacao } : {}),

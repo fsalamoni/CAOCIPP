@@ -41,8 +41,9 @@ function sanitizeQuem(quem, atribuicao, onde) {
 function sanitizePermissoes(raw, nomeFase) {
     const o = (raw && typeof raw === 'object' ? raw : {});
     const c = sanitizeQuem(o.concluir, o.concluir_atribuicao, `Em "${nomeFase}", quem conclui a fase`);
+    const ap = sanitizeQuem(o.aprovar, o.aprovar_atribuicao, `Em "${nomeFase}", quem aprova a minuta`);
     const reserva = (v) => (exports.RESERVAS.includes(v) ? v : undefined);
-    const out = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, (c.quem ? { concluir: c.quem } : {})), (c.atribuicao ? { concluir_atribuicao: c.atribuicao } : {})), (reserva(o.dispensar) ? { dispensar: reserva(o.dispensar) } : {})), (reserva(o.desviar) ? { desviar: reserva(o.desviar) } : {})), (reserva(o.situacao) ? { situacao: reserva(o.situacao) } : {}));
+    const out = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, (c.quem ? { concluir: c.quem } : {})), (c.atribuicao ? { concluir_atribuicao: c.atribuicao } : {})), (ap.quem ? { aprovar: ap.quem } : {})), (ap.atribuicao ? { aprovar_atribuicao: ap.atribuicao } : {})), (reserva(o.dispensar) ? { dispensar: reserva(o.dispensar) } : {})), (reserva(o.desviar) ? { desviar: reserva(o.desviar) } : {})), (reserva(o.situacao) ? { situacao: reserva(o.situacao) } : {}));
     return Object.keys(out).length ? out : undefined;
 }
 /** A pessoa atende à reserva? Sem reserva, sempre; a administração, sempre. */

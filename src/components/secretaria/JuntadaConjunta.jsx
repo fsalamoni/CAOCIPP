@@ -41,6 +41,7 @@ export default function JuntadaConjunta({ aberto, titulo, minutas, uid, ocupado,
                     <DialogTitle>{titulo}</DialogTitle>
                     <DialogDescription>
                         Escolha o que entra nos autos e em que ordem. Os documentos marcados são juntados um a um, na ordem da lista, e passam a compor o evento desta fase.
+                        {minutas.some((d) => d.autor_uid && d.autor_uid !== uid) && ' Juntar é aprovar: a minuta marcada vira documento definitivo. Para pedir correção, feche esta janela e use Devolver para correção na minuta.'}
                     </DialogDescription>
                 </DialogHeader>
                 {itens.length === 0 && <p className="text-sm text-slate-600 dark:text-slate-400">Não há minutas nem anexos. Redija um documento ou anexe um arquivo.</p>}

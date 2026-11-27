@@ -187,6 +187,23 @@ origem", com lista de opções) ou um documento. O rito diz o nome do dado,
 se a ação é obrigatória para a fase seguir e se as partes veem o que foi
 informado.
 
+**Minuta não é ato.** Enquanto é minuta, o documento é trabalho interno:
+não tem número, não está nos autos e as partes não o veem. Ele só passa a
+existir como ato quando quem tem o poder de decidir o **aprova e junta**.
+Daí três regras, que valem para qualquer procedimento:
+
+- quem redige prepara e encaminha; quem decide aprova, altera ou **devolve
+  para correção**, dizendo o que corrigir ou complementar;
+- a devolução é comunicação interna entre quem decide e quem redige: o motivo
+  fica com a equipe, não vai aos autos nem à impressão;
+- os documentos de apoio que acompanham a minuta são sugestão de quem redige:
+  quem decide escolhe quais entram nos autos (um, alguns, todos ou nenhum).
+
+O rito diz em que fase se redige, em que fase se aprova e quem pode aprovar
+(quem responde pelo processo, quem gere a unidade ou quem tem certa
+atribuição). Sem essa reserva, numa unidade só, quem redigiu poderia aprovar
+a própria minuta.
+
 ## 7. Tramitação
 
 - **Posse.** O processo está sempre com uma unidade; só ela age. Na prática

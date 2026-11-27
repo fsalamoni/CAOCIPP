@@ -1827,8 +1827,8 @@ escreve a minuta, o gabinete corrige, assina e escolhe os anexos).
   "VERSÃO ANTERIOR"). `excluirMinuta` apaga a minuta com as versões.
 - **Na tela.** Ao lado do documento (minuta, peça dos autos ou guardado),
   o botão **Versões (n)** abre as redações anteriores, só para leitura.
-- **Botão Finalizar** (`fase.juntada_conjunta`, em Andamento automático do
-  rito). Na fase marcada, a tela do processo mostra "Finalizar (nome da
+- **Botão Finalizar** (`fase.juntada_conjunta`; desde 27/11/2026 em
+  "Minuta: elaboração e aprovação", opção Aprovação). Na fase marcada, a tela do processo mostra "Finalizar (nome da
   fase)", ex.: **Finalizar revisão**. O diálogo lista as minutas e os
   anexos que estão com a unidade; quem tem o processo escolhe quais entram
   nos autos, a ordem, anexa o que faltar, assina e junta tudo. O que não
@@ -1851,8 +1851,8 @@ escreve a minuta, o gabinete corrige, assina e escolhe os anexos).
   `src/lib/juntadaConjunta.test.js`. Guia do rito, parte 10.
 
 ### Fase de elaboração (19/11/2026)
-- **O que é** (`fase.elaboracao`, em Andamento automático: "Fase de
-  elaboração: quem está nela só prepara minutas"). Não combina com o botão
+- **O que é** (`fase.elaboracao`; desde 27/11/2026 em "Minuta: elaboração e
+  aprovação", opção Elaboração). Não combina com o botão
   Finalizar nem com a fase final (`sanitizeRito` descarta).
 - **Na tela.** Arquivo anexado entra como minuta, sem a escolha de juntar,
   guardar ou assinar (`DetalharDocumentos` com `soMinuta`). No card das
@@ -1868,6 +1868,65 @@ escreve a minuta, o gabinete corrige, assina e escolhe os anexos).
   unidade entram na remessa mesmo sem a escolha.
 - No Rito Consultas CAOCIPP, a Análise é fase de elaboração.
 - Testes: `functions-v2/test/elaboracao.test.js`.
+
+### Minuta: aprovação e devolução para correção (27/11/2026)
+
+Para todo procedimento em que uma pessoa redige e outra decide. Guia do
+rito, parte 23.
+
+- **No editor do rito**, a seção **Minuta: elaboração e aprovação** de cada
+  fase (`MinutaDaFase`, em `AndamentoDaFase.jsx`) reúne o que antes eram duas
+  caixas em Andamento automático. O papel da fase é um de três: nenhum,
+  **Elaboração** (`fase.elaboracao`) ou **Aprovação**
+  (`fase.juntada_conjunta`, o botão Finalizar). `papelNaMinuta` e
+  `comPapelNaMinuta` (`src/lib/andamentoFase.js`) fazem a conversão; os
+  campos gravados não mudaram, então rito antigo abre igual.
+- **Quem aprova** (`fase.permissoes.aprovar`, com `aprovar_atribuicao`): quem
+  responde pelo processo, quem gere a unidade ou quem tem a atribuição. Vazio,
+  aprova quem está com o processo. `exigirAprovar` (`secretaria/context.ts`)
+  recusa `juntar` (menos petição das partes) e `devolverMinuta` de quem não
+  é; o admin do Processo Eletrônico sempre pode. Na tela, os botões ficam
+  desligados com o motivo.
+- **Duas fases de uma vez.** O botão **Adicionar elaboração e aprovação de
+  minuta** (`fasesDeMinuta`, em `src/lib/secretariaRito.js`) insere o par
+  antes da fase final. O modelo **Demanda com minuta e aprovação**
+  (`demandaComMinuta`) traz Pendente, Em análise, Revisão e Arquivamento.
+- **Devolver para correção** (`secretariaProcesso`, ação `devolverMinuta
+  {docId, correcao}`, motivo de 10 caracteres ou mais). `destinoDaCorrecao`
+  (`shared/secretaria.ts`, com espelho no cliente) acha a unidade de origem
+  da minuta, a fase em que foi escrita (`doc.fase_id`, gravado na criação
+  desde esta data; sem ele, a última fase de elaboração que leva à atual) e
+  o autor, se ainda lotado. O processo volta por `tramitar` ou `avancarFase`
+  com `opcoes.correcao`: não é "fora do fluxo", não pede dispensa e a fase
+  de origem é retomada como estava. Sem ter para onde voltar (mesma fase e
+  unidade), a minuta só é marcada (`correcao.fica`) e o autor usa **Correção
+  feita** (`secretariaDocumento`, ação `corrigida`).
+- **O motivo é interno.** Fica em `doc.correcao {motivo, por_uid, por_nome,
+  em}` e num registro `efeitos_fase` com `dados.interno` e
+  `dados.fora_impressao`. O movimento que vai aos autos, quando a fase
+  registra remessas, diz só "Devolução para correção de minuta". O portal
+  das partes não lê minuta nem registro interno.
+- **Reenvio.** Ao sair de novo da fase de quem redige, `reenviarCorrigidas`
+  move `correcao` para `correcao_anterior` (com `reenviada_em` e
+  `reenviada_por`), apaga `proc.minutas_em_correcao`, põe como responsável
+  quem pediu a correção (se lotado na unidade de destino) e o avisa.
+- **Aprovar** é `juntar`: a minuta vira `status: 'juntado'`, com número de
+  ordem. O botão diz **Aprovar e juntar** quando a minuta é de outra pessoa.
+  O autor é avisado (`avisarMinuta`, em `secretaria/avisosEquipe.ts`).
+- **Seguir quando alguém assume** (`fase.segue_ao_assumir`, em Andamento
+  automático). Em `atribuir` com destinatário, `avancarSozinho` leva o
+  processo à única saída na mesma unidade; a resposta traz `avancou` e o
+  botão da tela diz "Assumir e seguir para (fase)". O editor avisa quando a
+  fase tem mais de uma saída ou a seguinte corre em outra unidade.
+- **Limites.** A fase de aprovação criada pelo botão não exige documento
+  com tipo, então não segue sozinha depois do Finalizar: quem decide conclui
+  pelo botão, e a tela avisa se ainda há minuta por aprovar. A volta para
+  correção não é desenhada como seta no fluxo do rito (aparece no texto da
+  fase). Com mais de uma pessoa possível como gestor, a fase de aprovação
+  chega sem responsável (`ao_entrar` só designa quando uma só pessoa serve).
+- Testes: `functions-v2/test/correcaoMinuta.test.js`,
+  `src/lib/juntadaConjunta.test.js`, `src/lib/permissoesFase.test.js` e, na
+  tela com três contas, `scripts/e2e-minuta-aprovacao.mjs`.
 
 ### Desentranhamento e ato sem efeito (19/11/2026)
 - **Onde.** Aba Eventos: "Desentranhar" no evento da juntada (ou petição)

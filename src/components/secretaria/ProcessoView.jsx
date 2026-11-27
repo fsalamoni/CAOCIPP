@@ -37,7 +37,7 @@ import { CartaoComunicacoes, ExpedirComunicacao, nomeEspecie } from './Comunicac
 import ErroQuery from './ErroQuery';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { saidasDoProcesso } from '@/lib/secretariaRito';
+import { destinoDaCorrecao, saidasDoProcesso } from '@/lib/secretariaRito';
 import { resumoAndamento, textoAvanco } from '@/lib/andamentoFase';
 import { notaDoPrazo, prazoAbertoDaAcao } from '@/lib/efeitosFase';
 import { atorNoProcesso, podeQuem, podeReserva, resumoPermissoes, textoQuem, textoReserva, unidadeDecide, unidadeExpede } from '@/lib/permissoesFase';
@@ -276,6 +276,9 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     const redigirEmBranco = (tipo = tipoPadrao, titulo = '') => { setNovoDoc(false); setEditor({ titulo, tipo, conteudo: null }); };
 
     const minutas = documentos.filter((d) => d.status === 'minuta');
+    // Minuta redigida por outra pessoa: quem tem o processo aprova (junta) ou devolve para correção.
+    const deOutro = (d) => !!d.autor_uid && d.autor_uid !== estado.uid;
+    const emCorrecao = minutas.filter((d) => d.correcao);
     const autos = documentos.filter((d) => d.status === 'juntado');
     // Documentos de controle: guardados no processo, fora dos autos e da impressão.
     const controles = documentos.filter((d) => d.status === 'controle');
@@ -298,13 +301,17 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
     const senao = faseAtual ? saidaPadrao(p.fases, faseAtual) : '';
     // Ação reservada pelo rito: ao responsável designado, a quem gere a unidade ou a quem tem certa atribuição (a administração sempre pode).
     const ator = atorNoProcesso(estado, p);
+    // A fase pode reservar a aprovação da minuta (juntar aos autos ou devolver para correção) a quem decide.
+    const pmAprovar = faseAtual?.permissoes;
+    const semAprovar = pmAprovar?.aprovar && !podeQuem(pmAprovar.aprovar, pmAprovar.aprovar_atribuicao, ator)
+        ? `Pelo rito, nesta fase só ${textoQuem(pmAprovar.aprovar, pmAprovar.aprovar_atribuicao)} aprova a minuta: junta aos autos ou devolve para correção.` : null;
     const podeCumprir = (r) => podeQuem(r?.quem, r?.atribuicao, ator);
     const reservasDaFase = resumoPermissoes(faseAtual?.permissoes);
     const docsDaFase = exigencias.filter((e) => e.acao_idx === undefined);
     // Dados que o tipo de processo exige para sair desta fase e ainda faltam.
     const camposFalta = camposFaltandoNaFase(p, formDoTipo(estado, p));
     const itemExigencia = (e) => (
-        <ItemExigencia e={e} podeMexer={podeMexer} ocupado={ocupado} modelo={(estado.modelos || []).find((m) => m.id === e.modelo_id)}
+        <ItemExigencia e={e} podeMexer={podeMexer} ocupado={ocupado} comMinuta={minutas.some((d) => d.id === e.cumprida?.documento_id)} modelo={(estado.modelos || []).find((m) => m.id === e.modelo_id)}
             onModelo={usarModelo} onNovo={() => setNovoDoc(true)} />
     );
     const pendenciasAbertas = p.pendencias.filter((x) => x.status === 'aberta');
@@ -344,6 +351,9 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                 : un
                     ? { rotulo: `Encerrar a espera e devolver para ${un.nome}`, icone: Send, acao: () => setAcao({ tipo: 'tramitar', destino: un.id, fase_id: volta.id }) }
                     : { rotulo: `Encerrar a espera e voltar para ${volta.nome}`, icone: CheckCircle2, acao: () => setAcao({ tipo: 'fase', fase_id: volta.id }) };
+        } else if (faseAtual?.segue_ao_assumir && podeAssumir && proximas.length === 1 && (!proximas[0].unidade_id || proximas[0].unidade_id === p.unidade_atual)) {
+            // Fase que só espera um responsável: o que se faz nela é assumir, e o processo segue sozinho.
+            principal = { rotulo: `Assumir e seguir para ${proximas[0].nome}`, icone: UserPlus, acao: () => mov('atribuir', { responsavel_uid: estado.uid }, 'Você assumiu o processo') };
         } else if (proximas.length === 1) {
             const f = proximas[0];
             const un = f.unidade_id && f.unidade_id !== p.unidade_atual ? estado.unidades.find((u) => u.id === f.unidade_id && u.ativa) : null;
@@ -608,6 +618,23 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                 </div>
             )}
 
+            {posse && emCorrecao.map((d) => (
+                <div key={d.id} role="status" className="flex flex-wrap items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950 px-4 py-3 text-sm">
+                    <Undo2 className="w-4 h-4 mt-0.5 text-amber-700 dark:text-amber-300 shrink-0" aria-hidden />
+                    <div className="flex-1 min-w-[12rem] max-w-4xl">
+                        <p className="font-medium">Minuta devolvida para correção: {d.titulo}</p>
+                        <p className="text-xs text-slate-700 dark:text-slate-300">Por {d.correcao.por_nome}, {dataHora(d.correcao.em)}. Só a equipe vê: não vai aos autos.</p>
+                        <p className="mt-1 whitespace-pre-wrap">{d.correcao.motivo}</p>
+                        <p className="mt-1 text-xs text-slate-700 dark:text-slate-300">
+                            {d.correcao.fica
+                                ? 'Corrija a minuta e use Correção feita: quem pediu é avisado e o processo volta para a aprovação.'
+                                : `Corrija a minuta e ${principal ? `use "${principal.rotulo}"` : 'envie o processo de novo'}: ela volta para a aprovação com este pedido à vista de quem aprova.`}
+                        </p>
+                    </div>
+                    {(d.origem === 'editor' || podeMexer) && <Button size="sm" variant="outline" disabled={ocupado} onClick={() => abrirMinuta(d)}>Abrir a minuta</Button>}
+                </div>
+            ))}
+
             {/* Nesta fase: o que o rito espera, com caixas para marcar e os modelos indicados. */}
             <Card id="pe-nesta-fase" className="scroll-mt-32 border-indigo-200 dark:border-indigo-900 sm:scroll-mt-4">
                 <CardHeader className="pb-2">
@@ -637,7 +664,10 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                             <Button size="sm" variant="outline" className="gap-1" disabled={ocupado} onClick={() => mov('atribuir', { responsavel_uid: estado.uid }, 'Você assumiu o processo')}>
                                 <UserPlus className="w-4 h-4" aria-hidden /> Assumir
                             </Button>
-                            <span className="text-xs text-slate-600 dark:text-slate-300">O processo está sem responsável. Quem assume passa a responder por ele nesta unidade.</span>
+                            <span className="text-xs text-slate-600 dark:text-slate-300">
+                                O processo está sem responsável. Quem assume passa a responder por ele nesta unidade
+                                {faseAtual?.segue_ao_assumir && proximas.length === 1 ? <>, e ele segue sozinho para <b>{proximas[0].nome}</b>.</> : '.'}
+                            </span>
                         </div>
                     )}
                     {podeMexer && p.status === 'em_tramitacao' && !p.fase_suspensa && esperas.length > 0 && (
@@ -814,11 +844,11 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                     {posse && (
                         <Card>
                             <CardHeader className="pb-2 flex-row flex-wrap items-center justify-between gap-2 space-y-0">
-                                <CardTitle className="text-base" title="Rascunhos da unidade: só entram nos autos quando alguém os junta">Minutas da unidade</CardTitle>
+                                <CardTitle className="text-base" title="Minuta é rascunho: só vira documento definitivo, com número e folha, quando é aprovada e juntada aos autos">{!elaboracao && minutas.some(deOutro) ? 'Minutas para aprovar' : 'Minutas da unidade'}</CardTitle>
                                 <div className="flex flex-wrap gap-2">
                                     {!elaboracao && (finalizaComDocumentos ? minutas.length >= 1 : minutas.length >= 2) && (
-                                        <Button size="sm" variant={finalizaComDocumentos ? 'default' : 'outline'} className="gap-1" disabled={!podeMexer || ocupado} onClick={() => setConjunta(true)}
-                                            title="Escolher, ordenar, assinar e juntar os documentos de uma vez">
+                                        <Button size="sm" variant={finalizaComDocumentos ? 'default' : 'outline'} className="gap-1" disabled={!podeMexer || ocupado || !!semAprovar} onClick={() => setConjunta(true)}
+                                            title={semAprovar || 'Escolher, ordenar, assinar e juntar os documentos de uma vez'}>
                                             <ListChecks className="w-4 h-4" /> {finalizaComDocumentos ? rotuloFinalizar(faseAtual) : 'Juntar em conjunto'}
                                         </Button>
                                     )}
@@ -830,7 +860,13 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                     <p className="text-sm text-slate-700 dark:text-slate-300">Esta fase termina com o botão {rotuloFinalizar(faseAtual)}: redija ou anexe os documentos; depois escolha quais entram nos autos e em que ordem.</p>
                                 )}
                                 {elaboracao && (
-                                    <p className="text-sm text-slate-700 dark:text-slate-300">Fase de elaboração: redija ou anexe a minuta e os anexos. Eles entram como minuta e seguem com o processo na remessa; assinar e juntar aos autos fica com quem revisa.</p>
+                                    <p className="text-sm text-slate-700 dark:text-slate-300">Fase de elaboração: redija ou anexe a minuta e os anexos. Eles entram como minuta e seguem com o processo para quem aprova; assinar e juntar aos autos fica com essa pessoa.</p>
+                                )}
+                                {!elaboracao && podeMexer && semAprovar && minutas.length > 0 && (
+                                    <p role="note" className="text-sm rounded-md border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950 px-3 py-2">{semAprovar} Você pode ler, editar e anexar; aprovar fica com essa pessoa.</p>
+                                )}
+                                {!elaboracao && podeMexer && !semAprovar && minutas.some(deOutro) && (
+                                    <p className="text-sm text-slate-700 dark:text-slate-300">Leia cada minuta e decida: <b>Aprovar e juntar</b> torna a minuta um documento definitivo dos autos (você pode editar antes; a redação original fica em Versões); <b>Devolver para correção</b> manda de volta a quem redigiu, com o que precisa mudar. Anexo que não deve entrar nos autos pode ficar como está ou ser guardado fora dos autos.</p>
                                 )}
                                 {minutas.length === 0 && <p className="text-sm text-slate-600 dark:text-slate-400">Minutas ficam visíveis só para a sua unidade até a juntada, salvo as que seguem com o processo numa remessa.</p>}
                                 {minutas.map((d) => {
@@ -841,12 +877,15 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                         <div key={d.id} className={`flex flex-wrap items-center gap-2 py-2 border-b last:border-0 border-slate-100 dark:border-slate-800 ${pedidoAMim ? 'bg-amber-50 dark:bg-amber-950/40 -mx-2 px-2 rounded' : ''}`}>
                                             <Paperclip className="w-4 h-4 shrink-0 text-slate-400" aria-hidden />
                                             <div className="min-w-0 flex-[1_1_calc(100%-1.5rem)]">
-                                                <p className="font-medium [overflow-wrap:anywhere]">{d.titulo}{pedidoAMim && <Badge className="ml-2 bg-amber-500 hover:bg-amber-500">Pediram sua assinatura</Badge>}</p>
+                                                <p className="font-medium [overflow-wrap:anywhere]">{d.titulo}<Badge variant="outline" className="ml-2 align-middle border-amber-400 text-amber-900 dark:border-amber-600 dark:text-amber-200">Minuta</Badge>{d.correcao && <Badge className="ml-2 align-middle bg-amber-600 hover:bg-amber-600">Em correção</Badge>}{pedidoAMim && <Badge className="ml-2 bg-amber-500 hover:bg-amber-500">Pediram sua assinatura</Badge>}</p>
                                                 <p className="text-xs text-slate-600 dark:text-slate-400">
                                                     {d.tipo} · {d.origem === 'editor' ? 'redigido' : d.nome_arquivo} · {d.autor_nome}{d.assinaturas.length ? ` · assinado por ${d.assinaturas.map((a) => a.nome).join(', ')}` : ''}
                                                     {pedidos.length ? ` · aguarda assinatura de ${pedidos.map((x) => x.nome).join(', ')}` : ''}
                                                     {d.unidade_origem !== p.unidade_atual && ` · redigida em ${nomeUnidade(d.unidade_origem)}`}
                                                 </p>
+                                                {!d.correcao && d.correcao_anterior && (
+                                                    <p className="mt-1 text-xs text-slate-700 dark:text-slate-300"><b>Voltou depois da correção</b>{d.correcao_anterior.reenviada_em ? ` (${d.correcao_anterior.reenviada_por}, ${dataHora(d.correcao_anterior.reenviada_em)})` : ''}. O que {d.correcao_anterior.por_nome} tinha pedido: <span className="whitespace-pre-wrap">{d.correcao_anterior.motivo}</span></p>
+                                                )}
                                             </div>
                                             {d.origem === 'editor' || (podeMexer && d.unidade_origem === p.unidade_atual)
                                                 ? <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => abrirMinuta(d)} title={d.origem === 'editor' ? undefined : 'Abrir o arquivo no editor da plataforma para revisar; o original fica guardado em Versões'}>
@@ -857,7 +896,9 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                             {d.versoes > 0 && <Button variant="ghost" size="sm" className="gap-1" disabled={ocupado} onClick={() => setVersoesDe(d)} title="Redações anteriores, de antes da revisão (só a equipe vê)"><History className="w-4 h-4" aria-hidden /> <span className="hidden sm:inline">Versões</span><span className="sr-only sm:hidden">Versões de {d.titulo}</span> ({d.versoes})</Button>}
                                             {!elaboracao && <Button size="sm" variant="outline" className="gap-1" disabled={assinei || ocupado || !podeMexer} onClick={() => doc('assinar', { docId: d.id }, 'Documento assinado')}><PenLine className="w-4 h-4" /> {assinei ? 'Assinado' : 'Assinar'}</Button>}
                                             {!elaboracao && membrosDaUnidade.length > 1 && <Button size="sm" variant="ghost" className="gap-1" disabled={ocupado || !podeMexer} onClick={() => setAcao({ tipo: 'pedirAssinatura', documento: d })} title="Pedir a assinatura de alguém da unidade"><UserPlus className="w-4 h-4" /> <span className="hidden sm:inline">Pedir assinatura</span></Button>}
-                                            {!elaboracao && <Button size="sm" disabled={ocupado || !podeMexer} onClick={() => setAcao({ tipo: 'juntar', documento: d, assinei })} title="Incluir nos autos, com numeração e data; não pode ser desfeito">Juntar</Button>}
+                                            {d.correcao?.fica && podeMexer && <Button size="sm" className="gap-1" disabled={ocupado} onClick={() => doc('corrigida', { docId: d.id }, 'Minuta devolvida para a aprovação')} title="Avisa quem pediu a correção e devolve o processo a essa pessoa"><CheckCircle2 className="w-4 h-4" /> Correção feita</Button>}
+                                            {!elaboracao && deOutro(d) && <Button size="sm" variant="outline" className="gap-1" disabled={ocupado || !podeMexer || !!semAprovar} onClick={() => setAcao({ tipo: 'devolverMinuta', documento: d })} title={semAprovar || 'Devolver a quem redigiu, dizendo o que corrigir ou complementar'}><Undo2 className="w-4 h-4" /> Devolver para correção</Button>}
+                                            {!elaboracao && <Button size="sm" disabled={ocupado || !podeMexer || (!!semAprovar && !d.peticao)} onClick={() => setAcao({ tipo: 'juntar', documento: d, assinei, aprovar: deOutro(d) })} title={semAprovar && !d.peticao ? semAprovar : deOutro(d) ? 'Aprovar a minuta: ela vira documento definitivo dos autos, com numeração e data; não pode ser desfeito' : 'Incluir nos autos, com numeração e data; não pode ser desfeito'}>{deOutro(d) ? 'Aprovar e juntar' : 'Juntar'}</Button>}
                                             {!elaboracao && <Button size="sm" variant={temControlePendente ? 'outline' : 'ghost'} className="gap-1" disabled={ocupado || !podeMexer} onClick={() => setAcao({ tipo: 'guardar', documento: d })} title="Guardar no processo como documento de controle: fica com a equipe, fora dos autos e da impressão; não pode ser desfeito"><Archive className="w-4 h-4" /> <span className={temControlePendente ? '' : 'hidden sm:inline'}>Guardar fora dos autos</span></Button>}
                                             {/* Quem recebeu a minuta com o processo não apaga o trabalho da outra unidade. */}
                                             {(d.unidade_origem === p.unidade_atual || !posse) && <Button size="sm" variant="ghost" disabled={ocupado} onClick={() => setConfirmar({ titulo: 'Excluir a minuta?', texto: `"${d.titulo}" será apagada de vez. Minuta não fica nos autos, então não há como recuperar.`, rotulo: 'Excluir minuta', fn: () => doc('excluirMinuta', { docId: d.id }, 'Minuta excluída') })} aria-label={`Excluir a minuta ${d.titulo}`}><Trash2 className="w-4 h-4" /></Button>}
@@ -1260,13 +1301,13 @@ function NovoDocumento({ aberto, onFechar, tipos, tipoPadrao, modelosDaFase, mod
 }
 
 /** Documento exigido pelo rito: pendente (com atalho para produzir) ou cumprido (com o nº nos autos). */
-function ItemExigencia({ e, podeMexer, ocupado, modelo, onModelo, onNovo }) {
+function ItemExigencia({ e, podeMexer, ocupado, comMinuta, modelo, onModelo, onNovo }) {
     const forma = FORMAS.find(([v]) => v === (e.forma || 'qualquer'))?.[1];
     if (e.cumprida) {
         return (
             <p className="flex items-start gap-2 text-sm">
                 <CheckCircle2 className="w-4 h-4 mt-0.5 text-emerald-700 dark:text-emerald-400 shrink-0" aria-hidden />
-                <span><span className="line-through text-slate-600 dark:text-slate-400">{e.descricao}</span> <span className="text-xs text-slate-600 dark:text-slate-400">· {e.cumprida.ordem ? `cumprido com o documento nº ${e.cumprida.ordem}` : 'cumprido com documento guardado fora dos autos'}</span></span>
+                <span><span className="line-through text-slate-600 dark:text-slate-400">{e.descricao}</span> <span className="text-xs text-slate-600 dark:text-slate-400">· {e.cumprida.ordem ? `cumprido com o documento nº ${e.cumprida.ordem}` : comMinuta ? 'cumprido com a minuta, que segue com o processo para a aprovação' : 'cumprido com documento guardado fora dos autos'}</span></span>
             </p>
         );
     }
@@ -1437,8 +1478,28 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
             </>
         );
         enviar = () => mov('encerrarPrazo', { prazo_id: acao.prazo.id, resultado: valor, motivo }, 'Prazo encerrado');
+    } else if (tipo === 'devolverMinuta') {
+        const d = acao.documento;
+        const dest = destinoDaCorrecao(p, d, estado.unidades);
+        const un = dest.unidade_id ? estado.unidades.find((u) => u.id === dest.unidade_id) : null;
+        const fase = dest.fase_id ? p.fases.find((f) => f.id === dest.fase_id) : null;
+        titulo = `Devolver para correção: ${d.titulo}`;
+        exigeTexto = true;
+        rotuloTexto = 'O que precisa ser corrigido ou complementado';
+        campo = (
+            <>
+                <p className="text-sm text-slate-700 dark:text-slate-300">
+                    {un ? <>O processo volta para <b>{un.nome}</b>{fase ? <>, na fase <b>{fase.nome}</b></> : null}</> : fase ? <>O processo volta para a fase <b>{fase.nome}</b></> : <>O processo continua nesta unidade e nesta fase</>}
+                    {dest.responsavel_uid ? <>, com <b>{d.autor_nome}</b>, que redigiu a minuta, como responsável. </> : <>. {d.autor_nome || 'Quem redigiu'} não está mais lotado {un ? 'nessa unidade' : 'nesta unidade'}: o pedido fica anotado na minuta, para quem assumir a correção. </>}
+                    A minuta continua minuta, com a marca <b>Em correção</b> e o texto abaixo, até voltar para a sua aprovação.
+                </p>
+                <p className="text-xs text-slate-600 dark:text-slate-400">O que você escrever fica só com a equipe (na minuta e num registro interno): não vai aos autos nem às partes.{fase && faseDoProc ? ` O que falta em ${faseDoProc.nome} fica para a volta, sem dispensa.` : ''}</p>
+            </>
+        );
+        if (semConcluir && fase) bloqueio = semConcluir;
+        enviar = () => mov('devolverMinuta', { docId: d.id, correcao: motivo }, 'Minuta devolvida para correção');
     } else if (tipo === 'juntar') {
-        titulo = `Juntar aos autos: ${acao.documento.titulo}`;
+        titulo = `${acao.aprovar ? 'Aprovar e juntar aos autos' : 'Juntar aos autos'}: ${acao.documento.titulo}`;
         const decideAlguma = noGabinete && pendenciasAbertas.length > 0;
         const exigAutos = exigDocs.filter((e) => !e.destino);
         // A assinatura de "Assinar antes de juntar" conta para o que o rito pede.
@@ -1690,6 +1751,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
         semEscolha && (tipo === 'tramitar' ? 'escolha o destino' : tipo === 'fase' ? 'escolha a fase' : 'faça a escolha acima'),
         diasInvalidos && 'informe os dias (1 ou mais)',
         !semTexto && exigeTexto && !motivo.trim() && `preencha "${rotuloTexto.split(' (')[0]}"`,
+        tipo === 'devolverMinuta' && motivo.trim() && motivo.trim().length < 10 && 'escreva ao menos 10 caracteres',
     ].filter(Boolean);
     const impedido = ocupado || !!bloqueio || falta.length > 0;
     const confirmar = async () => {
@@ -1703,6 +1765,11 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
                 <DialogHeader><div className="flex items-start justify-center gap-1 pr-6 sm:justify-start"><DialogTitle>{titulo}</DialogTitle>{glossa && <AjudaTermo id={glossa} />}</div></DialogHeader>
                 <div className="space-y-3">
                     {campo}
+                    {(tipo === 'fase' || tipo === 'tramitar') && !acao?.correcao && faseDoProc?.juntada_conjunta && minutas.length > 0 && (
+                        <p role="note" className="text-sm rounded-md border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950 px-3 py-2">
+                            {minutas.length === 1 ? `A minuta "${minutas[0].titulo}" ainda não foi aprovada` : `${minutas.length} minutas ainda não foram aprovadas`}: se o processo seguir agora, {minutas.length === 1 ? 'ela continua' : 'elas continuam'} como minuta, fora dos autos. Para aprovar, feche e use Aprovar e juntar ou {rotuloFinalizar(faseDoProc)}.
+                        </p>
+                    )}
                     {bloqueio && <p role="alert" className="text-sm rounded-md border border-red-200 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-100 px-3 py-2">{bloqueio}</p>}
                     {!semTexto && (
                         <div><Label htmlFor="acao-motivo">{rotuloTexto}{exigeTexto ? ' (obrigatório)' : ''}</Label><Textarea id="acao-motivo" rows={3} value={motivo} aria-required={exigeTexto || undefined} onChange={(e) => setMotivo(e.target.value)}

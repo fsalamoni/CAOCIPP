@@ -22,6 +22,9 @@ export interface PermissoesFase {
     /** Quem conclui a fase (leva o processo a outra fase, salvo à de espera). Ausente = quem tem o processo. */
     concluir?: Quem;
     concluir_atribuicao?: string;
+    /** Quem aprova a minuta na fase: junta documento aos autos ou devolve a minuta para correção. Ausente = quem tem o processo. */
+    aprovar?: Quem;
+    aprovar_atribuicao?: string;
     /** Quem dispensa o que a fase exige e ficou em aberto. Ausente = quem conclui, com motivo. */
     dispensar?: Reserva;
     /** Quem segue por fase fora do fluxo ou por saída sem a resposta que o rito pede. Ausente = quem conclui, com motivo. */
@@ -53,9 +56,11 @@ export function sanitizeQuem(quem: unknown, atribuicao: unknown, onde: string): 
 export function sanitizePermissoes(raw: unknown, nomeFase: string): PermissoesFase | undefined {
     const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
     const c = sanitizeQuem(o.concluir, o.concluir_atribuicao, `Em "${nomeFase}", quem conclui a fase`);
+    const ap = sanitizeQuem(o.aprovar, o.aprovar_atribuicao, `Em "${nomeFase}", quem aprova a minuta`);
     const reserva = (v: unknown) => (RESERVAS.includes(v as Reserva) ? (v as Reserva) : undefined);
     const out: PermissoesFase = {
         ...(c.quem ? { concluir: c.quem } : {}), ...(c.atribuicao ? { concluir_atribuicao: c.atribuicao } : {}),
+        ...(ap.quem ? { aprovar: ap.quem } : {}), ...(ap.atribuicao ? { aprovar_atribuicao: ap.atribuicao } : {}),
         ...(reserva(o.dispensar) ? { dispensar: reserva(o.dispensar) } : {}),
         ...(reserva(o.desviar) ? { desviar: reserva(o.desviar) } : {}),
         ...(reserva(o.situacao) ? { situacao: reserva(o.situacao) } : {}),

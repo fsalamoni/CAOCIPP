@@ -96,7 +96,7 @@ export const quando = (acao, ...valores) => ({ acao, valores });
 /**
  * Monta o modelo: troca nomes de fases por ids e nomes de ações por índices.
  * Fase: { nome, unidade, prazo_dias, prazo_auto, prazo_contagem, orientacao, nome_publico, avanco, espera, final,
- *         ao_entrar, juntada_conjunta, elaboracao, acoes: [A.*], vai: [fase], saidas: { fase: quando(...) }, padrao: fase,
+ *         ao_entrar, juntada_conjunta, elaboracao, segue_ao_assumir, acoes: [A.*], vai: [fase], saidas: { fase: quando(...) }, padrao: fase,
  *         condicoes: { fase: 'texto' } }
  */
 export function montar(meta, fases) {

@@ -5,7 +5,7 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import {
     CalendarioOrgao, Contagem, Fase, MAX_ITENS, sanitizeCalendario, MAX_PRAZO_DIAS, MAX_TEXTO_LONGO, Pendencia, Prazo, calcularVencimento, derivados,
-    hojeBrasil, lotacoesDe, MAX_MINUTAS_REMESSA, minutaAcessivel, podeAgir, podeExcluirProcesso, podeVer, saidaAutomatica, saidasDoProcesso, Espera, Origem, RefOrigem, ehParte, sanitizeOrigem, sha256, texto, unidadeDecide, verificarCadeia,
+    hojeBrasil, lotacoesDe, MAX_MINUTAS_REMESSA, MIN_MOTIVO_CORRECAO, destinoDaCorrecao, minutaAcessivel, podeAgir, podeExcluirProcesso, podeVer, saidaAutomatica, saidasDoProcesso, Espera, Origem, RefOrigem, ehParte, sanitizeOrigem, sha256, texto, unidadeDecide, verificarCadeia,
 } from '../shared/secretaria';
 import { auditar } from './config';
 import { eventosSemEfeito, extrasDoEvento, numerarEventos, urgentesPrimeiro } from '../shared/autos';
@@ -45,12 +45,12 @@ import { julgamentoPendente } from '../shared/sessoes';
 import { lerOrgaos } from './orgaos';
 import { COL_ANOTACOES, COL_SESSOES, acaoAnotacao, acaoSessao, leiturasDoProcesso, registrarLeitura } from './sessoes';
 import { COL_CERTAMES } from './certames';
-import { avisarEntradaNaFase, avisarPendencia, avisarUnidadeRecebeu } from './avisosEquipe';
+import { avisarCorrecaoMinuta, avisarEntradaNaFase, avisarMinuta, avisarPendencia, avisarUnidadeRecebeu } from './avisosEquipe';
 import { acertarAcoesDoRito, configComunicacoes, expedir, tornarSemEfeito } from './comunicacoes';
 import { ItemObrigacao, prazosDoCronograma, quitado, resumoDoCronograma, sanitizeObrigacoes, textoDaQuitacao } from '../shared/cronograma';
 import { CampoDoProcesso, camposParaLigar, camposPelaAcao, chaveDoValor, ligada, passosPeloProcesso } from '../shared/doProcesso';
 import {
-    COL, REGION, atorDe, carregarContexto, contextoDoSistema, conferirVersao, erroUsuario, exigirAdmin, exigirAuth, exigirPosse, lerProcesso,
+    COL, REGION, atorDe, carregarContexto, contextoDoSistema, conferirVersao, erroUsuario, exigirAdmin, exigirAprovar, exigirAuth, exigirPosse, lerProcesso,
     equipeLe, julgadorLe, nomeUnidade, registrarInternos, registrarMovimento,
     comSinal,
 } from './context';
@@ -66,7 +66,10 @@ interface ProcRequest {
     action: 'listar' | 'obter' | 'autuar' | 'tramitar' | 'atribuir' | 'avancarFase' | 'alterarStatus'
         | 'abrirPendencia' | 'resolverPendencia' | 'abrirPrazo' | 'abrirCronograma' | 'encerrarPrazo' | 'prorrogarPrazo' | 'devolverPrazo' | 'convidarParte' | 'revogarParte'
         | 'marcarAcao' | 'concluirOrientacao' | 'contadores' | 'alterarDados' | 'urgencia' | 'expedirComunicacao' | 'tornarSemEfeito'
-        | 'excluir' | 'restaurar' | 'excluidos' | 'excluirDefinitivo' | 'emitirCertidao' | 'vinculados' | 'indice';
+        | 'excluir' | 'restaurar' | 'excluidos' | 'excluirDefinitivo' | 'emitirCertidao' | 'vinculados' | 'indice' | 'devolverMinuta';
+    /** devolverMinuta: a minuta que volta para correção e o que corrigir (fica na minuta e no registro interno, nunca nos autos). */
+    docId?: string;
+    correcao?: string;
     /** excluirDefinitivo: o número do processo, digitado por quem confirma. */
     confirmacao?: string;
     /** Comunicação a expedir (espécie, texto, destinatários, prazo, meio). */
@@ -1037,6 +1040,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, comSin
                 'titulo', 'tipo', 'origem', 'status', 'mime', 'nome_arquivo', 'tamanho', 'sha256', 'ordem', 'unidade_origem',
                 'autor_nome', 'criado_em', 'juntado_em', 'assinaturas', 'peticao', 'visivel_partes', 'visivel_polos', 'paginas', 'folha_inicial', 'folha_final', 'codigo_verificacao',
                 'assinaturas_pedidas', 'peticao_tipo', 'modelo_id', 'unidades_acesso', 'guardado_em', 'guardado_por_nome', 'versoes_qtd',
+                'autor_uid', 'fase_id', 'correcao', 'correcao_anterior',
             ).get(),
             // Quem leu pela pauta: para a unidade que tem o processo e a administração.
             veLeituras ? leiturasDoProcesso(ref) : Promise.resolve([]),
@@ -1064,6 +1068,8 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, comSin
                 peticao: d.peticao === true, peticao_tipo: d.peticao_tipo || null, visivel_partes: d.visivel_partes !== false, ...(Array.isArray(d.visivel_polos) && d.visivel_polos.length ? { visivel_polos: d.visivel_polos } : {}),
                 paginas: d.paginas || null, folha_inicial: d.folha_inicial || null, folha_final: d.folha_final || null, codigo_verificacao: d.codigo_verificacao || null, modelo_id: d.modelo_id || null, unidades_acesso: d.unidades_acesso || [],
                 guardado_em: d.guardado_em || null, guardado_por: d.guardado_por_nome || null, versoes: Number(d.versoes_qtd) || 0,
+                // Minuta: quem redigiu, em que fase, e o pedido de correção de quem decide (pendente ou já atendido).
+                ...(d.status === 'minuta' ? { autor_uid: d.autor_uid || null, fase_id: d.fase_id || null, correcao: d.correcao || null, correcao_anterior: d.correcao_anterior || null } : {}),
             }))
             .sort((a, b) => (a.ordem || 1e9) - (b.ordem || 1e9) || String(a.criado_em).localeCompare(String(b.criado_em)));
         // Registro que hoje está restrito, anonimizado ou sumiu: marcado na resposta (nada é gravado),
@@ -1319,6 +1325,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, comSin
         return { success: true, id: procRef.id, numero };
     }
 
+    if (p.action === 'devolverMinuta') return devolverMinuta(c, p);
     return movimentar(c, p);
 }));
 
@@ -1330,7 +1337,7 @@ export const secretariaProcesso = onCall<ProcRequest>({ region: REGION }, comSin
  * seguir", com as mesmas conferências; se ele não couber (algo em aberto, mais
  * de uma saída, o processo mudou), nada acontece e o botão continua na tela.
  */
-export async function avancarSozinho(c: Ctx, id: string): Promise<Record<string, unknown> | null> {
+export async function avancarSozinho(c: Ctx, id: string, aoAssumir = false): Promise<Record<string, unknown> | null> {
     try {
         const d = (await c.db.collection(COL.processos).doc(id).get()).data();
         if (!d) return null;
@@ -1340,18 +1347,56 @@ export async function avancarSozinho(c: Ctx, id: string): Promise<Record<string,
         // O sistema (regra do rito, sem ninguém no ato) não conclui fase cuja conclusão o rito reservou a alguém.
         const atualF = ((d.fases || []) as Fase[]).find((f) => f.id === d.fase_atual);
         if (c.ctx.uid === 'sistema' && atualF?.permissoes?.concluir) return null;
-        const saida = saidaAutomatica(d, c.unidades.filter((u) => u.ativa !== false).map((u) => String(u.id)));
+        // Quem assumiu fica com o processo: a fase que segue ao assumir não remete a outra unidade.
+        const saida = aoAssumir
+            ? (atualF?.segue_ao_assumir ? saidaAutomatica({ ...d, fases: ((d.fases || []) as Fase[]).map((f) => (f.id === atualF.id ? { ...f, avanco: 'auto' as const } : f)) }, []) : null)
+            : saidaAutomatica(d, c.unidades.filter((u) => u.ativa !== false).map((u) => String(u.id)));
         if (!saida) return null;
+        const outraUnidade = ((d.fases || []) as Fase[]).find((f) => f.id === saida.fase_id)?.unidade_id;
+        if (aoAssumir && outraUnidade && outraUnidade !== d.unidade_atual) return null;
         const r = await movimentar(c, {
             organizationId: c.orgId, id, version: d.version, fase_id: saida.fase_id,
             ...(saida.unidade_destino ? { action: 'tramitar', unidade_destino: saida.unidade_destino } : { action: 'avancarFase' }),
-        } as ProcRequest, { automatico: true });
+        } as ProcRequest, aoAssumir ? { automatico: 'o processo foi assumido.', assumiu: true } : { automatico: true });
         const fase = ((d.fases || []) as Fase[]).find((f) => f.id === saida.fase_id);
         return { ...r, avancou: { fase: fase?.nome || '', unidade: saida.unidade_destino ? nomeUnidade(c, saida.unidade_destino) : '', arquivado: fase?.ao_entrar?.arquivar === true } };
     } catch (e) {
         console.warn('[secretaria] avanço automático não aplicado', id, (e as Error)?.message);
         return null;
     }
+}
+
+/**
+ * Devolver a minuta para correção: quem decide diz o que corrigir e o processo volta a quem a redigiu
+ * (unidade, fase e pessoa, ver `destinoDaCorrecao`), pelo mesmo ato de remessa ou de mudança de fase.
+ * O motivo fica na minuta e num registro interno, nunca nos autos: minuta é trabalho interno.
+ */
+async function devolverMinuta(c: Ctx, p: ProcRequest): Promise<Record<string, unknown>> {
+    const motivo = texto(p.correcao, MAX_TEXTO_LONGO);
+    if (motivo.length < MIN_MOTIVO_CORRECAO) throw new HttpsError('invalid-argument', `Diga o que precisa ser corrigido ou complementado (ao menos ${MIN_MOTIVO_CORRECAO} caracteres)`);
+    const { ref, data } = await lerProcesso(c, p.id);
+    exigirPosse(c, data);
+    const doc = p.docId ? (await ref.collection('documentos').doc(String(p.docId)).get()).data() : undefined;
+    if (!doc || doc.status !== 'minuta' || !minutaAcessivel(doc, c.ctx.unidadeIds)) throw new HttpsError('not-found', 'Minuta não encontrada');
+    if (doc.autor_uid === c.ctx.uid) throw new HttpsError('failed-precondition', 'Esta minuta é sua: corrija aqui mesmo, sem devolver.');
+    exigirAprovar(c, data);
+    const fase = faseDoProcesso(data);
+    if (fase?.elaboracao === true) throw new HttpsError('failed-precondition', `Na fase ${fase.nome} só se elaboram minutas: aprovar ou devolver cabe a quem revisa, na fase seguinte.`);
+    const d = destinoDaCorrecao(data, doc, c.unidades);
+    const r = await movimentar(c, {
+        organizationId: p.organizationId, id: p.id, version: p.version,
+        action: d.unidade_id ? 'tramitar' : d.fase_id ? 'avancarFase' : 'devolverMinuta',
+        ...(d.unidade_id ? { unidade_destino: d.unidade_id } : {}), ...(d.fase_id ? { fase_id: d.fase_id } : {}),
+    } as ProcRequest, { correcao: { docId: String(p.docId), motivo, titulo: String(doc.titulo || ''), autor: String(doc.autor_nome || ''), responsavel_uid: d.responsavel_uid } });
+    // Com remessa, a unidade que recebe já é avisada (com o motivo); sem ela, o aviso vai a quem redigiu.
+    if (!d.unidade_id && d.responsavel_uid) void avisarCorrecaoMinuta(c, d.responsavel_uid, data, String(p.id), String(doc.titulo || ''), motivo);
+    return {
+        ...r,
+        devolvida: {
+            unidade: d.unidade_id ? nomeUnidade(c, d.unidade_id) : '', pessoa: d.responsavel_uid ? String(doc.autor_nome || '') : '',
+            fase: d.fase_id ? ((data.fases || []) as Fase[]).find((f) => f.id === d.fase_id)?.nome || '' : '',
+        },
+    };
 }
 
 /** O rito do processo tem alguma ação ligada a campo do processo ("Vem do processo")? */
@@ -1492,10 +1537,17 @@ export async function registrarResultadoDaDisputa(db: admin.firestore.Firestore,
  * Movimentação de um processo existente. `opcoes.automatico`: chamada do
  * próprio servidor (avanço automático da fase); nunca vem do cliente.
  */
-async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean; doProcesso?: boolean } = {}): Promise<Record<string, unknown>> {
+/** Minuta devolvida para correção: o ato de remessa ou de fase que a leva de volta a quem a redigiu (ver `devolverMinuta`). */
+interface PedidoCorrecao { docId: string; motivo: string; titulo: string; autor: string; responsavel_uid: string | null }
+
+async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean | string; doProcesso?: boolean; correcao?: PedidoCorrecao; assumiu?: boolean } = {}): Promise<Record<string, unknown>> {
     const { db, orgId } = c;
-    const textoAuto = opcoes.automatico ? ' Avanço automático: o que a fase exigia foi cumprido.' : '';
+    const textoAuto = opcoes.automatico ? ` Avanço automático: ${typeof opcoes.automatico === 'string' ? opcoes.automatico : 'o que a fase exigia foi cumprido.'}` : '';
     let tentarAuto = false;
+    let seguirAoAssumir = false;
+    // Minutas corrigidas que voltam para a aprovação: quem pediu a correção é avisado.
+    let corrigidas: Array<{ uid: string; titulo: string; proc: admin.firestore.DocumentData }> = [];
+    const pc = opcoes.correcao;
     let registroArquivado: Arquivado | null = null;
     // ---- Movimentações sobre um processo existente --------------------------
     const motivo = texto(p.motivo, MAX_TEXTO_LONGO);
@@ -1518,6 +1570,37 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
         const { ref, data } = await lerProcesso(c, p.id, tx);
         conferirVersao(data, p.version);
         exigirPosse(c, data);
+        // Minuta que volta para correção, e as que estavam em correção e seguem de novo para a aprovação: lidas antes de qualquer escrita.
+        const docCorrecao = pc ? await tx.get(ref.collection('documentos').doc(pc.docId)) : null;
+        if (pc && (docCorrecao?.data()?.status !== 'minuta' || !minutaAcessivel(docCorrecao.data()!, [String(data.unidade_atual)]))) {
+            throw new HttpsError('failed-precondition', 'O documento não é mais uma minuta com a unidade que tem o processo');
+        }
+        const idsEmCorrecao = !pc && ['tramitar', 'avancarFase'].includes(String(p.action)) && Array.isArray(data.minutas_em_correcao) ? (data.minutas_em_correcao as unknown[]).slice(0, MAX_MINUTAS_REMESSA) : [];
+        const emCorrecao = await Promise.all(idsEmCorrecao.map((id) => tx.get(ref.collection('documentos').doc(String(id)))));
+        const agoraCorrecao = new Date().toISOString();
+        /** Grava o pedido de correção na minuta; devolve o que muda no processo. `fica`: sem remessa nem mudança de fase. */
+        const marcarCorrecao = (fica: boolean): Record<string, unknown> => {
+            if (!pc) return {};
+            tx.update(docCorrecao!.ref, {
+                correcao: { motivo: pc.motivo, por_uid: c.ctx.uid, por_nome: c.userName, em: agoraCorrecao, ...(fica ? { fica: true } : {}) },
+                correcao_anterior: FieldValue.delete(),
+            });
+            return { minutas_em_correcao: FieldValue.arrayUnion(pc.docId) };
+        };
+        // O motivo fica com a equipe (registro interno): minuta é trabalho interno e não vai aos autos.
+        const notaCorrecao = pc ? [`Minuta devolvida para correção: ${pc.titulo}${pc.autor ? `, redigida por ${pc.autor}` : ''}. O que corrigir: ${pc.motivo}`] : [];
+        /** O processo segue de novo: a minuta corrigida volta para a aprovação com o pedido atendido à vista de quem aprova. */
+        // `unidade`: a que fica com o processo. Quem pediu a correção, se lotado nela, volta a responder por ele.
+        const reenviarCorrigidas = (unidade?: admin.firestore.DocumentData): Record<string, unknown> => {
+            const voltam = emCorrecao.filter((s) => s.data()?.status === 'minuta' && s.data()?.correcao);
+            voltam.forEach((s) => tx.update(s.ref, {
+                correcao: FieldValue.delete(), correcao_anterior: { ...s.data()!.correcao, reenviada_em: agoraCorrecao, reenviada_por: c.userName },
+            }));
+            corrigidas = voltam.map((s) => ({ uid: String(s.data()!.correcao.por_uid || ''), titulo: String(s.data()!.titulo || ''), proc: data })).filter((x) => x.uid && x.uid !== c.ctx.uid);
+            const lotados = Array.isArray(unidade?.membros_uids) ? unidade.membros_uids : [];
+            const quemPediu = corrigidas.find((x) => lotados.includes(x.uid))?.uid;
+            return { ...(idsEmCorrecao.length ? { minutas_em_correcao: FieldValue.delete() } : {}), ...(quemPediu ? { responsavel_uid: quemPediu } : {}) };
+        };
         ligacoes = temLigacoes(data.fases);
         temQuitacao = ((data.fases || []) as Fase[]).some((f) => (f.acoes_regras || []).some((r) => r?.pede === 'quitacao'));
         // Campos exigidos por fase: valem os que o tipo ainda pede (lido antes de qualquer escrita).
@@ -1543,12 +1626,15 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             if (p.fase_id && !novaFase) throw new HttpsError('invalid-argument', 'Fase inválida');
             if (novaFase && novaFase.id === data.fase_atual) throw new HttpsError('invalid-argument', 'O processo já está nessa fase');
             if (novaFase && data.fase_suspensa === true) throw new HttpsError('failed-precondition', 'A fase está interrompida por pendência aberta. O decisor precisa apreciá-la antes.');
-            const foraDoFluxo = !!novaFase && !saidasDoProcesso(data).some((f) => f.id === novaFase.id);
+            // Devolução para correção: voltar à fase em que a minuta foi redigida é caminho previsto, e a fase é retomada como estava.
+            const foraDoFluxo = !pc && !!novaFase && !saidasDoProcesso(data).some((f) => f.id === novaFase.id);
             const faseSai = fases.find((f) => f.id === data.fase_atual);
             const retomada = ehRetomada(data, faseSai, novaFase);
+            const comoEstava = retomada || !!pc;
             // De volta à unidade em que estava: quem respondia pelo processo volta a responder, se ainda estiver lotado nela.
             const esp = data.espera as Espera | undefined;
-            const responsavelDeVolta = retomada && esp?.responsavel_uid && destino.id === esp.unidade && (destino.membros_uids || []).includes(esp.responsavel_uid) ? esp.responsavel_uid : null;
+            const responsavelDeVolta = pc ? pc.responsavel_uid
+                : retomada && esp?.responsavel_uid && destino.id === esp.unidade && (destino.membros_uids || []).includes(esp.responsavel_uid) ? esp.responsavel_uid : null;
             if (novaFase) exigirSaida(c, data, faseSai, novaFase, foraDoFluxo || !!foraDaCondicao(data, novaFase.id));
             if (foraDoFluxo && !motivo) throw new HttpsError('invalid-argument', `${novaFase!.nome} não é a próxima fase prevista no rito. Informe o motivo.`);
             const contraCondicao = novaFase && !foraDoFluxo ? foraDaCondicao(data, novaFase.id) : null;
@@ -1576,9 +1662,10 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
                 }
             }
             // Ir para a espera não conclui a fase: o que falta nela fica para a volta, sem dispensa.
-            const dispensadas = novaFase && !novaFase.espera ? dispensarExigencias(c, data, motivo, formAtual) : [];
+            // Devolver a minuta também não conclui: o que falta na fase de quem aprova fica para a volta.
+            const dispensadas = novaFase && !novaFase.espera && !pc ? dispensarExigencias(c, data, motivo, formAtual) : [];
             // A fase pode designar o responsável entre os lotados na unidade que recebe (na retomada, volta quem respondia).
-            const designacao = novaFase && !retomada ? await designadoPelaFase(c, novaFase, destino) : null;
+            const designacao = novaFase && !comoEstava ? await designadoPelaFase(c, novaFase, destino) : null;
             // O rito pode deixar a remessa fora dos autos (ex.: distribuição a assessoria).
             // Remessa entre órgãos muda quem é competente: sempre nos autos.
             const destinoMov = entreOrgaos || dispensadas.length ? 'autos' : destinoDoMovimento(fases, data.fase_atual, novaFase?.id);
@@ -1588,18 +1675,18 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             const em = emitirSe(!!novaFase && (arquiva || deveEmitir(fases, data.consolidacao, data.fase_atual, novaFase.id)), tx, c, ref, data);
             if (em.proc !== data) expedidas = 2;
             // A remessa já tira o responsável: os efeitos não repetem isso.
-            const efFase = novaFase ? efeitosDaMudanca({ ...data, responsavel_uid: null }, String(data.fase_atual), novaFase, calendario, c.userName, { retomada, designacao }) : SEM_EFEITOS;
+            const efFase = novaFase ? efeitosDaMudanca({ ...data, responsavel_uid: null }, String(data.fase_atual), novaFase, calendario, c.userName, { retomada: comoEstava, designacao }) : SEM_EFEITOS;
             // Designado pela fase: para o registro ligado, é alguém assumindo.
             const sit = aplicarSituacao(tx, c, registros, novaFase, (responsavelDeVolta || designacao?.uid) && novaFase?.situacao_registro?.ao_assumir ? 'ao_assumir' : 'ao_entrar', data,
-                designacao?.uid ? { uid: designacao.uid, nome: designacao.nome || '' } : undefined);
+                designacao?.uid ? { uid: designacao.uid, nome: designacao.nome || '' } : pc?.responsavel_uid ? { uid: pc.responsavel_uid, nome: pc.autor } : undefined);
             registroArquivado = sit.arquivou;
-            const ef = { ...efFase, interno: [...efFase.interno, ...sit.notas] };
+            const ef = { ...efFase, interno: [...efFase.interno, ...sit.notas, ...notaCorrecao] };
             const mov = registrarMovimento(tx, c, ref, em.proc, conclusao ? 'conclusao' : 'tramitacao',
                 `${conclusao ? 'Conclusos a' : 'Remetido de ' + com(nomeUnidade(c, data.unidade_atual), orgaoDe) + ' para'} ${com(destino.nome, orgaoPara)}.`
                 + `${novaFase ? ` Fase alterada de ${faseDe} para ${novaFase.nome}${marcaEspera(retomada, novaFase)}${foraDoFluxo ? ' (fora do fluxo do rito)' : contraCondicao ? ' (sem a resposta que o rito pede para esta saída)' : ''}.${ef.texto}` : ''}`
-                + `${textoDispensa(dispensadas)}${motivo ? ` Motivo: ${motivo}` : ''}${orientacao ? ` Orientação: ${orientacao}` : ''}${textoAuto}`,
+                + `${pc ? ' Devolução para correção de minuta.' : ''}${textoDispensa(dispensadas)}${motivo ? ` Motivo: ${motivo}` : ''}${orientacao ? ` Orientação: ${orientacao}` : ''}${textoAuto}`,
                 { de: data.unidade_atual, para: destino.id, ...(opcoes.automatico ? { automatico: true } : {}), ...(entreOrgaos ? { orgao_de: orgaoDe, orgao_para: orgaoPara } : {}), ...(novaFase ? { fase_de: data.fase_atual, fase_para: novaFase.id, ...(retomada ? { retomada: true } : {}), ...(foraDoFluxo ? { fora_do_fluxo: true } : {}), ...(contraCondicao ? { fora_da_condicao: true } : {}) } : {}),
-                    ...(dispensadas.length ? { dispensadas } : {}), ...marcasDoDestino(destinoMov), ...(idsMinutas.length ? { minutas: idsMinutas } : {}) });
+                    ...(dispensadas.length ? { dispensadas } : {}), ...marcasDoDestino(destinoMov), ...(idsMinutas.length ? { minutas: idsMinutas } : {}), ...(pc ? { correcao_minuta: pc.docId } : {}) });
             const mi = registrarInternos(tx, c, ref, { ...em.proc, ...mov }, ef.interno);
             if (ef.interno.length) expedidas += 1;
             const ma = arquiva ? arquivarPelaFase(tx, c, ref, { ...em.proc, ...mov, ...mi }, novaFase!) : {};
@@ -1615,14 +1702,15 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
                 responsavel_uid: responsavelDeVolta,
                 recebido_em: new Date().toISOString(),
                 // Retomada: o que já foi cumprido na fase de origem continua valendo.
-                ...(novaFase ? { fase_atual: novaFase.id, ...(retomada ? {} : camposAoEntrarNaFase(data, novaFase.id)), ...ef.campos, ...camposDaEspera(data, faseSai, novaFase) } : {}),
+                ...(novaFase ? { fase_atual: novaFase.id, ...(comoEstava ? {} : camposAoEntrarNaFase(data, novaFase.id)), ...ef.campos, ...camposDaEspera(data, faseSai, novaFase) } : {}),
+                ...(pc ? marcarCorrecao(false) : novaFase?.espera ? {} : reenviarCorrigidas(destino)),
                 orientacao: orientacao
                     ? { texto: orientacao, por: c.userName, em: new Date().toISOString(), de: nomeUnidade(c, data.unidade_atual) }
                     : FieldValue.delete(),
             });
             recebeu = { unidadeId: destino.id, proc: data };
             const depois = { ...data, ...ef.campos, unidade_atual: destino.id, responsavel_uid: 'responsavel_uid' in ef.campos ? ef.campos.responsavel_uid : responsavelDeVolta };
-            if (novaFase && !retomada) entrou = { fase: novaFase, unidadeId: destino.id, proc: depois, remessa: true };
+            if (novaFase && !comoEstava) entrou = { fase: novaFase, unidadeId: destino.id, proc: depois, remessa: true };
             if (efFase.pendencia) pendenciaAberta = { proc: depois, descricao: efFase.pendencia };
             return mov;
         }
@@ -1960,6 +2048,7 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
                 alvo ? `Atribuído a ${nomeAlvo}.` : 'Atribuição removida.', { responsavel_uid: alvo, ...marcasNaFase(data, 'atribuicao') });
             const mi = registrarInternos(tx, c, ref, { ...data, ...mov }, sit.notas);
             tx.update(ref, { ...mov, ...mi, responsavel_uid: alvo });
+            seguirAoAssumir = !!alvo && faseAtual?.segue_ao_assumir === true && !opcoes.automatico;
             return { ...mov, ...mi };
         }
 
@@ -1974,24 +2063,26 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
                 throw new HttpsError('failed-precondition', 'A fase está interrompida por pendência aberta. O decisor precisa apreciá-la antes.');
             }
             // Sair do fluxo desenhado no rito é permitido, mas exige justificativa.
-            const foraDoFluxo = !saidasDoProcesso(data).some((f) => f.id === alvo.id);
+            // Devolução para correção: voltar à fase em que a minuta foi redigida é caminho previsto, e a fase é retomada como estava.
+            const foraDoFluxo = !pc && !saidasDoProcesso(data).some((f) => f.id === alvo.id);
             const faseSai = fases.find((f) => f.id === data.fase_atual);
             const retomada = ehRetomada(data, faseSai, alvo);
+            const comoEstava = retomada || !!pc;
             exigirSaida(c, data, faseSai, alvo, foraDoFluxo || !!foraDaCondicao(data, alvo.id));
             if (foraDoFluxo && !motivo) throw new HttpsError('invalid-argument', `${alvo.nome} não é a próxima fase prevista no rito. Informe o motivo.`);
             const contraCondicao = foraDoFluxo ? null : foraDaCondicao(data, alvo.id);
             if (contraCondicao && !motivo) throw new HttpsError('invalid-argument', `O rito leva a ${alvo.nome} quando ${contraCondicao}. Informe o motivo para seguir por ela.`);
             const de = fases.find((f) => f.id === data.fase_atual)?.nome || data.fase_atual;
             // Ir para a espera não conclui a fase: o que falta nela fica para a volta, sem dispensa.
-            const dispensadas = alvo.espera ? [] : dispensarExigencias(c, data, motivo, formAtual);
+            const dispensadas = alvo.espera || pc ? [] : dispensarExigencias(c, data, motivo, formAtual);
             // A fase pode designar o responsável entre os lotados na unidade que tem o processo.
-            const designacao = retomada ? null : await designadoPelaFase(c, alvo, c.unidades.find((u) => u.id === data.unidade_atual));
+            const designacao = comoEstava ? null : await designadoPelaFase(c, alvo, c.unidades.find((u) => u.id === data.unidade_atual));
             const destinoMov = dispensadas.length ? 'autos' : destinoDoMovimento(fases, data.fase_atual, alvo.id);
             // Certidão conjunta: sair do grupo emite a pendente; mudar dentro dele pode virar item dela
             // (nunca com dispensa, que vai aos autos, nem quando as duas fases pedem "sem evento").
             // Motivo longo não se resume numa certidão conjunta: a mudança tem termo próprio.
             const grupo = grupoDe(alvo);
-            const descricao = `Fase alterada de ${de} para ${alvo.nome}${marcaEspera(retomada, alvo)}${foraDoFluxo ? ' (fora do fluxo do rito)' : contraCondicao ? ' (sem a resposta que o rito pede para esta saída)' : ''}.${textoDispensa(dispensadas)}${motivo ? ` ${motivo}` : ''}${textoAuto}`;
+            const descricao = `Fase alterada de ${de} para ${alvo.nome}${marcaEspera(retomada, alvo)}${foraDoFluxo ? ' (fora do fluxo do rito)' : contraCondicao ? ' (sem a resposta que o rito pede para esta saída)' : ''}.${pc ? ' Devolução para correção de minuta.' : ''}${textoDispensa(dispensadas)}${motivo ? ` ${motivo}` : ''}${textoAuto}`;
             // A fase de destino pode arquivar ao entrar: a certidão pendente sai antes e a mudança tem termo próprio.
             const arquiva = alvo.ao_entrar?.arquivar === true;
             const junta = !arquiva && !dispensadas.length && destinoMov !== 'nenhum' && descricao.length <= MAX_ITEM_CERTIDAO && mudancaNaCertidao(fases, data.fase_atual, alvo.id);
@@ -1999,13 +2090,15 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             const em = emitirSe(arquiva || deveEmitir(fases, data.consolidacao, data.fase_atual, alvo.id) || (junta && antesDeJuntar(data, grupo, item)), tx, c, ref, data);
             if (em.proc !== data) expedidas = 2;
             // Retomada: quem respondia pelo processo continua, mesmo que a fase tire ou designe o responsável ao entrar.
-            const efFase = efeitosDaMudanca(data, String(data.fase_atual), alvo, calendario, c.userName, { retomada, designacao });
-            const sit = aplicarSituacao(tx, c, registros, alvo, ((retomada && data.responsavel_uid) || designacao?.uid) && alvo.situacao_registro?.ao_assumir ? 'ao_assumir' : 'ao_entrar', data,
-                designacao?.uid ? { uid: designacao.uid, nome: designacao.nome || '' } : undefined);
+            const efFase = efeitosDaMudanca(data, String(data.fase_atual), alvo, calendario, c.userName, { retomada: comoEstava, designacao });
+            // Quem responde pelo processo ao entrar: na correção, quem redigiu a minuta; ao assumir, quem assumiu.
+            const comResponsavel = pc ? pc.responsavel_uid : ((retomada || opcoes.assumiu) && data.responsavel_uid) || designacao?.uid;
+            const sit = aplicarSituacao(tx, c, registros, alvo, comResponsavel && alvo.situacao_registro?.ao_assumir ? 'ao_assumir' : 'ao_entrar', data,
+                designacao?.uid ? { uid: designacao.uid, nome: designacao.nome || '' } : pc?.responsavel_uid ? { uid: pc.responsavel_uid, nome: pc.autor } : undefined);
             registroArquivado = sit.arquivou;
-            const ef = { ...efFase, interno: [...efFase.interno, ...sit.notas] };
+            const ef = { ...efFase, interno: [...efFase.interno, ...sit.notas, ...notaCorrecao] };
             const mov = registrarMovimento(tx, c, ref, em.proc, 'fase', `${descricao}${junta ? ' Entra na certidão conjunta.' : ''}${ef.texto}`,
-                { de: data.fase_atual, para: alvo.id, ...(opcoes.automatico ? { automatico: true } : {}), ...(retomada ? { retomada: true } : {}), ...(foraDoFluxo ? { fora_do_fluxo: true } : {}), ...(contraCondicao ? { fora_da_condicao: true } : {}), ...(dispensadas.length ? { dispensadas } : {}),
+                { de: data.fase_atual, para: alvo.id, ...(opcoes.automatico ? { automatico: true } : {}), ...(retomada ? { retomada: true } : {}), ...(foraDoFluxo ? { fora_do_fluxo: true } : {}), ...(contraCondicao ? { fora_da_condicao: true } : {}), ...(dispensadas.length ? { dispensadas } : {}), ...(pc ? { correcao_minuta: pc.docId } : {}),
                     ...(junta ? { consolidada: true, ...marcasDoDestino('nenhum') } : marcasDoDestino(destinoMov)) });
             const consolidacao = junta
                 ? { consolidacao: itensDepois(em.proc, grupo, { ...item, seq: Number(mov.mov_seq) }) }
@@ -2014,9 +2107,12 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             if (ef.interno.length) expedidas += 1;
             const ma = arquiva ? arquivarPelaFase(tx, c, ref, { ...em.proc, ...mov, ...mi }, alvo) : {};
             if (arquiva) expedidas += 1;
-            tx.update(ref, { ...em.mov, ...mov, ...mi, ...ma, ...consolidacao, fase_atual: alvo.id, ...(retomada ? {} : camposAoEntrarNaFase(data, alvo.id)), ...ef.campos, ...camposDaEspera(data, faseSai, alvo) });
+            tx.update(ref, {
+                ...em.mov, ...mov, ...mi, ...ma, ...consolidacao, fase_atual: alvo.id, ...(comoEstava ? {} : camposAoEntrarNaFase(data, alvo.id)), ...ef.campos, ...camposDaEspera(data, faseSai, alvo),
+                ...(pc ? { ...marcarCorrecao(false), responsavel_uid: pc.responsavel_uid } : alvo.espera ? {} : reenviarCorrigidas(c.unidades.find((u) => u.id === data.unidade_atual))),
+            });
             const depois = { ...data, ...ef.campos };
-            if (!retomada) entrou = { fase: alvo, unidadeId: String(data.unidade_atual), proc: depois, remessa: false };
+            if (!comoEstava) entrou = { fase: alvo, unidadeId: String(data.unidade_atual), proc: depois, remessa: false };
             if (efFase.pendencia) pendenciaAberta = { proc: depois, descricao: efFase.pendencia };
             return { ...mov, ...mi, ...ma };
         }
@@ -2081,6 +2177,14 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
             if (em.proc === data) throw new HttpsError('failed-precondition', 'Não há atos aguardando a certidão conjunta');
             tx.update(ref, em.mov);
             return em.mov;
+        }
+
+        if (p.action === 'devolverMinuta') {
+            // Mesma unidade e mesma fase: a minuta volta a quem a redigiu sem remessa. O registro fica só com a equipe.
+            if (!pc) throw new HttpsError('invalid-argument', 'Minuta não informada');
+            const mi = registrarInternos(tx, c, ref, data, notaCorrecao);
+            tx.update(ref, { ...mi, ...marcarCorrecao(true), ...(pc.responsavel_uid ? { responsavel_uid: pc.responsavel_uid } : {}) });
+            return mi;
         }
 
         // ---- Pendências: o que o decisor precisa apreciar --------------------
@@ -2273,7 +2377,8 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
     avisarArquivado(orgId, registroArquivado);
     const r = recebeu as { unidadeId: string; proc: admin.firestore.DocumentData } | null;
     const en = entrou as { fase: Fase; unidadeId: string; proc: admin.firestore.DocumentData; remessa: boolean } | null;
-    const recado = motivo || texto(p.orientacao, MAX_TEXTO_LONGO);
+    corrigidas.forEach((x) => void avisarMinuta(c, x.uid, x.proc, String(p.id), x.titulo, 'corrigida'));
+    const recado = pc ? `Minuta devolvida para correção (${pc.titulo}): ${pc.motivo}`.slice(0, MAX_TEXTO_LONGO) : motivo || texto(p.orientacao, MAX_TEXTO_LONGO);
     // A fase que diz quem avisar decide o aviso da entrada (inclusive nenhum); sem isso, vale o de sempre: a unidade que recebe a remessa.
     if (en?.fase.aviso?.para) void avisarEntradaNaFase(c, en.fase, en.unidadeId, en.proc, String(p.id), en.remessa, recado);
     else if (r) void avisarUnidadeRecebeu(c, r.unidadeId, r.proc, String(p.id), recado, en?.fase.aviso?.mensagem);
@@ -2288,8 +2393,8 @@ async function movimentar(c: Ctx, p: ProcRequest, opcoes: { automatico?: boolean
         }).catch(() => false) : false;
         return { success: true, version: resultado.version, link, emailEnviado: enviado };
     }
-    if (tentarAuto) {
-        const auto = await avancarSozinho(c, String(p.id));
+    if (tentarAuto || seguirAoAssumir) {
+        const auto = await avancarSozinho(c, String(p.id), seguirAoAssumir);
         if (auto) return auto;
     }
     // Obrigação encerrada, cronograma registrado ou fase nova: com tudo cumprido, a ação que espera o cronograma se cumpre.

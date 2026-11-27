@@ -6,16 +6,16 @@ import {
     Pendencia, Prazo, TIPOS_ARQUIVO_PERMITIDOS, derivados, jsonCanonico, minutaAcessivel, sha256, texto, versaoAnterior,
 } from '../shared/secretaria';
 import { sanitizeDoc } from '../shared/documento';
-import type { Fase } from '../shared/secretaria';
+import type { CorrecaoMinuta, Fase } from '../shared/secretaria';
 import { Cumpridas, camposDoCumprimento, cumpridaPelaMinuta, semCumprimentoDaMinuta, destinoDaGuarda, exigeAlgo, marcasDoDestino, pendentesDaFase, reconhecer, respostasDaFase } from '../shared/exigencias';
 import { avancarSozinho } from './processos';
 import { avisarPartesDoMovimento } from './portalAvisos';
 import { registrarLeitura } from './sessoes';
-import { avisarPedidoAssinatura, avisarPendencia } from './avisosEquipe';
+import { avisarMinuta, avisarPedidoAssinatura, avisarPendencia } from './avisosEquipe';
 import { camposDosPrazosDasAcoes } from '../shared/prazosFase';
 import { lotacoesDe, podeAgir, unidadeDecide } from '../shared/secretaria';
 import {
-    COL, REGION, calendarioDasAcoes, carregarContexto, conferirVersao, erroUsuario, exigirAuth, exigirPosse, lerProcesso, registrarInternos, registrarMovimento,
+    COL, REGION, calendarioDasAcoes, carregarContexto, conferirVersao, erroUsuario, exigirAprovar, exigirAuth, exigirPosse, lerProcesso, registrarInternos, registrarMovimento,
     comSinal,
 } from './context';
 import {
@@ -50,7 +50,7 @@ interface DocRequest {
     organizationId: string;
     processoId: string;
     action: 'criarMinuta' | 'editarMinuta' | 'upload' | 'assinar' | 'juntar' | 'guardar' | 'excluirMinuta' | 'baixar' | 'pdf' | 'pedirAssinatura' | 'versoes' | 'desentranhar' | 'semEfeito'
-        | 'paraEditor' | 'converter' | 'docx';
+        | 'paraEditor' | 'converter' | 'docx' | 'corrigida';
     /** editarMinuta de minuta assinada: quem revisa confirma que as assinaturas saem (e voltam a ser pedidas). */
     revisarAssinada?: boolean;
     /** juntar e guardar: há mais documentos a caminho (juntada em conjunto); a fase que segue sozinha espera o último. */
@@ -278,6 +278,7 @@ export const secretariaDocumento = onCall<DocRequest>(
                 tipo: texto(p.tipo, 60) || 'Documento',
                 status: 'minuta',
                 unidade_origem: proc.unidade_atual,
+                fase_id: String(proc.fase_atual || ''),
                 autor_uid: auth.uid,
                 autor_nome: c.userName,
                 criado_em: agoraIso,
@@ -376,6 +377,26 @@ export const secretariaDocumento = onCall<DocRequest>(
             });
             for (const x of repedir.pedidos) void avisarPedidoAssinatura(c, x.uid, proc, procRef.id, repedir.titulo);
             return { success: true, assinaturasRetiradas: repedir.pedidos.length };
+        }
+
+        if (p.action === 'corrigida') {
+            // A minuta foi devolvida sem remessa nem mudança de fase: quem corrigiu avisa quem pediu, e o processo volta para ele.
+            exigirPosse(c, proc);
+            const r = await c.db.runTransaction(async (tx) => {
+                const { ref, doc } = await lerDoc(tx);
+                const atual = (await tx.get(procRef)).data() || {};
+                exigirMinutaDaMinhaUnidade(doc);
+                const pedido = doc.correcao as CorrecaoMinuta | undefined;
+                if (!pedido) throw new HttpsError('failed-precondition', 'Esta minuta não está em correção');
+                const un = c.unidades.find((u) => u.id === atual.unidade_atual);
+                const volta = lotacoesDe(un || {}).some((l) => l.uid === pedido.por_uid) ? pedido.por_uid : null;
+                tx.update(ref, { correcao: FieldValue.delete(), correcao_anterior: { ...pedido, reenviada_em: agoraIso, reenviada_por: c.userName } });
+                const mi = registrarInternos(tx, c, procRef, atual, [`Minuta corrigida: ${doc.titulo}. Volta para a aprovação de ${pedido.por_nome}.`]);
+                tx.update(procRef, { ...mi, minutas_em_correcao: FieldValue.arrayRemove(ref.id), ...(volta ? { responsavel_uid: volta } : {}) });
+                return { version: mi.version, por: pedido.por_uid, titulo: String(doc.titulo || '') };
+            });
+            void avisarMinuta(c, r.por, proc, procRef.id, r.titulo, 'corrigida');
+            return { success: true, version: r.version };
         }
 
         if (p.action === 'excluirMinuta') {
@@ -497,6 +518,8 @@ export const secretariaDocumento = onCall<DocRequest>(
             const { doc: antes } = await lerDoc();
             exigirMinutaDaMinhaUnidade(antes);
             exigirPosse(c, proc);
+            // Petição da parte entra por ato de secretaria; o que o órgão produz, a fase pode reservar a quem decide.
+            if (!antes.peticao) exigirAprovar(c, proc);
             const bucket = admin.storage().bucket();
             let paginas = Number(antes.paginas) || 0;
             let pdf: { path: string; sha256: string } | null = null;
@@ -585,6 +608,8 @@ export const secretariaDocumento = onCall<DocRequest>(
             });
             void avisarPartesDoMovimento(c.db, procRef.id, undefined, 1 + r.internos);
             if (p.pendencia === 'sim' || p.pendencia === 'interrompe') void avisarPendencia(c, proc, procRef.id, `Apreciar o documento nº ${r.ordem}: ${antes.titulo}`);
+            // Minuta de outra pessoa aprovada (juntada): quem a redigiu fica sabendo.
+            if (antes.autor_uid && antes.autor_uid !== auth.uid && !antes.peticao) void avisarMinuta(c, String(antes.autor_uid), proc, procRef.id, String(antes.titulo || ''), 'aprovada');
             const { tentar, internos: _i, ...feito } = r;
             return comAvanco(feito, tentar);
         }

@@ -7,6 +7,8 @@ exports.lotadosDaUnidade = lotadosDaUnidade;
 exports.avisarUnidadeRecebeu = avisarUnidadeRecebeu;
 exports.avisarEntradaNaFase = avisarEntradaNaFase;
 exports.avisarPedidoAssinatura = avisarPedidoAssinatura;
+exports.avisarCorrecaoMinuta = avisarCorrecaoMinuta;
+exports.avisarMinuta = avisarMinuta;
 exports.avisarPendencia = avisarPendencia;
 exports.avisarPeticao = avisarPeticao;
 exports.enviarResumosDiarios = enviarResumosDiarios;
@@ -147,6 +149,25 @@ async function avisarPedidoAssinatura(c, uid, proc, procId, titulo) {
         mensagem: `${c.userName} pediu sua assinatura no processo ${proc.numero}`,
         html: `<p>${escapar(c.userName)} pediu a sua assinatura em <b>${escapar(titulo)}</b>, minuta do processo <b>${escapar(String(proc.numero))}</b>. Assine em Minutas da unidade.</p>`,
     });
+}
+/** Quem decide devolveu a minuta para correção: avisa quem a redigiu, com o que corrigir. */
+async function avisarCorrecaoMinuta(c, uid, proc, procId, titulo, motivo) {
+    await notificarPessoas(c.db, c.orgId, semPartes(proc, [uid]), {
+        subtipo: 'recebido', procId,
+        titulo: `Minuta devolvida para correção: ${titulo}`,
+        mensagem: `${c.userName}, no processo ${proc.numero}: ${motivo}`.slice(0, 300),
+        html: `<p>${escapar(c.userName)} devolveu para correção a minuta <b>${escapar(titulo)}</b>, do processo <b>${escapar(String(proc.numero))}</b>.</p>${citacao(motivo)}<p>Abra o processo, corrija a minuta e envie de novo para a aprovação.</p>`,
+    }, c.ctx.uid);
+}
+/** A minuta foi aprovada (juntada aos autos) ou voltou corrigida: avisa quem a redigiu ou quem pediu a correção. */
+async function avisarMinuta(c, uid, proc, procId, titulo, oQue) {
+    const frase = oQue === 'aprovada' ? 'aprovou e juntou aos autos a minuta' : 'corrigiu e devolveu para a sua aprovação a minuta';
+    await notificarPessoas(c.db, c.orgId, semPartes(proc, [uid]), {
+        subtipo: 'recebido', procId,
+        titulo: `Minuta ${oQue}: ${titulo}`,
+        mensagem: `${c.userName} ${frase} no processo ${proc.numero}`,
+        html: `<p>${escapar(c.userName)} ${frase} <b>${escapar(titulo)}</b>, no processo <b>${escapar(String(proc.numero))}</b>.</p>`,
+    }, c.ctx.uid);
 }
 /** Pendência aberta num processo que está com o gabinete: avisa quem decide. */
 async function avisarPendencia(c, proc, procId, descricao) {
