@@ -806,6 +806,38 @@ configuração.
   atalhos da Ajuda e do Guia) cai nas abas, e não no topo do Painel
   Administrativo.
 
+**Terceira rodada (27/11/2026).** Percorridos a configuração (editor de rito,
+editor de tipo, documentos e modelos, unidades, calendário, Guia do rito),
+Sessões e reuniões, a pauta, a janela de julgamento, a designação e a sala de
+audiência e a disputa de preços (montagem e aviso publicado).
+
+- Editor de rito no celular (`PropostaRito.jsx`): o cabeçalho cabe numa linha
+  (o nome corta com reticências) e o rodapé caiu de cinco linhas para duas:
+  Excluir e Substituir fases viram ícones (com nome para leitor de tela e
+  `title`), e o resumo "Será salvo como versão N" fica ao lado de Salvar. O
+  aviso "Rascunho salvo neste navegador" some no celular (segue na tela larga).
+- Tipos de processo: a descrição do tipo no cartão corta em três linhas (o
+  texto inteiro fica no `title` e no editor). Um tipo vindo da biblioteca
+  trazia um parágrafo de vinte linhas no cartão.
+- Papel timbrado: a prévia da folha se ajusta à largura da coluna
+  (`ResizeObserver`, de 20% a 50%); com 50% fixo, a margem direita da folha
+  ficava cortada em telas de notebook.
+- Ações da fase (`AcoesNoProcesso.jsx`): no celular o texto da ação ocupa a
+  linha inteira e os botões (Designar, Registrar, Desfazer, Montar a disputa)
+  descem alinhados ao texto; antes o texto se espremia numa coluna estreita.
+- Janela de registrar a ação: na audiência, a linha "Para registrar, informe a
+  data, a hora e o local" diz o que falta enquanto o botão está apagado; depois
+  de preenchida, a janela não fecha com clique fora (fecha por Cancelar, X ou
+  Esc).
+- Pauta da sessão (`Sessoes.jsx`) no celular: o número e o assunto ocupam a
+  linha e os botões descem; Chamar e Julgamento ganham o nome ao lado do ícone.
+- Disputa de preços: no celular, Unidade e Quantidade (e Valor e Lote) ficam
+  lado a lado em cada item.
+
+Não percorridos nesta rodada: a sala de lances com fornecedores e lances em
+curso, o julgamento da disputa, a votação com relator e votos lançados e a
+reunião com assuntos em votação (pedem várias contas agindo ao mesmo tempo).
+
 ## Registro nos autos e documentos exigidos (nov/2026)
 
 Quem monta o rito decide, fase a fase, o que vira ato dos autos e que
