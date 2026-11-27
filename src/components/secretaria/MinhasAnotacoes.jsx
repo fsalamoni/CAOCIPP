@@ -40,7 +40,7 @@ export default function MinhasAnotacoes({ orgId, procId }) {
             {aberta && (
                 <div id="anot-corpo" className="px-4 pb-4 space-y-2">
                     <p className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-1"><Lock className="w-3.5 h-3.5" aria-hidden /> Só você vê. Não vai aos autos nem às partes, e ninguém da equipe ou da administração lê pela plataforma.</p>
-                    {q.isLoading ? <p className="text-sm text-slate-600 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> Carregando…</p> : (
+                    {q.isLoading ? <p className="text-sm text-slate-600 dark:text-slate-400 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> Carregando…</p> : (
                         <>
                             <Textarea rows={5} maxLength={20000} value={texto} onChange={(e) => setTexto(e.target.value)} aria-label="Minhas anotações sobre este processo"
                                 placeholder="Pontos para o voto, dúvidas para a sessão, folhas a reler…" />

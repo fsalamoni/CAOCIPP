@@ -199,12 +199,12 @@ export default function CapaProcesso({ p, movimentos, informacoes = [], estado, 
                 <Bloco titulo={`Partes (${ativas.length})`}>
                     {partes.length
                         ? <ul className="divide-y divide-slate-100 dark:divide-slate-800">{partes.map((x, i) => <Parte key={i} x={x} nomes={p.nomes_polos} />)}</ul>
-                        : <p className="text-sm text-slate-600">Nenhuma parte cadastrada.</p>}
+                        : <p className="text-sm text-slate-600 dark:text-slate-400">Nenhuma parte cadastrada.</p>}
                 </Bloco>
             </div>
 
             <Bloco titulo="Cronologia dos autos">
-                {atos.length === 0 && <p className="text-sm text-slate-600">Nenhum ato registrado nos autos.</p>}
+                {atos.length === 0 && <p className="text-sm text-slate-600 dark:text-slate-400">Nenhum ato registrado nos autos.</p>}
                 <ol className="space-y-3">
                     {atos.map((m) => (
                         <li key={m.seq} className="border-l-2 border-indigo-200 dark:border-indigo-800 pl-3">

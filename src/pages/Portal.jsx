@@ -123,7 +123,7 @@ export default function Portal() {
 }
 
 function Carregando({ texto }) {
-    return <div className="py-10 flex gap-2 items-center text-slate-600" role="status"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> {texto}</div>;
+    return <div className="py-10 flex gap-2 items-center text-slate-600 dark:text-slate-400" role="status"><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> {texto}</div>;
 }
 
 /** Preferência de avisos por e-mail da conta. */
@@ -261,7 +261,7 @@ export function Entrar({ convite, titulo, texto }) {
                             {modo === 'criar' && <div><Label htmlFor="pt-nome">Nome</Label><Input id="pt-nome" value={nome} onChange={(e) => setNome(e.target.value)} autoComplete="name" /></div>}
                             <div><Label htmlFor="pt-email">E-mail</Label><Input id="pt-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" inputMode="email" /></div>
                             {modo !== 'link' && <div><Label htmlFor="pt-senha">Senha</Label><Input id="pt-senha" type="password" required minLength={6} value={senha} onChange={(e) => setSenha(e.target.value)} autoComplete={modo === 'criar' ? 'new-password' : 'current-password'} /></div>}
-                            {modo === 'link' && <p className="text-xs text-slate-600">{pedirEmailDoLink ? 'Confirme o e-mail que recebeu o link para concluir o acesso.' : 'Você recebe um link por e-mail e entra sem senha.'}</p>}
+                            {modo === 'link' && <p className="text-xs text-slate-600 dark:text-slate-400">{pedirEmailDoLink ? 'Confirme o e-mail que recebeu o link para concluir o acesso.' : 'Você recebe um link por e-mail e entra sem senha.'}</p>}
                             <Button type="submit" className="w-full" disabled={ocupado}>
                                 {ocupado && <Loader2 className="w-4 h-4 animate-spin mr-2" aria-hidden />}{modo === 'criar' ? 'Criar conta' : modo === 'link' ? (pedirEmailDoLink ? 'Concluir acesso' : 'Enviar link de acesso') : 'Entrar'}
                             </Button>
@@ -275,7 +275,7 @@ export function Entrar({ convite, titulo, texto }) {
                     </div>
                 </CardContent>
             </Card>
-            <p className="text-xs text-slate-600 text-center">Convite vencido ou não recebido? Peça um novo à secretaria do órgão que conduz o processo.</p>
+            <p className="text-xs text-slate-600 dark:text-slate-400 text-center">Convite vencido ou não recebido? Peça um novo à secretaria do órgão que conduz o processo.</p>
         </div>
     );
 }
@@ -360,10 +360,10 @@ function MeusProcessos({ onAbrir }) {
                 </CardContent></Card>
             )}
             {souRepresentante && lista.length > 0 && <p className="text-xs text-slate-600 dark:text-slate-400">Em alguns processos você atua como representante: o que você protocolar sai em nome da parte, assinado por você.</p>}
-            {filtrada.length === 0 && lista.length > 0 && <p className="text-sm text-slate-600">Nenhum processo com esse filtro.</p>}
+            {filtrada.length === 0 && lista.length > 0 && <p className="text-sm text-slate-600 dark:text-slate-400">Nenhum processo com esse filtro.</p>}
             {grupos.map(([orgao, ps]) => (
                 <section key={orgao || 'todos'} aria-label={orgao ? `Processos em ${orgao}` : undefined} className="space-y-3">
-                    {orgao && <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200 pt-1"><Building2 className="w-4 h-4 text-indigo-600" aria-hidden /> {orgao} <span className="font-normal text-slate-500">· {ps.length}</span></h2>}
+                    {orgao && <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200 pt-1"><Building2 className="w-4 h-4 text-indigo-600" aria-hidden /> {orgao} <span className="font-normal text-slate-500 dark:text-slate-400">· {ps.length}</span></h2>}
                     <ul className="space-y-3">
                         {ps.map((p) => (
                             <li key={p.id}>
@@ -374,11 +374,11 @@ function MeusProcessos({ onAbrir }) {
                                         <Badge variant="secondary">{STATUS_ROTULO[p.status] || p.status}</Badge>
                                         {p.novidades && <Badge className="bg-indigo-600 hover:bg-indigo-600">Novidades</Badge>}
                                         {p.como === 'representante' && <Badge variant="outline">Representante</Badge>}
-                                        {!orgao && <span className="text-xs text-slate-600">{p.orgao}</span>}
+                                        {!orgao && <span className="text-xs text-slate-600 dark:text-slate-400">{p.orgao}</span>}
                                     </div>
                                     <p className="font-medium mt-1">{p.assunto}</p>
-                                    <p className="text-xs text-slate-600 mt-1">{fraseQuem(p)} · em: {p.fase_nome}</p>
-                                    {p.ultimo_movimento && <p className="text-xs text-slate-600 mt-1 truncate">{dataHora(p.ultimo_movimento.em)} · {p.ultimo_movimento.descricao}</p>}
+                                    <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">{fraseQuem(p)} · em: {p.fase_nome}</p>
+                                    {p.ultimo_movimento && <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 truncate">{dataHora(p.ultimo_movimento.em)} · {p.ultimo_movimento.descricao}</p>}
                                 </button>
                             </li>
                         ))}
@@ -491,8 +491,8 @@ function ProcessoParte({ id, onVoltar }) {
                 <details>
                     <summary className="cursor-pointer px-4 py-3 text-sm">
                         Em que ponto está: <b>{p.fase_nome}</b>
-                        {faltam != null && faltam > 0 && <span className="text-slate-600"> · {faltam === 1 ? 'falta 1 etapa' : `faltam ${faltam} etapas`} até o fim</span>}
-                        {faltam === 0 && <span className="text-slate-600"> · etapa final</span>}
+                        {faltam != null && faltam > 0 && <span className="text-slate-600 dark:text-slate-400"> · {faltam === 1 ? 'falta 1 etapa' : `faltam ${faltam} etapas`} até o fim</span>}
+                        {faltam === 0 && <span className="text-slate-600 dark:text-slate-400"> · etapa final</span>}
                         {p.fases?.length > 1 && <span className="text-indigo-700 dark:text-indigo-300"> (ver o caminho completo)</span>}
                     </summary>
                     {p.fases?.length > 1 && <div className="px-4 pb-4"><FluxoRito fases={p.fases} atual={p.fase_atual} /></div>}
@@ -588,14 +588,14 @@ function ProcessoParte({ id, onVoltar }) {
                             {documentos.length > 0 && <Button size="sm" variant="outline" className="gap-1" onClick={() => setLeitura(documentos[0].id)}><BookOpen className="w-4 h-4" aria-hidden /> Ler em sequência</Button>}
                         </CardHeader>
                         <CardContent className="space-y-1">
-                            {documentos.length === 0 && <p className="text-sm text-slate-600">Nenhum documento disponível ainda.</p>}
+                            {documentos.length === 0 && <p className="text-sm text-slate-600 dark:text-slate-400">Nenhum documento disponível ainda.</p>}
                             {documentos.map((d) => (
                                 <div key={d.id} className="flex items-center gap-3 py-2 border-b last:border-0 border-slate-100 dark:border-slate-800">
-                                    <span className="font-mono text-xs w-8 text-slate-600">{d.ordem}</span>
+                                    <span className="font-mono text-xs w-8 text-slate-600 dark:text-slate-400">{d.ordem}</span>
                                     <div className="flex-1 min-w-0">
                                         {d.desentranhado && <p className="text-xs text-rose-800 dark:text-rose-200">Desentranhado dos autos em {dataHora(d.desentranhado.em)}. Motivo: {d.desentranhado.motivo}</p>}
                                         <button type="button" className={`font-medium truncate block max-w-full text-left hover:underline ${d.desentranhado ? 'line-through decoration-slate-400' : ''}`} onClick={() => setLeitura(d.id)}>{d.titulo}{d.novo && <span className="ml-2 inline-block w-2 h-2 rounded-full bg-indigo-500 align-middle" aria-label="novo" />}</button>
-                                        <p className="text-xs text-slate-600">{[d.tipo, d.folha_inicial ? (d.folha_final > d.folha_inicial ? `fls. ${d.folha_inicial}–${d.folha_final}` : `fl. ${d.folha_inicial}`) : null, dataHora(d.juntado_em)].filter(Boolean).join(' · ')}</p>
+                                        <p className="text-xs text-slate-600 dark:text-slate-400">{[d.tipo, d.folha_inicial ? (d.folha_final > d.folha_inicial ? `fls. ${d.folha_inicial}–${d.folha_final}` : `fl. ${d.folha_inicial}`) : null, dataHora(d.juntado_em)].filter(Boolean).join(' · ')}</p>
                                     </div>
                                     {d.codigo_verificacao && (
                                         <Button variant="ghost" size="sm" title="Copiar o link de conferência pública deste documento" aria-label={`Copiar link de conferência de ${d.titulo}`}
@@ -621,8 +621,8 @@ function ProcessoParte({ id, onVoltar }) {
                                 {[...peticoes].reverse().map((x) => (
                                     <div key={x.id} className="flex flex-wrap items-center gap-2 py-1.5 border-b last:border-0 border-slate-100 dark:border-slate-800">
                                         <div className="flex-1 min-w-[10rem]">
-                                            <p className="font-medium">{x.titulo}{x.tipo_peticao ? <span className="font-normal text-slate-600"> · {x.tipo_peticao}</span> : null}</p>
-                                            <p className="text-xs text-slate-600">Protocolo {x.protocolo} · {dataHora(x.em)}</p>
+                                            <p className="font-medium">{x.titulo}{x.tipo_peticao ? <span className="font-normal text-slate-600 dark:text-slate-400"> · {x.tipo_peticao}</span> : null}</p>
+                                            <p className="text-xs text-slate-600 dark:text-slate-400">Protocolo {x.protocolo} · {dataHora(x.em)}</p>
                                             {x.situacao === 'apreciada' && x.resolucao && <p className="text-xs mt-1 rounded bg-slate-50 dark:bg-slate-800 px-2 py-1"><b>Decisão</b>{x.apreciada_em ? ` em ${dataHora(x.apreciada_em)}` : ''}: {x.resolucao}</p>}
                                         </div>
                                         <Badge variant={x.situacao === 'aguardando' ? 'outline' : 'secondary'}>{x.situacao === 'aguardando' ? 'Aguardando apreciação' : x.situacao === 'apreciada' ? 'Apreciada' : 'Nos autos'}</Badge>
@@ -643,7 +643,7 @@ function ProcessoParte({ id, onVoltar }) {
                         <ol className="space-y-3">
                             {[...movimentos].reverse().slice(0, 6).map((m) => (
                                 <li key={m.seq} className={`border-l-2 pl-3 ${m.novo ? 'border-indigo-500' : 'border-slate-200 dark:border-slate-700'}`}>
-                                    <div className="text-xs text-slate-600 flex items-center gap-1.5"><Icone tipo={m.tipo} /> {dataHora(m.em)} · {m.autor_nome}{m.novo && <Badge className="ml-1 bg-indigo-600 hover:bg-indigo-600 text-[10px] px-1.5 py-0">novo</Badge>}</div>
+                                    <div className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-1.5"><Icone tipo={m.tipo} /> {dataHora(m.em)} · {m.autor_nome}{m.novo && <Badge className="ml-1 bg-indigo-600 hover:bg-indigo-600 text-[10px] px-1.5 py-0">novo</Badge>}</div>
                                     <p className="text-sm">{m.descricao}</p>
                                 </li>
                             ))}
@@ -846,7 +846,7 @@ function Peticionar({ id, prazos, tipos = [], prazoInicial, aviso, reservada, on
                     <Label htmlFor="pt-foto" className="mt-2 inline-flex items-center gap-1 text-sm font-normal text-indigo-700 dark:text-indigo-300 cursor-pointer sm:hidden"><Camera className="w-4 h-4" aria-hidden /> Fotografar um documento</Label>
                     <input id="pt-foto" type="file" accept="image/*" capture="environment" className="sr-only" onChange={(e) => setArquivo(e.target.files?.[0] || null)} />
                 </div>
-                <p className="text-xs text-slate-600">Sua manifestação entra nos autos na hora, com seu nome, data e hora, e vai para quem decide. {rascunho && !protocolo ? 'Rascunho recuperado deste aparelho.' : 'O que você escreve fica salvo neste aparelho até protocolar.'}</p>
+                <p className="text-xs text-slate-600 dark:text-slate-400">Sua manifestação entra nos autos na hora, com seu nome, data e hora, e vai para quem decide. {rascunho && !protocolo ? 'Rascunho recuperado deste aparelho.' : 'O que você escreve fica salvo neste aparelho até protocolar.'}</p>
                 <Button disabled={ocupado} onClick={enviar} className="gap-2 w-full sm:w-auto">
                     {ocupado ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <Send className="w-4 h-4" aria-hidden />} Protocolar
                 </Button>

@@ -153,7 +153,7 @@ export default function RedacaoDocumento({ aberto, inicial, estado, orgId, unida
                     <DialogTitle className="sr-only">{leitura ? titulo : docId ? 'Editar minuta' : 'Nova minuta'}</DialogTitle>
                     <DialogDescription className="sr-only">Editor de documento do processo</DialogDescription>
                     {leitura ? (
-                        <p className="font-medium flex-1 min-w-0 truncate">{titulo} <span className="text-sm font-normal text-slate-600">· {tipo}</span></p>
+                        <p className="font-medium flex-1 min-w-0 truncate">{titulo} <span className="text-sm font-normal text-slate-600 dark:text-slate-400">· {tipo}</span></p>
                     ) : (
                         <>
                             <Input aria-label="Título do documento" placeholder="Título do documento" value={titulo} onChange={(e) => { setTitulo(e.target.value); setSujo(true); }} className="h-9 flex-1 min-w-[12rem]" />

@@ -80,7 +80,7 @@ export default function LeitorAutos({ documentos, abertoId, onFechar, carregar, 
                         <DialogTitle className="text-base truncate">{doc ? `${prefixo} ${doc.ordem} · ${doc.titulo}` : titulo || 'Autos'}</DialogTitle>
                         <DialogDescription className="text-xs truncate">{doc ? [doc.tipo, folhas(doc), dataHora(doc.juntado_em)].filter(Boolean).join(' · ') : 'Leitura dos documentos dos autos'}</DialogDescription>
                     </div>
-                    <span className="hidden sm:inline text-xs text-slate-600 tabular-nums">{idx + 1} de {documentos.length}</span>
+                    <span className="hidden sm:inline text-xs text-slate-600 dark:text-slate-400 tabular-nums">{idx + 1} de {documentos.length}</span>
                     <Button size="sm" variant="outline" disabled={idx <= 0} onClick={() => ir(idx - 1)} aria-label="Documento anterior"><ChevronLeft className="w-4 h-4" /></Button>
                     <Button size="sm" variant="outline" disabled={idx >= documentos.length - 1} onClick={() => ir(idx + 1)} aria-label="Próximo documento"><ChevronRight className="w-4 h-4" /></Button>
                     {doc && pdf && (
@@ -96,18 +96,18 @@ export default function LeitorAutos({ documentos, abertoId, onFechar, carregar, 
                                     <button type="button" onClick={() => ir(i)} aria-current={d.id === atual ? 'true' : undefined}
                                         className={`w-full text-left px-3 py-2 border-b border-slate-100 dark:border-slate-800 text-sm ${d.id === atual ? 'bg-indigo-50 dark:bg-indigo-950' : 'hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
                                         <span className="flex items-baseline gap-2">
-                                            <span className="font-mono text-xs text-slate-600 w-6 shrink-0">{d.ordem}</span>
+                                            <span className="font-mono text-xs text-slate-600 dark:text-slate-400 w-6 shrink-0">{d.ordem}</span>
                                             <span className={`flex-1 min-w-0 truncate ${chaveLido && !lidos.has(d.id) ? 'font-medium' : 'text-slate-700 dark:text-slate-300'}`}>{d.titulo}</span>
                                             {chaveLido && !lidos.has(d.id) && <span className="w-2 h-2 rounded-full bg-indigo-500 shrink-0" aria-label="Não lido" />}
                                         </span>
-                                        <span className="block text-xs text-slate-600 pl-8">{[d.tipo, folhas(d)].filter(Boolean).join(' · ')}</span>
+                                        <span className="block text-xs text-slate-600 dark:text-slate-400 pl-8">{[d.tipo, folhas(d)].filter(Boolean).join(' · ')}</span>
                                     </button>
                                 </li>
                             ))}
                         </ol>
                     </nav>
                     <div className="flex-1 min-w-0 bg-slate-200 dark:bg-slate-800 flex items-center justify-center">
-                        {carregando ? <p className="flex items-center gap-2 text-slate-600"><Loader2 className="w-4 h-4 animate-spin" /> Abrindo o documento…</p>
+                        {carregando ? <p className="flex items-center gap-2 text-slate-600 dark:text-slate-400"><Loader2 className="w-4 h-4 animate-spin" /> Abrindo o documento…</p>
                             : erro ? <p className="text-red-700 dark:text-red-300 p-4 text-center">{erro}</p>
                                 : pdf ? <VisorPdf fonte={pdf} titulo={doc?.titulo || 'Documento'} onBaixar={() => baixarResposta(pdf)} className="w-full h-full" /> : null}
                     </div>

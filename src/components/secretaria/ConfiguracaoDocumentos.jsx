@@ -69,7 +69,7 @@ export function PreviaFolha({ cfg }) {
                     <div className="h-2 w-1/2 bg-slate-300 rounded mx-auto" />
                     {Array.from({ length: 9 }, (_, i) => <div key={i} className="h-1.5 bg-slate-200 rounded" style={{ width: `${[100, 96, 100, 88, 100, 92, 70, 100, 60][i]}%` }} />)}
                 </div>
-                <div className="mt-auto flex justify-between text-[8px] text-slate-600 border-t border-slate-200 pt-1">
+                <div className="mt-auto flex justify-between text-[8px] text-slate-600 dark:text-slate-400 border-t border-slate-200 pt-1">
                     <span className="truncate">{cfg.rodape}</span><span className="shrink-0 ml-2">Página 1 de 1</span>
                 </div>
             </div>
@@ -138,7 +138,7 @@ export function FormTimbrado({ cfg, setCfg, idPrefixo = 'doc', orgId, unidadeId 
                     <Button type="button" size="sm" variant="outline" className="gap-1" onClick={() => brasaoRef.current?.click()}><ImagePlus className="w-4 h-4" /> {cfg.brasao ? 'Trocar brasão' : 'Enviar brasão ou logotipo'}</Button>
                     {cfg.brasao && <Button type="button" size="sm" variant="ghost" className="gap-1" onClick={() => setCfg({ ...cfg, brasao: null })}><Trash2 className="w-4 h-4" /> Remover</Button>}
                     <input ref={brasaoRef} type="file" accept="image/png,image/jpeg" className="sr-only" tabIndex={-1} onChange={escolherBrasao} />
-                    <span className="text-xs text-slate-600">PNG ou JPG, até 300 KB</span>
+                    <span className="text-xs text-slate-600 dark:text-slate-400">PNG ou JPG, até 300 KB</span>
                 </div>
                 <div><Label htmlFor={`${idPrefixo}-rodape`}>Rodapé simples</Label><Input id={`${idPrefixo}-rodape`} value={cfg.rodape} maxLength={200} onChange={(e) => setCfg({ ...cfg, rodape: e.target.value })} placeholder="Ex.: Rua …, nº … · telefone · e-mail" /></div>
                 <div className="grid grid-cols-2 gap-3">
@@ -221,7 +221,7 @@ export default function ConfiguracaoDocumentos({ orgId, estado, pedido = null, o
                     <div className="max-w-xl">
                         <Label htmlFor="doc-tipos">Tipos de documento do órgão (um por linha)</Label>
                         <Textarea id="doc-tipos" rows={6} value={tiposTexto} onChange={(e) => setTiposTexto(e.target.value)} placeholder={'Despacho\nDecisão\nCertidão\n…'} />
-                        <p className="text-xs text-slate-600 mt-1">Todas as unidades usam estes tipos; cada unidade pode somar os seus. Vazio volta à lista padrão.</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Todas as unidades usam estes tipos; cada unidade pode somar os seus. Vazio volta à lista padrão.</p>
                     </div>
                     <Button className="gap-1" disabled={salvando} onClick={salvarCfg}>{salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Salvar</Button>
                 </CardContent>
@@ -252,7 +252,7 @@ export function DocumentosDaUnidade({ orgId, estado, unidade }) {
     }, [orgId, unidade.id, estado.documento]);
 
     if (erro) return <p className="text-sm text-red-600">{erro}</p>;
-    if (!dados) return <p className="text-sm text-slate-600 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</p>;
+    if (!dados) return <p className="text-sm text-slate-600 dark:text-slate-400 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</p>;
 
     const salvar = async () => {
         setSalvando(true);
@@ -273,18 +273,18 @@ export function DocumentosDaUnidade({ orgId, estado, unidade }) {
                 <legend className="text-sm font-medium">Papel timbrado</legend>
                 <label className="flex items-start gap-2 text-sm">
                     <input type="radio" name={`timbre-${unidade.id}`} className="mt-1" checked={!dados.proprio} onChange={() => setDados({ ...dados, proprio: false })} />
-                    <span><span className="font-medium">Usar o do órgão</span><span className="block text-slate-600">{(orgao.cabecalho_linhas || []).filter(Boolean)[0] || 'Sem cabeçalho definido'}</span></span>
+                    <span><span className="font-medium">Usar o do órgão</span><span className="block text-slate-600 dark:text-slate-400">{(orgao.cabecalho_linhas || []).filter(Boolean)[0] || 'Sem cabeçalho definido'}</span></span>
                 </label>
                 <label className="flex items-start gap-2 text-sm">
                     <input type="radio" name={`timbre-${unidade.id}`} className="mt-1" checked={dados.proprio} onChange={() => setDados({ ...dados, proprio: true })} />
-                    <span><span className="font-medium">Timbrado próprio da unidade</span><span className="block text-slate-600">Para documentos redigidos por esta unidade.</span></span>
+                    <span><span className="font-medium">Timbrado próprio da unidade</span><span className="block text-slate-600 dark:text-slate-400">Para documentos redigidos por esta unidade.</span></span>
                 </label>
             </fieldset>
             {dados.proprio && <FormTimbrado cfg={dados.cfg} setCfg={(cfg) => setDados((d) => ({ ...d, cfg }))} idPrefixo={`un-${unidade.id}`} orgId={orgId} unidadeId={unidade.id} />}
             <div className="max-w-xl">
                 <Label htmlFor={`un-tipos-${unidade.id}`}>Tipos de documento próprios (um por linha)</Label>
                 <Textarea id={`un-tipos-${unidade.id}`} rows={4} value={dados.tipos} onChange={(e) => setDados({ ...dados, tipos: e.target.value })} placeholder={'Ex.: Parecer técnico\nNota de assessoria'} />
-                <p className="text-xs text-slate-600 mt-1">Somam-se aos do órgão: {(estado.documento?.tipos_documento || []).join(', ')}.</p>
+                <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">Somam-se aos do órgão: {(estado.documento?.tipos_documento || []).join(', ')}.</p>
             </div>
             <Button className="gap-1" disabled={salvando} onClick={salvar}>{salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Salvar documentos da unidade</Button>
         </div>
@@ -331,7 +331,7 @@ export function ListaModelos({ orgId, estado, unidadeId, orgaoId = null, semCart
     };
     const corpo = (
         <div className="grid md:grid-cols-2 gap-2">
-            {lista.length === 0 && <p className="text-sm text-slate-600">Nenhum modelo ainda.</p>}
+            {lista.length === 0 && <p className="text-sm text-slate-600 dark:text-slate-400">Nenhum modelo ainda.</p>}
             {lista.map((m) => (
                 <CartaoComMenu key={m.id} nome={m.nome} onEditar={() => abrirModelo(m)} onDuplicar={m.formato === 'original' ? null : () => duplicar(m)}
                     extras={m.formato === 'original' ? [] : [{ rotulo: 'Exportar para outro órgão', icone: Download, onSelect: () => exportar(m) }]}

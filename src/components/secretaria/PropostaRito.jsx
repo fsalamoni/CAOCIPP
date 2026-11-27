@@ -435,7 +435,7 @@ export default function PropostaRito({ aberto, orgId, estado, rito = null, copia
                             <label className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-8 text-center cursor-pointer border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 focus-within:ring-2 focus-within:ring-indigo-400 ${lendo ? 'opacity-60 pointer-events-none' : ''}`}>
                                 {lendo ? <Loader2 className="w-7 h-7 animate-spin text-indigo-600" aria-hidden /> : <FileUp className="w-7 h-7 text-indigo-600" aria-hidden />}
                                 <span className="font-medium">{lendo ? 'Lendo…' : 'Escolher arquivo'}</span>
-                                <span className="text-xs text-slate-600">Planilha (Excel, CSV, todas as abas), Word, PDF, Bizagi (.bpm), BPMN, XPDL, draw.io, Mermaid ou texto · até {MAX_MB} MB</span>
+                                <span className="text-xs text-slate-600 dark:text-slate-400">Planilha (Excel, CSV, todas as abas), Word, PDF, Bizagi (.bpm), BPMN, XPDL, draw.io, Mermaid ou texto · até {MAX_MB} MB</span>
                                 <input type="file" accept={ACEITOS} className="sr-only" onChange={escolher} disabled={lendo} />
                             </label>
                             <div className="grid sm:grid-cols-3 gap-3 text-xs text-slate-600 dark:text-slate-300">
@@ -750,7 +750,7 @@ function Revisao({
                         </div>
                         {fluxo.length > 0
                             ? <FluxoRito acoes fases={fluxo} atual={sel} onSelecionar={irParaFase} legenda alturaMaxima="62vh" alertas={fluxoComProblema} />
-                            : <p className="text-sm text-slate-600">Dê nome às fases para ver o fluxo.</p>}
+                            : <p className="text-sm text-slate-600 dark:text-slate-400">Dê nome às fases para ver o fluxo.</p>}
                     </section>
                 </div>
                 <div className="grid lg:grid-cols-[minmax(0,1fr)_380px] gap-4 p-4">
@@ -837,7 +837,7 @@ function Revisao({
                         )}
                         <section className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-3">
                             <h3 className="text-sm font-semibold flex items-center gap-1.5"><Building2 className="w-4 h-4" aria-hidden /> Unidades novas ({unNovas.length})</h3>
-                            {unNovas.length === 0 && <p className="text-xs text-slate-600">Todas as unidades citadas já existem no órgão.</p>}
+                            {unNovas.length === 0 && <p className="text-xs text-slate-600 dark:text-slate-400">Todas as unidades citadas já existem no órgão.</p>}
                             {unNovas.map((u) => (
                                 <div key={u.ref} className="space-y-1.5 border-t first:border-0 border-slate-100 dark:border-slate-800 pt-2 first:pt-0">
                                     <div className="flex gap-2">
@@ -857,7 +857,7 @@ function Revisao({
                         </section>
                         <section className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-3">
                             <h3 className="text-sm font-semibold flex items-center gap-1.5"><FileText className="w-4 h-4" aria-hidden /> Modelos novos ({modNovos.length})</h3>
-                            {modNovos.length === 0 && <p className="text-xs text-slate-600">Nenhum modelo novo. Documentos citados nas fases aparecem aqui.</p>}
+                            {modNovos.length === 0 && <p className="text-xs text-slate-600 dark:text-slate-400">Nenhum modelo novo. Documentos citados nas fases aparecem aqui.</p>}
                             {modNovos.map((m) => (
                                 <div key={m.ref} className="space-y-1.5 border-t first:border-0 border-slate-100 dark:border-slate-800 pt-2 first:pt-0">
                                     <div className="flex gap-2">
@@ -867,7 +867,7 @@ function Revisao({
                                             {(estado.documento?.tipos_documento || []).map((t) => <option key={t} value={t}>{t}</option>)}
                                         </select>
                                     </div>
-                                    <p className="text-xs text-slate-600">{m.unidade_ref ? `Da unidade ${nomeUnidade(m.unidade_ref)}` : 'Do órgão'} · sai com um texto-base com campos automáticos para completar.</p>
+                                    <p className="text-xs text-slate-600 dark:text-slate-400">{m.unidade_ref ? `Da unidade ${nomeUnidade(m.unidade_ref)}` : 'Do órgão'} · sai com um texto-base com campos automáticos para completar.</p>
                                     {(estado.modelos || []).length > 0 && (
                                         <select aria-label={`Usar um modelo existente no lugar de ${m.nome}`} value="" onChange={(e) => e.target.value && trocarModelo(m.ref, e.target.value)} className={`${campo} h-8 w-full text-xs`}>
                                             <option value="">Ou usar um modelo que já existe…</option>
@@ -888,9 +888,9 @@ function Revisao({
                             )}
                             {tipo.criar && tipo.cria_registro && <p className="text-xs text-emerald-800 dark:text-emerald-200">Cada processo autuado neste tipo cria um registro no painel gerado, com o número e o assunto. Para mudar, edite o tipo depois de implantar ("Criar registro na autuação").</p>}
                             {!tipo.criar && tipo.cria_registro && <p className="text-xs text-amber-900 dark:text-amber-100">O painel foi gerado, mas só recebe processos se um tipo criar o registro na autuação: marque acima para criar o tipo, ou ligue "Criar registro na autuação" num tipo existente depois de implantar.</p>}
-                            {tipo.criar && <p className="text-xs text-slate-600">Começa na unidade da primeira fase{p.fases[0]?.unidade_ref ? ` (${nomeUnidade(p.fases[0].unidade_ref)})` : ''}.</p>}
+                            {tipo.criar && <p className="text-xs text-slate-600 dark:text-slate-400">Começa na unidade da primeira fase{p.fases[0]?.unidade_ref ? ` (${nomeUnidade(p.fases[0].unidade_ref)})` : ''}.</p>}
                             {tipo.criar && tipo.formulario?.polos?.length > 0 && (
-                                <p className="text-xs text-slate-600">Já com as partes do modelo: {tipo.formulario.polos.map((x) => tipo.formulario.nomes_polos?.[x] || x).join(', ')}. Os nomes e os demais campos se ajustam depois, no próprio tipo.</p>
+                                <p className="text-xs text-slate-600 dark:text-slate-400">Já com as partes do modelo: {tipo.formulario.polos.map((x) => tipo.formulario.nomes_polos?.[x] || x).join(', ')}. Os nomes e os demais campos se ajustam depois, no próprio tipo.</p>
                             )}
                         </section>
                     </aside>
@@ -1139,7 +1139,7 @@ function Secao({ titulo, resumo, abertaDe = false, children }) {
             <summary className="flex min-h-[2.75rem] sm:min-h-[2.25rem] cursor-pointer list-none items-center gap-2 px-2.5 text-sm font-medium [&::-webkit-details-marker]:hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 rounded-md">
                 <span>{titulo}</span>
                 {resumo && <span className="min-w-0 truncate text-xs font-normal text-slate-600 dark:text-slate-300">{resumo}</span>}
-                <ChevronDown className="ml-auto w-4 h-4 shrink-0 text-slate-500 transition-transform group-open:rotate-180" aria-hidden />
+                <ChevronDown className="ml-auto w-4 h-4 shrink-0 text-slate-500 dark:text-slate-400 transition-transform group-open:rotate-180" aria-hidden />
             </summary>
             <div className="space-y-3 border-t border-slate-100 dark:border-slate-800 p-2.5">{children}</div>
         </details>
@@ -1204,7 +1204,7 @@ function CartaoFase({
                     </span>
                 </span>
                 {pendente && <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" aria-label="Tem pendência" />}
-                <ChevronDown className={`w-4 h-4 shrink-0 text-slate-500 transition-transform ${aberta ? 'rotate-180' : ''}`} aria-hidden />
+                <ChevronDown className={`w-4 h-4 shrink-0 text-slate-500 dark:text-slate-400 transition-transform ${aberta ? 'rotate-180' : ''}`} aria-hidden />
             </button>
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -1292,11 +1292,11 @@ function CartaoFase({
                 )}
                 {!f.final && !espera && (
                     <div className="space-y-1.5">
-                        {saidas.length === 0 && <p className="text-xs text-slate-600">{proxLista ? `Segue para a próxima da lista (${proxLista}).` : 'Última fase.'}</p>}
+                        {saidas.length === 0 && <p className="text-xs text-slate-600 dark:text-slate-400">{proxLista ? `Segue para a próxima da lista (${proxLista}).` : 'Última fase.'}</p>}
                         {saidas.map((id, k) => (
                             <div key={`${id}-${k}`} className="rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2 space-y-2">
                                 <div className="flex flex-wrap gap-2 items-center">
-                                    <span className="text-xs text-slate-600">→</span>
+                                    <span className="text-xs text-slate-600 dark:text-slate-400">→</span>
                                     <select aria-label="Próxima fase" value={id} onChange={(e) => setSaida(k, e.target.value)} className={`${campo} h-8 flex-1 min-w-[9rem]`}>
                                         {outras.map((x) => <option key={x.id} value={x.id}>{x.nome || '(sem nome)'}{ehEspera(fases, fases.indexOf(x)) ? ' (espera)' : ''}</option>)}
                                     </select>

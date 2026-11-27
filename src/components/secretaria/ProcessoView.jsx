@@ -119,7 +119,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
         return () => window.removeEventListener('keydown', aoTeclar);
     }, [algoAberto, podeMexer]);
 
-    if (q.isLoading) return <div className="py-8 flex gap-2 items-center text-slate-600"><Loader2 className="w-4 h-4 animate-spin" /> Carregando processo…</div>;
+    if (q.isLoading) return <div className="py-8 flex gap-2 items-center text-slate-600 dark:text-slate-400"><Loader2 className="w-4 h-4 animate-spin" /> Carregando processo…</div>;
     if (q.error?.message?.includes('Portal das partes')) {
         // Membro que é parte neste processo: aqui ele não é o órgão.
         return (
@@ -613,11 +613,11 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                 <CardHeader className="pb-2">
                     <CardTitle className="text-base flex flex-wrap items-baseline gap-x-3 gap-y-1">
                         <span>Nesta fase: {p.fase_nome}</span>
-                        {volta && <span className="text-sm font-normal text-slate-600">em espera · volta para {volta.nome}</span>}
-                        {!volta && proximas.length > 0 && <span className="text-sm font-normal text-slate-600">segue para {proximas.map((f) => f.nome).join(' ou ')}</span>}
-                        {proximas.length === 0 && <span className="text-sm font-normal text-slate-600">{faseAtual?.espera ? 'fase de espera' : 'fase final'}</span>}
-                        {faseAtual?.prazo_dias > 0 && <span className="text-sm font-normal text-slate-600">· prazo da fase: {faseAtual.prazo_dias} dias</span>}
-                        {faseAtual?.nome_publico && <span className="text-sm font-normal text-slate-600">· as partes veem "{faseAtual.nome_publico}"</span>}
+                        {volta && <span className="text-sm font-normal text-slate-600 dark:text-slate-400">em espera · volta para {volta.nome}</span>}
+                        {!volta && proximas.length > 0 && <span className="text-sm font-normal text-slate-600 dark:text-slate-400">segue para {proximas.map((f) => f.nome).join(' ou ')}</span>}
+                        {proximas.length === 0 && <span className="text-sm font-normal text-slate-600 dark:text-slate-400">{faseAtual?.espera ? 'fase de espera' : 'fase final'}</span>}
+                        {faseAtual?.prazo_dias > 0 && <span className="text-sm font-normal text-slate-600 dark:text-slate-400">· prazo da fase: {faseAtual.prazo_dias} dias</span>}
+                        {faseAtual?.nome_publico && <span className="text-sm font-normal text-slate-600 dark:text-slate-400">· as partes veem "{faseAtual.nome_publico}"</span>}
                     </CardTitle>
                     {(faseAtual?.unidade_id || faseAtual?.agente) && (
                         <p className="text-sm text-slate-600 dark:text-slate-300">
@@ -800,7 +800,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                         </ul>
                     )}
                     {!faseAtual?.acoes?.length && !modelosDaFase.length && !faseAtual?.orientacao && !exigencias.length && !camposFalta.length && (
-                        <p className="text-sm text-slate-600">O rito não detalha esta fase. {podeMexer ? 'Use Novo documento para redigir e o botão acima para seguir.' : ''}</p>
+                        <p className="text-sm text-slate-600 dark:text-slate-400">O rito não detalha esta fase. {podeMexer ? 'Use Novo documento para redigir e o botão acima para seguir.' : ''}</p>
                     )}
                     <details className="group text-sm">
                         <summary className="inline-flex cursor-pointer items-center gap-1 rounded text-indigo-700 dark:text-indigo-300 list-none hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 [&::-webkit-details-marker]:hidden"><ChevronDown className="w-4 h-4 transition-transform group-open:rotate-180" aria-hidden /><span className="group-open:hidden">Ver o fluxo do rito</span><span className="hidden group-open:inline">Ocultar o fluxo</span></summary>
@@ -832,7 +832,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                 {elaboracao && (
                                     <p className="text-sm text-slate-700 dark:text-slate-300">Fase de elaboração: redija ou anexe a minuta e os anexos. Eles entram como minuta e seguem com o processo na remessa; assinar e juntar aos autos fica com quem revisa.</p>
                                 )}
-                                {minutas.length === 0 && <p className="text-sm text-slate-600">Minutas ficam visíveis só para a sua unidade até a juntada, salvo as que seguem com o processo numa remessa.</p>}
+                                {minutas.length === 0 && <p className="text-sm text-slate-600 dark:text-slate-400">Minutas ficam visíveis só para a sua unidade até a juntada, salvo as que seguem com o processo numa remessa.</p>}
                                 {minutas.map((d) => {
                                     const assinei = d.assinaturas.some((a) => a.uid === estado.uid);
                                     const pedidoAMim = (d.assinaturas_pedidas || []).some((x) => x.uid === estado.uid) && !assinei;
@@ -932,10 +932,10 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                 </>
                               );
                             })()}
-                            {pendenciasAbertas.length === 0 && !p.prazos.some((x) => x.status === 'aberto') && <p className="text-slate-600">Nenhuma pendência ou prazo aberto.</p>}
+                            {pendenciasAbertas.length === 0 && !p.prazos.some((x) => x.status === 'aberto') && <p className="text-slate-600 dark:text-slate-400">Nenhuma pendência ou prazo aberto.</p>}
                             {noGabinete && p.pendencias.some((x) => x.status === 'resolvida') && (
                                 <details className="pt-1">
-                                    <summary className="cursor-pointer text-slate-600">Decisões anteriores ({p.pendencias.filter((x) => x.status === 'resolvida').length})</summary>
+                                    <summary className="cursor-pointer text-slate-600 dark:text-slate-400">Decisões anteriores ({p.pendencias.filter((x) => x.status === 'resolvida').length})</summary>
                                     <ul className="mt-1 space-y-1 text-xs text-slate-600 dark:text-slate-300">
                                         {p.pendencias.filter((x) => x.status === 'resolvida').map((x) => <li key={x.id}><b>{dataHora(x.resolvida_em)}</b> · {x.descricao}: {x.resolucao}</li>)}
                                     </ul>
@@ -957,7 +957,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                                 <p className="text-sm text-slate-600 dark:text-slate-400">Convide as partes e os representantes para acompanharem e peticionarem pelo portal.</p>
                             </CardHeader>
                             <CardContent className="text-sm">
-                                {p.partes.length === 0 && <p className="text-slate-600">Nenhuma parte cadastrada. Inclua partes em Mais › Corrigir dados ou retificar a autuação, se o tipo permitir.</p>}
+                                {p.partes.length === 0 && <p className="text-slate-600 dark:text-slate-400">Nenhuma parte cadastrada. Inclua partes em Mais › Corrigir dados ou retificar a autuação, se o tipo permitir.</p>}
                                 <ul className="divide-y divide-slate-100 dark:divide-slate-800">
                                     {p.partes.map((x, i) => (x.retirada ? (
                                         <li key={i} className="py-2 flex flex-wrap items-center gap-2 text-slate-600 dark:text-slate-400">
@@ -1011,10 +1011,10 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                         </div>
                     </CardHeader>
                     <CardContent className="space-y-2">
-                        {autos.length === 0 && <p className="text-sm text-slate-600">Nenhum documento juntado ainda.{podeMexer ? ' Comece por Novo documento.' : ''}</p>}
+                        {autos.length === 0 && <p className="text-sm text-slate-600 dark:text-slate-400">Nenhum documento juntado ainda.{podeMexer ? ' Comece por Novo documento.' : ''}</p>}
                         {autos.map((d) => (
                             <div key={d.id} className="-mx-2 flex flex-wrap items-center gap-x-3 gap-y-1 px-2 py-2 border-b last:border-0 border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/60">
-                                <span className="font-mono text-xs w-8 text-slate-600">{d.ordem}</span>
+                                <span className="font-mono text-xs w-8 text-slate-600 dark:text-slate-400">{d.ordem}</span>
                                 <div className="flex-1 min-w-[11rem]">
                                     <button type="button" className={`font-medium block max-w-full text-left break-words hover:underline ${d.desentranhado ? 'line-through decoration-slate-400' : ''}`} onClick={() => setLeitura(d.id)}>{d.titulo}</button>
                                     {d.desentranhado && <p className="text-xs text-rose-800 dark:text-rose-200">Desentranhado em {dataHora(d.desentranhado.em)} por {d.desentranhado.por_nome}. Motivo: {d.desentranhado.motivo}. Nos autos e no portal fica só o aviso; a equipe ainda abre o original.</p>}
@@ -1119,7 +1119,7 @@ export default function ProcessoView({ orgId, procId, estado, onVoltar }) {
                     <div className="space-y-2 text-sm">
                         <p>{linkConvite?.emailEnviado ? 'O convite foi enviado por e-mail. Você também pode copiar o link abaixo.' : 'Envie este link à parte pelo meio que preferir. Ele não será mostrado de novo.'}</p>
                         <Input readOnly value={linkConvite?.link || ''} onFocus={(e) => e.target.select()} aria-label="Link do convite" />
-                        <p className="text-xs text-slate-600">Vale por 7 dias e só pode ser aceito por uma conta. Quem aceitar vê os documentos marcados como visíveis às partes e pode peticionar.</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400">Vale por 7 dias e só pode ser aceito por uma conta. Quem aceitar vê os documentos marcados como visíveis às partes e pode peticionar.</p>
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => copiarTexto(linkConvite?.link || '', 'Link copiado')}>Copiar link</Button>
@@ -1231,7 +1231,7 @@ function NovoDocumento({ aberto, onFechar, tipos, tipoPadrao, modelosDaFase, mod
                             <div className="grid gap-2">
                                 {modelosDaFase.map((m) => (
                                     <button key={m.id} type="button" disabled={ocupado} onClick={() => onModelo(m)} className="text-left rounded-md border border-indigo-300 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-950 px-3 py-2 text-sm hover:border-indigo-500">
-                                        <span className="font-medium">{m.nome}</span>{m.tipo_documento && <span className="text-slate-600"> · {m.tipo_documento}</span>}{m.formato === 'original' && <span className="text-xs text-slate-600"> · arquivo {m.arquivo_nome}</span>}
+                                        <span className="font-medium">{m.nome}</span>{m.tipo_documento && <span className="text-slate-600 dark:text-slate-400"> · {m.tipo_documento}</span>}{m.formato === 'original' && <span className="text-xs text-slate-600 dark:text-slate-400"> · arquivo {m.arquivo_nome}</span>}
                                     </button>
                                 ))}
                             </div>
@@ -1266,7 +1266,7 @@ function ItemExigencia({ e, podeMexer, ocupado, modelo, onModelo, onNovo }) {
         return (
             <p className="flex items-start gap-2 text-sm">
                 <CheckCircle2 className="w-4 h-4 mt-0.5 text-emerald-700 dark:text-emerald-400 shrink-0" aria-hidden />
-                <span><span className="line-through text-slate-600">{e.descricao}</span> <span className="text-xs text-slate-600 dark:text-slate-400">· {e.cumprida.ordem ? `cumprido com o documento nº ${e.cumprida.ordem}` : 'cumprido com documento guardado fora dos autos'}</span></span>
+                <span><span className="line-through text-slate-600 dark:text-slate-400">{e.descricao}</span> <span className="text-xs text-slate-600 dark:text-slate-400">· {e.cumprida.ordem ? `cumprido com o documento nº ${e.cumprida.ordem}` : 'cumprido com documento guardado fora dos autos'}</span></span>
             </p>
         );
     }
@@ -1378,8 +1378,8 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
                 {acao.pendencia.documento_id && (
                     <div className="h-[50vh] rounded-md border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
                         {pdfPend?.pdf ? <VisorPdf fonte={pdfPend.pdf} titulo="Documento da pendência" onBaixar={() => baixarResposta(pdfPend.pdf)} className="w-full h-full rounded-md" />
-                            : pdfPend?.erro ? <p className="text-sm text-slate-600">Não foi possível abrir o documento.</p>
-                                : <p className="text-sm text-slate-600 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Abrindo o documento…</p>}
+                            : pdfPend?.erro ? <p className="text-sm text-slate-600 dark:text-slate-400">Não foi possível abrir o documento.</p>
+                                : <p className="text-sm text-slate-600 dark:text-slate-400 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Abrindo o documento…</p>}
                     </div>
                 )}
             </div>
@@ -1591,7 +1591,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
                 <NativeSelect label="Destino" value={destino} onChange={setValor} options={[['', 'Escolha…'], ...opcoes.map((u) => [u.id, rot(u)])]} />
                 {outroOrgao && <p className="text-sm text-indigo-800 dark:text-indigo-200">Remessa para outro órgão: de <b>{nomeOrgao(estado, orgaoAtual) || estado.orgao || 'entidade'}</b> para <b>{nomeOrgao(estado, uDest.orgao_id) || estado.orgao || 'entidade'}</b>. O termo de remessa registra os dois órgãos.</p>}
                 {uDest && (
-                    <p className="text-xs text-slate-600">
+                    <p className="text-xs text-slate-600 dark:text-slate-400">
                         {recebem.length ? `Quem recebe: ${recebem.map((m) => m.nome).join(', ')}. Serão avisados por e-mail.` : 'Atenção: ninguém está lotado nessa unidade.'}
                     </p>
                 )}
@@ -1708,7 +1708,7 @@ function AcaoDialog({ acao, onClose, ocupado, p, estado, membros, minutas = [], 
                         <div><Label htmlFor="acao-motivo">{rotuloTexto}{exigeTexto ? ' (obrigatório)' : ''}</Label><Textarea id="acao-motivo" rows={3} value={motivo} aria-required={exigeTexto || undefined} onChange={(e) => setMotivo(e.target.value)}
                             onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); confirmar(); } }} /></div>
                     )}
-                    <p className="text-xs text-slate-600">Fica registrado na linha do tempo com seu nome, data e hora.</p>
+                    <p className="text-xs text-slate-600 dark:text-slate-400">Fica registrado na linha do tempo com seu nome, data e hora.</p>
                 </div>
                 {!bloqueio && falta.length > 0 && <p id="acao-falta" role="status" className="text-xs text-amber-800 dark:text-amber-300">Para confirmar: {falta.join('; ')}.</p>}
                 <DialogFooter className="flex-row flex-wrap gap-2 max-sm:[&>button]:flex-1">

@@ -179,7 +179,7 @@ export function ExpedirComunicacao({ aberto, p, autos, faseAtual, cienciaDias, t
 
                     <fieldset>
                         <legend className="text-sm font-medium mb-1">2. A quem</legend>
-                        {!p.partes.some((x) => !x.retirada) && <p className="text-sm text-slate-600">O processo não tem partes cadastradas. Inclua as partes em Mais › Corrigir dados ou retificar a autuação.</p>}
+                        {!p.partes.some((x) => !x.retirada) && <p className="text-sm text-slate-600 dark:text-slate-400">O processo não tem partes cadastradas. Inclua as partes em Mais › Corrigir dados ou retificar a autuação.</p>}
                         <div className="space-y-1">
                             {p.partes.map((x, i) => [x, i]).filter(([x, i]) => !x.retirada && (!daAcao || daAcao.faltam.includes(i))).map(([x, i]) => (
                                 <label key={i} className={`${radio} items-center ${partes.includes(i) ? ativo : inativo}`}>

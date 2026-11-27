@@ -147,7 +147,7 @@ export function SalaLancesFornecedor({ certameId, aviso, onFim }) {
                     <summary className="text-sm font-semibold cursor-pointer">Meus lances ({d.meus.length})</summary>
                     <ul className="mt-2 space-y-0.5 text-sm">
                         {d.meus.map((l) => (
-                            <li key={l.id} className={l.excluido ? 'line-through text-slate-500' : ''}>
+                            <li key={l.id} className={l.excluido ? 'line-through text-slate-500 dark:text-slate-400' : ''}>
                                 <span className="tabular-nums text-xs text-slate-600 dark:text-slate-400">{horaBr(l.em)}</span> {d.unidades.find((u) => u.chave === l.chave)?.nome}: {valorTexto(l.valor, aviso.criterio)}
                                 {l.excluido && <span className="no-underline"> ({l.excluido.por === 'agente' ? `excluído pelo órgão: ${l.excluido.motivo}` : 'desfeito'})</span>}
                             </li>
@@ -208,7 +208,7 @@ export function SalaLancesOrgao({ orgId, procId }) {
                         {d.lances.map((l) => (
                             <li key={l.id} className="py-1 flex flex-wrap items-center gap-2">
                                 <span className="tabular-nums text-xs text-slate-600 dark:text-slate-400">{horaBr(l.em)}</span>
-                                <span className={`flex-1 min-w-[10rem] ${l.excluido ? 'line-through text-slate-500' : ''}`}>{nomeU(l.chave)} · {l.quem} · {valorTexto(l.valor, d.criterio)}</span>
+                                <span className={`flex-1 min-w-[10rem] ${l.excluido ? 'line-through text-slate-500 dark:text-slate-400' : ''}`}>{nomeU(l.chave)} · {l.quem} · {valorTexto(l.valor, d.criterio)}</span>
                                 {l.excluido && <span className="text-xs text-slate-600 dark:text-slate-400">{l.excluido.por === 'agente' ? `excluído: ${l.excluido.motivo}` : 'desfeito pelo licitante'}</span>}
                                 {d.pode.gerir && !l.excluido && <Button size="sm" variant="ghost" className="gap-1 h-7 text-rose-700 dark:text-rose-300" aria-label={`Excluir o lance ${l.seq}`} onClick={() => { setExcluir(l); setMotivo(''); }}><Ban className="w-3.5 h-3.5" aria-hidden /> Excluir</Button>}
                             </li>

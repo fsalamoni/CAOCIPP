@@ -109,7 +109,7 @@ export default function UnidadesDoUsuario({ orgId, estado }) {
                     <CardDescription>Quem trabalha em cada unidade e com que atribuição. Para atuar nos processos de uma unidade, é preciso estar lotado nela.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid md:grid-cols-2 gap-3">
-                    {ativas.length === 0 && <p className="text-sm text-slate-600">Nenhuma unidade ativa.</p>}
+                    {ativas.length === 0 && <p className="text-sm text-slate-600 dark:text-slate-400">Nenhuma unidade ativa.</p>}
                     {ativas.map((u) => {
                         const lotado = estado.minhasUnidades.includes(u.id);
                         return (
@@ -125,12 +125,12 @@ export default function UnidadesDoUsuario({ orgId, estado }) {
                                 {(u.competencias || []).length > 0 && <ul className="list-disc pl-5 text-sm text-slate-700 dark:text-slate-300">{u.competencias.map((c) => <li key={c}>{c}</li>)}</ul>}
                                 <ul className="text-sm text-slate-600 dark:text-slate-300 space-y-0.5">
                                     {(u.lotacoes || []).filter((l) => nome(l.uid)).map((l) => (
-                                        <li key={l.uid}>{nome(l.uid)}{l.atribuicao && <span className="text-slate-600"> · {l.atribuicao}</span>}{l.gestor && <span className="text-amber-700 dark:text-amber-300"> · gestão</span>}</li>
+                                        <li key={l.uid}>{nome(l.uid)}{l.atribuicao && <span className="text-slate-600 dark:text-slate-400"> · {l.atribuicao}</span>}{l.gestor && <span className="text-amber-700 dark:text-amber-300"> · gestão</span>}</li>
                                     ))}
-                                    {!(u.lotacoes || []).length && <li className="text-slate-600">Ninguém lotado</li>}
+                                    {!(u.lotacoes || []).length && <li className="text-slate-600 dark:text-slate-400">Ninguém lotado</li>}
                                 </ul>
                                 {!lotado && (u.pedi_lotacao
-                                    ? <p className="text-xs text-slate-600 flex items-center gap-1"><Check className="w-3.5 h-3.5" aria-hidden /> Pedido de lotação enviado; aguarde a gestão.</p>
+                                    ? <p className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-1"><Check className="w-3.5 h-3.5" aria-hidden /> Pedido de lotação enviado; aguarde a gestão.</p>
                                     : <Button size="sm" variant="outline" className="gap-1" onClick={() => setPedido(u)}><Send className="w-4 h-4" aria-hidden /> Pedir lotação</Button>)}
                             </div>
                         );
@@ -189,7 +189,7 @@ export function ConviteEquipe({ token }) {
                             <Button className="w-full gap-2" onClick={() => signInWithGoogle().catch(() => {})}><LogIn className="w-4 h-4" aria-hidden /> Entrar com Google</Button>
                         </>
                     )}
-                    {isAuthenticated && q.isLoading && <p className="flex items-center gap-2 text-slate-600"><Loader2 className="w-4 h-4 animate-spin" /> Conferindo o convite…</p>}
+                    {isAuthenticated && q.isLoading && <p className="flex items-center gap-2 text-slate-600 dark:text-slate-400"><Loader2 className="w-4 h-4 animate-spin" /> Conferindo o convite…</p>}
                     {isAuthenticated && q.error && <p role="alert" className="text-red-600">{q.error.message}</p>}
                     {c && !c.valido && <p role="alert" className="text-amber-800 dark:text-amber-200">{c.usado ? 'Este convite já foi usado.' : 'Este convite expirou ou foi revogado.'} Peça um novo à gestão da unidade.</p>}
                     {c && c.valido && c.email !== emailConta && (

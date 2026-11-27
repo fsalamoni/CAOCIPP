@@ -51,7 +51,7 @@ export default function PainelSecretaria({ orgId, estado, onAbrir }) {
         };
     }, [q.data, unidade]);
 
-    if (q.isLoading) return <div className="py-8 text-slate-600 flex gap-2 items-center"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>;
+    if (q.isLoading) return <div className="py-8 text-slate-600 dark:text-slate-400 flex gap-2 items-center"><Loader2 className="w-4 h-4 animate-spin" /> Carregando…</div>;
     if (q.error) return <ErroQuery q={q} />;
 
     const kpis = [
@@ -59,8 +59,8 @@ export default function PainelSecretaria({ orgId, estado, onAbrir }) {
         { rotulo: 'Com pendência para o decisor', valor: m.comPendencia, icone: AlertTriangle, cor: 'text-amber-600 dark:text-amber-400' },
         { rotulo: 'Prazos vencidos', valor: m.vencidos.length, icone: Clock, cor: 'text-red-600 dark:text-red-400' },
         { rotulo: 'Prazos em 7 dias', valor: m.semana.length, icone: CalendarClock, cor: 'text-sky-600 dark:text-sky-400' },
-        { rotulo: 'Sobrestados', valor: m.sobrestados, icone: PauseCircle, cor: 'text-slate-600' },
-        { rotulo: 'Arquivados', valor: m.arquivados, icone: Archive, cor: 'text-slate-600' },
+        { rotulo: 'Sobrestados', valor: m.sobrestados, icone: PauseCircle, cor: 'text-slate-600 dark:text-slate-400' },
+        { rotulo: 'Arquivados', valor: m.arquivados, icone: Archive, cor: 'text-slate-600 dark:text-slate-400' },
     ];
 
     return (
@@ -97,7 +97,7 @@ export default function PainelSecretaria({ orgId, estado, onAbrir }) {
                 <Card>
                     <CardHeader className="pb-2"><CardTitle className="text-base">Pendências mais antigas</CardTitle></CardHeader>
                     <CardContent>
-                        {m.pendentes.length === 0 ? <p className="text-sm text-slate-600">Nenhuma pendência aberta.</p> : (
+                        {m.pendentes.length === 0 ? <p className="text-sm text-slate-600 dark:text-slate-400">Nenhuma pendência aberta.</p> : (
                             <ul className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {m.pendentes.map((p) => (
                                     <li key={p.id}>
@@ -115,7 +115,7 @@ export default function PainelSecretaria({ orgId, estado, onAbrir }) {
                 <Card>
                     <CardHeader className="pb-2"><CardTitle className="text-base">Prazos vencidos e da semana</CardTitle></CardHeader>
                     <CardContent>
-                        {m.vencidos.length + m.semana.length === 0 ? <p className="text-sm text-slate-600">Nenhum prazo vencido ou para os próximos 7 dias.</p> : (
+                        {m.vencidos.length + m.semana.length === 0 ? <p className="text-sm text-slate-600 dark:text-slate-400">Nenhum prazo vencido ou para os próximos 7 dias.</p> : (
                             <ul className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {[...m.vencidos, ...m.semana].sort((a, b) => a.proximo_vencimento.localeCompare(b.proximo_vencimento)).slice(0, 10).map((p) => (
                                     <li key={p.id}>
@@ -147,11 +147,11 @@ function Barras({ titulo, dados }) {
         <Card>
             <CardHeader className="pb-2"><CardTitle className="text-base">{titulo}</CardTitle></CardHeader>
             <CardContent>
-                {dados.length === 0 ? <p className="text-sm text-slate-600">Sem processos em tramitação.</p> : (
+                {dados.length === 0 ? <p className="text-sm text-slate-600 dark:text-slate-400">Sem processos em tramitação.</p> : (
                     <ul className="space-y-2">
                         {dados.map(([nome, v]) => (
                             <li key={nome} className="text-sm">
-                                <div className="flex justify-between gap-2"><span className="truncate">{nome}</span><span className="tabular-nums text-slate-600">{v}</span></div>
+                                <div className="flex justify-between gap-2"><span className="truncate">{nome}</span><span className="tabular-nums text-slate-600 dark:text-slate-400">{v}</span></div>
                                 <div className="mt-1 h-2 rounded bg-slate-100 dark:bg-slate-800" aria-hidden="true">
                                     <div className="h-2 rounded bg-indigo-500 dark:bg-indigo-400" style={{ width: `${(v / max) * 100}%` }} />
                                 </div>

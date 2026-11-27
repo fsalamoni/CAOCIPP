@@ -127,7 +127,7 @@ export default function ImportarListas({ aberto, onFechar, orgId, listas, sistem
                                                 {(it.lista === 'comunicacao' || it.lista === 'audiencia') && (
                                                     <label className="flex items-center gap-1.5 text-xs" htmlFor={`imp-${i}-m`}>
                                                         <Checkbox id={`imp-${i}-m`} checked={it.m === true} onCheckedChange={(v) => muda(i, 'm', v === true ? true : undefined)} />
-                                                        Masculino{it.m_suposto && <span className="text-slate-500"> (estimado)</span>}
+                                                        Masculino{it.m_suposto && <span className="text-slate-500 dark:text-slate-400"> (estimado)</span>}
                                                     </label>
                                                 )}
                                                 {it.incluir && ruim && <Badge variant="outline" className="font-normal border-amber-400 text-amber-800 dark:text-amber-200">{AVISO[s]}</Badge>}
